@@ -63,7 +63,7 @@ test('the catalog: every component says its group, its meaning and the version i
   const names = Object.keys(catalog.components);
   assert.ok(names.length >= 40);
   for (const [name, c] of Object.entries(catalog.components)) {
-    assert.ok(['layout', 'text', 'data', 'charts', 'media', 'feedback'].includes(c.group), `${name}: group`);
+    assert.ok(['layout', 'text', 'data', 'charts', 'media', 'feedback', 'inputs', 'actions'].includes(c.group), `${name}: group`);
     assert.ok(c.means && c.means.length < 200, `${name}: means`);
     assert.ok(Number.isInteger(c.since) && c.since >= 1 && c.since <= catalog.version, `${name}: since`);
     Object.entries(c.props).forEach(([k, s]) => check(s, `${name}.${k}`));
@@ -74,7 +74,7 @@ test('the catalog: every component says its group, its meaning and the version i
   assert.equal(catalog.version, Math.max(...Object.values(catalog.components).map((c) => c.since)), 'the version is the newest since');
   assert.deepEqual(catalog.tones, ['neutral', 'good', 'warn', 'bad', 'accent']);
   assert.deepEqual(catalog.limits, { fences: 3, nodes: 200, depth: 6, bytes: 65536, points: 500, alt: 200 });
-  for (const group of ['layout', 'text', 'data', 'charts', 'media']) assert.ok(names.some((n) => catalog.components[n].group === group), group);
+  for (const group of ['layout', 'text', 'data', 'charts', 'media', 'inputs', 'actions']) assert.ok(names.some((n) => catalog.components[n].group === group), group);
   // The page blocks are the first components of the catalog (ADR 071).
   for (const block of ['hero', 'kpi', 'chart', 'status', 'callout', 'table', 'grid']) assert.ok(names.includes(block), block);
   // Sourced: every chart, table and KPI says where its numbers came from.
@@ -83,16 +83,36 @@ test('the catalog: every component says its group, its meaning and the version i
 
 test('an app that draws an older catalog shows a component that came later as one quiet unknown node', () => {
   const later = plain(catalog);
-  later.version = 2;
-  later.components.slider = { group: 'text', since: 2, means: 'A slider.', props: { label: { type: 'string', max: 40, required: true } } };
-  const src = JSON.stringify({ alt: 'A', root: { type: 'stack', children: [{ type: 'slider', label: 'Budget' }, { type: 'divider' }] } });
+  later.version = catalog.version + 1;
+  later.components.flow = { group: 'data', since: later.version, means: 'A flow.', props: { label: { type: 'string', max: 40, required: true } } };
+  const src = JSON.stringify({ alt: 'A', root: { type: 'stack', children: [{ type: 'flow', label: 'Budget' }, { type: 'divider' }] } });
   const newer = AnswerView.of(later).validate(src);
-  assert.deepEqual(plain(newer.root.children), [{ type: 'slider', label: 'Budget' }, { type: 'divider' }]);
-  const older = AnswerView.of(later, { known: 1 }).validate(src);
+  assert.deepEqual(plain(newer.root.children), [{ type: 'flow', label: 'Budget' }, { type: 'divider' }]);
+  const older = AnswerView.of(later, { known: catalog.version }).validate(src);
   assert.deepEqual(plain(older.root.children), [{ type: 'unknown' }, { type: 'divider' }]);
-  assert.deepEqual(plain(older.problems), [{ at: 'root/children/0', code: 'unknown-component', name: 'slider' }]);
+  assert.deepEqual(plain(older.problems), [{ at: 'root/children/0', code: 'unknown-component', name: 'flow' }]);
   // The catalog the app already has is what it reads with, and that is one it can read.
   assert.deepEqual(plain(AnswerView.of(catalog, { known: 99 }).validate(src).root.children[0]), { type: 'unknown' });
+  // An app that knows only wave 1 draws no input: the inputs and actions came in version 2.
+  const wave1 = AnswerView.of(catalog, { known: 1 }).validate(JSON.stringify({ alt: 'A', root: { type: 'stack', children: [{ type: 'slider', label: 'Budget' }, { type: 'button', label: 'Go' }, { type: 'divider' }] } }));
+  assert.deepEqual(plain(wave1.root.children), [{ type: 'unknown' }, { type: 'unknown' }, { type: 'divider' }]);
+});
+
+test('what a view posts as the owner\'s next message is the text the shared fixture names: a form\'s lines, a button\'s words', () => {
+  const words = require('../public/answer-text').of(view);
+  assert.ok(fixture.sends.length >= 9);
+  for (const c of fixture.sends) {
+    if ('posts' in c) assert.equal(words.form(c.view.root, c.values), c.posts, c.name);
+    if (c.presses) assert.deepEqual(Object.fromEntries(words.buttons(c.view.root).map((b) => [b.path, words.press(b.node)])), c.presses, c.name);
+  }
+  // every input of the catalog is in a case
+  const seen = new Set();
+  const walk = (n) => { if (n && typeof n === 'object') { if (typeof n.type === 'string') seen.add(n.type); Object.values(n).forEach(walk); } };
+  fixture.sends.forEach((c) => walk(c.view));
+  for (const [name, c] of Object.entries(catalog.components)) if (c.group === 'inputs' || name === 'button') assert.ok(seen.has(name), `a send case has ${name}`);
+  // a button's words are at most 200 characters: the validator cut them, and the page cuts them again
+  assert.equal(words.press({ type: 'button', label: 'Go', send: 'x'.repeat(300) }).length, 200);
+  assert.equal(words.press({ type: 'button', label: 'Go', send: '   ' }), 'Go');
 });
 
 test('a bot cannot reach what is not in the catalog through the names of a JavaScript object', () => {
@@ -104,12 +124,24 @@ test('a bot cannot reach what is not in the catalog through the names of a JavaS
   assert.equal(Object.keys(r.root).length, 2);
 });
 
-test('a view never approves: nothing in the catalog sends, runs or changes anything', () => {
+test('a view never approves: nothing in the catalog runs or changes anything, and only a button names what it sends', () => {
+  const ACTS = ['button', 'button-group', 'link', 'copy'];
+  const INPUTS = ['text-input', 'textarea', 'number', 'slider', 'range', 'select', 'multi-select', 'radio', 'checkbox', 'toggle', 'date', 'time', 'rating', 'segmented'];
   for (const [name, c] of Object.entries(catalog.components)) {
-    assert.ok(!/button|input|form|approve|send|run|script|style|css|html|embed|iframe/i.test(name), name);
+    // The inputs and actions of wave 2 are the catalog's only ones (ADR 265): they post text to the chat and nothing else.
+    if (c.group === 'inputs') assert.ok(INPUTS.includes(name), name);
+    else if (c.group === 'actions') assert.ok(ACTS.includes(name), name);
+    else assert.ok(!/button|input|form|approve|send|run|script|style|css|html|embed|iframe/i.test(name), name);
+    assert.ok(!/approve|run|script|style|css|html|embed|iframe|form\b/i.test(name), name);
     // A chart's `style` is one of its own kinds (line, bar, …), never a style of the bot's own.
-    for (const [prop, spec] of Object.entries(c.props)) assert.ok(!/^(on[A-Z]|style|css|class|html|script|href|action|send|run)/.test(prop) || (prop === 'style' && spec.type === 'enum'), `${name}.${prop}`);
+    for (const [prop, spec] of Object.entries(c.props)) {
+      assert.ok(!/^(on[A-Z]|style|css|class|html|script|href|action|run)/.test(prop) || (prop === 'style' && spec.type === 'enum'), `${name}.${prop}`);
+      if (/^send/.test(prop)) assert.ok(name === 'button' && spec.type === 'string' && spec.max === 200, `${name}.${prop}: only a button says what it sends, in at most 200 characters`);
+    }
+    // An address a view holds is an https one; nothing a view holds is a path to run.
+    if (c.group === 'actions') for (const spec of Object.values(c.props)) assert.ok(['string', 'tone', 'https'].includes(spec.type), name);
   }
+  assert.equal(catalog.components.link.props.url.type, 'https');
 });
 
 test('the module loads in a browser page too, as a global the page reads', () => {

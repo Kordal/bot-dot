@@ -9,6 +9,10 @@
 //   text.text(reply, { done })   a reply with each fence replaced by its alt and the view as Markdown
 //   text.tree(root)              one view's tree as Markdown
 //   text.data(node)              the numbers of a chart as { head, rows } of texts, or null: the Data toggle's table
+//   text.fields(root)            the inputs of a view in order: [{ path, node }], a node's path counted from "0" (children "0.0", "0.1", …)
+//   text.form(root, values)      what a form posts (ADR 265): each input's label and its value, one per line; values: path -> what the owner set
+//   text.buttons(root)           the buttons of a view: [{ path, node }]
+//   text.press(button)           what a button posts: its `send` (200 characters at most), else its label
 
 (function (root) {
 
@@ -36,9 +40,88 @@ function bins(values, wanted) {
   return out;
 }
 
+// The inputs of the catalog (wave 2): the components a form is made of.
+const INPUTS = ['text-input', 'textarea', 'number', 'slider', 'range', 'select', 'multi-select', 'radio', 'checkbox', 'toggle', 'date', 'time', 'rating', 'segmented'];
+const SEND_MAX = 200; // what a button posts, at most (the catalog's own limit)
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^\d{2}:\d{2}$/;
+const finite = (v) => { const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN; return Number.isFinite(n) ? n : null; };
+const within = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+// A text of one line: its lines are joined with " / ", its spaces collapsed.
+const oneLine = (v) => String(v ?? '').split(/\r\n?|\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' / ');
+// The ends of a slider or a range: the bot's, else 0 and 100.
+const ends = (n) => { const lo = finite(n.min) ?? 0, hi = finite(n.max) ?? 100; return hi > lo ? [lo, hi] : [0, 100]; };
+const cutText = (s, n) => { const t = String(s).slice(0, n); return /[\uD800-\uDBFF]/.test(t.charAt(t.length - 1)) ? t.slice(0, -1) : t; };
+
+// A view's nodes with the path of each, as the page counts them: the root is "0", its children "0.0", "0.1", ….
+function walk(root, kind) {
+  const out = [];
+  const go = (n, path) => {
+    if (kind(n)) out.push({ path, node: n });
+    (n.children || []).forEach((c, i) => go(c, `${path}.${i}`));
+  };
+  go(root, '0');
+  return out;
+}
+
 function of(view, opts) {
   // The page's words when it has them (tr, i18n.js, passed in); English otherwise (the server).
   const tr = (opts && opts.tr) || fill;
+
+  // What one input holds, as the page shows it and the form posts it: what the owner set (`raw`, as the page reads it from the
+  // input), else what the bot set, kept to what the input allows. A text, a number (null for none), a pair for a range, a list for
+  // a multi-select, a boolean, a grade; '' (or null) for an input with nothing.
+  function start(n, raw) {
+    const set = raw !== undefined && raw !== null;
+    const option = (v) => (n.options || []).includes(v);
+    switch (n.type) {
+      case 'text-input': case 'textarea': return String(set ? raw : n.value ?? '');
+      case 'number': {
+        let v = finite(set ? raw : n.value);
+        if (v === null) return null;
+        if (finite(n.min) !== null) v = Math.max(v, finite(n.min));
+        if (finite(n.max) !== null) v = Math.min(v, finite(n.max));
+        return v;
+      }
+      case 'slider': { const [lo, hi] = ends(n); return within(finite(set ? raw : n.value) ?? lo, lo, hi); }
+      case 'range': {
+        const [lo, hi] = ends(n);
+        const pair = Array.isArray(raw) ? raw : [n.low, n.high];
+        return [within(finite(pair[0]) ?? lo, lo, hi), within(finite(pair[1]) ?? hi, lo, hi)].sort((x, y) => x - y);
+      }
+      case 'select': case 'radio': case 'segmented': return raw === '' ? '' : option(raw) ? raw : option(n.value) ? n.value : '';
+      case 'multi-select': { const picked = Array.isArray(raw) ? raw : n.values || []; return (n.options || []).filter((o, i, all) => picked.includes(o) && all.indexOf(o) === i); }
+      case 'checkbox': case 'toggle': return typeof raw === 'boolean' ? raw : !!(n.type === 'checkbox' ? n.checked : n.on);
+      case 'date': {
+        const v = typeof raw === 'string' ? raw : n.value;
+        if (typeof v !== 'string' || !DATE.test(v)) return '';
+        return DATE.test(n.min || '') && v < n.min ? n.min : DATE.test(n.max || '') && v > n.max ? n.max : v;
+      }
+      case 'time': { const v = typeof raw === 'string' ? raw : n.value; return typeof v === 'string' && TIME.test(v) ? v : ''; }
+      case 'rating': return Math.round(within(finite(set ? raw : n.value) ?? 0, 0, Math.round(within(finite(n.max) ?? 5, 3, 10))));
+      default: return '';
+    }
+  }
+  // An input's value as the form's line says it; '' for an input with nothing.
+  function valueOf(n, raw) {
+    const v = start(n, raw);
+    const unit = n.unit ? ` ${n.unit}` : '';
+    switch (n.type) {
+      case 'text-input': case 'textarea': return oneLine(v);
+      case 'number': return v === null ? '' : `${round(v)}${unit}`;
+      case 'slider': return `${round(v)}${unit}`;
+      case 'range': return `${tr('{from} to {to}', { from: round(v[0]), to: round(v[1]) })}${unit}`;
+      case 'multi-select': return v.join(', ');
+      case 'checkbox': case 'toggle': return v ? tr('yes') : tr('no');
+      case 'rating': return v > 0 ? `${v}/${Math.round(within(finite(n.max) ?? 5, 3, 10))}` : '';
+      default: return v;
+    }
+  }
+  const fields = (root) => walk(root, (n) => INPUTS.includes(n.type));
+  const buttons = (root) => walk(root, (n) => n.type === 'button');
+  // A form's message: "Budget: 500", one input to a line, a dash for what is empty. '' for a view with no input.
+  const form = (root, values) => fields(root).map(({ path, node }) => `${node.label}: ${valueOf(node, values ? values[path] : undefined) || '–'}`).join('\n');
+  const press = (n) => cutText((typeof n.send === 'string' ? n.send.trim() : '') || n.label, SEND_MAX);
 
   // The numbers of a chart as a table of texts: its head and its rows. null for a node that is no chart.
   function data(n) {
@@ -105,6 +188,13 @@ function of(view, opts) {
       case 'comparison':
         return join([n.title ? `**${n.title}**` : '', table(['', ...n.options.map((o, i) => (i === n.pick ? `${o} (${tr('Recommended')})` : o))], n.rows.map((r) => [r.label, ...n.options.map((_, i) => r.values[i] ?? '')]))]);
       case 'checklist': return join([n.title ? `**${n.title}**` : '', n.items.map((x) => `- [${x.done ? 'x' : ' '}] ${x.text}`).join('\n')]);
+      case 'text-input': case 'textarea': case 'number': case 'slider': case 'range': case 'date': case 'time': case 'rating': return `**${n.label}:** ${valueOf(n)}`.trimEnd();
+      case 'select': case 'multi-select': case 'radio': case 'segmented': return `**${n.label}:** ${valueOf(n)}${valueOf(n) ? ' ' : ''}(${tr('options: {list}', { list: n.options.join(', ') })})`;
+      case 'checkbox': case 'toggle': return `- [${valueOf(n) === tr('yes') ? 'x' : ' '}] ${n.label}`;
+      case 'button': return `[${n.label}]`;
+      case 'button-group': return (n.children || []).map(tree).join(' ');
+      case 'link': return `[${n.label}](${n.url})`;
+      case 'copy': return join([`**${n.label}**`, fenced(n.text)]);
       case 'callout': return quoted(`${n.title ? `**${n.title}** ` : ''}${n.text}`);
       case 'chart': case 'pie': case 'scatter': case 'histogram': case 'sparkline': case 'gauge': {
         const d = data(n);
@@ -132,7 +222,7 @@ function of(view, opts) {
   const alt = (reply, opts) => rewrite(reply, opts, { view: (v) => v.alt, code: (c) => c.alt });
   const text = (reply, opts) => rewrite(reply, opts, { view: (v) => join([v.alt, tree(v.root)]), code: (c) => join([c.alt, fenced(c.code, 'ui')]) });
 
-  return { alt, text, tree, data, has };
+  return { alt, text, tree, data, has, fields, form, buttons, press, start };
 }
 
 const api = { of, bins };

@@ -1927,5 +1927,12 @@
   "Current": "Teraz",
   "Can't play this here": "Tego tu nie da się odtworzyć",
   "Drawing a view…": "Rysuję widok…",
-  "{from} to {to}": "{from} – {to}"
+  "{from} to {to}": "{from} – {to}",
+  "options: {list}": "opcje: {list}",
+  "{label}, from": "{label}, od",
+  "{label}, to": "{label}, do",
+  "Choose": "Wybierz",
+  "{n} of {max}": "{n} z {max}",
+  "opens in a new tab": "otwiera się w nowej karcie",
+  "Sent: {text}": "Wysłano: {text}"
 }

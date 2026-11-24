@@ -347,3 +347,112 @@ test('the Data toggle and a panel the owner opened stay open when the chat is dr
   const b = draw({ type: 'chart', series: [{ points: [1, 2] }], source: 's' });
   assert.equal(a, b);
 });
+
+// ---------- wave 2: inputs and actions, with send-back (#1627, ADR 265) ----------
+
+const FORM = { type: 'stack', children: [
+  { type: 'text-input', label: 'Name', value: 'Ada', placeholder: 'Your name' },
+  { type: 'textarea', label: 'Notes', value: 'a < b' },
+  { type: 'number', label: 'Budget', value: 500, min: 0, max: 1000, step: 50, unit: 'EUR' },
+  { type: 'slider', label: 'Volume', value: 30, min: 0, max: 100, unit: '%' },
+  { type: 'range', label: 'Price', low: 20, high: 80 },
+  { type: 'select', label: 'Region', options: ['EU', 'US'], value: 'US' },
+  { type: 'multi-select', label: 'Channels', options: ['Email', 'Chat'], values: ['Chat'] },
+  { type: 'radio', label: 'Plan', options: ['Free', 'Pro'], value: 'Pro' },
+  { type: 'segmented', label: 'Size', options: ['S', 'M'] },
+  { type: 'checkbox', label: 'Summary', checked: true },
+  { type: 'toggle', label: 'Alerts' },
+  { type: 'date', label: 'Start', value: '2026-12-01' },
+  { type: 'time', label: 'At', value: '14:30' },
+  { type: 'rating', label: 'Grade', max: 5, value: 4 },
+] };
+
+test('every input is a labelled control, drawn read-only until the chat wires it, with what the bot set', () => {
+  const html = draw(FORM);
+  assert.match(html, /<label class="av-field"><span class="av-label">Name<\/span><input type="text" class="av-in" value="Ada" placeholder="Your name" maxlength="200" disabled data-av-in="0\.0" data-kind="text-input" data-label="Name"><\/label>/);
+  assert.match(html, /<textarea class="av-in" rows="3" maxlength="2000" disabled data-av-in="0\.1" data-kind="textarea" data-label="Notes">a &lt; b<\/textarea>/);
+  assert.match(html, /<input type="number" class="av-in" value="500" min="0" max="1000" step="50" inputmode="decimal" disabled data-av-in="0\.2"/);
+  assert.match(html, /<span class="av-unit">EUR<\/span>/);
+  assert.match(html, /<input type="range" class="av-in" value="30" min="0" max="100" step="any" aria-valuetext="30 %" disabled data-av-in="0\.3"/);
+  assert.match(html, /<fieldset class="av-field av-range" data-av-in="0\.4" data-kind="range" data-label="Price"><legend class="av-label">Price<\/legend>.*value="20".*aria-label="Price, from".*value="80".*aria-label="Price, to"/);
+  assert.match(html, /<select class="av-in" disabled data-av-in="0\.5" data-kind="select" data-label="Region"><option value="">Choose<\/option><option value="EU">EU<\/option><option value="US" selected>US<\/option><\/select>/);
+  assert.match(html, /<fieldset class="av-field" data-av-in="0\.6" data-kind="multi-select" data-label="Channels"><legend class="av-label">Channels<\/legend><div class="av-opts"><label class="av-opt"><input type="checkbox" class="av-in" value="Email" disabled><span>Email<\/span><\/label><label class="av-opt"><input type="checkbox" class="av-in" value="Chat" checked disabled>/);
+  assert.match(html, /<fieldset class="av-field" data-av-in="0\.7" data-kind="radio" data-label="Plan"><legend class="av-label">Plan<\/legend><div class="av-opts"><label class="av-opt"><input type="radio" class="av-in" name="av-[\w-]+-0-7" value="Free" disabled>.*<input type="radio" class="av-in" name="av-[\w-]+-0-7" value="Pro" checked disabled>/);
+  assert.match(html, /<fieldset class="av-field av-seg" data-av-in="0\.8" data-kind="segmented"/);
+  assert.match(html, /<label class="av-field av-check"><input type="checkbox" class="av-in" checked disabled data-av-in="0\.9" data-kind="checkbox" data-label="Summary"><span>Summary<\/span><\/label>/);
+  assert.match(html, /<label class="av-field av-check av-toggle"><input type="checkbox" role="switch" class="av-in" disabled data-av-in="0\.10" data-kind="toggle" data-label="Alerts"><span>Alerts<\/span><\/label>/);
+  assert.match(html, /<input type="date" class="av-in" value="2026-12-01" disabled data-av-in="0\.11"/);
+  assert.match(html, /<input type="time" class="av-in" value="14:30" disabled data-av-in="0\.12"/);
+  assert.match(html, /<fieldset class="av-field av-rating" data-av-in="0\.13" data-kind="rating" data-label="Grade" data-max="5"><legend class="av-label">Grade<\/legend><div class="av-opts">(<label class="av-star"><input type="radio" class="av-in" name="av-[\w-]+-0-13" value="\d" (?:checked )?disabled><span class="sr-only">\d of 5<\/span><svg [^>]*aria-hidden="true">.*?<\/svg><\/label>){5}<\/div><\/fieldset>/);
+  // every control is inside a label or a legend, and none carries a handler, a style or an id of the bot's
+  assert.doesNotMatch(html, /\son\w+=|style=|<form/);
+  assert.equal((html.match(/class="av-in"/g) || []).length, 1 + 1 + 1 + 1 + 2 + 1 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 5);
+});
+
+test('a form has one Send under it, and a view with only buttons has none; a quiet line waits for "Sent: …"', () => {
+  const form = draw(FORM);
+  assert.match(form, /<div class="av-actions"><button type="button" class="btn primary av-send" data-av-send disabled>Send<\/button><\/div><p class="av-sent" role="status" hidden><\/p><\/div>$/m);
+  assert.match(form, /<div class="av" role="group" aria-label="A view" data-av="[a-z0-9]+" data-av-act="form">/);
+  const buttons = draw({ type: 'button', label: 'Yes' });
+  assert.match(buttons, /data-av-act="press"/);
+  assert.doesNotMatch(buttons, /av-send/);
+  assert.match(buttons, /<p class="av-sent" role="status" hidden><\/p>/);
+  const plain = draw({ type: 'text', text: 'Hi' });
+  assert.doesNotMatch(plain, /data-av-act|av-sent/);
+  // links and copy are not sent: a view of them is no form
+  assert.doesNotMatch(draw({ type: 'stack', children: [{ type: 'link', label: 'Open', url: 'https://example.com' }, { type: 'copy', label: 'Copy', text: 'x' }] }), /data-av-act/);
+});
+
+test('buttons say what they send, in a tone, and a button that says "Approve" is a button like any other', () => {
+  const html = draw({ type: 'stack', children: [
+    { type: 'button', label: 'Yes, go ahead', send: 'Yes, go ahead with the cheaper plan', tone: 'accent' },
+    { type: 'button', label: 'Approve', tone: 'bad' },
+    { type: 'button-group', label: 'Choose', children: [{ type: 'button', label: 'A' }, { type: 'button', label: 'B', send: 'Option "B"' }] },
+  ] });
+  assert.match(html, /<button type="button" class="btn av-btn t-accent" disabled data-av-press="0\.0" data-say="Yes, go ahead with the cheaper plan">Yes, go ahead<\/button>/);
+  assert.match(html, /<button type="button" class="btn av-btn t-bad" disabled data-av-press="0\.1" data-say="Approve">Approve<\/button>/);
+  assert.match(html, /<div class="av-btns" role="group" aria-label="Choose"><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.0" data-say="A">A<\/button><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.1" data-say="Option &quot;B&quot;">B<\/button><\/div>/);
+  // nothing in it asks the server for anything: no address, no form, no handler
+  assert.doesNotMatch(html, /href=|action=|formaction|<form|\son\w+=/);
+});
+
+test('a link opens an https address in a new tab and says so; Copy holds its text for the page to copy', () => {
+  const html = draw({ type: 'stack', children: [{ type: 'link', label: 'Read the offer', url: 'https://example.com/offer' }, { type: 'copy', label: 'Copy the code', text: 'npm i\nnpm test' }] });
+  assert.match(html, /<a class="btn av-ln" href="https:\/\/example\.com\/offer" target="_blank" rel="noopener noreferrer">Read the offer<span class="sr-only"> \(opens in a new tab\)<\/span><\/a>/);
+  assert.match(html, /<button type="button" class="btn av-copy" data-av-copy="npm i\nnpm test">Copy the code<\/button>/);
+  // never an address that is no https one, even if the tree said so
+  const bad = draw({ type: 'link', label: 'x', url: 'javascript:alert(1)' });
+  assert.doesNotMatch(bad, /javascript:|<a /);
+  assert.doesNotMatch(draw({ type: 'link', label: 'x', url: 'http://example.com' }), /<a /);
+});
+
+test('inputs read as text in Copy: the label and its value, a choice with its options, a switch as a tick', () => {
+  const text = AnswerViews.text(reply(view({ type: 'stack', children: FORM.children.concat([{ type: 'button', label: 'Yes' }, { type: 'link', label: 'Terms', url: 'https://example.com/t' }, { type: 'copy', label: 'Code', text: 'abc' }]) }, 'A form'), 'Fill it in.'));
+  assert.match(text, /\*\*Name:\*\* Ada\n\n\*\*Notes:\*\* a < b\n\n\*\*Budget:\*\* 500 EUR\n\n\*\*Volume:\*\* 30 %\n\n\*\*Price:\*\* 20 to 80/);
+  assert.match(text, /\*\*Region:\*\* US \(options: EU, US\)\n\n\*\*Channels:\*\* Chat \(options: Email, Chat\)\n\n\*\*Plan:\*\* Pro \(options: Free, Pro\)\n\n\*\*Size:\*\* \(options: S, M\)/);
+  assert.match(text, /- \[x\] Summary\n\n- \[ \] Alerts\n\n\*\*Start:\*\* 2026-12-01\n\n\*\*At:\*\* 14:30\n\n\*\*Grade:\*\* 4\/5\n\n\[Yes\]\n\n\[Terms\]\(https:\/\/example\.com\/t\)\n\n\*\*Code\*\*\n\n```\nabc\n```/);
+});
+
+test('a send is read from the owner\'s next message: what a view says it sent, whether this page sent it or an earlier visit did', () => {
+  const says = ['Yes, go ahead', 'Option B'];
+  assert.equal(AnswerViews.sentFrom('Yes, go ahead', { says }), 'Yes, go ahead');
+  assert.equal(AnswerViews.sentFrom('  Option B \r\n', { says }), 'Option B');
+  assert.equal(AnswerViews.sentFrom('Something else', { says }), null);
+  assert.equal(AnswerViews.sentFrom(null, { says }), null);
+  const labels = ['Name', 'Budget'];
+  assert.equal(AnswerViews.sentFrom('Name: Ada\nBudget: 500', { labels }), 'Name: Ada\nBudget: 500');
+  assert.equal(AnswerViews.sentFrom('Name: Ada', { labels }), null, 'a message that lacks an input is no send of the form');
+  assert.equal(AnswerViews.sentFrom('Budget: 500\nName: –', { labels }), 'Budget: 500\nName: –');
+  assert.equal(AnswerViews.sentFrom('anything', {}), null);
+});
+
+test('who may send: only the newest bot message that is whole, and only until what it said was sent', () => {
+  const bubbles = [{ from: 'bot', id: 'a' }, { from: 'me' }, { from: 'bot', id: 'b' }, { from: 'bot', id: 'c', working: true }, { from: 'bot', id: 'd', problem: true }];
+  assert.equal(AnswerViews.newest(bubbles), 'b', 'a reply still being written, or a failed one, is not the newest message');
+  assert.equal(AnswerViews.newest([{ from: 'me' }]), null);
+  assert.equal(AnswerViews.newest([{ from: 'bot', id: 'x', folded: true }]), null, 'a message between bots is no one\'s question to answer');
+  assert.deepEqual(plain(AnswerViews.stateOf({ newest: true, sent: null })), { state: 'open' });
+  assert.deepEqual(plain(AnswerViews.stateOf({ newest: true, sent: 'Yes' })), { state: 'sent', said: 'Yes' });
+  assert.deepEqual(plain(AnswerViews.stateOf({ newest: false, sent: 'Yes' })), { state: 'sent', said: 'Yes' });
+  assert.deepEqual(plain(AnswerViews.stateOf({ newest: false, sent: null })), { state: 'closed' });
+});

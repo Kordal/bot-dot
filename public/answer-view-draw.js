@@ -8,14 +8,17 @@
 // from the bot's own files; a video, a sound and a file only from the bot's own files. The page blocks (hero, kpi, chart,
 // status, callout) are drawn by the block kit (blocks.js), so a chat and a page look alike.
 //
-// Wave 1: layout, text, data, charts, media. Inputs and actions are the next wave, so a component the catalog does not
+// Wave 1: layout, text, data, charts, media. Wave 2 (#1627, ADR 265): inputs, buttons, links and Copy. A form's Send, or a
+// button, posts one ordinary owner message through the chat's own send (wireChat): the page never sends anything a view
+// did not show as text, and a view never approves, runs or changes anything. Inputs and buttons work on the newest bot
+// message of a chat only; an older view is read-only, with "Sent: …" when it was sent. A component the catalog does not
 // have yet is one quiet line.
 const AnswerViews = (() => {
   let view = null; // the validator, once the server's catalog is in
   let words = null; // AnswerText over it: a reply as text
 
   // The catalog the server hands out, and what the page draws of it (the newest `since` it has code for).
-  const DRAWS = 1;
+  const DRAWS = 2;
   function use(catalog) {
     if (!catalog || typeof catalog !== 'object' || !catalog.components) return;
     view = AnswerView.of(catalog, { known: DRAWS });
@@ -32,6 +35,7 @@ const AnswerViews = (() => {
   // ---------- what the owner keeps while the chat is drawn again ----------
 
   const kept = new Map(); // a part's key -> true (open) / false (closed) for a panel and its Data; a tab's key -> its number
+  const typed = new Map(); // `${view key}.${path}` -> what the owner set in an input, until it is sent: the chat is built again often
   const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 
   // ---------- small parts ----------
@@ -203,6 +207,61 @@ const AnswerViews = (() => {
     return `<ol class="av-steps">${n.items.map((x) => { const s = ['done', 'current'].includes(x.state) ? x.state : 'todo'; return `<li class="${s}"><span class="mark" aria-hidden="true"></span><span class="sr-only">${word[s]}: </span><b>${esc(x.title)}</b>${x.text ? `<span>${esc(x.text)}</span>` : ''}</li>`; }).join('')}</ol>`;
   }
 
+  // ---------- inputs and actions (wave 2) ----------
+
+  // An input is a real control with its label, drawn read-only: the chat's wiring (wireChat) opens it only on the newest bot
+  // message. `path` says where it stands in the tree, as the form's text counts (AnswerText.fields); it is how the page finds
+  // what the owner set. Nothing here has a style, a handler or an address of its own.
+  const rangeText = (n, v) => (n.type === 'range' ? tr('{from} to {to}', { from: num(v[0]), to: num(v[1]) }) : num(v)) + (n.unit ? ` ${n.unit}` : '');
+  const attrs = (n, path) => `data-av-in="${path}" data-kind="${n.type}" data-label="${esc(n.label)}"`;
+  const field = (n, path, inner, cls = '') => `<fieldset class="av-field${cls}" ${attrs(n, path)}><legend class="av-label">${esc(n.label)}</legend>${inner}</fieldset>`;
+  const checked = (on) => (on ? ' checked' : '');
+  const options = (n, path, ctx, kind, v) => n.options.map((o) => `<label class="av-opt"><input type="${kind}" class="av-in"${kind === 'radio' ? ` name="av-${ctx.key}-${path.replace(/\./g, '-')}"` : ''} value="${esc(o)}"${checked(kind === 'radio' ? v === o : v.includes(o))} disabled><span>${esc(o)}</span></label>`).join('');
+  function input(n, ctx, path) {
+    const raw = typed.get(`${ctx.key}.${path}`);
+    const v = words.start(n, raw);
+    const label = `<span class="av-label">${esc(n.label)}</span>`;
+    const num2 = (x) => (Number.isFinite(x) ? ` ${x}` : '');
+    switch (n.type) {
+      case 'text-input': return `<label class="av-field">${label}<input type="text" class="av-in" value="${esc(v)}"${n.placeholder ? ` placeholder="${esc(n.placeholder)}"` : ''} maxlength="200" disabled ${attrs(n, path)}></label>`;
+      case 'textarea': return `<label class="av-field">${label}<textarea class="av-in" rows="3"${n.placeholder ? ` placeholder="${esc(n.placeholder)}"` : ''} maxlength="2000" disabled ${attrs(n, path)}>${esc(v)}</textarea></label>`;
+      case 'number': {
+        const bound = (name, x) => (Number.isFinite(x) ? ` ${name}="${num(x)}"` : '');
+        const box = `<input type="number" class="av-in" value="${v === null ? '' : num(v)}"${bound('min', n.min)}${bound('max', n.max)} step="${n.step > 0 ? num(n.step) : 'any'}" inputmode="decimal" disabled ${attrs(n, path)}>`;
+        return `<label class="av-field">${label}${n.unit ? `<span class="av-with">${box}<span class="av-unit">${esc(n.unit)}</span></span>` : box}</label>`;
+      }
+      case 'slider': {
+        const [lo, hi] = [Number.isFinite(n.min) ? n.min : 0, Number.isFinite(n.max) && n.max > (Number.isFinite(n.min) ? n.min : 0) ? n.max : 100];
+        const [a, b] = hi > lo ? [lo, hi] : [0, 100];
+        return `<label class="av-field"><span class="av-label">${esc(n.label)}<output class="av-out" data-unit="${esc(n.unit || '')}">${esc(rangeText(n, v))}</output></span><input type="range" class="av-in" value="${num(v)}" min="${num(a)}" max="${num(b)}" step="${n.step > 0 ? num(n.step) : 'any'}" aria-valuetext="${esc(rangeText(n, v))}" disabled ${attrs(n, path)}></label>`;
+      }
+      case 'range': {
+        const a = Number.isFinite(n.min) ? n.min : 0, b = Number.isFinite(n.max) && n.max > a ? n.max : 100;
+        const ends = (i, name) => `<input type="range" class="av-in" value="${num(v[i])}" min="${num(a)}" max="${num(b)}" step="${n.step > 0 ? num(n.step) : 'any'}" aria-label="${esc(name)}" disabled>`;
+        return field(n, path, `<div class="av-pair">${ends(0, tr('{label}, from', { label: n.label }))}${ends(1, tr('{label}, to', { label: n.label }))}</div><output class="av-out" data-unit="${esc(n.unit || '')}">${esc(rangeText(n, v))}</output>`, ' av-range');
+      }
+      case 'select': return `<label class="av-field">${label}<select class="av-in" disabled ${attrs(n, path)}><option value="">${tr('Choose')}</option>${n.options.map((o) => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`;
+      case 'multi-select': return field(n, path, `<div class="av-opts">${options(n, path, ctx, 'checkbox', v)}</div>`);
+      case 'radio': return field(n, path, `<div class="av-opts">${options(n, path, ctx, 'radio', v)}</div>`);
+      case 'segmented': return field(n, path, `<div class="av-opts">${options(n, path, ctx, 'radio', v)}</div>`, ' av-seg');
+      case 'checkbox': return `<label class="av-field av-check"><input type="checkbox" class="av-in"${checked(v)} disabled ${attrs(n, path)}><span>${esc(n.label)}</span></label>`;
+      case 'toggle': return `<label class="av-field av-check av-toggle"><input type="checkbox" role="switch" class="av-in"${checked(v)} disabled ${attrs(n, path)}><span>${esc(n.label)}</span></label>`;
+      case 'date': return `<label class="av-field">${label}<input type="date" class="av-in" value="${esc(v)}"${/^\d{4}-\d{2}-\d{2}$/.test(n.min || '') ? ` min="${esc(n.min)}"` : ''}${/^\d{4}-\d{2}-\d{2}$/.test(n.max || '') ? ` max="${esc(n.max)}"` : ''} disabled ${attrs(n, path)}></label>`;
+      case 'time': return `<label class="av-field">${label}<input type="time" class="av-in" value="${esc(v)}" disabled ${attrs(n, path)}></label>`;
+      case 'rating': {
+        const max = Math.round(Math.min(Math.max(Number.isFinite(n.max) ? n.max : 5, 3), 10));
+        const name = `av-${ctx.key}-${path.replace(/\./g, '-')}`;
+        const star = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>';
+        const stars = Array.from({ length: max }, (_, i) => `<label class="av-star"><input type="radio" class="av-in" name="${name}" value="${i + 1}"${checked(v === i + 1)} disabled><span class="sr-only">${esc(tr('{n} of {max}', { n: i + 1, max }))}</span>${star}</label>`).join('');
+        return `<fieldset class="av-field av-rating" ${attrs(n, path)} data-max="${max}"><legend class="av-label">${esc(n.label)}</legend><div class="av-opts">${stars}</div></fieldset>`;
+      }
+      default: return unknown();
+    }
+  }
+  // A button posts its `send` (200 characters at most), else its label; the page puts what it posts in data-say, so a view
+  // that was sent can be told from the owner's next message.
+  const button = (n, path) => `<button type="button" class="btn av-btn t-${tone(n)}" disabled data-av-press="${path}" data-say="${esc(words.press(n))}">${esc(n.label)}</button>`;
+
   // Where a file is, or '' when this reply is no bot's.
   function mediaBox(n, ctx, inner, fallback) {
     const src = address(n.src, ctx.botId);
@@ -257,6 +316,13 @@ const AnswerViews = (() => {
       case 'file': { const name = n.title || n.src.path.split('/').pop(); return mediaBox(n, ctx, (src) => `<a class="av-file" href="${esc(src)}" download="${esc(n.src.path.split('/').pop())}">${FILE_ICON}<span>${esc(name)}</span></a>`, name); }
       case 'link-card': return linkCard(n);
       case 'products': return products(n, ctx);
+
+      case 'text-input': case 'textarea': case 'number': case 'slider': case 'range': case 'select': case 'multi-select': case 'radio': case 'checkbox':
+      case 'toggle': case 'date': case 'time': case 'rating': case 'segmented': return input(n, ctx, path);
+      case 'button': return button(n, path);
+      case 'button-group': return `<div class="av-btns" role="group"${n.label ? ` aria-label="${esc(n.label)}"` : ''}>${kids(n, ctx, path)}</div>`;
+      case 'link': return `<a class="btn av-ln" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer">${esc(n.label)}<span class="sr-only"> (${tr('opens in a new tab')})</span></a>`;
+      case 'copy': return `<button type="button" class="btn av-copy" data-av-copy="${esc(n.text)}">${esc(n.label)}</button>`;
       default: return unknown();
     }
   }
@@ -265,8 +331,13 @@ const AnswerViews = (() => {
   function html(v, botId = '') {
     const key = hash(JSON.stringify(v));
     if (v.root.type === 'unknown') return `${altLine(v.alt)}${unknown()}`;
-    return `<div class="av" role="group" aria-label="${esc(v.alt)}" data-av="${key}">${draw(v.root, { botId, key })}</div>`;
+    const act = words.fields(v.root).length ? 'form' : words.buttons(v.root).length ? 'press' : '';
+    if (act) { trees.delete(key); trees.set(key, v.root); if (trees.size > 300) trees.delete(trees.keys().next().value); }
+    // A form has one Send; the line under it says what was sent, once something was.
+    const tail = act ? `${act === 'form' ? `<div class="av-actions"><button type="button" class="btn primary av-send" data-av-send disabled>${tr('Send')}</button></div>` : ''}<p class="av-sent" role="status" hidden></p>` : '';
+    return `<div class="av" role="group" aria-label="${esc(v.alt)}" data-av="${key}"${act ? ` data-av-act="${act}"` : ''}>${draw(v.root, { botId, key })}${tail}</div>`;
   }
+  const trees = new Map(); // a view's key -> its tree, for the views that can be sent (what the page needs to read a form)
   const altLine = (alt) => (alt ? `<p class="av-alt">${esc(alt)}</p>` : '');
 
   // A fence that is code: its alt in a quiet line above it.
@@ -285,6 +356,110 @@ const AnswerViews = (() => {
       return botId ? text.map((h) => linkPaths(h, botId)) : text; // the paths of a bot's text open in the viewer, as in any reply
     });
   }
+
+  // ---------- sending from a view (wave 2, ADR 265) ----------
+
+  const lineOf = (s) => String(s ?? '').replace(/\r\n?/g, '\n').trim();
+  // What a view said it sent, read from the owner's message that follows it: `next` is its text (or null: none follows), `says`
+  // what its buttons post, `labels` the labels of its inputs. The message itself when it is one of the buttons' words, or has a
+  // line "Label: …" for every input; else null. This is how a view stays "Sent" when the chat is drawn again or opened later,
+  // with nothing kept but the chat's own messages.
+  function sentFrom(next, { says = [], labels = [] } = {}) {
+    if (next == null) return null;
+    const t = lineOf(next);
+    if (!t) return null;
+    if (says.some((x) => lineOf(x) === t)) return t;
+    const lines = t.split('\n');
+    return labels.length && labels.every((l) => lines.some((x) => x.startsWith(`${l}: `))) ? t : null;
+  }
+  // The id of the newest bot message a chat's views answer: the last one that is whole, from the bot to the owner. A reply still
+  // being written, a failed one and a message between bots are not. bubbles: [{ from: 'bot' | 'me', id, working?, problem?, folded? }].
+  function newest(bubbles) {
+    const live = bubbles.filter((b) => b.from === 'bot' && !b.working && !b.problem && !b.folded);
+    return live.length ? live[live.length - 1].id : null;
+  }
+  // newest: this is the newest bot message; sent: what was sent from it (sentFrom), or null.
+  const stateOf = ({ newest: latest, sent }) => (sent != null ? { state: 'sent', said: sent } : latest ? { state: 'open' } : { state: 'closed' });
+
+  // The value of an input, as the form's text reads it (AnswerText.valueOf's `raw`).
+  function read(el) {
+    const kind = el.dataset.kind;
+    const ins = (sel) => [...el.querySelectorAll(sel)];
+    switch (kind) {
+      case 'range': return ins('input').map((i) => Number(i.value));
+      case 'multi-select': return ins('input:checked').map((i) => i.value);
+      case 'radio': case 'segmented': return ins('input:checked').map((i) => i.value)[0] ?? '';
+      case 'rating': return Number(ins('input:checked').map((i) => i.value)[0] || 0);
+      case 'checkbox': case 'toggle': return !!el.checked;
+      case 'slider': return Number(el.value);
+      case 'number': return el.value.trim() === '' ? '' : Number(el.value);
+      default: return el.value;
+    }
+  }
+  const chats = new WeakMap(); // a chat's element -> its send: (text, key) => Promise<boolean>
+  const watchers = new WeakMap();
+  const chatOf = (el) => { for (let e = el.parentElement; e; e = e.parentElement) if (chats.has(e)) return e; return null; };
+
+  // Open, close and mark each view of a chat: the newest bot message's can be sent, the others are read-only, and a view that was
+  // sent says "Sent: …" with what it sent.
+  function settle(root) {
+    const views = $$('.av[data-av-act]', root);
+    if (!views.length) return;
+    const all = $$('.bubble.from-bot, .bubble.from-me', root);
+    const items = all.map((b, i) => ({ from: b.classList.contains('from-me') ? 'me' : 'bot', id: i, working: !!b.closest('[data-live], [data-pending]'), problem: b.classList.contains('problem'), folded: !!b.closest('.notes-fold') }));
+    const latest = newest(items);
+    for (const av of views) {
+      const at = all.indexOf(av.closest('.bubble.from-bot'));
+      const next = at < 0 ? null : all.slice(at + 1).find((b) => b.classList.contains('from-me'));
+      const says = $$('[data-av-press]', av).map((b) => b.dataset.say);
+      const labels = $$('[data-av-in][data-label]', av).map((f) => f.dataset.label);
+      const sent = av._avSent ?? sentFrom(next ? ($('.clamp', next) || next).textContent : null, { says, labels });
+      paint(av, stateOf({ newest: at >= 0 && at === latest, sent }));
+    }
+  }
+  function paint(av, { state, said }) {
+    const off = state !== 'open' || !!av._avBusy;
+    $$('.av-in, [data-av-press], [data-av-send]', av).forEach((c) => { if (c.disabled !== off) c.disabled = off; });
+    av.dataset.avState = state;
+    const line = $('.av-sent', av);
+    if (!line) return;
+    const words2 = state === 'sent' ? tr('Sent: {text}', { text: said }) : state === 'closed' ? tr('Not sent') : '';
+    if (line.textContent !== words2) line.textContent = words2;
+    if (line.hidden !== !words2) line.hidden = !words2;
+  }
+  // The chat's own send takes the views' messages: send(text, key) -> Promise<boolean>, as for a quick answer. Called whenever the
+  // chat is drawn again; the views are settled at once and again whenever the chat changes (the owner's bubble arrives, a reply).
+  function wireChat(root, send) {
+    if (!view || !root) return;
+    chats.set(root, send);
+    settle(root);
+    if (typeof MutationObserver === 'undefined') return;
+    const has = !!root.querySelector('.av[data-av-act]');
+    let w = watchers.get(root);
+    if (!has) { if (w) { w.obs.disconnect(); watchers.delete(root); } return; }
+    if (w) return;
+    w = { obs: null, queued: false };
+    w.obs = new MutationObserver(() => {
+      if (w.queued) return;
+      w.queued = true;
+      setTimeout(() => { w.queued = false; settle(root); }, 0);
+    });
+    w.obs.observe(root, { childList: true, subtree: true });
+    watchers.set(root, w);
+  }
+  // Post a view's message through the chat; the view waits until it went, and stays read-only after: a view is sent once.
+  async function post(av, text, send) {
+    if (!text || av._avBusy || av.dataset.avState !== 'open') return;
+    if (av._avLast?.text !== text) av._avLast = { text, key: messageKey() }; // the same text again is the same message
+    av._avBusy = true;
+    paint(av, { state: 'open' });
+    let went = false;
+    try { went = await send(text, av._avLast.key, null); } finally { av._avBusy = false; }
+    if (went) { av._avSent = text; typed.forEach((_, k) => { if (k.startsWith(`${av.dataset.av}.`)) typed.delete(k); }); }
+    if (av.isConnected) { const chat = chatOf(av); if (chat) settle(chat); else paint(av, went ? { state: 'sent', said: text } : { state: 'open' }); }
+  }
+  const values = (av) => Object.fromEntries($$('[data-av-in]', av).map((f) => [f.dataset.avIn, read(f)]));
+  const unitText = (f, v) => (f.dataset.kind === 'range' ? tr('{from} to {to}', { from: num(v[0]), to: num(v[1]) }) : num(v)) + (f.dataset.unit ? ` ${f.dataset.unit}` : '');
 
   // The tooltips of the charts drawn under `root`, once each.
   function wire(root) {
@@ -323,6 +498,58 @@ const AnswerViews = (() => {
       e.preventDefault();
       pick(tab, to);
     });
+    // A button, or a form's Send: one ordinary message of the owner's, through the chat's own send.
+    document.addEventListener('click', (e) => {
+      const press = e.target.closest?.('[data-av-press]');
+      const sendBtn = e.target.closest?.('[data-av-send]');
+      const b = press || sendBtn;
+      if (!b) return;
+      const av = b.closest('.av');
+      const chat = av && chatOf(av);
+      const send = chat && chats.get(chat);
+      const tree = av && trees.get(av.dataset.av);
+      if (!send || !tree || b.disabled) return;
+      post(av, press ? press.dataset.say : words.form(tree, values(av)), send);
+    });
+    // Copy copies its text; it is no send, and works on an older view too.
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest?.('[data-av-copy]');
+      if (!b) return;
+      if (!(await copyText(b.dataset.avCopy))) return toast(tr("Couldn't copy"), true);
+      const label = b.textContent;
+      b.textContent = tr('Copied');
+      setTimeout(() => { b.textContent = label; }, 1500);
+    });
+    // What the owner set stays when the chat is drawn again; a slider says its number; a range keeps its ends in order.
+    document.addEventListener('input', (e) => {
+      const el = e.target;
+      const f = el.closest?.('.av [data-av-in]');
+      if (!f) return;
+      if (f.dataset.kind === 'range') {
+        const [a, b] = [...f.querySelectorAll('input')];
+        if (Number(a.value) > Number(b.value)) { if (el === a) b.value = a.value; else a.value = b.value; }
+      }
+      if (f.dataset.kind === 'slider' || f.dataset.kind === 'range') {
+        const text = unitText(f.dataset.kind === 'slider' ? { dataset: { ...f.dataset, unit: f.closest('label').querySelector('output').dataset.unit } } : { dataset: { ...f.dataset, unit: f.querySelector('output').dataset.unit } }, read(f));
+        const out = f.dataset.kind === 'slider' ? f.closest('label').querySelector('output') : f.querySelector('output');
+        out.textContent = text;
+        if (f.dataset.kind === 'slider') f.setAttribute('aria-valuetext', text);
+      }
+      const av = f.closest('.av');
+      if (typed.size > 300) typed.clear();
+      typed.set(`${av.dataset.av}.${f.dataset.avIn}`, read(f));
+    });
+    // Enter in a one-line box goes to the next input, and from the last one sends (as a card of questions does); a phone's Enter is a new line.
+    document.addEventListener('keydown', (e) => {
+      const el = e.target;
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing || el.tagName !== 'INPUT' || !['text', 'number', 'date', 'time'].includes(el.type) || matchMedia('(pointer: coarse)').matches) return;
+      const av = el.closest?.('.av[data-av-act="form"]');
+      if (!av || av.dataset.avState !== 'open') return;
+      e.preventDefault();
+      const boxes = $$('input.av-in, textarea.av-in, select.av-in', av).filter((x) => !x.disabled);
+      const at = boxes.indexOf(el);
+      if (boxes[at + 1]) boxes[at + 1].focus(); else $('[data-av-send]', av)?.click();
+    });
     // A picture that can't be had leaves its place, with the words that say what it shows.
     document.addEventListener('error', (e) => {
       const img = e.target;
@@ -331,7 +558,7 @@ const AnswerViews = (() => {
   }
 
   return {
-    use, load, ready, has, parts, html, wire,
+    use, load, ready, has, parts, html, wire, wireChat, sentFrom, newest, stateOf,
     alt: (src, opts) => (words ? words.alt(src, opts) : String(src ?? '')),
     text: (src, opts) => (words ? words.text(src, opts) : String(src ?? '')),
   };

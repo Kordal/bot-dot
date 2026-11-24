@@ -542,6 +542,8 @@ function wireChoices(root, send) {
       else btn.disabled = false;
     };
   });
+  // The inputs and buttons of an answer view (ADR 265) send through the same function: an ordinary message of the owner's.
+  if (typeof AnswerViews === 'object') AnswerViews.wireChat(root, send);
 }
 // What the document page draws with.
 const docPageTools = () => ({ api, md, esc, toast, msgTime, mdBlocks, chiefName: chiefTitle, features: state.features, botName: (id) => botById(id)?.name });
