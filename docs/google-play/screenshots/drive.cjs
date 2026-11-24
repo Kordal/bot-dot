@@ -114,6 +114,7 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
+  sh('settings put system time_12_24 24'); // the status bar's clock as the app's own stamps are written
   sh('settings put global sysui_demo_allowed 1');
   const ui = sh('pidof com.android.systemui').trim();
   calm();
