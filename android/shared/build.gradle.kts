@@ -107,7 +107,11 @@ val writeFixtures = tasks.register<WriteFixtures>("writeFixtures") {
 kotlin.sourceSets.commonTest { kotlin.srcDir(writeFixtures) }
 // Android lint reads the host tests' sources, the written fixture paths among them.
 tasks.matching { it.name.contains("HostTest") && it.name.contains("lint", ignoreCase = true) }.configureEach { dependsOn(writeFixtures) }
-tasks.withType<AbstractTestTask>().configureEach { inputs.files(fixtures.values).withPropertyName("fixtures") }
+tasks.withType<AbstractTestTask>().configureEach {
+    inputs.files(fixtures.values).withPropertyName("fixtures")
+    // A failed test says its message in the log, not only "AssertionError at Test.kt:21" (#1387): CI's log is all there is of a flake.
+    testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+}
 
 // The iOS tests run in the simulator IOS_SIMULATOR names (its UDID), as `make ios` does; else in Kotlin's own default.
 providers.environmentVariable("IOS_SIMULATOR").orNull?.takeIf { it.isNotBlank() }?.let { id ->
