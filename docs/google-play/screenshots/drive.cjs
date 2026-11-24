@@ -26,7 +26,7 @@ function nodes() {
   return [...xml.matchAll(/<node [^>]*>/g)].map(([n]) => {
     const attr = (k) => (n.match(new RegExp(`${k}="([^"]*)"`)) || [])[1] || '';
     const [x1, y1, x2, y2] = (attr('bounds').match(/\d+/g) || [0, 0, 0, 0]).map(Number);
-    return { text: attr('text'), desc: attr('content-desc'), cls: attr('class'), x: (x1 + x2) >> 1, y: (y1 + y2) >> 1 };
+    return { text: attr('text'), desc: attr('content-desc'), cls: attr('class'), x: (x1 + x2) >> 1, y: (y1 + y2) >> 1, top: y1, bottom: y2 };
   });
 }
 async function find(test, what, timeout = 30000) {
@@ -70,11 +70,35 @@ async function scroll(way, times) {
   for (let i = 0; i < times; i++) { sh(way === 'up' ? 'input swipe 540 600 540 1600 250' : 'input swipe 540 1600 540 600 250'); await sleep(400); }
   await sleep(800);
 }
-/** Back to Home (the only screen with the logo), the screens on the way closed. */
-async function home() {
-  for (let i = 0; i < 10 && !nodes().some((n) => n.desc === 'botdot'); i++) { sh('input keyevent 4'); await sleep(1200); }
+/** One slow drag that moves the chat's content by [d] pixels (positive: down, to older messages); slow, so it does not fling. */
+async function drag(d) {
+  const by = Math.max(-1000, Math.min(1000, d));
+  sh(`input swipe 540 ${Math.round(960 - by / 2)} 540 ${Math.round(960 + by / 2)} 900`);
+  await sleep(1000);
 }
-
+/**
+ * Scrolls the open chat until the first node [test] finds has its top at [y] (give or take 30 px), so that what is under
+ * it, a reply with its view, is whole on the picture. Not on the screen: towards the newest messages three times, then
+ * towards the oldest. A chat that cannot move further (its end) is as near as it gets.
+ */
+async function bring(test, what, y) {
+  let looked = 0;
+  let last = null;
+  let stuck = 0;
+  for (let i = 0; i < 24; i++) {
+    const n = nodes().find(test);
+    if (!n) { await drag(++looked <= 3 ? -700 : 700); continue; }
+    const d = y - n.top;
+    if (Math.abs(d) <= 30) { await sleep(600); return n; }
+    stuck = last !== null && Math.abs(last - n.top) < 8 ? stuck + 1 : 0;
+    if (stuck >= 2) return n;
+    last = n.top;
+    await drag(d + Math.sign(d) * 22); // the touch slop is lost at the start of a drag
+  }
+  fs.writeFileSync(path.join(OUT, `failed-${what.replace(/\W+/g, '-')}.png`), execFileSync('adb', ['exec-out', 'screencap', '-p']));
+  throw new Error(`Could not bring to the place: ${what}\n${nodes().filter((n) => n.text || n.desc).map((n) => n.text || n.desc).join(' | ')}`);
+}
+const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
 (async () => {
   adb('install', '-r', '-g', apk);
   // The phone's localhost is the computer's: the app takes plain HTTP only to a botdot on the phone itself.
@@ -104,37 +128,32 @@ async function home() {
   // The Board, from its values on Home.
   tap(await find(byText('Unread mail'), 'the Board on Home'));
   await find(byText('Living room'), 'the Board');
-  await shot('4-board.png');
-  // The Chief's chat: from the top, where it made Recipe Finder; then at the end, its two cards that wait for an OK.
+  await shot('8-board.png');
+  // The Chief's chat: from where the owner asks for a bot, the Chief's plan under it; then at the end, its two cards that wait for an OK.
   open(`chief:${scene.chief}`);
   await find(byText('New chat'), 'the Chief\'s chat');
-  await scroll('up', 8);
+  await bring(has(/^Make me a bot that suggests/), 'the owner\'s ask in the Chief\'s chat', 400);
   await shot('2-chief.png');
   await scroll('down', 8);
   await shot('3-approve.png');
-  // News Monitor's chat, from this morning's first message.
-  open(`bot:${scene.bots.news}`);
-  await find(byText('Its settings'), 'News Monitor\'s chat');
-  await scroll('up', 6);
-  await shot('5-chat.png');
-  // Server Watch's weekly page, opened from its chip in the chat.
+  // Server Watch's reply: its numbers read the Board's tiles.
   open(`bot:${scene.bots.watch}`);
   await find(byText('Its settings'), 'Server Watch\'s chat');
-  await scroll('down', 6);
-  tap(await find(byText('Home server'), 'the page in Server Watch\'s chat'));
-  await find(byText('Uptime'), 'the page').catch(() => sleep(4000));
-  await shot('6-page.png');
-  sh('input keyevent 4'); // the page closed: it is drawn over the screens
-  await sleep(1200);
-  // The project's team chat, from the owner's question.
+  await bring(has(/^Everything is in order/), 'Server Watch\'s reply', 420);
+  await shot('4-server.png');
+  // Money Tracker's chart.
+  open(`bot:${scene.bots.money}`);
+  await find(byText('Its settings'), 'Money Tracker\'s chat');
+  await bring(has(/^You spent/), 'Money Tracker\'s reply', 420);
+  await shot('5-spending.png');
+  // Spanish Coach's quiz, answered.
+  open(`bot:${scene.bots.spanish}`);
+  await find(byText('Its settings'), 'Spanish Coach\'s chat');
+  await bring(has(/^Let's start with the bill/), 'Spanish Coach\'s quiz', 420);
+  await shot('6-quiz.png');
+  // The project's team chat: Quote Chaser's comparison of the quotes.
   open(`group:${scene.team}`);
   await find((n) => /Quote Chaser/.test(n.text), 'the team chat');
-  await scroll('up', 6);
-  await shot('8-team.png');
-  // The project, from the spaces under the title on Home.
-  await home();
-  tap(await find((n) => n.desc === 'botdot', 'the title on Home'));
-  tap(await find(byText('Kitchen renovation'), 'the project in the spaces'));
-  await find((n) => /Quotes in/.test(n.text), 'the project');
-  await shot('7-project.png');
+  await bring(has(/^Two quotes are in/), 'Quote Chaser\'s reply', 560);
+  await shot('7-quotes.png');
 })().catch((e) => { console.error(e.message); process.exit(1); });

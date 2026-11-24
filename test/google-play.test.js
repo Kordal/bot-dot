@@ -54,6 +54,20 @@ test('the phone screenshots are what Play takes: 2 to 8 a language, 9:16, 320 to
   }
 });
 
+test('every answer view of the screenshots\' scene is read by the app\'s validator whole: nothing cut, nothing unknown, every figure with its source', () => {
+  const { VIEWS } = require('../docs/google-play/screenshots/views.cjs');
+  const view = require('../public/answer-view').of(require('../lib/ui-catalog.json'));
+  assert.ok(Object.keys(VIEWS).length >= 5);
+  for (const [name, v] of Object.entries(VIEWS)) {
+    const r = view.validate(JSON.stringify(v));
+    assert.equal(r.ok, true, name);
+    assert.deepEqual(r.problems, [], `${name}: what the validator cut or left out`);
+    const drawn = JSON.stringify(r.root);
+    assert.ok(!/"unknown"/.test(drawn), `${name}: an unknown component`);
+    assert.ok(!/noSource/.test(drawn), `${name}: a figure with no source`);
+  }
+});
+
 test('the privacy policy names every permission the Play build asks for', () => {
   const manifest = fs.readFileSync(path.join(__dirname, '../android/app/src/main/AndroidManifest.xml'), 'utf8');
   const removed = fs.readFileSync(path.join(__dirname, '../android/app/src/play/AndroidManifest.xml'), 'utf8');
