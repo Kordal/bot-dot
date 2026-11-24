@@ -162,7 +162,7 @@ test('a room: made, an account invited by name accepts, a stranger sees nothing,
   } finally { catLive.close(); }
 });
 
-test('an owner adds only their own bot that its settings let in; a mention gives it a turn through its own account', async () => {
+test('an owner adds only their own bot that its settings let in (an older account server); a mention gives it a turn through its own account', async () => {
   const a = await admin();
   const eve = await owner('eve');
   accounts.ann.bots = [bot('scout', 'Scout'), bot('shy', 'Shy', { allowRooms: false, whoMayMention: 'owner' })];
@@ -172,7 +172,12 @@ test('an owner adds only their own bot that its settings let in; a mention gives
   await eve.post(`/front-door/rooms/${room.id}/accept`, {});
 
   assert.equal((await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'helper' })).status, 404, "eve's bot is not ann's to add");
-  assert.equal((await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'shy' })).status, 403);
+  const kept = await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'shy' });
+  assert.equal(kept.status, 403);
+  assert.equal(kept.data.error, 'Shy is kept out of rooms. Turn "Rooms" on in its settings first.');
+  const absent = await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'ghost' });
+  assert.equal(absent.status, 404);
+  assert.equal(absent.data.error, 'You have no such bot.');
   const added = await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'scout' });
   assert.equal(added.status, 200, added.text);
   assert.deepEqual(added.data.room.bots, [{ account: 'ann', id: 'scout', name: 'Scout', emoji: '🤖', color: '#336699' }]);
@@ -240,7 +245,7 @@ test("bots hand on by naming each other, and stop after 12 replies without a per
   const asking = turnsAsked.filter((t) => t.account === 'fay').at(-1).body.messages.at(-1);
   assert.equal(asking.bot, true);
   assert.equal(asking.name, 'Ping');
-  // Its owner turned rooms off since: the account leaves it out of room-bots (#316), and it gets no turn.
+  // The account no longer lists it (an account on an older botdot leaves out a bot its owner kept out, #316): no turn.
   accounts.fay.bots = [bot('ping', 'Ping')];
   await fay.post(`/front-door/rooms/${room.id}/messages`, { text: '@Pong?' });
   await waitFor(async () => (await messagesOf(fay, room.id)).some((m) => m.text === 'Pong · fay is kept out of rooms by its owner.'), { what: 'the kept-out notice' });

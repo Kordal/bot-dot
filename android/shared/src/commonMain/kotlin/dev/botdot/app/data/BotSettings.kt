@@ -203,6 +203,13 @@ object BotSettings {
     /** Its shared-room settings: a server that keeps them (`room-settings`) and has them for this bot. */
     fun showsRooms(b: Bot, features: Collection<String>?): Boolean = BotRooms.shows(features) && b.rooms != null
 
+    /**
+     * Whether the server lets every bot be in shared rooms (`rooms-every-bot`, ADR 269): then there is no "May be in
+     * shared rooms" switch and no hint to switch it on. A server without it, or whose features are not known yet, still
+     * keeps the switch per bot, so the app draws it as before.
+     */
+    fun everyBotInRooms(features: Collection<String>?): Boolean = features != null && "rooms-every-bot" in features
+
     /** Undo last change (#596): the card's change [change] undone on botdot, and the bot as it is now. */
     @Throws(Exception::class)
     suspend fun undo(api: Api, botId: String, change: String): Bot { api.undoChange(botId, change); return api.bot(botId) }
@@ -379,6 +386,8 @@ class BotSettingsState(
     val showsBrowser: Boolean get() = BotSettings.showsBrowser(features)
     /** Its shared-room settings, from a server that keeps them (`room-settings`). */
     val showsRooms: Boolean get() = bot?.let { BotSettings.showsRooms(it, features) } == true
+    /** Every bot is in shared rooms (ADR 269): no "May be in shared rooms" switch. */
+    val everyBotInRooms: Boolean get() = BotSettings.everyBotInRooms(features)
     /** Who may mention it in a room: the owner, or anyone in it. */
     val whoMayMention: List<Option> get() = BotRooms.WHO.map { (id, label) -> Option(id, label) }
     /** Undo last change: a change a card made to its assignment or rules that one tap undoes (#596). */

@@ -255,7 +255,7 @@ test("web: the room's settings: Remove only on this account's bots, Delete only 
   assert.match(h, /<option value="diary">Diary<\/option>/);
   assert.doesNotMatch(h, /value="coder"/, 'already in the room');
   assert.doesNotMatch(h, /value="vault"/, 'kept out of rooms by its settings');
-  assert.match(h, /once "Shared rooms" is on in their settings/);
+  assert.doesNotMatch(h, /is on in their settings/, 'no hint to switch rooms on: every bot may be in them (ADR 269)');
   assert.match(h, /bob · invited/);
   assert.match(h, /data-delete-room/);
   assert.match(h, /data-leave-room/);
@@ -325,11 +325,13 @@ test('web: the Rooms screens carry no helper lines', () => {
 
 // ---------- a bot's settings ----------
 
-test("web: a bot's settings have the Shared rooms row with room-settings and rooms on, and save sends rooms", () => {
+test("web: a bot's settings have the Who may mention it row, and no Shared rooms switch (ADR 269), with room-settings and rooms on", () => {
   const draw = cut('function renderBotSettings(', '// The bits of the settings page that follow');
   assert.ok(draw.includes('${showsRoomSettings(b) ?'));
-  assert.match(draw, /name="allowRooms" \$\{b\.rooms\.allowRooms \? 'checked' : ''\}/);
-  assert.match(draw, /<select name="roomsWho" aria-label="\$\{esc\(tr\('Who may mention it'\)\)\}">/, "a row of its own, shown while it is on");
+  assert.doesNotMatch(draw, /allowRooms/, 'every bot may be in rooms: no switch');
+  assert.doesNotMatch(draw, /tr\('Shared rooms'\)/);
+  assert.match(draw, /<select name="roomsWho" aria-label="\$\{esc\(tr\('Who may mention it'\)\)\}">/, "a row of its own, shown whenever room settings are");
+  assert.doesNotMatch(draw, /bs-rooms-who \$\{/, 'not hidden by a switch');
   assert.match(bots, /const ROOM_WHO = \[\['owner', tr\('Only you'\)\], \['anyone', tr\('Anyone in the room'\)\]\];/);
   const ctx = vm.createContext({ ...words, readDisabledSkills: () => [], readLlmFields: () => ({}), state: { features: ['room-settings'] }, rooms: { on: true } });
   vm.runInContext(`${cut('const ROOM_WHO = ', '// The page\'s form, in the shape the API takes.')}\n${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm; this.showsRoomSettings = showsRoomSettings;`, ctx);
@@ -337,8 +339,8 @@ test("web: a bot's settings have the Shared rooms row with room-settings and roo
   const base = { name: field('Coder'), color: field('#1d9e75'), description: field(''), group: field(''), prompt: field(''), systemPrompt: field(''), computer: field(''), othersMayAsk: field('', true), tools: field(''), permissionMode: field('dontAsk') };
   const sel = { skills: [], connectors: [], others: [], mayMessage: new Set() };
   assert.equal('rooms' in ctx.readBotForm(base, sel), false, 'no row, nothing of rooms is sent');
-  assert.deepEqual(plain(ctx.readBotForm({ ...base, allowRooms: field('', true), roomsWho: field('anyone') }, sel).rooms), { allowRooms: true, whoMayMention: 'anyone' });
-  const b = { rooms: { allowRooms: false, whoMayMention: 'owner' } };
+  assert.deepEqual(plain(ctx.readBotForm({ ...base, roomsWho: field('anyone') }, sel).rooms), { whoMayMention: 'anyone' }, 'only who may mention it is sent');
+  const b = { rooms: { allowRooms: true, whoMayMention: 'owner' } };
   assert.equal(ctx.showsRoomSettings(b), true);
   assert.equal(ctx.showsRoomSettings({}), false, 'a botdot that sends no rooms');
   ctx.state.features = [];
