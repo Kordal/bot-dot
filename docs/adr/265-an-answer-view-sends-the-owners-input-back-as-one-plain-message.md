@@ -1,0 +1,36 @@
+# ADR-265: An answer view sends the owner's input back as one plain message of their own
+
+- **Status:** Accepted (by the owner, 2026-11-24, in the grilling of [#1622](https://github.com/Kordal/bot-dot/issues/1622))
+- **Owning task:** [#1627](https://github.com/Kordal/bot-dot/issues/1627) (the spec is [#1622](https://github.com/Kordal/bot-dot/issues/1622))
+- **Builds on:** [ADR 264](264-a-bot-draws-an-answer-view-in-a-ui-fence-from-a-catalog-the-server-hands-out.md) (the format and the catalog; "a view never approves"), [Milestone 7](../product/milestone7.md) (a message to a busy bot waits its turn), [Milestone 8](../product/milestone8.md) (nothing approved unseen)
+
+## Context
+
+ADR 264 left sending to the wave with inputs. Wave 2 adds fourteen inputs (`text-input`, `textarea`, `number`, `slider`, `range`, `select`, `multi-select`, `radio`, `checkbox`, `toggle`, `date`, `time`, `rating`, `segmented`) and four actions (`button`, `button-group`, `link`, `copy`). What they send, how it reaches the bot and how long they live are one decision, because it is what keeps a view from being a back door: the bot's JSON must never be able to do more than the owner could by typing.
+
+## Decision
+
+- **A view sends one ordinary owner message, through the chat's own send.** The web page hands it to the same function that a quick answer or a card of questions uses (`sendToChief`, `runBot`, `sendToGroup`), with a fresh message key. It is a message like any typed one: the owner's bubble shows it at once, a busy bot or a replying Chief shows it as waiting ([Milestone 7](../product/milestone7.md)), a failed send shows the line above the message box, and the bot, a group's members and the Chief read it as the owner's words. There is no new endpoint and no hidden metadata: no field, no id of the view, no marker. What the bot receives is exactly the text the owner sees.
+- **A form's text.** Any view that has an input gets one **Send**, drawn by the page under the view (a bot draws no submit button). It posts each input's required `label` and its value, one input to a line, in the order of the tree: `Budget: 500`. The value is what the owner set, else what the bot set, always kept to what the input allows. A text of several lines is one line, its lines joined with " / "; a number and a slider keep their `unit` (`Budget: 500 EUR`); a range says `20 to 80`; a multi-select its picks in the options' order, joined with ", "; a checkbox and a toggle `yes` or `no` (the owner's language); a date `YYYY-MM-DD`, a time `HH:MM`; a rating `4/5`; an input with nothing posts a dash. A choice that is not among the options, and a number out of its range, are never posted as typed. The rules are in `AnswerText.form` and the cases in `sends` of `test/fixtures/ui-cases.json`, which Android and iOS read as well.
+- **A button's text.** A `button` posts its `send` (at most 200 characters, cut by the validator and again by the page) or, without one, its label. It posts nothing of the inputs around it: a form has its own Send. A `button-group` is buttons side by side. A button that says "Approve" sends the word "Approve" and nothing else.
+- **A view never approves, runs or changes anything.** The catalog has no action, address or handler for it: a button only posts text and cannot reach a card, a permission, a job, a bot or the Board. Approvals stay on cards in Needs you ([Milestone 5](../product/milestone5.md), [Milestone 8](../product/milestone8.md)); what a bot does with the owner's words is what it does with any message of theirs, under the rules and the approvals it already has.
+- **A link opens only an `https` address,** in a new tab with `rel="noopener noreferrer"`; `copy` copies its `text` to the clipboard on the owner's tap and sends nothing. Both work on an older view too.
+- **A view can be sent once, and only the newest bot message's can be.** Inputs and buttons work on the newest message a bot has sent to the owner in a chat that is whole (not a reply still being written, not a failed one, not one between bots). An older view is read-only. A view that was sent is read-only too, with the line "Sent: …" and what it sent. The page keeps no record of this: it reads it from the chat itself. The owner's message after a view is its send when it is one of the view's buttons' texts or has a line "Label: …" for every input of the form. So a view stays "Sent" when the chat is drawn again, on another device, and after a reload, and an older view that the owner answered otherwise says "Not sent". While the owner has not sent, what they typed stays in the inputs when the chat is drawn again.
+- **Where it works.** In a bot's chat, the Chief's chat and a group's. A room's views are drawn and read-only: a room is shared, a view in it belongs to no one's answer, and the room's send is another person's chat too.
+- **Accessibility.** Every input is a real control with its label (a `label` or a `fieldset` with a `legend`), every button has its words, a slider says its value, and everything works by keyboard: Tab moves, Space and Enter press, Enter in a one-line box goes to the next input and sends from the last (as a card of questions does).
+- **The name `text-input`.** The catalog's `text` is the paragraph of wave 1, so the one-line box is `text-input`.
+
+## Alternatives
+
+- **A hidden payload** (the view's id and a JSON of the values, sent beside the text) so the bot could read the answer exactly. Rejected by the owner: the bot reads the same words the owner sees, and no message exists that the owner did not write in the chat.
+- **A new endpoint for views,** which could skip the queue or answer a bot at once. Rejected: a view is a way of typing, and Milestone 7 already says how a message to a busy bot waits.
+- **A `form` component and a `submit` prop on a button,** so a bot could place Send itself, or a button that also sends the inputs. The catalog's list has neither; one Send, drawn by the page, is the same everywhere and a bot can't forget it or make it say something else.
+- **A record of what each view sent, kept by the server or the page.** More state to agree on across devices; the chat already holds the message, and reading it back is enough.
+- **Keeping an older view live,** so a bot's old form could be answered again. Rejected: nothing stale can be sent twice, and a bot that wants new input asks again.
+
+## Consequences
+
+- The owner types less and sees exactly what was sent; a bot's form is as trustworthy as the owner's own typing.
+- A bot that wants to read a form's answer reads lines "Label: value", so it should write each input's `label` as a question or a name it can find again.
+- Android and iOS draw the same inputs from the same catalog and the same `sends` cases in their own tickets; until then an older app shows each wave 2 component as one quiet "Can't show this here" line (their `since` is 2).
+- Rooms stay read-only until a room has its own answer to give.
