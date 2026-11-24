@@ -7,7 +7,7 @@ How the iOS app ([ADR 242](../adr/242-the-ios-app-is-native-swiftui-on-the-andro
 | [listing-en.md](listing-en.md), [listing-pl.md](listing-pl.md) | The App Store listing texts, English and Polish |
 | [connect-answers.md](connect-answers.md) | The answers for App Store Connect: App Privacy, age rating, App Review Information, export compliance, the EU trader status |
 
-The privacy policy and the account deletion page are the site's: `https://botdot.app/privacy` and `https://botdot.app/account-deletion/`.
+The privacy policy and the account deletion page are the site's: `https://botdot.app/privacy` and `https://botdot.app/account-deletion`.
 
 ## The build
 
