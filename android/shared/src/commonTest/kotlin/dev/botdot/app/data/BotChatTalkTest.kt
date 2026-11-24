@@ -385,6 +385,24 @@ class BotChatTalkTest {
         chat.stop()
     }
 
+    @Test fun aReplyWhoseAnswersWerePutAwayKeepsItsRowForUndoThoughItsQuestionHasEnded() = runTest {
+        // Putting the answers away ends the question on botdot (no `asks` for the run, none on the bot): the reply is no
+        // longer answerable here, yet its row stays so that "Answers hidden · Undo" has something to bring back.
+        val away = """{"id":"r1","botId":"b1","status":"success","prompt":"hi","result":"Ship now?","choices":["Now","Wait"],"yes":0,"choicesDismissed":true,"startedAt":"2026-11-14T09:01:00Z"}"""
+        val kept = """{"id":"r0","botId":"b1","status":"success","prompt":"hi","result":"Ship later?","choices":["Now","Wait"],"yes":0,"startedAt":"2026-11-14T09:00:00Z"}"""
+        val fake = FakeBotdot { a -> if (a.path == "/runs") 200 to "[${run("r2")},$away,$kept]" else 404 to "{}" }
+        val (store, chat) = chat(fake)
+        runCurrent()
+        store.version.set(VersionInfo(features = listOf("choices-dismiss")))
+        chat.start()
+        until("its runs") { chat.state.value.runs.size == 3 }
+        val (_, dismissed, plain) = chat.state.value.runs
+        assertEquals(listOf("Now", "Wait"), dismissed.choices)
+        assertTrue(dismissed.dismissed && dismissed.canDismiss)
+        assertTrue(plain.choices.isEmpty() && !plain.dismissed, "an older reply with answers nobody put away asks nothing: no row")
+        chat.stop()
+    }
+
     @Test fun aReplyBotdotKeptDismissedIsReadDismissedAndAnOlderBotdotOffersNoCross() = runTest {
         val asking = """{"id":"r2","botId":"b1","status":"success","prompt":"hi","result":"Ship now?","choices":["Now","Wait"],"choicesDismissed":true,"startedAt":"2026-11-14T09:01:00Z"}"""
         val fake = FakeBotdot { a -> if (a.path == "/runs") 200 to "[$asking]" else 404 to "{}" }

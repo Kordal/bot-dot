@@ -666,6 +666,9 @@ class BotChat(
         }
         val ended = if (r.status == "running" || r.status == "success" || r.isRunning) null else endedWords(r, features)
         val nothingElse = r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()
+        // Answers put away end the reply's question (the server's `asks`), yet the row stays drawn so that "Answers
+        // hidden · Undo" has something to stand in for: [QuickAnswers.away] hides it once that line is over.
+        val away = QuickAnswers.away(x.choicesPut, r.id, r.choicesDismissed)
         return RunView(
             run = r,
             asked = if (asked == Unread.Asked.MINE) r.prompt else null,
@@ -678,10 +681,10 @@ class BotChat(
             ended = ended?.text,
             problem = ended is Ended.Problem,
             files = r.files.orEmpty(),
-            choices = if (answerable) r.choices.orEmpty() else emptyList(),
-            yes = if (answerable) r.yes ?: -1 else -1,
-            canDismiss = answerable && !r.choices.isNullOrEmpty() && hasChoicesDismiss(features),
-            dismissed = QuickAnswers.away(x.choicesPut, r.id, r.choicesDismissed),
+            choices = if (answerable || away) r.choices.orEmpty() else emptyList(),
+            yes = if (answerable || away) r.yes ?: -1 else -1,
+            canDismiss = (answerable || away) && !r.choices.isNullOrEmpty() && hasChoicesDismiss(features),
+            dismissed = away,
             questions = if (answerable) r.questions.orEmpty() else emptyList(),
             questionChoices = if (answerable) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
             steps = if (!RunSteps.shows(r)) null else {

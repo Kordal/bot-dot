@@ -547,6 +547,31 @@ test("a member's question to the owner is the group's open question, and notifie
   assert.deepEqual(after.events.filter((e) => e.type === 'group_asks').map((e) => [e.data.groupId, e.data.asks]), [[group.id, null]]);
 });
 
+test("the answers of a member's question put away end the group's open question, and Undo opens it again", async (t) => {
+  const { group, bots: [writer, coder] } = await team(srv, 'Putaway', ['Put Writer', 'Put Coder']);
+  const heard = await feed(srv);
+  t.after(() => heard.close());
+  reply(srv, writer, 'Written.');
+  reply(srv, coder, 'Two ways to do it.\nWhich one?\n\n[[choices: The quick one | The clean one]]');
+  const first = await said(srv, group, 'Add the dark mode switch.');
+  const asking = repliesIn(first.chat).find((x) => x.run.botId === coder.id).run;
+  const asked = async () => (await srv.api(`/group-chats/${group.id}/chat`)).data.asks?.runId || null;
+  assert.equal(await asked(), asking.id);
+  const dismiss = (dismissed) => srv.api(`/runs/${asking.id}/choices-dismissed`, { method: 'PUT', body: { dismissed } });
+  const feedAsks = () => heard.events.filter((e) => e.type === 'group_asks' && e.data.groupId === group.id).map((e) => e.data.asks?.runId || null);
+
+  assert.equal((await dismiss(true)).status, 200);
+  assert.equal(await asked(), null, 'the group asks nothing: the owner put the answers away');
+  assert.equal((await srv.api('/group-chats')).data.find((g) => g.id === group.id).asks, null);
+  await waitFor(() => feedAsks().length === 2, { what: "the end of the group's question on the feed" });
+  assert.deepEqual(feedAsks(), [asking.id, null]);
+
+  assert.equal((await dismiss(false)).status, 200);
+  assert.equal(await asked(), asking.id, 'Undo: it asks again');
+  await waitFor(() => feedAsks().length === 3, { what: 'the question back on the feed' });
+  assert.deepEqual(feedAsks(), [asking.id, null, asking.id]);
+});
+
 test('a bot asks in one place at a time: written to in its own chat, its question in a group ends; its turn in a group ends that of its own chat or of another group (ADR 211)', async (t) => {
   const { group, bots: [coder, reviewer] } = await team(srv, 'Elsewhere', ['Else Coder', 'Else Reviewer']);
   const heard = await feed(srv);

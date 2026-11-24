@@ -686,6 +686,8 @@ class GroupChat(
         val bot = bots.firstOrNull { it.id == r.botId }
         val ended = if (r.status == "success" || r.isRunning) null else endedWords(r, features)
         val asking = asks?.runId == r.id && r.status == "success"
+        // Answers put away end the group's question, yet the row stays drawn for "Answers hidden · Undo" (see BotChat).
+        val away = QuickAnswers.away(choicesPut, r.id, r.choicesDismissed)
         return GroupReplyView(
             id = x.id,
             run = r,
@@ -697,10 +699,10 @@ class GroupChat(
             ended = ended?.text,
             problem = ended is Ended.Problem,
             files = r.files.orEmpty(),
-            choices = if (asking) r.choices.orEmpty() else emptyList(),
-            yes = if (asking) r.yes ?: -1 else -1,
-            canDismiss = asking && !r.choices.isNullOrEmpty() && hasChoicesDismiss(features),
-            dismissed = QuickAnswers.away(choicesPut, r.id, r.choicesDismissed),
+            choices = if (asking || away) r.choices.orEmpty() else emptyList(),
+            yes = if (asking || away) r.yes ?: -1 else -1,
+            canDismiss = (asking || away) && !r.choices.isNullOrEmpty() && hasChoicesDismiss(features),
+            dismissed = away,
             questions = if (asking) r.questions.orEmpty() else emptyList(),
             questionChoices = if (asking) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
         )

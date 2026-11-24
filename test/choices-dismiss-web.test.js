@@ -55,6 +55,12 @@ test('web: the bot chat, the group chat and the Chief chat each give their row t
   assert.doesNotMatch(read('app.js').slice(read('app.js').indexOf('const questionsHTML'), read('app.js').indexOf('function replyText')), /choices-x|dismiss/, 'the card of questions has no ×');
 });
 
+test('web: answers put away end the question, yet the bot chat and the group chat still draw the row, so that "Answers hidden · Undo" stays', () => {
+  // The server's `asks` no longer names such a reply (read.js runAsks), so `open` is false for it: the row is drawn
+  // for a dismissed reply all the same, and the card of questions only for an open one.
+  for (const src of [read('bot-chat.js'), read('groups.js')]) assert.match(src, /\$\{open \|\| r\.choicesDismissed \? choicesHTML\(r\.choices[^\n]*\) : ''\}\$\{open \? questionsHTML\(r\.questions, r\.questionChoices, r\.id\) : ''\}/);
+});
+
 test('web: the × is a round 28px quiet icon, filled on hover', () => {
   const css = read('style.css');
   assert.match(css, /\.choices-x \{[^}]*width: 28px; height: 28px;[^}]*border-radius: 50%; background: transparent; color: var\(--muted\)/);
