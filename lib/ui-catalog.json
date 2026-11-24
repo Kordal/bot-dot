@@ -1,0 +1,186 @@
+{
+  "about": "The catalog of answer views (ADR 264): the components a bot may draw in a ```ui fence of its reply, with their props, lengths, tones, limits and the catalog version each came in (`since`). The server hands it out at GET /api/ui-catalog (`ui-catalog` in `features`); the apps read a fence with one generic validator driven by this file (public/answer-view.js; the shared fixtures are test/fixtures/ui-cases.json). A prop is `{ type, … }`: `string` (max, multiline; empty: an empty one is kept, as a table cell), `number` (min, max, nullable inside a list), `int`, `boolean`, `enum` (values), `tone` (one of `tones`), `https` (a web address), `media` (from: `file` is a path among the bot's files, `https` an image address; exts: the extensions a file may have), `list` (of, max, min) and `object` (props). `required` is a prop that must be there; `counts: \"points\"` adds a list's length to the node's points. A component has `children` (max, only), `in` (the parents it may stand in) and `sourced` (a chart, table or KPI says where its numbers came from). Lengths cut, never refuse; only `limits` refuse a fence.",
+  "version": 1,
+  "limits": { "fences": 3, "nodes": 200, "depth": 6, "bytes": 65536, "points": 500, "alt": 200 },
+  "tones": ["neutral", "good", "warn", "bad", "accent"],
+  "components": {
+    "stack": { "group": "layout", "since": 1, "means": "Its children one under the other.",
+      "props": { "gap": { "type": "enum", "values": ["s", "m", "l"], "default": "m" } },
+      "children": { "max": 30 } },
+    "row": { "group": "layout", "since": 1, "means": "Its children side by side; on a narrow screen one under the other.",
+      "props": { "gap": { "type": "enum", "values": ["s", "m", "l"], "default": "m" } },
+      "children": { "max": 8 } },
+    "grid": { "group": "layout", "since": 1, "means": "Its children in 1 to 4 equal columns.",
+      "props": { "columns": { "type": "int", "min": 1, "max": 4, "default": 2 }, "gap": { "type": "enum", "values": ["s", "m", "l"], "default": "m" } },
+      "children": { "max": 12 } },
+    "card": { "group": "layout", "since": 1, "means": "A box around its children, with an optional title.",
+      "props": { "title": { "type": "string", "max": 80 }, "tone": { "type": "tone", "default": "neutral" } },
+      "children": { "max": 20 } },
+    "section": { "group": "layout", "since": 1, "means": "A titled part of the view, with a one-line lead.",
+      "props": { "title": { "type": "string", "max": 80, "required": true }, "lead": { "type": "string", "max": 200 } },
+      "children": { "max": 20 } },
+    "tabs": { "group": "layout", "since": 1, "means": "Its tabs, one shown at a time.",
+      "props": {},
+      "children": { "max": 6, "only": ["tab"] } },
+    "tab": { "group": "layout", "since": 1, "means": "One tab of tabs.", "in": ["tabs"],
+      "props": { "label": { "type": "string", "max": 30, "required": true } },
+      "children": { "max": 20 } },
+    "accordion": { "group": "layout", "since": 1, "means": "Its panels, each opened and closed on its own.",
+      "props": {},
+      "children": { "max": 12, "only": ["panel"] } },
+    "panel": { "group": "layout", "since": 1, "means": "One panel of an accordion.", "in": ["accordion"],
+      "props": { "title": { "type": "string", "max": 80, "required": true }, "open": { "type": "boolean" } },
+      "children": { "max": 20 } },
+    "divider": { "group": "layout", "since": 1, "means": "A thin line between parts, with an optional word on it.",
+      "props": { "label": { "type": "string", "max": 40 } } },
+    "spacer": { "group": "layout", "since": 1, "means": "An empty space.",
+      "props": { "size": { "type": "enum", "values": ["s", "m", "l"], "default": "m" } } },
+
+    "heading": { "group": "text", "since": 1, "means": "A heading.",
+      "props": { "text": { "type": "string", "max": 120, "required": true }, "level": { "type": "int", "min": 1, "max": 3, "default": 2 } } },
+    "text": { "group": "text", "since": 1, "means": "A paragraph of plain text; line breaks are kept.",
+      "props": { "text": { "type": "string", "max": 2000, "multiline": true, "required": true }, "tone": { "type": "tone", "default": "neutral" } } },
+    "list": { "group": "text", "since": 1, "means": "A bulleted or numbered list of short lines.",
+      "props": { "items": { "type": "list", "of": { "type": "string", "max": 200 }, "max": 30, "min": 1, "required": true }, "ordered": { "type": "boolean" } } },
+    "quote": { "group": "text", "since": 1, "means": "A quotation, with who said it.",
+      "props": { "text": { "type": "string", "max": 600, "multiline": true, "required": true }, "by": { "type": "string", "max": 60 } } },
+    "code": { "group": "text", "since": 1, "means": "A block of code or other text that keeps its spaces and lines.",
+      "props": { "text": { "type": "string", "max": 4000, "multiline": true, "required": true }, "lang": { "type": "string", "max": 20 } } },
+    "badge": { "group": "text", "since": 1, "means": "A short word in a pill.",
+      "props": { "text": { "type": "string", "max": 30, "required": true }, "tone": { "type": "tone", "default": "neutral" } } },
+    "key-value": { "group": "text", "since": 1, "means": "Facts as a name and its value, one per line.",
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "items": { "type": "list", "max": 20, "min": 1, "required": true, "of": { "type": "object", "props": { "key": { "type": "string", "max": 60, "required": true }, "value": { "type": "string", "max": 200, "required": true } } } }
+      } },
+    "steps": { "group": "text", "since": 1, "means": "Numbered steps, each done, current or still to do.",
+      "props": {
+        "items": { "type": "list", "max": 12, "min": 1, "required": true, "of": { "type": "object", "props": { "title": { "type": "string", "max": 80, "required": true }, "text": { "type": "string", "max": 200 }, "state": { "type": "enum", "values": ["done", "current", "todo"], "default": "todo" } } } }
+      } },
+
+    "hero": { "group": "data", "since": 1, "means": "The top of a view: a title with a small line above it, a lead and tags.",
+      "props": {
+        "title": { "type": "string", "max": 120, "required": true }, "eyebrow": { "type": "string", "max": 60 }, "lead": { "type": "string", "max": 400 },
+        "tags": { "type": "list", "of": { "type": "string", "max": 30 }, "max": 8 }
+      } },
+    "kpi": { "group": "data", "since": 1, "means": "One number with its label, its unit, what it is out of, a note and its recent values.", "sourced": true,
+      "props": {
+        "label": { "type": "string", "max": 60, "required": true }, "value": { "type": "string", "max": 40, "required": true },
+        "unit": { "type": "string", "max": 20 }, "of": { "type": "string", "max": 20 }, "sub": { "type": "string", "max": 120 },
+        "good": { "type": "enum", "values": ["up", "down"] }, "tone": { "type": "tone", "default": "neutral" },
+        "points": { "type": "list", "of": { "type": "number", "nullable": true }, "max": 60, "counts": "points" },
+        "source": { "type": "string", "max": 120 }
+      } },
+    "stat-row": { "group": "data", "since": 1, "means": "KPIs side by side.",
+      "props": {},
+      "children": { "max": 6, "only": ["kpi"] } },
+    "progress": { "group": "data", "since": 1, "means": "A bar showing how far something is, 0 to 100.",
+      "props": {
+        "label": { "type": "string", "max": 60, "required": true }, "value": { "type": "number", "min": 0, "max": 100, "required": true },
+        "text": { "type": "string", "max": 60 }, "tone": { "type": "tone", "default": "neutral" }
+      } },
+    "status": { "group": "data", "since": 1, "means": "A pill that says how something stands.",
+      "props": { "text": { "type": "string", "max": 60, "required": true }, "tone": { "type": "tone", "default": "neutral" } } },
+    "table": { "group": "data", "since": 1, "means": "Rows under column headings; on a phone, a list.", "sourced": true,
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "columns": { "type": "list", "max": 12, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 40, "required": true }, "align": { "type": "enum", "values": ["left", "right", "center"], "default": "left" } } } },
+        "rows": { "type": "list", "max": 100, "min": 1, "required": true, "of": { "type": "list", "max": 12, "of": { "type": "string", "max": 200, "empty": true } } },
+        "source": { "type": "string", "max": 120 }
+      } },
+    "timeline": { "group": "data", "since": 1, "means": "Events in order, each with when it happened.",
+      "props": {
+        "items": { "type": "list", "max": 20, "min": 1, "required": true, "of": { "type": "object", "props": { "when": { "type": "string", "max": 30 }, "title": { "type": "string", "max": 80, "required": true }, "text": { "type": "string", "max": 200 }, "tone": { "type": "tone", "default": "neutral" } } } }
+      } },
+    "comparison": { "group": "data", "since": 1, "means": "Two to four options side by side, row by row; `pick` marks the one the bot recommends (a number from 0).",
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "options": { "type": "list", "of": { "type": "string", "max": 40 }, "max": 4, "min": 2, "required": true },
+        "rows": { "type": "list", "max": 20, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 60, "required": true }, "values": { "type": "list", "of": { "type": "string", "max": 100, "empty": true }, "max": 4, "min": 1, "required": true } } } },
+        "pick": { "type": "int", "min": 0, "max": 3 }
+      } },
+    "checklist": { "group": "data", "since": 1, "means": "Items with a tick for each one done. It only shows them.",
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "items": { "type": "list", "max": 30, "min": 1, "required": true, "of": { "type": "object", "props": { "text": { "type": "string", "max": 120, "required": true }, "done": { "type": "boolean" } } } }
+      } },
+    "callout": { "group": "feedback", "since": 1, "means": "A box that stands out, with a tone.",
+      "props": { "title": { "type": "string", "max": 80 }, "text": { "type": "string", "max": 400, "required": true }, "tone": { "type": "tone", "default": "neutral" } } },
+
+    "chart": { "group": "charts", "since": 1, "means": "Lines, areas, bars, stacked bars or horizontal bars over `labels`; a series is drawn in a colour by its number.", "sourced": true,
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "style": { "type": "enum", "values": ["line", "area", "bar", "stacked", "hbar"], "default": "line" },
+        "labels": { "type": "list", "of": { "type": "string", "max": 30 }, "max": 100 },
+        "series": { "type": "list", "max": 6, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 40 }, "points": { "type": "list", "of": { "type": "number", "nullable": true }, "min": 1, "required": true, "counts": "points" } } } },
+        "unit": { "type": "string", "max": 20 }, "source": { "type": "string", "max": 120 }
+      } },
+    "pie": { "group": "charts", "since": 1, "means": "Parts of a whole as slices, or as a ring with `donut`.", "sourced": true,
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "slices": { "type": "list", "max": 12, "min": 1, "required": true, "counts": "points", "of": { "type": "object", "props": { "label": { "type": "string", "max": 40, "required": true }, "value": { "type": "number", "min": 0, "required": true } } } },
+        "donut": { "type": "boolean" }, "unit": { "type": "string", "max": 20 }, "source": { "type": "string", "max": 120 }
+      } },
+    "scatter": { "group": "charts", "since": 1, "means": "Points placed by two numbers, x and y.", "sourced": true,
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "series": { "type": "list", "max": 6, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 40 }, "points": { "type": "list", "min": 1, "required": true, "counts": "points", "of": { "type": "object", "props": { "x": { "type": "number", "required": true }, "y": { "type": "number", "required": true } } } } } } },
+        "xLabel": { "type": "string", "max": 30 }, "yLabel": { "type": "string", "max": 30 }, "source": { "type": "string", "max": 120 }
+      } },
+    "histogram": { "group": "charts", "since": 1, "means": "How many of `values` fall in each of `bins` equal ranges.", "sourced": true,
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "values": { "type": "list", "of": { "type": "number" }, "min": 1, "required": true, "counts": "points" },
+        "bins": { "type": "int", "min": 2, "max": 40, "default": 10 }, "unit": { "type": "string", "max": 20 }, "source": { "type": "string", "max": 120 }
+      } },
+    "sparkline": { "group": "charts", "since": 1, "means": "A small line of recent values, with no axes.", "sourced": true,
+      "props": {
+        "label": { "type": "string", "max": 40 },
+        "points": { "type": "list", "of": { "type": "number", "nullable": true }, "min": 2, "required": true, "counts": "points" },
+        "tone": { "type": "tone", "default": "neutral" }, "source": { "type": "string", "max": 120 }
+      } },
+    "gauge": { "group": "charts", "since": 1, "means": "One value on a dial between `min` (0) and `max` (100).", "sourced": true,
+      "props": {
+        "label": { "type": "string", "max": 60, "required": true }, "value": { "type": "number", "required": true },
+        "min": { "type": "number" }, "max": { "type": "number" }, "unit": { "type": "string", "max": 20 },
+        "tone": { "type": "tone", "default": "neutral" }, "source": { "type": "string", "max": 120 }
+      } },
+
+    "image": { "group": "media", "since": 1, "means": "A picture from the bot's files or from an https address botdot fetches. It needs `alt`: what the picture shows.",
+      "props": {
+        "src": { "type": "media", "from": ["file", "https"], "exts": ["png", "jpg", "jpeg", "webp", "gif"], "required": true },
+        "alt": { "type": "string", "max": 160, "required": true }, "caption": { "type": "string", "max": 120 }
+      } },
+    "gallery": { "group": "media", "since": 1, "means": "Several pictures; each needs `alt`.",
+      "props": {
+        "items": { "type": "list", "max": 12, "min": 1, "required": true, "of": { "type": "object", "props": {
+          "src": { "type": "media", "from": ["file", "https"], "exts": ["png", "jpg", "jpeg", "webp", "gif"], "required": true },
+          "alt": { "type": "string", "max": 160, "required": true }, "caption": { "type": "string", "max": 120 } } } }
+      } },
+    "video": { "group": "media", "since": 1, "means": "A video from the bot's own files only. It needs `alt`: what it shows.",
+      "props": {
+        "src": { "type": "media", "from": ["file"], "exts": ["mp4", "webm", "mov", "m4v"], "required": true },
+        "alt": { "type": "string", "max": 160, "required": true }, "caption": { "type": "string", "max": 120 }
+      } },
+    "audio": { "group": "media", "since": 1, "means": "A sound from the bot's own files only.",
+      "props": {
+        "src": { "type": "media", "from": ["file"], "exts": ["mp3", "m4a", "wav", "ogg", "oga", "opus", "aac"], "required": true },
+        "title": { "type": "string", "max": 80, "required": true }
+      } },
+    "file": { "group": "media", "since": 1, "means": "A file of the bot's, to open or save.",
+      "props": { "src": { "type": "media", "from": ["file"], "required": true }, "title": { "type": "string", "max": 80 } } },
+    "link-card": { "group": "media", "since": 1, "means": "A link to a web page, with a line about it and an optional picture. Only an https address opens.",
+      "props": {
+        "url": { "type": "https", "required": true }, "title": { "type": "string", "max": 80, "required": true },
+        "text": { "type": "string", "max": 160 }, "image": { "type": "media", "from": ["https"] }
+      } },
+    "products": { "group": "media", "since": 1, "means": "Shopping results as product cards (ADR 113); the first is the bot's pick.",
+      "props": {
+        "items": { "type": "list", "max": 10, "min": 1, "required": true, "of": { "type": "object", "props": {
+          "name": { "type": "string", "max": 120, "required": true }, "url": { "type": "https" }, "image": { "type": "https" },
+          "price": { "type": "string", "max": 30 }, "was": { "type": "string", "max": 30 }, "store": { "type": "string", "max": 60 },
+          "rating": { "type": "number", "min": 0, "max": 5 }, "reviews": { "type": "int", "min": 1 },
+          "arrives": { "type": "string", "max": 60 }, "why": { "type": "string", "max": 200 } } } }
+      } }
+  }
+}
