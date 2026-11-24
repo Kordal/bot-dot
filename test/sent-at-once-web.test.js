@@ -9,7 +9,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread, words } = require('./web-page');
+const { app, read, cut, esc, element, thread, words, fitHeight } = require('./web-page');
 
 const css = read('style.css');
 const at = '2026-10-09T09:00:00.000Z';
@@ -55,7 +55,7 @@ function page({ features = ['message-waits', 'message-key'], reply = async () =>
   const lib = vm.createContext({ ...words });
   vm.runInContext(read('unread.js'), lib);
   vm.runInContext(read('opening-line.js'), lib);
-  const ctx = vm.createContext({ ...words,
+  const ctx = vm.createContext({ ...words, fitHeight,
     crypto: globalThis.crypto, esc, state, console: { error: (e) => { throw e; }, warn() {} }, OpeningLine: lib.OpeningLine, Unread: lib.Unread, openingLines: lib.OpeningLine.keeper(),
     CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, CHIEF_COLOR: '#d85a30', ICON: { stop: '<stop>', send: '<send>' },
     chiefTurns: new Map(), chiefQueued: new Map(),
