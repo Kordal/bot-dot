@@ -76,7 +76,6 @@ import dev.botdot.app.data.Learned
 import dev.botdot.app.data.MEMORY_CHIPS
 import dev.botdot.app.data.announces
 import dev.botdot.app.data.Plan
-import dev.botdot.app.data.PlanView
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.RunSteps
 import dev.botdot.app.data.SentTo
@@ -177,16 +176,14 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     val backAt by app.store.claude.backAt.collectAsState()
     // Its plan above the message box (docs/api.md, "The plan"): the run at work's, or the newest run's that was stopped
     // before its plan was done, until dismissed. Folded to its one line unless the owner opened it in this chat.
-    var planFolded by remember(botId) { mutableStateOf(app.plans.folded(chatKey)) }
-    var planDismissed by remember(botId) { mutableStateOf(0) } // a dismissal draws the chat again
-    val planView = remember(runs, planDismissed) { PlanView.ofBot(runs, app.plans::dismissed) }
+    val planView = vm.plan
     // Each run at work says what it is doing in its own block (#625): its line, its count of steps so far, and Stop.
     val runLines by app.store.lines.runLines.collectAsState()
     val heldRuns by app.store.lines.heldRuns.collectAsState()
     val runSteps by app.store.lines.runSteps.collectAsState()
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
-    fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments, replyTo = vm.replying?.runId) }
+    fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments, replyTo = vm.reply?.runId) }
     // An empty chat (#727): the box in the middle, under its head and name, and its jobs under it. Gone with the first message.
     val empty = loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null && vm.queued.isEmpty() && vm.started.isEmpty()
     @Composable fun box() = Composer(
@@ -240,10 +237,10 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                 }
             },
             bottomBar = { if (!empty) Column {
-                PlanDock(planView, bot?.color, bot?.name ?: tr("It"), planFolded,
-                    onFold = { planFolded = it; app.plans.setFolded(chatKey, it) },
-                    onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
-                vm.replying?.let { ReplyChip(it.text) { vm.replying = null } }
+                PlanDock(planView, bot?.color, bot?.name ?: tr("It"), vm.planFolded,
+                    onFold = { vm.foldPlan(it) },
+                    onDismiss = { vm.dismissPlan() })
+                vm.reply?.let { ReplyChip(it.text) { vm.clearReply() } }
                 box()
             } },
         ) { pad ->
@@ -295,9 +292,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         val older = newestFirst.getOrNull(at + 1).orEmpty().map { it.id } // the block above this one
                         // Details on the long press opens the newest round's steps; Copy takes its reply.
                         val detailed = rounds.lastOrNull { RunSteps.shows(it) }
-                        RunBlock(onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
-                            vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { tr("this task") })
-                        }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result,
+                        RunBlock(onReply = if (replies && vm.replies(last.id)) ({ vm.replyTo(last.id) }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result,
                             marked = marked != null && rounds.any { it.id == marked }) {
                             rounds.forEachIndexed { n, r ->
                                 if (n > 0) RoundRule()
