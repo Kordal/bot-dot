@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.answerview.copyText
 import dev.botdot.app.data.DocumentExport
 import dev.botdot.app.data.tr
 
@@ -36,12 +37,15 @@ fun OpenAsDocument(text: String?, from: String) {
     val app = BotDotApp.of(LocalContext.current)
     val server by app.store.version.value.collectAsState()
     if (!DocumentExport.shows(server?.features)) return
-    val long = remember(text) { isDocument(text) }
+    // A reply with an answer view is exported as its text: the `alt`, its tables as Markdown tables (ADR 264).
+    val views = LocalAnswerViews.current
+    val plain = remember(text, views) { if (views != null && text.contains("```ui")) views.copyText(text) else text }
+    val long = remember(plain) { isDocument(plain) }
     if (!long) return
     val p = LocalPaper.current
     Row(
         Modifier.padding(top = Space.s12).raised(Radius.pill)
-            .clickable { DocViewer.open = DocViewer.Request(src = "", name = documentTitle(text), from = from, text = text) }
+            .clickable { DocViewer.open = DocViewer.Request(src = "", name = documentTitle(plain), from = from, text = plain) }
             .padding(horizontal = Space.s12, vertical = Space.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {

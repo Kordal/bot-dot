@@ -342,7 +342,7 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
     }
     val sent = vm.outbox.sent?.unlessIn(vm.own(mine))
     val server by app.store.version.value.collectAsState()
-    CompositionLocalProvider(LocalMentions provides mentions, LocalSiteIcons provides sitesShown(server?.features), LocalProductCards provides productCardsShown(server?.features)) {
+    CompositionLocalProvider(LocalMentions provides mentions, LocalSiteIcons provides sitesShown(server?.features), LocalProductCards provides productCardsShown(server?.features), LocalAnswerViews provides rememberAnswerViews(server?.features)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },

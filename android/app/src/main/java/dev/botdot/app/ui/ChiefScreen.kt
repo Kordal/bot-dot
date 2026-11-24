@@ -194,7 +194,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val onWeb = api?.let { a -> chatId?.let { chatOnWeb(a.baseUrl, "chief", it) } }
     // A file you sent in this chat opens in the viewer (#268).
     val ownFiles = remember(chatId, server?.features) { chatId?.takeIf { DocumentView.opensChatFiles(server?.features) }?.let { id -> { f: Attachment -> DocumentView.chiefUpload(id, f.file) } } }
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalBotLinks provides rememberBotLinks(app, Mentions.CHIEF)) {
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalBotLinks provides rememberBotLinks(app, Mentions.CHIEF)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
@@ -321,7 +321,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
         // A reply still being written: the working line under the chat says it ([lineSaysIt]), and only what it
         // did so far stands here, with its draft from a server that sends one (ReplyDraft), growing in the reply's
         // place. Against a botdot from before `message-waits`, its bubble as it was.
-        m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(draft), copy = false) }
+        m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(draft), copy = false, draft = true) }
         m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Working(activity.lastOrNull()?.let { "$it…" } ?: tr("Thinking…"), activity)
             if (chips.isNotEmpty()) ActionChips(chips)

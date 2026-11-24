@@ -218,7 +218,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // A path in its replies, and a file you sent it, open in the viewer (#251).
     CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalFileMentions provides rememberFileMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "bot", botId) },
         LocalPathActions provides rememberPathActions(botId, bot?.name.orEmpty()), LocalSiteIcons provides sitesShown(features),
-        LocalProductCards provides productCardsShown(features), LocalProductSaver provides botId, LocalBotLinks provides rememberBotLinks(app, botId)) {
+        LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalProductSaver provides botId, LocalBotLinks provides rememberBotLinks(app, botId)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
@@ -409,7 +409,7 @@ private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean, features
     when (r.status) {
         // No bubble while it works: the status line says it; only what it attached so far. From a server with drafts,
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
-        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble(plain = true) { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
+        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble(plain = true) { Column { MarkdownText(draftSource(draft), copy = false, draft = true); BotFilesRow(r.files) } }
         "success" -> reply()
         else -> when (val ended = endedWords(r, features)) {
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.

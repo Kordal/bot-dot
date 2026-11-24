@@ -127,6 +127,9 @@ android {
         // Shopping results as product cards, read as the web page reads them (ProductsTest, #685).
         val productsCases = rootProject.file("../test/fixtures/products-cases.json")
         unitTests.all { it.systemProperty("productsCases", productsCases.path); it.inputs.file(productsCases) }
+        // Answer views, drawn from the catalog the server hands out (AnswerViewUiTest, #1626).
+        val uiCatalog = rootProject.file("../lib/ui-catalog.json")
+        unitTests.all { it.systemProperty("uiCatalog", uiCatalog.path); it.inputs.file(uiCatalog) }
         // Which reply is a document, as the web page decides it (DocumentOpenTest, #348).
         val documentCases = rootProject.file("../test/fixtures/document-cases.json")
         unitTests.all { it.systemProperty("documentCases", documentCases.path); it.inputs.file(documentCases) }

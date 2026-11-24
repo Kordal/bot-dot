@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import dev.botdot.app.answerview.ReplyPart
 import dev.botdot.app.data.BotNames
 import dev.botdot.app.data.FilePaths
 import dev.botdot.app.data.tr
@@ -161,7 +162,25 @@ internal fun sitesShown(features: List<String>?) = features?.contains("site-icon
  *  [copy]: a Copy button on each code block (#285); none in a reply still being written (its code may be cut short)
  *  or on a tile (a tap runs the tile), as on the web page. */
 @Composable
-fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true, bots: BotLinks? = LocalBotLinks.current) {
+fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true, bots: BotLinks? = LocalBotLinks.current, draft: Boolean = false) {
+    // An answer view (a ```ui fence, ADR 264) is drawn from the catalog the server hands out: a reply with one is split into
+    // its text, its views and the code of what can't be drawn. [draft]: the reply is still being written, so a fence not
+    // closed yet waits as "Drawing a view…". Without the catalog (an older botdot), a fence is code like any other.
+    val views = LocalAnswerViews.current
+    val parts = remember(text, views, draft) { if (views != null && text.contains("```ui")) views.split(text, done = !draft) else null }
+    if (parts == null) return MarkdownProse(text, color, modifier, onWeb, paths, copy, bots)
+    Column(modifier) {
+        parts.forEachIndexed { i, part ->
+            key(i) {
+                val above = Modifier.padding(top = if (i == 0) 0.dp else 6.dp)
+                if (part is ReplyPart.Text) MarkdownProse(part.text, color, above, onWeb, paths, copy, bots) else AnswerPart(part, color, copy, above)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownProse(text: String, color: Color, modifier: Modifier, onWeb: String?, paths: PathActions?, copy: Boolean, bots: BotLinks?) {
     val p = LocalPaper.current
     val sites = LocalSiteIcons.current
     val cards = LocalProductCards.current
@@ -224,12 +243,7 @@ private fun MarkdownBlock(s: StyledBlock, gap: Dp, color: Color, onWeb: String?,
         is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
             modifier = prose.padding(start = Space.s12), inlineContent = icons)
         is Block.Code -> if (s.products != null) ProductCards(s.products, above) else {
-            // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
-            Row(above.fillMaxWidth().background(p.sunk, Radius.small)) {
-                Text(b.text, fontFamily = GeistMono, fontSize = Type.s12, color = color,
-                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(Space.s12))
-                if (copy) copyTextOf(b)?.let { key(it) { CopyCode(it) } }
-            }
+            PlainCode(b.text, color, copy, above)
             webLinkUnder(b, onWeb)?.let { url ->
                 Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append(tr("Open on web")) } },
                     fontSize = Type.s14, modifier = Modifier.padding(top = Space.s4))
@@ -237,6 +251,17 @@ private fun MarkdownBlock(s: StyledBlock, gap: Dp, color: Color, onWeb: String?,
         }
         is Block.Table -> Box(above) { Table(b.rows, st, color, p, icons) }
         Block.Rule -> Box(above.fillMaxWidth().height(1.dp).background(p.line2))
+    }
+}
+
+/** A block of code: its text in a box that scrolls sideways, with Copy in its top-right corner (#285) in a column of its own. */
+@Composable
+internal fun PlainCode(text: String, color: Color, copy: Boolean, modifier: Modifier = Modifier) {
+    val p = LocalPaper.current
+    Row(modifier.fillMaxWidth().background(p.sunk, Radius.small)) {
+        Text(text, fontFamily = GeistMono, fontSize = Type.s12, color = color,
+            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(Space.s12))
+        if (copy) key(text) { CopyCode(text) }
     }
 }
 

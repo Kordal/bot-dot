@@ -66,7 +66,7 @@ data class RunSteps(val count: Int, val rows: List<Row>) {
             else (listOf(countWords(count)) + skills(r).map { tr("the skill {name}", "name" to it) } + messaged(r).map { it.name } + took(r.startedAt, r.endedAt)).filter { it.isNotEmpty() }.joinToString(", ")
 
         /** A message's first line, as one plain line of at most 160 characters. */
-        fun firstLine(text: String?): String = plainText(text.orEmpty().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()).trim().take(160)
+        fun firstLine(text: String?): String = plainText(dev.botdot.app.answerview.answerViewAlts(text.orEmpty()).lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()).trim().take(160)
 
         /**
          * The rows of [r]'s open step line, in the order they came: its steps, then the messages it sent and the skills it
