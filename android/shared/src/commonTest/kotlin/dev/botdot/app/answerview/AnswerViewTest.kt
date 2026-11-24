@@ -338,4 +338,72 @@ class AnswerViewTest {
         val root = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"button","label":"Yes, go ahead","send":"Yes, go ahead with the cheaper plan"},{"type":"button","label":"Approve"}]}}""")).root
         assertEquals(listOf("Yes, go ahead with the cheaper plan", ""), ViewForm.buttons(root).map { ViewForm.shows(it.node) })
     }
+
+    // ---- wave 3: the long tail (#1629), the same cases the web page runs (test/answer-view.test.js) ----
+
+    private fun cases(key: String) = fixture.getValue(key).jsonArray.map { it.jsonObject }
+    private fun name(c: JsonObject) = c.getValue("name").jsonPrimitive.content
+
+    @Test fun aCountdownCountsTheTimeLeftToItsMomentInTheOwnersOwnZoneUnlessItNamesOne() {
+        val all = cases("countdowns")
+        assertTrue(all.size >= 8)
+        for (c in all) {
+            val now = assertNotNull(ViewTail.moment(c.getValue("now").jsonPrimitive.content))
+            val left = ViewTail.countdown(c.getValue("to").jsonPrimitive.content, now, c.getValue("offset").jsonPrimitive.content.toInt())
+            val shows = c.getValue("shows")
+            if (shows is JsonNull) { assertNull(left, name(c)); continue }
+            assertNotNull(left, name(c))
+            assertEquals(c["over"]?.jsonPrimitive?.boolean ?: false, left.over, name(c))
+            assertEquals(shows.jsonPrimitive.content, left.shows, name(c))
+        }
+    }
+
+    @Test fun aCountdownWithoutAZoneUsesTheDevicesOwnZoneAtThatDay() {
+        // a zone that is +01:00 in winter and +02:00 in summer: the day's own offset is the one used
+        val zone = { utc: Long -> if (utc in ViewTail.moment("2026-03-29T01:00Z")!!..ViewTail.moment("2026-10-25T01:00Z")!!) 120 else 60 }
+        assertEquals(ViewTail.moment("2026-07-01T10:00+02:00"), ViewTail.moment("2026-07-01T10:00", offsetAt = zone))
+        assertEquals(ViewTail.moment("2026-12-31T10:00+01:00"), ViewTail.moment("2026-12-31T10:00", offsetAt = zone))
+    }
+
+    @Test fun aCalendarsMonthATreesDepthsAndAHeatmapsShadesAreReadAsTheSharedFixtureSays() {
+        for (c in cases("calendars")) {
+            val m = ViewTail.month(c.getValue("month").jsonPrimitive.content)
+            val days = c.getValue("days")
+            if (days is JsonNull) assertNull(m, name(c))
+            else { assertNotNull(m, name(c)); assertEquals(listOf(days.jsonPrimitive.content.toInt(), c.getValue("start").jsonPrimitive.content.toInt()), listOf(m.days, m.start), name(c)) }
+        }
+        for (c in cases("outlines")) assertEquals(c.getValue("shown").jsonArray.map { it.jsonPrimitive.content.toInt() }, ViewTail.outline(c.getValue("depths").jsonArray.map { it.jsonPrimitive.content.toInt() }), name(c))
+        for (c in cases("shades")) {
+            val values = c.getValue("values").jsonArray.map { row -> row.jsonArray.map { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.toDouble() } }
+            val want = c.getValue("shades").jsonArray.map { row -> row.jsonArray.map { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.toDouble() } }
+            assertEquals(want, ViewTail.shade(values), name(c))
+        }
+        // events are listed by date; a date that is no real day comes last, in the bot's order
+        fun event(date: String, title: String) = JsonObject(mapOf("date" to JsonPrimitive(date), "title" to JsonPrimitive(title)))
+        val events = listOf(event("2026-11-17", "b"), event("soon", "x"), event("2026-11-03", "a"), event("2026-02-30", "y"), event("2026-11-03", "a2"))
+        assertEquals(listOf("a", "a2", "b", "x", "y"), ViewTail.agenda(events).map { it.text("title") })
+    }
+
+    @Test fun aPollsAndAQuizzesChoicesAreButtonsThatPostTheirOwnWords() {
+        val root = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"poll","question":"Q","options":["Monday","Tuesday"]},{"type":"quiz","question":"Q","options":["A","B"],"answer":1},{"type":"empty-state","title":"None","children":[{"type":"button","label":"Add","send":"Add one"}]}]}}""")).root
+        assertEquals(listOf("0.0.0", "0.0.1", "0.1.0", "0.1.1", "0.2.0"), ViewForm.buttons(root).map { it.path })
+        assertEquals(listOf("Monday", "Tuesday", "A", "B", "Add one"), ViewForm.buttons(root).map { ViewForm.press(it.node) })
+        assertEquals(emptyList(), ViewForm.fields(root))
+        // a choice posts its own words, so the view reads as sent when the owner's next message is one of them
+        val says = ViewForm.buttons(root).map { ViewForm.press(it.node) }
+        assertEquals("Tuesday", ViewForm.sentFrom("Tuesday", says, emptyList()))
+    }
+
+    @Test fun aQuizSaysWhetherTheChoiceThatWentWasRightAndNothingBefore() {
+        val options = listOf("Kraków", "Warsaw", "Gdańsk")
+        assertEquals(true to "Correct. Warsaw since 1596.", ViewTail.verdict(options, 1, "Warsaw since 1596.", "Warsaw"))
+        assertEquals(false to "Not quite. The answer is Warsaw.", ViewTail.verdict(options, 1, null, "Kraków"))
+        assertNull(ViewTail.verdict(options, 1, null, "something else"))
+        assertNull(ViewTail.verdict(options, null, null, "Warsaw"))
+    }
+
+    @Test fun theNumbersOfAHeatmapAreReadAsATable() {
+        val r = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"heatmap","title":"Visits","rows":["Mon","Tue"],"columns":["9","12"],"values":[[1,null],[2.5,0]],"unit":"v","source":"s"}}"""))
+        assertEquals(ViewTable("Visits", listOf("", "9", "12"), listOf(listOf("Mon", "1 v", ""), listOf("Tue", "2.5 v", "0 v"))), r.root.dataTable())
+    }
 }

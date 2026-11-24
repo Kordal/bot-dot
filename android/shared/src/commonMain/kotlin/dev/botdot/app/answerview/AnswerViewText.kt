@@ -21,7 +21,7 @@ private fun JsonElement.num(): Double? = asNumber()
 private fun JsonElement.obj() = this as? JsonObject
 private fun JsonElement.str(): String? = (this as? JsonPrimitive)?.takeIf { it.isString }?.content
 
-/** The numbers of a table, a chart, a pie, a scatter, a histogram, a sparkline or a gauge as a table; null for any other component. */
+/** The numbers of a table, a chart, a pie, a scatter, a histogram, a heatmap, a sparkline or a gauge as a table; null for any other component. */
 fun ViewNode.dataTable(): ViewTable? {
     val title = text("title") ?: text("label")
     val unit = text("unit")?.let { " $it" }.orEmpty()
@@ -48,6 +48,9 @@ fun ViewNode.dataTable(): ViewTable? {
             })
         }
         "histogram" -> ViewTable(title, listOf(tr("Range"), tr("Count")), histogramBins().map { (a, b, c) -> listOf(tr("{lo} to {hi}", "lo" to viewNumber(a), "hi" to viewNumber(b)) + unit, "$c") })
+        "heatmap" -> ViewTable(title, listOf("") + strings("columns"), strings("rows").mapIndexed { i, r ->
+            listOf(r) + strings("columns").indices.map { j -> (items("values").getOrNull(i) as? JsonArray)?.getOrNull(j)?.num()?.let { viewNumber(it) + unit }.orEmpty() }
+        })
         "sparkline" -> ViewTable(title, listOf("", text("label") ?: tr("Value")), items("points").mapIndexed { i, v -> listOf("${i + 1}", n(v)) })
         "gauge" -> ViewTable(title, listOf(text("label") ?: tr("Value"), tr("Minimum"), tr("Maximum")), listOf(listOf(n(props["value"]) + (text("unit")?.let { " $it" }.orEmpty()), viewNumber(number("min") ?: 0.0), viewNumber(number("max") ?: 100.0))))
         else -> null

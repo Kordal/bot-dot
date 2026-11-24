@@ -309,4 +309,88 @@ class AnswerViewUiTest {
         rule.onAllNodesWithText("Sent:", substring = true).assertCountEquals(0)
         rule.onNodeWithText("Approve").assertIsEnabled()
     }
+
+    // ---- wave 3: the long tail (#1629) ----
+
+    @Test fun theLongTailIsDrawnAndNoneOfItIsLeftAsCantShowThisHere() {
+        show(fence("""{"alt":"All","root":{"type":"stack","children":[
+          {"type":"tree","title":"Plan","items":[{"text":"Research","depth":0},{"text":"Interviews","depth":1,"note":"two weeks"}]},
+          {"type":"calendar","title":"Release","month":"2026-11","events":[{"date":"2026-11-03","title":"Standup"},{"date":"2026-11-17","title":"Ship it","tone":"good"}]},
+          {"type":"kanban","title":"Sprint","columns":[{"title":"To do","cards":[{"title":"Write the brief","text":"for Monday"}]},{"title":"Done","cards":[]}]},
+          {"type":"alert","title":"Heads up","text":"The report is late."},
+          {"type":"empty-state","title":"No invoices yet","text":"They show here once you add one.","children":[{"type":"link","label":"Read more","url":"https://example.com/help"}]},
+          {"type":"countdown","label":"Launch","to":"2099-12-31T18:00Z"}]}}"""))
+        rule.onAllNodesWithText("Can't show this here").assertCountEquals(0)
+        rule.onNodeWithText("Interviews").assertIsDisplayed()
+        rule.onNodeWithText("two weeks").assertIsDisplayed()
+        rule.onNodeWithText("Research").assertIsDisplayed()
+        rule.onNodeWithText("Write the brief").assertIsDisplayed()
+        rule.onNodeWithText("The report is late.").assertExists()
+        rule.onNodeWithText("Warning").assertExists() // an alert says its tone in a word, not by colour alone
+        rule.onNodeWithText("No invoices yet").assertExists()
+        rule.onNodeWithText("Read more").assertExists()
+    }
+
+    @Test fun aCalendarNamesItsMonthMarksItsEventsForTalkBackAndListsThemByDate() {
+        show(fence("""{"alt":"Release","root":{"type":"calendar","month":"2026-11","events":[{"date":"2026-11-17","title":"Ship it"},{"date":"2026-11-03","title":"Standup"}]}}"""))
+        rule.onNodeWithText("November 2026").assertIsDisplayed()
+        rule.onNodeWithContentDescription("3: Standup").assertExists()
+        rule.onNodeWithContentDescription("17: Ship it").assertExists()
+        rule.onNodeWithContentDescription("4").assertExists() // a day with nothing is only its number
+        rule.onNodeWithText("3 Nov").assertIsDisplayed()
+        rule.onNodeWithText("17 Nov").assertIsDisplayed()
+    }
+
+    @Test fun aHeatmapHasItsDataToggleAndItsSource() {
+        show(fence("""{"alt":"Visits","root":{"type":"heatmap","title":"Visits","rows":["Mon","Tue"],"columns":["9","12"],"values":[[1,4],[8,null]],"unit":"v","source":"analytics.csv"}}"""))
+        rule.onNodeWithContentDescription("Heatmap, Visits, 2 points. Data shows the numbers as a table.", substring = true).assertExists()
+        rule.onNodeWithText("Source: analytics.csv").assertIsDisplayed()
+        rule.onNodeWithText("Data").performClick()
+        rule.onNodeWithText("4 v").assertIsDisplayed()
+    }
+
+    @Test fun aCountdownSaysTheTimeLeftOnThisDeviceAndWhenItIsOver() {
+        show(fence("""{"alt":"Two","root":{"type":"stack","children":[{"type":"countdown","label":"Far off","to":"2999-01-01"},{"type":"countdown","label":"Gone","to":"2001-01-01"},{"type":"countdown","label":"Nonsense","to":"next Friday"}]}}"""))
+        rule.onNodeWithText("Time is up").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Gone: Time is up").assertExists()
+        rule.onNodeWithText("next Friday").assertIsDisplayed() // a moment that can't be read is drawn as written
+        rule.onAllNodesWithText(" d ", substring = true).assertCountEquals(1)
+    }
+
+    private val poll = fence("""{"alt":"Which day?","root":{"type":"poll","question":"Which day suits you?","options":["Monday","Tuesday"]}}""")
+    private val quiz = fence("""{"alt":"Quiz","root":{"type":"quiz","question":"Capital of Poland?","options":["Kraków","Warsaw"],"answer":1,"explain":"Since 1596."}}""")
+
+    @Test fun aPollsChoiceSendsItsOwnWordsAndIsMarkedOnceSent() {
+        val sent = mutableListOf<String>()
+        showIn(ViewChat(listOf(ViewBubble.bot("poll-1"))) { t, _ -> sent += t; true }, "poll-1", poll)
+        rule.onNodeWithText("Tuesday").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("Tuesday"), sent)
+        rule.onNodeWithText("Sent: Tuesday").assertIsDisplayed()
+        rule.onNodeWithText("Monday").assertIsNotEnabled() // a view is sent once
+        rule.onAllNodesWithText("Send").assertCountEquals(0) // a poll has no Send of its own
+    }
+
+    @Test fun aQuizSaysNothingBeforeAnAnswerThenWhetherItWasRightWithoutSendingTheAnswer() {
+        val sent = mutableListOf<String>()
+        showIn(ViewChat(listOf(ViewBubble.bot("quiz-1"))) { t, _ -> sent += t; true }, "quiz-1", quiz)
+        rule.onAllNodesWithText("Correct.", substring = true).assertCountEquals(0)
+        rule.onNodeWithText("Kraków").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("Kraków"), sent) // the choice's words only: never the answer
+        rule.onNodeWithText("Not quite. The answer is Warsaw. Since 1596.").assertIsDisplayed()
+    }
+
+    @Test fun aQuizTheOwnerAnsweredRightSaysSoWhenTheChatIsOpenedAgain() {
+        val chat = ViewChat(listOf(ViewBubble.bot("quiz-2"), ViewBubble.owner("Warsaw"), ViewBubble.bot("quiz-3"))) { _, _ -> true }
+        showIn(chat, "quiz-2", quiz)
+        rule.onNodeWithText("Correct. Since 1596.").assertIsDisplayed()
+        rule.onNodeWithText("Kraków").assertIsNotEnabled()
+    }
+
+    @Test fun aPollInAnOlderViewIsReadOnlyAndSaysNotSent() {
+        showIn(ViewChat(listOf(ViewBubble.bot("poll-2"), ViewBubble.bot("poll-3"))) { _, _ -> true }, "poll-2", poll)
+        rule.onNodeWithText("Monday").assertIsNotEnabled()
+        rule.onNodeWithText("Not sent").assertIsDisplayed()
+    }
 }

@@ -91,6 +91,7 @@ internal fun ViewChart(n: ViewNode) {
         "pie" -> if (n.flag("donut") == true) tr("Donut chart") else tr("Pie chart")
         "scatter" -> tr("Scatter chart")
         "histogram" -> tr("Histogram")
+        "heatmap" -> tr("Heatmap")
         "sparkline" -> tr("Sparkline")
         else -> tr("Gauge")
     }
@@ -138,6 +139,7 @@ private fun ChartBody(n: ViewNode) {
             KitSpark(n.numbers("points").filterNotNull(), if (n.text("tone").isNeutralTone()) p.mention else tone.accent, Modifier.fillMaxWidth().height(40.dp))
         }
         "gauge" -> Gauge(n)
+        "heatmap" -> HeatmapGrid(n)
         "pie" -> Pie(n)
         "scatter" -> Scatter(n)
     }
