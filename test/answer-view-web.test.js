@@ -776,7 +776,8 @@ test('the style of a table has a centred column for views and replies alike', ()
 });
 
 test("only a bot's, the Chief's or a group's reply asks for its tables as views: a document, a file, a tile and the owner's message do not", () => {
-  const asks = { 'bot-chat.js': /\$\{md\(body, failed \? null : r\.botId, !failed\)\}/, 'groups.js': /md\(reply, t\.id, true\)/, 'rooms.js': /md\(text, undefined, !!bot\)/, 'chief.js': /md\(m\.text, undefined, true\)/ };
+  const asks = { 'bot-chat.js': /\$\{md\(body, failed \? null : r\.botId, !failed\)\}/, 'groups.js': /md\(reply, t\.id, true\)/, 'rooms.js': /md\(text, undefined, !!bot\)/, 'chief.js': /md\(m\.text, undefined, !m\.error\)[\s\S]*md\(m\.text, undefined, true\)[\s\S]*report-msg"><div class="md">\$\{md\(m\.text, undefined, !m\.error\)/ };
+  // A failed Chief reply or report keeps its table on the web page and in the Android app alike (ChiefScreen.kt: tables = error == null, !m.failed).
   for (const [file, rx] of Object.entries(asks)) assert.match(read(file), rx, file);
   for (const file of ['document.js', 'files.js', 'board.js', 'list.js', 'viewer.js', 'blocks.js', 'skills.js', 'runs.js']) assert.doesNotMatch(read(file), /\bmd\([^)]*(?:undefined|botId|doc\.botId), (?:true|!)/, `${file} keeps the table it had`);
 });

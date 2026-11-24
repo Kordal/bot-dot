@@ -351,7 +351,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                 }
                 else -> TheirBubble(shortTime(m.endedAt ?: m.at), copyText = drawn.text, chips = chips, footerEnd = thumbs) {
                     Column {
-                        MarkdownText(drawn.text, tables = true)
+                        MarkdownText(drawn.text, tables = error == null) // a reply that failed keeps its table, as on the web page
                         if (error == null) OpenAsDocument(drawn.text, LocalChiefName.current)
                         BotFilesRow(files)
                         PageChips(dev.botdot.app.data.Pages.CHIEF, m.pages, LocalChiefName.current) // the pages it saved (#384)

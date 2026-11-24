@@ -603,7 +603,7 @@ const reportBubble = (m, at = null) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
     ${globalThis.aboutHTML?.(m) || ''}
     <div class="bot-msg-label">${tr('Message from {name}', { name: m.from ? botLabel(m.from) : tr('a bot') })}</div>
-    ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text, undefined, true)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
+    ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text, undefined, !m.error)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
     <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
     ${m.error ? '' : globalThis.inlineCardsHTML?.(m) || ''}
   </div></div>`;
