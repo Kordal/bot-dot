@@ -387,6 +387,10 @@ const AnswerViews = (() => {
     if (shown != null) return { sent: shown, pending: null };
     return { sent: pending ?? null, pending: pending ?? null };
   }
+  // The text an owner's bubble holds: the message as it was written, from its data-text (every owner bubble carries it, escaped), since
+  // the drawn bubble is not that text: an @mention is a chip without its "@" and a leading /command a mark. The drawn text only
+  // when the bubble has none.
+  const textOf = (b) => (b.dataset && b.dataset.text != null ? b.dataset.text : ($('.clamp', b) || b).textContent);
   // The id of the newest bot message a chat's views answer: the last one that is whole, from the bot to the owner. A reply still
   // being written, a failed one and a message between bots are not. bubbles: [{ from: 'bot' | 'me', id, working?, problem?, folded? }].
   function newest(bubbles) {
@@ -436,7 +440,7 @@ const AnswerViews = (() => {
       const mine = (upTo < 0 ? after : after.slice(0, upTo)).filter((b) => b.classList.contains('from-me'));
       const says = $$('[data-av-press]', av).map((b) => b.dataset.say);
       const labels = $$('[data-av-in][data-label]', av).map((f) => f.dataset.label);
-      const { sent, pending } = sendOf({ mine: mine.map((b) => ($('.clamp', b) || b).textContent), says, labels, pending: av._avSent });
+      const { sent, pending } = sendOf({ mine: mine.map(textOf), says, labels, pending: av._avSent });
       av._avSent = pending; // the chat shows it now, or it is still on its way
       paint(av, stateOf({ newest: at >= 0 && at === latest, sent }));
     }
@@ -582,7 +586,7 @@ const AnswerViews = (() => {
   }
 
   return {
-    use, load, ready, has, parts, html, wire, wireChat, sentFrom, sendOf, newest, stateOf,
+    use, load, ready, has, parts, html, wire, wireChat, sentFrom, sendOf, textOf, newest, stateOf,
     alt: (src, opts) => (words ? words.alt(src, opts) : String(src ?? '')),
     text: (src, opts) => (words ? words.text(src, opts) : String(src ?? '')),
   };

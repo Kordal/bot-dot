@@ -109,7 +109,7 @@ test('web: a run\'s step line ends in how long it took, its skills in the accent
     steps: { count: 23, rows: [] }, learned: [{ kind: 'skill-updated', skill: 'backup-check' }] });
   const html = page().botThreadHTML(bot, [done]);
   assert.match(html, /<summary aria-label="23 steps, the skill backup-check">[\s\S]*?<span class="step-n">23 steps<\/span><span class="step-dot">·<\/span><span class="step-pip skill"><span>backup-check<\/span><\/span><span class="step-dot">·<\/span><span class="step-took">7 min<\/span><\/summary>/);
-  assert.match(html, /<div class="bubble from-me" data-expand><div class="clamp">Check the backup<\/div><\/div><div class="bubble-meta on-hover">/);
+  assert.match(html, /<div class="bubble from-me" data-expand[^>]*><div class="clamp">Check the backup<\/div><\/div><div class="bubble-meta on-hover">/);
   assert.match(html, /<div class="bubble-meta block-foot on-hover">11:45 · 6m <button data-details="done">Details<\/button>/);
   const ctx = page();
   assert.deepEqual([45e3, 60e3, 7 * 60e3, 65 * 60e3, 120 * 60e3].map((ms) => ctx.tookFor(ms)), ['45 s', '1 min', '7 min', '1 h 5 min', '2 h']);
