@@ -47,7 +47,7 @@ async function find(test, what, timeout = 30000) {
 }
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
-const NETWORK = '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4';
+const NETWORK = '-e command network -e wifi hide -e mobile show -e datatype none -e level 4';
 /** The status bar as on a phone at rest: 09:30, full battery and signal, no notifications. (On API 35 a network
  * command with "-e fully true" or "-e mobile hide" leaves the status bar out of demo mode altogether.)
  * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
