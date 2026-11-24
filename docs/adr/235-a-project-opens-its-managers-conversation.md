@@ -1,7 +1,7 @@
 # ADR-235: A project opens its manager's conversation
 
 - **Status:** Accepted (2026-11-13, the owner approved the five-PR Projects simplification)
-- **Owning task:** [#1328](https://github.com/Kordal/bot-dot/issues/1328), spec [#1327](https://github.com/Kordal/bot-dot/issues/1327)
+- **Owning task:** [#1328](https://github.com/ladrok/bot-dot/issues/1328), spec [#1327](https://github.com/ladrok/bot-dot/issues/1327)
 - **Changes:** The default team conversation of ADR 132; keeps the separate Chief and Project Manager of ADR 230.
 
 ## Context

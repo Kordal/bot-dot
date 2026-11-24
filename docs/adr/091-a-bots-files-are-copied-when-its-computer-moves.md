@@ -1,7 +1,7 @@
 # ADR-091: A bot's files are copied when its computer moves
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#556](https://github.com/Kordal/bot-dot/issues/556)
+- **Owning task:** [#556](https://github.com/ladrok/bot-dot/issues/556)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)
 - **Amended by:** [ADR 095](095-a-bots-browser-logins-move-with-its-files.md), [ADR 096](096-the-accounts-boat-bots-share-one-machine-there.md) (one machine per account)
 

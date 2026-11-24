@@ -1,7 +1,7 @@
 # ADR-078: A mentioned page or tile is handed to the run
 
 - **Status:** Accepted (by the owner, 2026-10-23)
-- **Owning task:** [#473](https://github.com/Kordal/bot-dot/issues/473)
+- **Owning task:** [#473](https://github.com/ladrok/bot-dot/issues/473)
 - **Changes:** what a mention is (CONTEXT.md, "Mention"): a reference only, until now
 
 ## Context

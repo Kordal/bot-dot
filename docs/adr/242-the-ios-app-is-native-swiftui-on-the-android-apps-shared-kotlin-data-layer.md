@@ -1,7 +1,7 @@
 # ADR-242: The iOS app is native SwiftUI, on the Android app's shared Kotlin data layer
 
 - **Status:** Accepted (2026-11-14, the owner's decision)
-- **Owning task:** [#1356](https://github.com/Kordal/bot-dot/issues/1356), spec [#1355](https://github.com/Kordal/bot-dot/issues/1355)
+- **Owning task:** [#1356](https://github.com/ladrok/bot-dot/issues/1356), spec [#1355](https://github.com/ladrok/bot-dot/issues/1355)
 - **Supersedes:** [ADR 151](151-the-ios-app-is-the-desktop-apps-window-on-the-iphone.md)
 - **Amends:** [ADR 0001](0001-native-apps-per-platform.md), [ADR 142](142-the-mac-apps-code-is-removed.md)
 

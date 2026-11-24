@@ -1,7 +1,7 @@
 # ADR-082: The admin chooses Haiku or Jev to pick who answers in a group
 
 - **Status:** Accepted (asked for by the owner, 2026-10-23)
-- **Owning task:** [#513](https://github.com/Kordal/bot-dot/issues/513)
+- **Owning task:** [#513](https://github.com/ladrok/bot-dot/issues/513)
 - **Changes:** [ADR 081](081-a-short-model-call-picks-who-answers-a-group-message-without-a-mention.md) (the model that picks)
 
 ## Context

@@ -124,7 +124,8 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf("") }
     var confirmRemoveKey by remember { mutableStateOf(false) }
     var providerOpen by remember { mutableStateOf(false) } // the box for another model provider (ADR 255)
-    var confirmRemoveProvider by remember { mutableStateOf(false) }
+    // The provider to take away, asked first: its preset (ADR 267), "" for the one the account default runs on (an older server), null for none.
+    var confirmRemoveProvider by remember { mutableStateOf<String?>(null) }
 
     // All at once: over Tailscale, one after another would take a round trip each.
     suspend fun load() {
@@ -211,9 +212,10 @@ fun SettingsScreen(
                 ProviderSetupForm(
                     connected, s, server?.features?.contains("provider-model-catalog") == true,
                     onCancel = { providerOpen = false },
-                    onSaved = {
-                        tell(claudeCouldNotTell(it) ?: tr("Saved. Bots now run on it"))
+                    onSaved = { status ->
+                        tell(claudeCouldNotTell(status) ?: if (s.claude.mixed) tr("Connected. Its models are in the Model list.") else tr("Saved. Bots now run on it"))
                         providerOpen = false
+                        // Saving moves nothing the server doesn't decide (ADR 267): it makes the provider's main model the default when Claude can't run.
                         scope.launch { load() }
                     },
                 )
@@ -226,6 +228,32 @@ fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
                 TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text(tr("Cancel"), color = p.text) }
             }
+        } else if (s.claude.mixed && loginUrl == null) {
+            // Several connections at once (ADR 267): Claude's own, and the providers beside it. A model decides which runs.
+            val c = s.claude
+            Hint(claudeSays(c))
+            if (c.claudeOnKey) {
+                Row {
+                    if (c.subscription == true) TextButton(onClick = { keyChange(tr("Bots now run on your Claude subscription")) { api!!.claudeUse("subscription") } }) {
+                        Text(tr("Use the subscription instead"), color = p.text)
+                    }
+                    TextButton(onClick = { confirmRemoveKey = true }) { Text(tr("Remove the key"), color = p.text) }
+                }
+            } else {
+                if (c.claudeOut) TextButton(onClick = signIn) { Text(tr("Sign in to Claude"), color = p.text) }
+                else if (c.loggedIn && !c.fromEnv) Row {
+                    TextButton(onClick = signIn) { Text(tr("Use another account"), color = p.text) }
+                    // Ask with a fresh count of what's running, since signing out stops it.
+                    TextButton(onClick = { scope.launch { confirmLogout = runCatching { api!!.setup().running }.getOrDefault(0) } }) { Text(tr("Sign out"), color = p.text) }
+                }
+                if (keys) KeyOffer(c.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+            }
+            if (providers) {
+                c.providers.orEmpty().forEach { saved ->
+                    TextButton(onClick = { confirmRemoveProvider = saved.preset }) { Text(tr("Remove {name}", "name" to saved.name), color = p.text) }
+                }
+                TextButton(onClick = openProvider) { Text(if (c.providers.orEmpty().isEmpty()) tr("Connect a provider") else tr("Connect another provider"), color = p.text) }
+            }
         } else if (s.claude.onProvider && loginUrl == null) {
             Hint(claudeSays(s.claude))
             if (s.claude.subscription == false) TextButton(onClick = signIn) { Text(tr("Sign in to Claude"), color = p.text) }
@@ -237,7 +265,7 @@ fun SettingsScreen(
             }
             Row {
                 TextButton(onClick = openProvider) { Text(tr("Change provider"), color = p.text) }
-                TextButton(onClick = { confirmRemoveProvider = true }) { Text(tr("Remove the provider"), color = p.text) }
+                TextButton(onClick = { confirmRemoveProvider = "" }) { Text(tr("Remove the provider"), color = p.text) }
             }
         } else if (s.claude.onApiKey && loginUrl == null) {
             Hint(claudeSays(s.claude))
@@ -305,7 +333,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(Space.s16))
 
             if (adv) {
-                val value = models.firstOrNull { it.first == info.shownModel(edit.defaultModel) }?.second
+                val value = if (info.mixed) info.summary(edit.defaultModel, edit.defaultEffort) else models.firstOrNull { it.first == info.shownModel(edit.defaultModel) }?.second
                 FoldSection(tr("Model"), value) {
                     val modelApi = api
                     val discovers = server?.features?.contains("provider-model-catalog") == true
@@ -326,19 +354,24 @@ fun SettingsScreen(
                             checkingModels = false
                         }
                     }
-                    LaunchedEffect(modelApi, discovers, setup?.claude?.provider, info.provider?.main, info.catalog?.source) {
-                        if (discovers && (info.provider != null || info.catalog?.source == "anthropic-key")) refreshModels()
+                    LaunchedEffect(modelApi, discovers, setup?.claude?.provider, setup?.claude?.providers, info.provider?.main, info.providers?.map { it.preset }, info.catalog?.source) {
+                        if (discovers && (info.provider != null || info.providers?.isNotEmpty() == true || info.catalog?.source == "anthropic-key")) refreshModels()
                     }
                     setup?.let { s ->
-                        val provider = when {
+                        // The connections (ADR 267): Claude's, and every provider connected beside it.
+                        val provider = if (s.claude.mixed) (listOf(if (s.claude.claudeOnKey) tr("Anthropic API key") else tr("Claude subscription")) + s.claude.providers.orEmpty().map { it.name }).joinToString(", ")
+                        else when {
                             s.claude.onProvider -> s.claude.provider?.name
                             s.claude.onApiKey -> tr("Anthropic API key")
                             else -> tr("Claude subscription")
                         }
-                        FoldSection(tr("Provider"), provider) { ClaudeControls() }
+                        FoldSection(if (s.claude.mixed) tr("Providers") else tr("Provider"), provider) { ClaudeControls() }
                     }
                     val shown = info.shownModel(edit.defaultModel)
-                    if (models.size < 12) {
+                    if (info.mixed) {
+                        // One list of every connected provider's models, grouped by provider, searchable.
+                        ModelPick(tr("Model"), shown, info.modelLabel(shown), dev.botdot.app.data.AppSettingsRules.models(info)) { saveModel(edit.copy(defaultModel = it)) }
+                    } else if (models.size < 12) {
                         Choice(tr("Model"), shown, models) { saveModel(edit.copy(defaultModel = it)) }
                     } else {
                         var choosing by remember { mutableStateOf(false) }
@@ -350,7 +383,7 @@ fun SettingsScreen(
                     }
                     if (info.canThink(edit.defaultModel)) Choice(tr("Reasoning"), info.shownEffort(edit.defaultEffort, edit.defaultModel), efforts) { saveModel(edit.copy(defaultEffort = it)) }
                     if (modelStatus.isNotEmpty()) Hint(modelStatus)
-                    if ((discovers || info.provider?.refreshable == true) && modelApi != null) {
+                    if ((discovers || info.provider?.refreshable == true || info.providers?.any { it.refreshable } == true) && modelApi != null) {
                         TextButton(enabled = !checkingModels, onClick = { scope.launch { refreshModels() } }) {
                             Text(if (discovers) tr("Refresh models") else tr("Refresh reasoning levels"), color = p.text)
                         }
@@ -557,21 +590,27 @@ fun SettingsScreen(
         },
         dismissButton = { TextButton(onClick = { confirmRemoveKey = false }) { Text(tr("Cancel"), color = p.text) } },
     )
-    if (confirmRemoveProvider) AlertDialog(
-        onDismissRequest = { confirmRemoveProvider = false },
-        title = { Text(tr("Remove the provider?")) },
-        text = { Text(if (setup?.claude?.subscription == true) tr("Bots will run on your Claude subscription.") else tr("Bots can't run until you sign in to Claude or save a key again.")) },
-        confirmButton = {
-            TextButton(onClick = {
-                confirmRemoveProvider = false
-                scope.launch {
-                    runCatching { api!!.claudeRemoveProvider() }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Provider removed")) }.onError { tell(it.message ?: tr("Couldn't remove it")) }
-                    load()
-                }
-            }) { Text(tr("Remove"), color = p.text) }
-        },
-        dismissButton = { TextButton(onClick = { confirmRemoveProvider = false }) { Text(tr("Cancel"), color = p.text) } },
-    )
+    confirmRemoveProvider?.let { preset ->
+        // Several providers (ADR 267): the one named goes, and the bots on its models run on the account's default model.
+        val name = setup?.claude?.savedProviders?.firstOrNull { it.preset == preset }?.name ?: setup?.claude?.provider?.name.orEmpty()
+        val several = setup?.claude?.mixed == true
+        AlertDialog(
+            onDismissRequest = { confirmRemoveProvider = null },
+            title = { Text(if (several) tr("Remove {name}", "name" to name) else tr("Remove the provider?")) },
+            text = { Text(if (several) tr("Bots on its models will run on the default model instead.")
+                else if (setup?.claude?.subscription == true) tr("Bots will run on your Claude subscription.") else tr("Bots can't run until you sign in to Claude or save a key again.")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemoveProvider = null
+                    scope.launch {
+                        runCatching { api!!.claudeRemoveProvider(preset.ifEmpty { null }) }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Provider removed")) }.onError { tell(it.message ?: tr("Couldn't remove it")) }
+                        load()
+                    }
+                }) { Text(tr("Remove"), color = p.text) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemoveProvider = null }) { Text(tr("Cancel"), color = p.text) } },
+        )
+    }
     // Removing the account's own boat.dev key (ADR 263): what it made at boat.dev is deleted with its files, or kept there; asked first.
     if (confirmRemoveBoatKey) {
         val made = boatKey?.machines ?: 0

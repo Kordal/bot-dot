@@ -68,7 +68,7 @@ and an installed-release update remain separate acceptance requirements.
 
 ## Fresh two-platform scans, revision f00e452
 
-[Self-hosted workflow 36589456967](https://github.com/Kordal/bot-dot/actions/runs/36589456967)
+[Self-hosted workflow 36589456967](https://github.com/ladrok/bot-dot/actions/runs/36589456967)
 built and scanned both images on both architectures. All four SBOM generation
 and critical-vulnerability gates passed; server, real-UID and secret checks
 also passed. The app amd64 job passed the deliberately vulnerable/clean scanner
@@ -105,7 +105,7 @@ upgrade, signed publication or rollback is claimed from this blocked run.
 
 ## Fixed upgrade revision 866eb61
 
-[Run 36594383513](https://github.com/Kordal/bot-dot/actions/runs/36594383513)
+[Run 36594383513](https://github.com/ladrok/bot-dot/actions/runs/36594383513)
 passed all server/UID/secret checks and all four image builds, SBOM generation
 and critical scans, with zero CRITICAL findings. Every mandatory SBOM upload
 again failed with GitHub's storage-quota error; signing and publication were
@@ -161,7 +161,7 @@ visible prerelease lets the signer retain read-only repository access.
 
 ## Publication toolchain prerequisite
 
-[Run 36623277890](https://github.com/Kordal/bot-dot/actions/runs/36623277890)
+[Run 36623277890](https://github.com/ladrok/bot-dot/actions/runs/36623277890)
 passed all tests, four pushed-digest scans, release-evidence upload and both
 read-only signer downloads. Its Linux runner retained distro Buildx 0.30.1.
 Index creation failed with `unknown flag: --metadata-file`, before tags moved
@@ -178,7 +178,7 @@ not rediscover a digest through a mutable tag.
 
 ## Signed publication, revision 3b64714
 
-[Run 36625499597](https://github.com/Kordal/bot-dot/actions/runs/36625499597)
+[Run 36625499597](https://github.com/ladrok/bot-dot/actions/runs/36625499597)
 passed the pinned-toolchain preflight, 332 server tests (16 environment skips),
 all 30 real-UID boundary tests, the 232-commit Gitleaks history scan, all four
 builds and zero-critical scan gates, evidence publication and both protected
@@ -212,7 +212,7 @@ retained in the backup.
 
 ## Isolated signed-image upgrade
 
-[Acceptance run 36627061472](https://github.com/Kordal/bot-dot/actions/runs/36627061472)
+[Acceptance run 36627061472](https://github.com/ladrok/bot-dot/actions/runs/36627061472)
 passed on the local Mac runner. The fixture reconstructs the legacy HTTP updater
 from source revision `3fbb904` in a small bootstrap image, then installs the actual
 signed release 201 server and desktop images through the owner HTTP endpoints.

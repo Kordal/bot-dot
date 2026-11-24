@@ -1,7 +1,7 @@
 # ADR-069: The Chief keeps pages too, kept up to date by a run of its own
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#384](https://github.com/Kordal/bot-dot/issues/384)
+- **Owning task:** [#384](https://github.com/ladrok/bot-dot/issues/384)
 - **Builds on:** [ADR 065](065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md) (a page is a bot's Markdown, kept up to date by the owner's tap), [ADR 006](006-a-look-is-its-own-read-only-chief-session.md) (a look: the Chief's own session with reading tools)
 
 ## Context

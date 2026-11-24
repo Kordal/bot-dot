@@ -1,7 +1,7 @@
 # ADR-118: A lead is started on its team's plan items and reports at the owner's rhythm
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#696](https://github.com/Kordal/bot-dot/issues/696), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
+- **Owning task:** [#696](https://github.com/ladrok/bot-dot/issues/696), spec [#687](https://github.com/ladrok/bot-dot/issues/687)
 
 **Automatic reporting is superseded by [ADR 240](240-project-updates-use-recorded-work-in-the-primary-conversation.md).** Legacy settings and history remain; approved plan execution remains unchanged.
 

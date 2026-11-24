@@ -1,7 +1,7 @@
 # ADR-121: An objective's number is read from a connected app by a read-only run of the Chief's
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#699](https://github.com/Kordal/bot-dot/issues/699), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
+- **Owning task:** [#699](https://github.com/ladrok/bot-dot/issues/699), spec [#687](https://github.com/ladrok/bot-dot/issues/687)
 
 ## Context
 

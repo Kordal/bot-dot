@@ -1,7 +1,7 @@
 # ADR-167: The owner's message to a Chief that replies is sorted like a bot's
 
 - **Status:** Accepted (2026-11-07)
-- **Owning task:** [#1102](https://github.com/Kordal/bot-dot/issues/1102)
+- **Owning task:** [#1102](https://github.com/ladrok/bot-dot/issues/1102)
 - **Builds on:** [ADR 106](106-a-follow-up-to-a-bot-at-work-goes-into-the-run-it-belongs-to.md) (a follow-up to a bot at work), [ADR 040](040-a-waiting-message-is-steered-into-the-run-at-its-next-tool-call.md) (Steer), [ADR 063](063-a-btw-question-is-answered-without-tools-beside-the-run.md) ("/btw")
 - **Changes:** Milestone 7's "the owner's message to a replying Chief waits its turn" (ADR 011 for the Chief)
 

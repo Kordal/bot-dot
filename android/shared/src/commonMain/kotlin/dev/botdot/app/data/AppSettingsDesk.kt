@@ -9,7 +9,10 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
 /** Claude's row in a word or two: what bots run on, or that they can't. */
-fun claudeValue(c: ClaudeStatus): String = when {
+fun claudeValue(c: ClaudeStatus): String = if (c.mixed) {
+    // Claude's own connection first, then the providers connected beside it (ADR 267).
+    (listOf(if (c.claudeOnKey) tr("API key") else if (c.claudeOut) tr("Not signed in") else c.email ?: tr("Signed in")) + c.providers.orEmpty().map { it.name }).joinToString(", ")
+} else when {
     c.onApiKey -> tr("API key")
     c.onProvider -> c.provider!!.name
     !c.loggedIn -> tr("Not signed in")
@@ -19,11 +22,11 @@ fun claudeValue(c: ClaudeStatus): String = when {
 /** The rules of the app's Settings (#636), drawn by Android's SettingsScreen and the iPhone's SettingsView. */
 object AppSettingsRules {
     /** The account's default Model: Claude Code's own first. */
-    fun models(info: SettingsInfo): List<Option> = listOf(Option("", info.defaultModelLabel())) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) }
+    fun models(info: SettingsInfo): List<Option> = listOf(Option("", info.defaultModelLabel())) + info.models.map { Option(it.id, it.label.ifBlank { it.id }, it.group) }
 
     /** The account's default Reasoning: Claude Code's own first. */
     fun efforts(info: SettingsInfo, model: String = info.settings.defaultModel): List<Option> =
-        listOf(Option("", if (info.provider == null) tr("Claude Code's default") else tr("Default"))) + info.availableEfforts(model).map { Option(it.id, it.label) }
+        listOf(Option("", if (info.provider == null && !info.mixed) tr("Claude Code's default") else tr("Default"))) + info.availableEfforts(model).map { Option(it.id, it.label) }
 
     /** botdot's address as its row says it: without the scheme and the last slash. */
     fun address(baseUrl: String): String = baseUrl.removePrefix("https://").removePrefix("http://").trimEnd('/')

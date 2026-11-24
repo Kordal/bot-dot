@@ -1,7 +1,7 @@
 # ADR-115: A project's to-do is shared by its bots and the owner, and a repeating item comes back when it is done
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#692](https://github.com/Kordal/bot-dot/issues/692), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
+- **Owning task:** [#692](https://github.com/ladrok/bot-dot/issues/692), spec [#687](https://github.com/ladrok/bot-dot/issues/687)
 
 ## Context
 

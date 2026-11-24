@@ -1,7 +1,7 @@
 # ADR-143: An ongoing project has no 90 days
 
 - **Status:** Accepted (2026-11-03)
-- **Owning task:** [#925](https://github.com/Kordal/bot-dot/issues/925)
+- **Owning task:** [#925](https://github.com/ladrok/bot-dot/issues/925)
 - **Changes:** [ADR 127](127-the-chief-picks-a-new-projects-setup-questions-and-the-server-sends-its-screens.md) (what the shape `ops` means)
 
 ## Context

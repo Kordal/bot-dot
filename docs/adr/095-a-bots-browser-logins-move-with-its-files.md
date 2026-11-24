@@ -1,7 +1,7 @@
 # ADR-095: A bot's browser logins move with its files
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#565](https://github.com/Kordal/bot-dot/issues/565)
+- **Owning task:** [#565](https://github.com/ladrok/bot-dot/issues/565)
 - **Amends:** [ADR 091](091-a-bots-files-are-copied-when-its-computer-moves.md)
 
 ## Context

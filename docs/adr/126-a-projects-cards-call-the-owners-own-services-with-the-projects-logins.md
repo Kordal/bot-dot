@@ -1,7 +1,7 @@
 # ADR-126: A project's cards call the owner's own services with the project's logins
 
 - **Status:** Accepted (2026-10-30)
-- **Owning task:** [#804](https://github.com/Kordal/bot-dot/issues/804)
+- **Owning task:** [#804](https://github.com/ladrok/bot-dot/issues/804)
 - **Builds on:** [ADR 123](123-a-card-on-a-projects-board-is-built-and-kept-fresh-by-a-run-of-the-chiefs.md) (a card is built by a run of the Chief's), [ADR 125](125-a-cards-build-reads-its-own-projects-folder-with-a-key-of-its-run.md) (a key of the run names the project), [ADR 085](085-a-script-job-calls-apis-with-the-logins-its-job-lists.md) (botdot calls an API with a login for others)
 
 ## Context

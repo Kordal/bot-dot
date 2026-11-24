@@ -1,9 +1,9 @@
 # ADR-168: A missing app is one Connect card, and connecting it carries the work on
 
 - **Status:** Accepted (2026-11-07, the owner's decisions on the plan of #1182)
-- **Owning task:** [#1182](https://github.com/Kordal/bot-dot/issues/1182)
+- **Owning task:** [#1182](https://github.com/ladrok/bot-dot/issues/1182)
 - **Changes:** [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md) ("No token, no tools": one more turn botdot starts is given connected apps, the Chief's turn after its Connect card in its chat is connected), and the rule of `lib/connected-apps.js` that only the Chief gives a bot an app (the owner's press on a card that names the bot gives it now)
-- **Amends:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (a connection that becomes ACTIVE is a yes: what waited for the card carries on by the same rules), [#431](https://github.com/Kordal/bot-dot/issues/431) (the Reconnect card under a job's reply stays for the apps from before; a Connect card of the same app takes its place in the new ones)
+- **Amends:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (a connection that becomes ACTIVE is a yes: what waited for the card carries on by the same rules), [#431](https://github.com/ladrok/bot-dot/issues/431) (the Reconnect card under a job's reply stays for the apps from before; a Connect card of the same app takes its place in the new ones)
 - **Keeps:** [ADR 054](054-a-permission-card-comes-only-from-the-bots-ask.md) (a permission card still comes only from the bot's ask; it leaves connected apps as they were), [ADR 166](166-a-run-that-carries-on-goes-on-in-the-stopped-runs-session.md) (the run that carries on resumes the stopped run's session, with the connected apps of the bot as it is now)
 
 ## Context

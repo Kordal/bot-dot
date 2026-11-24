@@ -1,7 +1,7 @@
 # ADR-066: A task the Chief gives a bot after the web needs no card
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#373](https://github.com/Kordal/bot-dot/issues/373)
+- **Owning task:** [#373](https://github.com/ladrok/bot-dot/issues/373)
 - **Changes:** [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (every change of the Chief's after the web waits) and [ADR 055](055-always-allow-on-more-cards.md) (a bot's task is never always allowed)
 
 ## Context

@@ -379,6 +379,7 @@
   "boat.dev is not set up on this machine.": "boat.dev nie jest skonfigurowany na tej maszynie.",
   "Claude is signed in with a token from the server's settings, so it can't be signed out here.": "Claude jest zalogowany tokenem z ustawień serwera, więc nie można go tu wylogować.",
   "Claude Code isn't installed on this machine.": "Claude Code nie jest zainstalowany na tej maszynie.",
+  "That provider isn't connected.": "Ten dostawca nie jest połączony.",
   "Skill not found": "Nie znaleziono umiejętności",
   "This botdot has no Android app to hand out.": "Ten botdot nie ma aplikacji na Androida do pobrania.",
   "Request not found": "Nie znaleziono prośby",

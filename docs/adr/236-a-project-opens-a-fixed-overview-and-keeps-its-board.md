@@ -1,7 +1,7 @@
 # ADR-236: A project opens a fixed overview and keeps its Board
 
 - **Status:** Accepted (2026-11-13, the owner approved the five-PR simplification and asked to implement the next slice)
-- **Owning task:** [#1329](https://github.com/Kordal/bot-dot/issues/1329), spec [#1327](https://github.com/Kordal/bot-dot/issues/1327)
+- **Owning task:** [#1329](https://github.com/ladrok/bot-dot/issues/1329), spec [#1327](https://github.com/ladrok/bot-dot/issues/1327)
 - **Changes:** The default Board-first project home of ADR 132. Keeps the saved Board and its layout of ADR 124 and the primary conversation of ADR 235.
 
 ## Context

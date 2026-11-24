@@ -1,13 +1,13 @@
 # ADR-089: What botdot starts on the account's computer ends with it
 
 - **Status:** Accepted, its "said, not ended" replaced for box and browser by [ADR 131](131-a-bots-commands-end-with-its-run-and-have-limits-on-both-its-shells.md)
-- **Owning task:** [#535](https://github.com/Kordal/bot-dot/issues/535)
+- **Owning task:** [#535](https://github.com/ladrok/bot-dot/issues/535)
 
 ## Context
 
-After five days of uptime the account's computer held 1189 processes on no bot's screen, using about six CPUs, and a bot's Camoufox hung; only a restart cleared it. The computer started with `sleep infinity` as PID 1, which never reaps: every process whose parent died and that then ended stayed a zombie. The end of a screen ([#105](https://github.com/Kordal/bot-dot/issues/105), its rest after 30 minutes unused, [#126](https://github.com/Kordal/bot-dot/issues/126)) killed its supervisord, bridge, browser and X server by name, and left what those had started and every program of `start_program`. A command of `run_shell` ended only when it ran out of time, and what it had put in the background, with `setsid` or `nohup` too, went on.
+After five days of uptime the account's computer held 1189 processes on no bot's screen, using about six CPUs, and a bot's Camoufox hung; only a restart cleared it. The computer started with `sleep infinity` as PID 1, which never reaps: every process whose parent died and that then ended stayed a zombie. The end of a screen ([#105](https://github.com/ladrok/bot-dot/issues/105), its rest after 30 minutes unused, [#126](https://github.com/ladrok/bot-dot/issues/126)) killed its supervisord, bridge, browser and X server by name, and left what those had started and every program of `start_program`. A command of `run_shell` ended only when it ran out of time, and what it had put in the background, with `setsid` or `nohup` too, went on.
 
-A computer is kept with what was installed on it ([#107](https://github.com/Kordal/bot-dot/issues/107)): its PID 1 can change only when it is made again, by an Update, which loses what apt installed.
+A computer is kept with what was installed on it ([#107](https://github.com/ladrok/bot-dot/issues/107)): its PID 1 can change only when it is made again, by an Update, which loses what apt installed.
 
 ## Decision
 

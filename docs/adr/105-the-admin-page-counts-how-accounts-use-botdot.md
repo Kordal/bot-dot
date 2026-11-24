@@ -1,7 +1,7 @@
 # ADR-105: The admin page counts how accounts use botdot
 
 - **Status:** Accepted (2026-10-27)
-- **Owning task:** [#607](https://github.com/Kordal/bot-dot/issues/607)
+- **Owning task:** [#607](https://github.com/ladrok/bot-dot/issues/607)
 
 ## Context
 

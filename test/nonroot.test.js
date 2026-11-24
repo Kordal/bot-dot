@@ -118,7 +118,7 @@ test('brokered Claude on the owner\'s Anthropic API key gets it, as its own user
  }finally{await srv.stop();anthropic.closeAllConnections();anthropic.close()}
 });
 
-test('brokered Claude on another model provider gets its address and key, as its own user, and no subscription token (ADR 255)',{skip:!CAN&&'needs isolated Linux root',timeout:30000},async()=>{
+test('brokered Claude on a provider model gets its address and key, as its own user, and no subscription token (ADR 255, 267)',{skip:!CAN&&'needs isolated Linux root',timeout:30000},async()=>{
  const {makeBot,heldRun}=require('./helpers');const KEY='provider-nonroot-test-key-0123456789-abcd';
  const stand=require('node:http').createServer((req,res)=>{req.resume();res.writeHead(req.headers.authorization===`Bearer ${KEY}`?200:401,{'Content-Type':'application/json'});res.end('{}');});
  await new Promise((ok)=>stand.listen(0,'127.0.0.1',ok));
@@ -126,8 +126,8 @@ test('brokered Claude on another model provider gets its address and key, as its
  const srv=await startServer({broker:true,env:{BOT_DOT_SEPARATE_USERS:'1'}});
  try{
   const saved=await srv.api('/setup/claude/provider',{method:'PUT',body:{preset:'custom',url,key:KEY,big:'big-model',small:'small-model'}});
-  assert.equal(saved.status,200,JSON.stringify(saved.data));assert.equal(saved.data.claude.using,'provider');
-  const bot=await makeBot(srv,{name:'Provided'});
+  assert.equal(saved.status,200,JSON.stringify(saved.data));assert.equal(saved.data.claude.using,'subscription','a saved provider picks nothing');
+  const bot=await makeBot(srv,{name:'Provided',model:'provider:custom:big-model'});
   const {run,rec}=await heldRun(srv,bot);
   assert.equal(rec.uid,61000);assert.equal(rec.anthropic.ANTHROPIC_BASE_URL,url);assert.equal(rec.anthropic.ANTHROPIC_AUTH_TOKEN,KEY);assert.equal(rec.env.CLAUDE_CODE_OAUTH_TOKEN,undefined);
   srv.release(rec);assert.equal((await srv.finished(run.id)).status,'success');

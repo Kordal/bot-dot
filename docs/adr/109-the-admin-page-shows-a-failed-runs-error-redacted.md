@@ -1,7 +1,7 @@
 # ADR-109: The admin page shows a failed run's error, redacted
 
 - **Status:** Accepted (2026-10-28)
-- **Owning task:** [#662](https://github.com/Kordal/bot-dot/issues/662)
+- **Owning task:** [#662](https://github.com/ladrok/bot-dot/issues/662)
 - **Amends:** [ADR 099](099-every-bot-run-has-an-outcome-in-a-ledger.md), [ADR 105](105-the-admin-page-counts-how-accounts-use-botdot.md)
 
 ## Context

@@ -1,7 +1,7 @@
 # ADR-032: A bot installs programs in its home, and joins the tailnet in userspace
 
 - **Status:** Superseded by [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md) (2026-10-19): the bots have sudo and may install with apt; `botdot-install` and `botdot-tailscale` stay. Accepted 2026-10-18, the owner's decision.
-- **Owning task:** [#11](https://github.com/Kordal/bot-dot/issues/11)
+- **Owning task:** [#11](https://github.com/ladrok/bot-dot/issues/11)
 
 ## Context
 
@@ -22,5 +22,5 @@ The desktop image carries `botdot-install` and `botdot-tailscale`. `botdot-insta
 - What needs root stays out of reach: apt packages and system services. Most command-line programs are on conda-forge. The bot installs without asking, as it already could with pip or a downloaded program, since all of it lands in its own computer's home.
 - Programs reach the tailnet only through the proxy (`ALL_PROXY=socks5h://localhost:1055`); a program that ignores proxies doesn't reach it.
 - With shields up, no tailnet device connects to the computer. Without them, userspace Tailscale would pass a peer's connection on to the computer's loopback, where cua's control API and screen listen. The bot could turn shields off itself, so the owner limits each bot's device with a tag in the tailnet's access rules.
-- Tailscale stops when the computer turns off. botdot starts it again as the computer starts (`botdot-tailscale resume`, as the bot), still signed in, from the state in the bot's home, and only when that state holds a login; resetting the computer signs it out. Under gVisor the home outlives a stop only with runsc's `--overlay2=none` (2026-10-18, [#68](https://github.com/Kordal/bot-dot/issues/68)).
+- Tailscale stops when the computer turns off. botdot starts it again as the computer starts (`botdot-tailscale resume`, as the bot), still signed in, from the state in the bot's home, and only when that state holds a login; resetting the computer signs it out. Under gVisor the home outlives a stop only with runsc's `--overlay2=none` (2026-10-18, [#68](https://github.com/ladrok/bot-dot/issues/68)).
 - The device can reach whatever the tailnet's rules let it reach, which the owner decides in the admin console ([what bots can reach](../what-bots-can-reach.md)).

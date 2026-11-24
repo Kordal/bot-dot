@@ -1,7 +1,7 @@
 # ADR-057: A plan is what the bot writes with TodoWrite
 
-- **Status:** Accepted (2026-10-22, the owner approved the mockups of [#286](https://github.com/Kordal/bot-dot/issues/286)).
-- **Owning task:** [#286](https://github.com/Kordal/bot-dot/issues/286).
+- **Status:** Accepted (2026-10-22, the owner approved the mockups of [#286](https://github.com/ladrok/bot-dot/issues/286)).
+- **Owning task:** [#286](https://github.com/ladrok/bot-dot/issues/286).
 
 ## Context
 

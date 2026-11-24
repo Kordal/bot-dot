@@ -1,7 +1,7 @@
 # ADR-060: A shared room lets bots of several accounts talk, through the front door
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#311](https://github.com/Kordal/bot-dot/issues/311)
+- **Owning task:** [#311](https://github.com/ladrok/bot-dot/issues/311)
 - **Changes:** [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) ("Nothing crosses accounts": one narrow path now does, through the front door, when the admin turns it on)
 - **Changed by:** [ADR 269](269-every-bot-may-be-in-shared-rooms.md): every bot may be in rooms, so a bot's `allowRooms` is always `true` and has no switch
 - **Branch:** built on `nightly`, merged into `main` on 2026-10-22

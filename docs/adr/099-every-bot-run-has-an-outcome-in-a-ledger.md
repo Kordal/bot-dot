@@ -1,7 +1,7 @@
 # ADR-099: Every bot run has an outcome in a ledger
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#589](https://github.com/Kordal/bot-dot/issues/589)
+- **Owning task:** [#589](https://github.com/ladrok/bot-dot/issues/589)
 
 ## Context
 

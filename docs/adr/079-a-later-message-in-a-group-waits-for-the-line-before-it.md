@@ -1,7 +1,7 @@
 # ADR-079: A later message in a group waits for the line before it
 
 - **Status:** Accepted (asked for by the owner, 2026-10-23)
-- **Owning task:** [#489](https://github.com/Kordal/bot-dot/issues/489)
+- **Owning task:** [#489](https://github.com/ladrok/bot-dot/issues/489)
 - **Changes:** [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md) ("The botdot server keeps the line of turns for each message of the owner's"), [ADR 020](020-a-member-reads-the-groups-chat-and-keeps-its-own-memory.md) (what a turn reads)
 
 Amended by [ADR 080](080-a-long-turn-in-a-group-goes-on-in-the-background.md) (2026-10-23): a turn still at work after 90 seconds goes on in the background; its line, and a later message, go on without it, and its reply hands on when it lands.

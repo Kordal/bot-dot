@@ -1,7 +1,7 @@
 # ADR-117: A morning standup is a short call per lead and one Chief message
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#698](https://github.com/Kordal/bot-dot/issues/698), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
+- **Owning task:** [#698](https://github.com/ladrok/bot-dot/issues/698), spec [#687](https://github.com/ladrok/bot-dot/issues/687)
 
 **Automatic reporting is superseded by [ADR 240](240-project-updates-use-recorded-work-in-the-primary-conversation.md).** Legacy settings and history remain; approved plan execution remains unchanged.
 
@@ -20,7 +20,7 @@ A project (ADR 110) has teams, each with one lead that answers for its team (ADR
 
 - **A run of each lead, posting its lines with a tool.** Rejected: a run per lead every morning, each leaving an unread reply in its chat ("one message, not one per lead"), and a lead's run that waits for an OK would hold the standup. A lead's knowledge of the team's work is in its team's runs, which the call is given.
 - **botdot merges the lines into the Chief's chat by itself.** Rejected: the owner asked for the Chief's message, and the Chief can turn an ask into a question with the context of its chats.
-- **A switch and a time on the Projects screen now.** Left to the project settings page ([#701](https://github.com/Kordal/bot-dot/issues/701)); until then the Chief sets them by chat (AGENTS.md rule 5).
+- **A switch and a time on the Projects screen now.** Left to the project settings page ([#701](https://github.com/ladrok/bot-dot/issues/701)); until then the Chief sets them by chat (AGENTS.md rule 5).
 
 ## Consequences
 
