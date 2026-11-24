@@ -622,9 +622,9 @@ function aboutHTML(m) {
 const aboutColor = (c) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? c : 'var(--muted)');
 const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m, at) : steeredBubbles(m.steered) + chiefBubble(m, !m.projectUpdate && all.slice(i + 1).every((x) => x.projectUpdate), at));
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
-const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
+const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me" data-text="${esc(String(x.text || ''))}">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
-const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine">${globalThis.aboutHTML?.(m) || ''}<div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
+const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine">${globalThis.aboutHTML?.(m) || ''}<div class="bubble from-me" data-text="${esc(m.text)}">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 
 function wireActions(root) {
   wireMail(root);

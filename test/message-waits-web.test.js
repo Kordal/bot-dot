@@ -90,7 +90,7 @@ test('web: a bot\'s waiting messages are drawn at the end of its chat, before th
   p.ctx.placeStatusLines();
   assert.deepEqual(p.bot.names(), ['bubble-row', 'chat-queued', 'chat-needs']);
   const html = p.waiting(p.bot).innerHTML;
-  assert.match(html, /<div class="bubble-row from-me"><div class="stack mine">\s*<div class="bubble from-me waits">Also check that tonight&#39;s backup has enough room\./, 'the owner\'s bubble, faded');
+  assert.match(html, /<div class="bubble-row from-me"><div class="stack mine">\s*<div class="bubble from-me waits"[^>]*>Also check that tonight&#39;s backup has enough room\./, 'the owner\'s bubble, faded');
   assert.match(html, /<div class="bubble-meta"><span>Waits until Fleet Doctor is free<\/span><button type="button" data-take-back="q1">Take back<\/button><\/div>/);
   assert.match(html, /<div class="bubble-files"><span class="file-chip [^>]*title="backup\.log · 2 KB">[^<]*<span class="fname">backup\.log<\/span><\/span><\/div>/, 'its files, as on a sent message');
   assert.doesNotMatch(html, /data-unattach|copy/, 'nothing to remove a file with, nothing to copy');
@@ -112,7 +112,7 @@ test('web: several wait in the order sent, and a bot that is not working has the
   assert.deepEqual(p.bot.names(), ['chat-queued']);
   const html = p.waiting(p.bot).innerHTML;
   assert.deepEqual([...html.matchAll(/data-take-back="([^"]*)"/g)].map((m) => m[1]), ['q1', 'q2', 'q3']);
-  assert.match(html, /<div class="bubble from-me waits"><div class="bubble-files">/, 'files alone: the bubble holds them');
+  assert.match(html, /<div class="bubble from-me waits"[^>]*><div class="bubble-files">/, 'files alone: the bubble holds them');
 });
 
 test('web: in the Chief\'s chat they wait "until the Chief is free", under its working line with Stop', () => {
@@ -158,7 +158,7 @@ test('web: a waiting message whose turn came stays in the chat until its run is 
   p.ctx.setQueued('bot:doctor', [queued('q1', SECOND)]);
   p.ctx.setQueued('bot:doctor', []); // the feed: its turn came, before the runs are read again
   const html = p.waiting(p.bot).innerHTML;
-  assert.match(html, /<div class="bubble from-me waits">Also check that tonight&#39;s backup/, 'it stands, faded');
+  assert.match(html, /<div class="bubble from-me waits"[^>]*>Also check that tonight&#39;s backup/, 'it stands, faded');
   assert.doesNotMatch(html, /data-take-back|data-steer|Waits until/, 'without its buttons and its line');
   // A list of the bots read before it started, drawn late, does not bring it back as waiting.
   p.doctor.queued = [queued('q1', SECOND)];
@@ -209,7 +209,7 @@ test('web: nothing in a waiting message is markup, and an entry without an id is
   // A list entry whose text or files are not what the contract says draws an empty bubble, not an error.
   p.doctor.queued = [{ id: 'q1', text: 5, attachments: 'x' }];
   p.ctx.placeStatusLines();
-  assert.match(p.waiting(p.bot).innerHTML, /<div class="bubble from-me waits"><\/div>/);
+  assert.match(p.waiting(p.bot).innerHTML, /<div class="bubble from-me waits"[^>]*><\/div>/);
 });
 
 test('web: Send stays: the box of a bot and of the Chief has Send whether or not something works', () => {
@@ -467,7 +467,7 @@ test('web: with `steer` a bot\'s waiting message has Steer beside Take back, and
   await steer.onclick();
   assert.deepEqual(p.said.calls.slice(-1), ['POST /bots/doctor/queued/q1/steer']);
   html = p.waiting(p.bot).innerHTML;
-  assert.match(html, /<div class="bubble from-me waits">Also check that tonight&#39;s backup has enough room\.<\/div>\s*<div class="bubble-meta"><span>Steering…<\/span><button type="button" data-take-back="q1">Take back<\/button><\/div>/);
+  assert.match(html, /<div class="bubble from-me waits"[^>]*>Also check that tonight&#39;s backup has enough room\.<\/div>\s*<div class="bubble-meta"><span>Steering…<\/span><button type="button" data-take-back="q1">Take back<\/button><\/div>/);
   assert.match(html, /<span>Waits until Fleet Doctor is free<\/span><button type="button" data-steer="q2">Steer<\/button>/, 'the other still waits, with its own Steer');
   assert.equal((html.match(/data-steer=/g) || []).length, 1);
   // Refused (the run can't take it, or it started): the server's sentence above the box, and the chat read again.

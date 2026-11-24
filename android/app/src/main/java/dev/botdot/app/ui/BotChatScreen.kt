@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.rememberCoroutineScope
@@ -210,6 +211,10 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // From a quick answer or a question card: whether it went. What was tapped stays until it did.
     // answers: the reply whose question it answers, so that with two questions open it ends that one alone (#1380).
     suspend fun sendFrom(text: String, key: String, answers: String? = null): Boolean = vm.send(text, emptyList(), box = false, key = key, answers = answers).await()
+    // The inputs and buttons of an answer view send through the same function, as the owner's own message (ADR 265): a busy bot shows it as waiting.
+    val sendView by rememberUpdatedState<suspend (String, String) -> Boolean> { t, k -> sendFrom(t, k) }
+    val viewLater = vm.started.map { it.text } + vm.queued.map { it.text } + listOfNotNull(vm.sent?.text)
+    val viewChat = remember(runs, viewLater) { ViewChat(botBubbles(runs, viewLater)) { t, k -> sendView(t, k) } }
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
     // puts text selected in a message: this chat's message box (QuoteUi.kt).
@@ -218,7 +223,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // A path in its replies, and a file you sent it, open in the viewer (#251).
     CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalFileMentions provides rememberFileMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "bot", botId) },
         LocalPathActions provides rememberPathActions(botId, bot?.name.orEmpty()), LocalSiteIcons provides sitesShown(features),
-        LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalProductSaver provides botId, LocalBotLinks provides rememberBotLinks(app, botId)) {
+        LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalViewChat provides viewChat, LocalProductSaver provides botId, LocalBotLinks provides rememberBotLinks(app, botId)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
@@ -309,7 +314,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                 val steps = RunSteps.shows(r)
                                 if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
                                     open = RunSteps.open(stepsOpen, r), onOpen = { if (it) stepsOpen[r.id] = r.isRunning else stepsOpen.remove(r.id) }, onStop = { vm.stop(r.id) })
-                                val theirs = @Composable {
+                                val theirs = @Composable { ViewReplyScope(r.id) {
                                     val asksHere = (r.id in askedIn || (r.id == lastReply && !r.asks)) && r.status == "success"
                                     TheirSide(r, open = r.id in opened, asksOpen = asksHere, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                         learned = dev.botdot.app.data.LearnedChips.of(r, features).map { x -> x.text to when (val to = dev.botdot.app.data.LearnedChips.open(x)) { dev.botdot.app.data.LearnedChips.Open.Jobs -> onJobs; is dev.botdot.app.data.LearnedChips.Open.Settings -> ({ onLearned(to.skill) }); null -> null } })
@@ -321,7 +326,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                         Choices(r.choices, r.yes, bot?.color ?: r.botColor, putaway = if (hasChoicesDismiss(features)) Putaway(r.id, r.choicesDismissed) { app.api.value?.dismissChoices(r.id, it) ?: throw ApiException(NOT_CONNECTED) } else null) { text, key -> sendFrom(text, key, r.id) }
                                         Questions(r.questions, r.questionChoices, of = r.id) { text, key -> sendFrom(text, key, r.id) }
                                     }
-                                }
+                                } }
                                 // Its reply, once the run ended: it arrives when it is new in this open chat, and what
                                 // started the run stands still above it. A run at work has no reply to arrive.
                                 if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(Space.s8)) { theirs() }

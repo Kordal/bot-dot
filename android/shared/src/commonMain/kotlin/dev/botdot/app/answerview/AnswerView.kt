@@ -94,7 +94,7 @@ data class ViewLimits(val fences: Int, val nodes: Int, val depth: Int, val bytes
 internal class PropSpec(
     val type: String, val max: Int?, val min: Double?, val maxValue: Double?, val required: Boolean, val multiline: Boolean,
     val empty: Boolean, val nullable: Boolean, val values: List<String>, val from: List<String>, val exts: List<String>?,
-    val counts: String?, val minItems: Int?, val of: PropSpec?, val props: Map<String, PropSpec>?,
+    val counts: String?, val minItems: Int?, val of: PropSpec?, val props: Map<String, PropSpec>?, val noReserved: Boolean = false,
 )
 
 internal class ChildrenSpec(val max: Int, val only: List<String>?)
@@ -105,7 +105,7 @@ internal class ComponentSpec(val since: Int, val props: Map<String, PropSpec>, v
  * The generic validator, driven by the [catalog] the server hands out. [known]: the newest catalog version this app
  * draws (the catalog's own by default): a component that came later is one quiet `unknown` node.
  */
-class AnswerViews private constructor(val version: Int, val limits: ViewLimits, private val tones: List<String>, private val components: Map<String, ComponentSpec>, private val known: Int) {
+class AnswerViews private constructor(val version: Int, val limits: ViewLimits, private val tones: List<String>, private val components: Map<String, ComponentSpec>, private val known: Int, private val reserved: Set<String> = emptySet()) {
 
     /** What one prop holds, or [No] (can't be read) or [Empty] (a text with nothing in it). */
     private sealed interface Read {
@@ -126,6 +126,7 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
         when (spec.type) {
             "string" -> {
                 val s = text(v, spec.multiline, spec.max ?: Int.MAX_VALUE) ?: return Read.No
+                if (spec.noReserved && phraseKey(s) in reserved) return Read.No // the owner's words the server reads as an answer (ADR 265)
                 return if (s.isEmpty() && !spec.empty) Read.Empty else got(s)
             }
             "number", "int" -> {
@@ -334,7 +335,7 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
             required = bool(o["required"]), multiline = bool(o["multiline"]), empty = bool(o["empty"]), nullable = bool(o["nullable"]),
             values = strings(o["values"]).orEmpty(), from = strings(o["from"]).orEmpty(), exts = strings(o["exts"]),
             counts = (o["counts"] as? JsonPrimitive)?.takeIf { it.isString }?.content, minItems = int(o["min"]),
-            of = obj(o["of"])?.let { spec(it) }, props = obj(o["props"])?.let { props(it) },
+            of = obj(o["of"])?.let { spec(it) }, props = obj(o["props"])?.let { props(it) }, noReserved = bool(o["noReserved"]),
         )
         private fun props(o: Map<String, JsonElement>): Map<String, PropSpec> = LinkedHashMap<String, PropSpec>().also { m -> for ((k, v) in o) obj(v)?.let { m[k] = spec(it) } }
 
@@ -348,7 +349,7 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
                 val ch = obj(c["children"])?.let { ChildrenSpec(int(it["max"]) ?: 0, strings(it["only"])) }
                 comps[name] = ComponentSpec(int(c["since"]) ?: 1, props(obj(c["props"]).orEmpty()), ch, strings(c["in"]), bool(c["sourced"]))
             }
-            return AnswerViews(version, limits, strings(root["tones"]).orEmpty(), comps, known ?: version)
+            return AnswerViews(version, limits, strings(root["tones"]).orEmpty(), comps, known ?: version, strings(root["reserved"]).orEmpty().map { phraseKey(it) }.toSet())
         }
     }
 }
@@ -368,6 +369,9 @@ internal fun String.jsTrim(): String {
     while (b > a && this[b - 1].isJsSpace()) b--
     return substring(a, b)
 }
+
+/** What a text is compared by to tell a reserved phrase: lower case with everything but letters and digits left out, so its case, spacing and punctuation change nothing. */
+internal fun phraseKey(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
 
 /** A text cut to [n] characters, not in the middle of a pair. */
 private fun cap(s: String, n: Int): String {

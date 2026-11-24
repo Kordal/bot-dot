@@ -683,7 +683,7 @@ test("web: every reply has its bot's name above it in the bot's colour and its h
   const rows = [...h.matchAll(/<div class="bubble-row from-bot g-row" data-reply="(\w+)">\s*<div class="avatar head g-head" data-bot="(\w+)" data-st="idle" data-c="(#\w+)"><\/div>\s*<div class="stack">\s*<a class="g-name" href="#bot\/(\w+)" data-bot-link="(\w+)" style="--c:(#\w+)">(.*?)<\/a>/g)].map((m) => m.slice(1));
   assert.deepEqual(rows, [['r1', 'writer', WRITER.color, 'writer', 'writer', WRITER.color, 'Issue Writer'], ['r2', 'coder', CODER.color, 'coder', 'coder', CODER.color, 'Coder']]);
   assert.equal((h.match(/class="bubble from-bot/g) || []).length, 2);
-  assert.match(h, /<div class="bubble-row from-me" data-gmsg="m1"><div class="stack mine">\s*<div class="bubble from-me" data-expand><div class="clamp">The settings page needs a dark mode switch\.<\/div><\/div>/);
+  assert.match(h, /<div class="bubble-row from-me" data-gmsg="m1"><div class="stack mine">\s*<div class="bubble from-me" data-expand[^>]*><div class="clamp">The settings page needs a dark mode switch\.<\/div><\/div>/);
   assert.ok(h.indexOf('data-gmsg="m1"') < h.indexOf('data-reply="r1"') && h.indexOf('data-reply="r1"') < h.indexOf('data-reply="r2"'), 'oldest first');
   assert.match(h, /<div class="bubble-files">diff\.patch<\/div>/, "a member's file is under its reply");
   assert.match(h, /<button data-details="r2">Details<\/button>/);
@@ -812,7 +812,7 @@ test('web: a message that waits for a busy member is drawn as waiting and says f
   const rows = p.ctx.groupThreadHTML(p.group(), c);
   assert.doesNotMatch(rows, /data-gmsg="m2"/, 'not among the rows');
   const tail = p.ctx.groupTailHTML(p.group(), c);
-  assert.match(tail, /^<div class="g-working">[\s\S]*<\/div><div class="chat-queued"><div class="bubble-row from-me"><div class="stack mine">\s*<div class="bubble from-me waits"><span class="mention" title="@Coder">[\s\S]*?<\/span> also bump the version\.<div class="bubble-files">[\s\S]*?notes\.txt[\s\S]*?<\/div><\/div>\s*<div class="bubble-meta"><span>Waits until Coder is free<\/span><button type="button" data-take-back="m2">Take back<\/button><\/div>/);
+  assert.match(tail, /^<div class="g-working">[\s\S]*<\/div><div class="chat-queued"><div class="bubble-row from-me"><div class="stack mine">\s*<div class="bubble from-me waits"[^>]*><span class="mention" title="@Coder">[\s\S]*?<\/span> also bump the version\.<div class="bubble-files">[\s\S]*?notes\.txt[\s\S]*?<\/div><\/div>\s*<div class="bubble-meta"><span>Waits until Coder is free<\/span><button type="button" data-take-back="m2">Take back<\/button><\/div>/);
   // One whose first turns went says for whom it still waits, in its place, and cannot be taken back.
   assert.match(rows, /data-gmsg="m3">[\s\S]*?<div class="bubble-meta"><span>Waits until Coder and Reviewer are free<\/span>/);
   assert.doesNotMatch(rows, /data-take-back/);
@@ -998,7 +998,7 @@ function heldSend(rest = { items: [] }) {
   const reply = (path, opts) => (opts.method === 'POST' ? new Promise((resolve, reject) => { answer = resolve; fail = reject; }) : rest);
   return { reply, answer: (x) => answer(x), fail: (e) => fail(e) };
 }
-const SENT = /<div class="chat-sent"><div class="bubble-row from-me" data-sent><div class="stack mine"><div class="bubble from-me waits">(.*?)<\/div><\/div><\/div><\/div>(<div class="g-working">.*)$/;
+const SENT = /<div class="chat-sent"><div class="bubble-row from-me" data-sent><div class="stack mine"><div class="bubble from-me waits"[^>]*>(.*?)<\/div><\/div><\/div><\/div>(<div class="g-working">.*)$/;
 
 test('web: on Send the message and one plain "Working" are in the group before the request answers; the server\'s message takes their place', async () => {
   const taken = message('m7', 'Who can look at this?', { at: at(5), to: ['coder'], next: ['coder'], canTakeBack: true, attachments: [{ name: 'shot.png', file: 'uploads/shot.png', size: 9 }] });
@@ -1035,7 +1035,7 @@ test('web: with members at work the message stands at the end, under those that 
   const tail = p.ctx.groupTailHTML(p.group(), c);
   assert.doesNotMatch(tail, /chat-sent/);
   assert.match(tail, /<span><b>Coder<\/b> · Working<\/span><button type="button" data-stop-all>Stop all<\/button>/);
-  assert.match(tail, /<div class="chat-queued">.*data-take-back="m2".*<div class="bubble-row from-me" data-sent><div class="stack mine"><div class="bubble from-me waits">And the changelog<\/div><\/div><\/div><\/div>$/s);
+  assert.match(tail, /<div class="chat-queued">.*data-take-back="m2".*<div class="bubble-row from-me" data-sent><div class="stack mine"><div class="bubble from-me waits"[^>]*>And the changelog<\/div><\/div><\/div><\/div>$/s);
   // It did not go: nothing of it stays, and the send rejects for the line above the box.
   const f = heldSend();
   const q = page({ reply: f.reply });

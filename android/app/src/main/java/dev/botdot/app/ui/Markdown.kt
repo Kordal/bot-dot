@@ -173,7 +173,7 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
         parts.forEachIndexed { i, part ->
             key(i) {
                 val above = Modifier.padding(top = if (i == 0) 0.dp else 6.dp)
-                if (part is ReplyPart.Text) MarkdownProse(part.text, color, above, onWeb, paths, copy, bots) else AnswerPart(part, color, copy, above)
+                if (part is ReplyPart.Text) MarkdownProse(part.text, color, above, onWeb, paths, copy, bots) else AnswerPart(part, color, copy, above, i)
             }
         }
     }
