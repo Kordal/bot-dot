@@ -88,6 +88,14 @@ test("a job the Chief asks to add reads as words on its card: when it runs and w
   assert.equal(JSON.parse(asksLib.proposalView(ask, 'Hunter').details).cron, '0 8 * * *');
 });
 
+test('a job the Chief asks to add around its time says "around" in its When row, and has no row for the flag', () => {
+  const ask = { kind: 'chief-action', botId: null, chatId: 'c1', method: 'POST', path: 'bots/b1/jobs', title: 'Add the job “Parts” to Hunter',
+    body: { name: 'Digest', kind: 'ai', cron: '0 8 * * *', around: true, assessment: 'Needs AI.' } };
+  const rows = (lang) => asksLib.proposalView(ask, 'Hunter', { lang }).rows.map((r) => [r.label, r.value]);
+  assert.deepEqual(rows('en'), [['Name', 'Digest'], ['Kind', 'A run of the bot, with AI'], ['When', 'Daily around 08:00'], ['Why this kind', 'Needs AI.']]);
+  assert.deepEqual(rows('pl')[2], ['Kiedy', 'Codziennie około 08:00']);
+});
+
 test("a job's schedule in Polish words, as an app in Polish shows `when`; the Chief and the bots keep English", () => {
   const { describe } = require('../lib/cron-words');
   const jobs = require('../lib/jobs');
