@@ -60,3 +60,7 @@ The owner wants owners to reach the developers with no more effort than today's 
 - The developers run and answer for one more public service, and review every report by hand before it is public.
 - The front door's data gains each report's relay id and status, and the install token. `GET /front-door/session` and `docs/api.md` say whether the switch is on and where Feedback goes, so an older app still shows the form as before.
 - `botdot-hosting` needs an ADR of its own for the relay, its review page and the statuses back through the agent.
+
+## Notes
+
+- 2026-11-24: the relay's default address is `https://relay.botdot.app`, chosen by the owner ([#1566](https://github.com/Kordal/bot-dot/issues/1566)); `https://feedback.botdot.app`, named in the first version of the protocol, was never in DNS and is not used. The protocol is as written: only the address changed. `FRONT_DOOR_FEEDBACK_RELAY` still overrides it.
