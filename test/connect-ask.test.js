@@ -502,7 +502,7 @@ function listedWith(app, offerArgs, { was = [], connectionId = null, labels = {}
   const asks = asksLib.create(dir);
   const bot = { id: 'b1', name: 'Writer', connectors: [], accounts: {} };
   const bots = { get: (id) => (id === 'b1' ? bot : null), list: () => [bot], update: (id, patch) => Object.assign(bot, patch) };
-  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], labelFor: (id) => labels[id] || null };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], labelFor: (id) => labels[id] || null, labelPending: () => false };
   const C = connectAsksLib.create({ asks, bots, connectors, appName: asksLib.appWord, carryOnAfter: () => ({}) });
   const card = C.offer({ botId: 'b1', app, ...offerArgs }).ask;
   if (connectionId) asks.mark((x) => x.id === card.id, { connectionId });
