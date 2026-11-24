@@ -126,6 +126,16 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// A message box grows with its text up to `cap` px. scrollHeight is a whole number but the text's height is not
+// (14px at 1.45 is 20.3px a line), so a box fitted to it alone comes out a fraction short and shows a scrollbar:
+// round up, add a pixel, and scroll only past the cap.
+function fitHeight(ta, cap = 200) {
+  ta.style.height = 'auto';
+  const h = Math.ceil(ta.scrollHeight + ta.offsetHeight - ta.clientHeight) + 1;
+  ta.style.height = `${Math.min(h, cap)}px`;
+  ta.style.overflowY = h > cap ? 'auto' : 'hidden';
+}
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -515,7 +525,7 @@ function wireChoices(root, send) {
     boxes.forEach((ta, i) => {
       const picks = $$('[data-pick]', ta.closest('label'));
       ta.oninput = () => {
-        ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + ta.offsetHeight - ta.clientHeight, 200) + 'px';
+        fitHeight(ta);
         btn.disabled = !boxes.some((b) => b.value.trim());
         picks.forEach((p) => p.classList.toggle('on', p.dataset.pick === ta.value.trim())); // the one the box says
         if (!card.dataset.of) return; // no reply to keep it by: a later card with the same questions must start empty

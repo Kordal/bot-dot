@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
-const { app, read, cut, element, finders, answer, esc, words } = require('./web-page');
+const { app, read, cut, element, finders, answer, esc, words, fitHeight } = require('./web-page');
 
 const unreached = () => Object.assign(new Error("Can't reach botdot."), { unreached: true });
 const refused = (said) => Object.assign(new Error(said), { status: 429, refused: true });
@@ -25,7 +25,7 @@ function box(onSend, { secret = false } = {}) {
   const list = element({}, { classes: ['hidden'] });
   const form = element({ '.send-btn': btn, '.send-note': note, '.attach-list': list, '.attach-btn': element() }, { text: ta, files: element() });
   const said = { toasts: [], confirms: [] };
-  const ctx = vm.createContext({ ...words,
+  const ctx = vm.createContext({ ...words, fitHeight,
     ...finders(), Math, String, Promise, Map, WeakSet, crypto: globalThis.crypto,
     toast: (...a) => said.toasts.push(a),
     askFirst: async (q) => { said.confirms.push(q); return true; },
@@ -250,7 +250,7 @@ function answers(send) {
   const sendBtn = element({}, { disabled: true });
   const card = element({ textarea: boxes, '[data-send]': sendBtn });
   const thread = element({ '[data-choice]': buttons, '.ask-card': [card] });
-  const ctx = vm.createContext({ ...words, ...finders(), Math, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
+  const ctx = vm.createContext({ ...words, fitHeight, ...finders(), Math, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
   vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// What the owner typed or picked on a card of questions', 'const copyBtn = ')}\nthis.wireChoices = wireChoices;`, ctx);
   ctx.wireChoices(thread, send);
   return { row, buttons, card, boxes, sendBtn, picks };
@@ -391,7 +391,7 @@ function senders(reply) {
   const calls = [];
   const bodies = []; // what each message was sent with
   const said = { toasts: [], refreshed: 0, followed: [], shown: [] };
-  const ctx = vm.createContext({ ...words,
+  const ctx = vm.createContext({ ...words, fitHeight,
     ...finders(doc), Promise, Object, crypto: globalThis.crypto,
     state: { chatId: null, chatNew: true, runs: [] }, console,
     api: async (path, opts = {}) => { calls.push(`${opts.method || 'GET'} ${path}`); if (opts.body) bodies.push(opts.body); return reply(path, opts); },
@@ -831,7 +831,7 @@ function drawnCard(ctx, of = 'run-9') {
   return { card, boxes, sendBtn, picks, thread: element({ '[data-choice]': [], '.ask-card': [card] }) };
 }
 const cardPage = () => {
-  const ctx = vm.createContext({ ...words, ...finders(), Math, Map, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
+  const ctx = vm.createContext({ ...words, fitHeight, ...finders(), Math, Map, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
   vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// What the owner typed or picked on a card of questions', 'const copyBtn = ')}\nthis.wireChoices = wireChoices;`, ctx);
   return ctx;
 };

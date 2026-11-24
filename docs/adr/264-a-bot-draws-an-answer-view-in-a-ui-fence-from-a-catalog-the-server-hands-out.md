@@ -25,7 +25,7 @@ A bot answers in Markdown and, at best, a `products` fence or a mermaid diagram.
 - **A view never approves.** Nothing in the catalog sends, runs or changes anything: no component has a handler, a script, a style or an address that is not `https`. In wave 2 an input or a button only posts the owner's own plain message; it can't approve a card, grant a permission, run a job, change a bot or touch the Board. Approvals stay on cards in Needs you (Milestone 5).
 - **Streaming.** A reply being written shows a quiet "Drawing a view…" for a fence not closed yet and draws the view once it closes; a fence never closed stays code once the reply has ended, with its `alt`. The validator's `split` reads a reply this way (text, views, code, drawing) so every place that draws a reply agrees.
 - **Where it is drawn** is wherever a bot's or the Chief's reply is drawn (a bot's chat, the Chief's chat, groups and rooms), not in notifications and push (they read `alt`), the Board or pages.
-- **The skill** `kit:ui`, the eval and the drawing are later tickets; nothing is visible to the owner with this one.
+- **The skill** `kit:ui` ([#1625](https://github.com/Kordal/bot-dot/issues/1625)) is on for every bot and the Chief like `kit:shopping`, switched off per bot the same way, and told to each as one line; its rules and its component reference, written from `lib/ui-catalog.json` (`scripts/ui-skill.js`), load only when it is picked. Its eval is `make ui-eval`. The web page ([#1624](https://github.com/Kordal/bot-dot/issues/1624)) and the Android app ([#1626](https://github.com/Kordal/bot-dot/issues/1626)) draw wave 1, and the skill is merged after both.
 
 ## Alternatives
 
@@ -41,4 +41,4 @@ A bot answers in Markdown and, at best, a `products` fence or a mermaid diagram.
 - A component is a catalog entry and a drawing. Adding one raises `version` and gives it that `since`; it is written in `lib/ui-catalog.json`, its drawing in each app, and its cases in the shared fixture.
 - Three validators (web, Kotlin for Android and iOS, and the server's own when it checks a view for a bot) must agree; the fixture is what makes them, as for `products`. The Kotlin one is a ticket of its own.
 - The validator is generic, so a prop kind it doesn't have (a new media kind, say) is a change to the three of them and an ADR note, not a catalog entry.
-- No app draws a view yet (the web page's ticket is [#1624](https://github.com/Kordal/bot-dot/issues/1624)), and no bot is told of the fence (the skill `kit:ui` is its own ticket), so nothing changes for the owner with this one.
+- A bot is told of the fence only by the skill `kit:ui` ([#1625](https://github.com/Kordal/bot-dot/issues/1625)). It is merged after the web page ([#1624](https://github.com/Kordal/bot-dot/issues/1624)) and the Android app ([#1626](https://github.com/Kordal/bot-dot/issues/1626)) draw wave 1, so no owner sees a view as code; an app older than that shows it as code.

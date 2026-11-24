@@ -41,10 +41,10 @@ test('a run with one kit skill switched off loads a copy of the kit without it, 
   const os = require('os');
   const skills = require('../lib/skills').create(fs.mkdtempSync(path.join(os.tmpdir(), 'kit-pack-')));
   assert.equal(skills.kitPack('run1', []), KIT_DIR, 'nothing off: the kit itself');
-  assert.equal(skills.kitPack('run1', ['kit:pages', 'shopping', 'i-have-adhd']), null, 'all off: none');
+  assert.equal(skills.kitPack('run1', ['kit:pages', 'shopping', 'i-have-adhd', 'kit:ui']), null, 'all off: none');
   const dir = skills.kitPack('run1', ['kit:shopping']);
   assert.match(path.basename(dir), /^run1-kit$/);
-  assert.deepEqual(fs.readdirSync(path.join(dir, 'skills')).sort(), ['i-have-adhd', 'pages']);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'skills')).sort(), ['i-have-adhd', 'pages', 'ui']);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), 'utf8')).name, 'kit');
   skills.removePack('run1');
   assert.equal(fs.existsSync(dir), false);

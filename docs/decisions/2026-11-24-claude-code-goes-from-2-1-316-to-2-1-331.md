@@ -1,0 +1,1 @@
+2026-11-24: Claude Code goes from 2.1.316 to 2.1.331, the newest. From 2.1.325 it warns at startup about a `--tools` entry that does not look like a complete rule; ours are bare built-in names (`WebSearch`, `WebFetch`, `Read`, …) or `''` for none, so none can trigger it. Nothing the bots use was removed or renamed in 2.1.317–2.1.331.
