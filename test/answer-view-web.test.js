@@ -409,9 +409,9 @@ test('buttons say what they send, in a tone, and a button that says "Approve" is
     { type: 'button', label: 'Approve', tone: 'bad' },
     { type: 'button-group', label: 'Choose', children: [{ type: 'button', label: 'A' }, { type: 'button', label: 'B', send: 'Option "B"' }] },
   ] });
-  assert.match(html, /<button type="button" class="btn av-btn t-accent" disabled data-av-press="0\.0" data-say="Yes, go ahead with the cheaper plan">Yes, go ahead<\/button>/);
+  assert.match(html, /<button type="button" class="btn av-btn t-accent" disabled data-av-press="0\.0" data-say="Yes, go ahead with the cheaper plan" title="Yes, go ahead with the cheaper plan">Yes, go ahead<\/button>/);
   assert.match(html, /<button type="button" class="btn av-btn t-bad" disabled data-av-press="0\.1" data-say="Approve">Approve<\/button>/);
-  assert.match(html, /<div class="av-btns" role="group" aria-label="Choose"><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.0" data-say="A">A<\/button><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.1" data-say="Option &quot;B&quot;">B<\/button><\/div>/);
+  assert.match(html, /<div class="av-btns" role="group" aria-label="Choose"><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.0" data-say="A">A<\/button><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.1" data-say="Option &quot;B&quot;" title="Option &quot;B&quot;">B<\/button><\/div>/);
   // nothing in it asks the server for anything: no address, no form, no handler
   assert.doesNotMatch(html, /href=|action=|formaction|<form|\son\w+=/);
 });

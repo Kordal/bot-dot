@@ -13,6 +13,8 @@
 //   text.form(root, values)      what a form posts (ADR 265): each input's label and its value, one per line; values: path -> what the owner set
 //   text.buttons(root)           the buttons of a view: [{ path, node }]
 //   text.press(button)           what a button posts: its `send` (200 characters at most), else its label
+//   text.start(node, raw)        what an input holds as the page shows it (what the owner set, else the bot's, kept to what the input allows)
+//   text.ends(node)              the ends of a slider or a range: [min, max], the bot's else 0 and 100
 
 (function (root) {
 
@@ -222,7 +224,7 @@ function of(view, opts) {
   const alt = (reply, opts) => rewrite(reply, opts, { view: (v) => v.alt, code: (c) => c.alt });
   const text = (reply, opts) => rewrite(reply, opts, { view: (v) => join([v.alt, tree(v.root)]), code: (c) => join([c.alt, fenced(c.code, 'ui')]) });
 
-  return { alt, text, tree, data, has, fields, form, buttons, press, start };
+  return { alt, text, tree, data, has, fields, form, buttons, press, start, ends };
 }
 
 const api = { of, bins };

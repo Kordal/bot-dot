@@ -216,28 +216,28 @@ const AnswerViews = (() => {
   const attrs = (n, path) => `data-av-in="${path}" data-kind="${n.type}" data-label="${esc(n.label)}"`;
   const field = (n, path, inner, cls = '') => `<fieldset class="av-field${cls}" ${attrs(n, path)}><legend class="av-label">${esc(n.label)}</legend>${inner}</fieldset>`;
   const checked = (on) => (on ? ' checked' : '');
+  const step = (n) => (n.step > 0 ? num(n.step) : 'any');
+  const DAY = /^\d{4}-\d{2}-\d{2}$/;
   const options = (n, path, ctx, kind, v) => n.options.map((o) => `<label class="av-opt"><input type="${kind}" class="av-in"${kind === 'radio' ? ` name="av-${ctx.key}-${path.replace(/\./g, '-')}"` : ''} value="${esc(o)}"${checked(kind === 'radio' ? v === o : v.includes(o))} disabled><span>${esc(o)}</span></label>`).join('');
   function input(n, ctx, path) {
     const raw = typed.get(`${ctx.key}.${path}`);
     const v = words.start(n, raw);
     const label = `<span class="av-label">${esc(n.label)}</span>`;
-    const num2 = (x) => (Number.isFinite(x) ? ` ${x}` : '');
     switch (n.type) {
       case 'text-input': return `<label class="av-field">${label}<input type="text" class="av-in" value="${esc(v)}"${n.placeholder ? ` placeholder="${esc(n.placeholder)}"` : ''} maxlength="200" disabled ${attrs(n, path)}></label>`;
       case 'textarea': return `<label class="av-field">${label}<textarea class="av-in" rows="3"${n.placeholder ? ` placeholder="${esc(n.placeholder)}"` : ''} maxlength="2000" disabled ${attrs(n, path)}>${esc(v)}</textarea></label>`;
       case 'number': {
         const bound = (name, x) => (Number.isFinite(x) ? ` ${name}="${num(x)}"` : '');
-        const box = `<input type="number" class="av-in" value="${v === null ? '' : num(v)}"${bound('min', n.min)}${bound('max', n.max)} step="${n.step > 0 ? num(n.step) : 'any'}" inputmode="decimal" disabled ${attrs(n, path)}>`;
+        const box = `<input type="number" class="av-in" value="${v === null ? '' : num(v)}"${bound('min', n.min)}${bound('max', n.max)} step="${step(n)}" inputmode="decimal" disabled ${attrs(n, path)}>`;
         return `<label class="av-field">${label}${n.unit ? `<span class="av-with">${box}<span class="av-unit">${esc(n.unit)}</span></span>` : box}</label>`;
       }
       case 'slider': {
-        const [lo, hi] = [Number.isFinite(n.min) ? n.min : 0, Number.isFinite(n.max) && n.max > (Number.isFinite(n.min) ? n.min : 0) ? n.max : 100];
-        const [a, b] = hi > lo ? [lo, hi] : [0, 100];
-        return `<label class="av-field"><span class="av-label">${esc(n.label)}<output class="av-out" data-unit="${esc(n.unit || '')}">${esc(rangeText(n, v))}</output></span><input type="range" class="av-in" value="${num(v)}" min="${num(a)}" max="${num(b)}" step="${n.step > 0 ? num(n.step) : 'any'}" aria-valuetext="${esc(rangeText(n, v))}" disabled ${attrs(n, path)}></label>`;
+        const [a, b] = words.ends(n);
+        return `<label class="av-field"><span class="av-label">${esc(n.label)}<output class="av-out" data-unit="${esc(n.unit || '')}">${esc(rangeText(n, v))}</output></span><input type="range" class="av-in" value="${num(v)}" min="${num(a)}" max="${num(b)}" step="${step(n)}" aria-valuetext="${esc(rangeText(n, v))}" disabled ${attrs(n, path)}></label>`;
       }
       case 'range': {
-        const a = Number.isFinite(n.min) ? n.min : 0, b = Number.isFinite(n.max) && n.max > a ? n.max : 100;
-        const ends = (i, name) => `<input type="range" class="av-in" value="${num(v[i])}" min="${num(a)}" max="${num(b)}" step="${n.step > 0 ? num(n.step) : 'any'}" aria-label="${esc(name)}" disabled>`;
+        const [a, b] = words.ends(n);
+        const ends = (i, name) => `<input type="range" class="av-in" value="${num(v[i])}" min="${num(a)}" max="${num(b)}" step="${step(n)}" aria-label="${esc(name)}" disabled>`;
         return field(n, path, `<div class="av-pair">${ends(0, tr('{label}, from', { label: n.label }))}${ends(1, tr('{label}, to', { label: n.label }))}</div><output class="av-out" data-unit="${esc(n.unit || '')}">${esc(rangeText(n, v))}</output>`, ' av-range');
       }
       case 'select': return `<label class="av-field">${label}<select class="av-in" disabled ${attrs(n, path)}><option value="">${tr('Choose')}</option>${n.options.map((o) => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`;
@@ -246,7 +246,7 @@ const AnswerViews = (() => {
       case 'segmented': return field(n, path, `<div class="av-opts">${options(n, path, ctx, 'radio', v)}</div>`, ' av-seg');
       case 'checkbox': return `<label class="av-field av-check"><input type="checkbox" class="av-in"${checked(v)} disabled ${attrs(n, path)}><span>${esc(n.label)}</span></label>`;
       case 'toggle': return `<label class="av-field av-check av-toggle"><input type="checkbox" role="switch" class="av-in"${checked(v)} disabled ${attrs(n, path)}><span>${esc(n.label)}</span></label>`;
-      case 'date': return `<label class="av-field">${label}<input type="date" class="av-in" value="${esc(v)}"${/^\d{4}-\d{2}-\d{2}$/.test(n.min || '') ? ` min="${esc(n.min)}"` : ''}${/^\d{4}-\d{2}-\d{2}$/.test(n.max || '') ? ` max="${esc(n.max)}"` : ''} disabled ${attrs(n, path)}></label>`;
+      case 'date': return `<label class="av-field">${label}<input type="date" class="av-in" value="${esc(v)}"${DAY.test(n.min || '') ? ` min="${esc(n.min)}"` : ''}${DAY.test(n.max || '') ? ` max="${esc(n.max)}"` : ''} disabled ${attrs(n, path)}></label>`;
       case 'time': return `<label class="av-field">${label}<input type="time" class="av-in" value="${esc(v)}" disabled ${attrs(n, path)}></label>`;
       case 'rating': {
         const max = Math.round(Math.min(Math.max(Number.isFinite(n.max) ? n.max : 5, 3), 10));
@@ -260,7 +260,8 @@ const AnswerViews = (() => {
   }
   // A button posts its `send` (200 characters at most), else its label; the page puts what it posts in data-say, so a view
   // that was sent can be told from the owner's next message.
-  const button = (n, path) => `<button type="button" class="btn av-btn t-${tone(n)}" disabled data-av-press="${path}" data-say="${esc(words.press(n))}">${esc(n.label)}</button>`;
+  // When it posts more than its label, the owner can read what it posts before pressing (the tooltip).
+  const button = (n, path) => { const say = words.press(n); return `<button type="button" class="btn av-btn t-${tone(n)}" disabled data-av-press="${path}" data-say="${esc(say)}"${say === n.label ? '' : ` title="${esc(say)}"`}>${esc(n.label)}</button>`; };
 
   // Where a file is, or '' when this reply is no bot's.
   function mediaBox(n, ctx, inner, fallback) {
@@ -408,7 +409,11 @@ const AnswerViews = (() => {
     const all = $$('.bubble.from-bot, .bubble.from-me', root);
     const items = all.map((b, i) => ({ from: b.classList.contains('from-me') ? 'me' : 'bot', id: i, working: !!b.closest('[data-live], [data-pending]'), problem: b.classList.contains('problem'), folded: !!b.closest('.notes-fold') }));
     const latest = newest(items);
+    const seen = new Set();
     for (const av of views) {
+      // The same view twice in a chat (a bot asked again) must not share its radio groups: the later one gets its own names.
+      if (seen.has(av.dataset.av) && !av._avNamed) { av._avNamed = true; $$('input[type="radio"]', av).forEach((r) => { r.name = `${r.name}-${views.indexOf(av)}`; }); }
+      seen.add(av.dataset.av);
       const at = all.indexOf(av.closest('.bubble.from-bot'));
       const next = at < 0 ? null : all.slice(at + 1).find((b) => b.classList.contains('from-me'));
       const says = $$('[data-av-press]', av).map((b) => b.dataset.say);
@@ -423,9 +428,9 @@ const AnswerViews = (() => {
     av.dataset.avState = state;
     const line = $('.av-sent', av);
     if (!line) return;
-    const words2 = state === 'sent' ? tr('Sent: {text}', { text: said }) : state === 'closed' ? tr('Not sent') : '';
-    if (line.textContent !== words2) line.textContent = words2;
-    if (line.hidden !== !words2) line.hidden = !words2;
+    const shown = state === 'sent' ? tr('Sent: {text}', { text: said }) : state === 'closed' ? tr('Not sent') : '';
+    if (line.textContent !== shown) line.textContent = shown;
+    if (line.hidden !== !shown) line.hidden = !shown;
   }
   // The chat's own send takes the views' messages: send(text, key) -> Promise<boolean>, as for a quick answer. Called whenever the
   // chat is drawn again; the views are settled at once and again whenever the chat changes (the owner's bubble arrives, a reply).
@@ -459,7 +464,6 @@ const AnswerViews = (() => {
     if (av.isConnected) { const chat = chatOf(av); if (chat) settle(chat); else paint(av, went ? { state: 'sent', said: text } : { state: 'open' }); }
   }
   const values = (av) => Object.fromEntries($$('[data-av-in]', av).map((f) => [f.dataset.avIn, read(f)]));
-  const unitText = (f, v) => (f.dataset.kind === 'range' ? tr('{from} to {to}', { from: num(v[0]), to: num(v[1]) }) : num(v)) + (f.dataset.unit ? ` ${f.dataset.unit}` : '');
 
   // The tooltips of the charts drawn under `root`, once each.
   function wire(root) {
@@ -530,10 +534,10 @@ const AnswerViews = (() => {
         if (Number(a.value) > Number(b.value)) { if (el === a) b.value = a.value; else a.value = b.value; }
       }
       if (f.dataset.kind === 'slider' || f.dataset.kind === 'range') {
-        const text = unitText(f.dataset.kind === 'slider' ? { dataset: { ...f.dataset, unit: f.closest('label').querySelector('output').dataset.unit } } : { dataset: { ...f.dataset, unit: f.querySelector('output').dataset.unit } }, read(f));
-        const out = f.dataset.kind === 'slider' ? f.closest('label').querySelector('output') : f.querySelector('output');
-        out.textContent = text;
-        if (f.dataset.kind === 'slider') f.setAttribute('aria-valuetext', text);
+        const out = (f.dataset.kind === 'slider' ? f.closest('label') : f).querySelector('output');
+        const v = read(f);
+        out.textContent = (Array.isArray(v) ? tr('{from} to {to}', { from: num(v[0]), to: num(v[1]) }) : num(v)) + (out.dataset.unit ? ` ${out.dataset.unit}` : '');
+        if (f.dataset.kind === 'slider') f.setAttribute('aria-valuetext', out.textContent);
       }
       const av = f.closest('.av');
       if (typed.size > 300) typed.clear();

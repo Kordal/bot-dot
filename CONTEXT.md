@@ -171,7 +171,7 @@ A bot's, the Chief of Staff's or a group member's reply as it is being written, 
 _Avoid_: streaming message, typing indicator, partial reply
 
 **Answer view**:
-What a bot or the Chief of Staff draws in its answer when a chart, a table, KPIs or the like are clearer than text: one `ui` fence holding components from the catalog the server hands out, drawn by the apps in their own theme with its numbers' source beside them. Prose stays the default. A view only shows (and, from wave 2, sends the owner's own plain message); it never approves, runs or changes anything. ADR 264.
+What a bot or the Chief of Staff draws in its answer when a chart, a table, KPIs or the like are clearer than text: one `ui` fence holding components from the catalog the server hands out, drawn by the apps in their own theme with its numbers' source beside them. Prose stays the default. A view only shows and, with inputs and buttons (wave 2), sends the owner's own plain message; it never approves, runs or changes anything. ADR 264, ADR 265.
 _Avoid_: card (a card waits in Needs you), widget, generative UI
 
 **Plan**:
