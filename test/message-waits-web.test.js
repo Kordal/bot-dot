@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread, words, feedStandIns } = require('./web-page');
+const { app, read, cut, esc, element, thread, words, feedStandIns, fitHeight } = require('./web-page');
 
 const css = read('style.css');
 const at = '2026-10-06T09:00:00.000Z';
@@ -45,7 +45,7 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
   const lib = vm.createContext({ ...words });
   vm.runInContext(read('unread.js'), lib);
   vm.runInContext(read('opening-line.js'), lib);
-  const ctx = vm.createContext({ ...words,
+  const ctx = vm.createContext({ ...words, fitHeight,
     crypto: globalThis.crypto, esc, state, console: { error: (e) => { throw e; }, warn() {} }, OpeningLine: lib.OpeningLine, Unread: lib.Unread, openingLines: lib.OpeningLine.keeper(),
     CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, CHIEF_COLOR: '#d85a30', ICON: { stop: '<stop>', send: '<send>' },
     chiefTurns: new Map(), chiefQueued: new Map(),
@@ -183,7 +183,7 @@ test('web: one taken back here is not kept as starting', async () => {
 test('web: the feed\'s `queued` reaches the page\'s list, and what is no list changes nothing', () => {
   const listeners = {};
   const got = [];
-  const ctx = vm.createContext({ ...words,
+  const ctx = vm.createContext({ ...words, fitHeight,
     ...feedStandIns(), window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {}, setQueued: (chat, list) => got.push([chat, list]),
     EventSource: class { addEventListener(type, fn) { (listeners[type] ||= []).push(fn); } },
   });

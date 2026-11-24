@@ -106,4 +106,11 @@ const words = (() => {
 // quiet (#1078), and the timer and the listeners it sets for that, here doing nothing.
 const feedStandIns = () => ({ FeedWatch: require('../public/feed-watch'), setInterval: () => 0, document: { hidden: false, addEventListener() {} }, addEventListener() {} });
 
-module.exports = { feedStandIns, noDrafts, app, read, cut, esc, element, finders, answer, thread, whileBusy, words };
+// The page's message-box fit (app.js fitHeight), for code run against stand-ins that grows a box.
+const fitHeight = (() => {
+  const ctx = {};
+  require('vm').runInNewContext(`${cut('// A message box grows with its text', 'function esc(s)')}\nthis.fitHeight = fitHeight;`, ctx);
+  return ctx.fitHeight;
+})();
+
+module.exports = { fitHeight, feedStandIns, noDrafts, app, read, cut, esc, element, finders, answer, thread, whileBusy, words };
