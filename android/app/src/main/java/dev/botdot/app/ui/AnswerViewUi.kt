@@ -182,7 +182,10 @@ fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: I
     val values = remember(viewKey) { mutableStateMapOf<String, JsonElement>().apply { putAll(AnswerViewMemory.drafts.of(viewKey)) } }
     val says = remember(buttons) { buttons.map { ViewForm.press(it.node) } }
     val labels = remember(fields) { fields.map { it.node.text("label").orEmpty() } }
-    val sent = AnswerViewMemory.sent[viewKey] ?: if (reply != null) ViewForm.sentFrom(reply.next, says, labels) else null
+    // The chat is the truth: what it shows of the owner's messages first, else what this phone posted that it does not show yet.
+    val read = if (reply != null) ViewForm.sendOf(reply.mine, says, labels, AnswerViewMemory.pending[viewKey]) else null
+    val sent = read?.sent
+    LaunchedEffect(viewKey, read) { if (read != null && read.pending == null) AnswerViewMemory.pending.remove(viewKey) } // the chat shows it now: forget the post
     val state = if (reply == null) null else ViewForm.state(reply.newest, sent)
     val sending = AnswerViewMemory.sending[viewKey] == true
     val live = state == ViewState.Open && !sending
@@ -193,7 +196,7 @@ fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: I
         val key = AnswerViewMemory.drafts.keyFor(viewKey, text) // the same text again is the same message
         scope.launch {
             val went = try { reply.send(text, key) } catch (e: CancellationException) { throw e } catch (e: Exception) { false } finally { AnswerViewMemory.sending.remove(viewKey) }
-            if (went) { AnswerViewMemory.drafts.sent(viewKey, text); AnswerViewMemory.sent[viewKey] = text; values.clear() }
+            if (went) { AnswerViewMemory.drafts.sent(viewKey); AnswerViewMemory.pending[viewKey] = text; values.clear() }
         }
     }
     val form = remember(viewKey, live, values, reply) { FormCtx(viewKey, live, values) { post(it) } }

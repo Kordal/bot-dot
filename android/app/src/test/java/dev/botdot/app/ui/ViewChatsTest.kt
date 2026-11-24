@@ -18,9 +18,9 @@ class ViewChatsTest {
         val runs = listOf(run("r1", "Plan the trip"), run("r2", "Budget: 500"), run("r3", "More", status = "error"))
         val b = botBubbles(runs, later = listOf("on its way"))
         assertEquals("r2", ViewForm.newest(b)) // r3 failed
-        assertEquals("Budget: 500", ViewForm.ownerAfter(b, "r1"))
-        assertEquals("More", ViewForm.ownerAfter(b, "r2"))
-        assertEquals("on its way", ViewForm.ownerAfter(b, "r3"))
+        assertEquals(listOf("Budget: 500"), ViewForm.ownersAfter(b, "r1"))
+        assertEquals(listOf("More"), ViewForm.ownersAfter(b, "r2"))
+        assertEquals(listOf("on its way"), ViewForm.ownersAfter(b, "r3"))
     }
 
     @Test fun aRunStillAtWorkIsNoMessageToAnswer() {
@@ -32,8 +32,8 @@ class ViewChatsTest {
         val messages = listOf(ChiefMessage(role = "user", text = "Hi"), ChiefMessage(role = "chief", text = "A"), ChiefMessage(role = "user", text = "Budget: 500"), ChiefMessage(role = "chief", text = "B", pending = true))
         val b = chiefBubbles("c1", messages, first = 10, later = emptyList())
         assertEquals("c1:11", ViewForm.newest(b)) // c1:13 is still being written
-        assertEquals("Budget: 500", ViewForm.ownerAfter(b, "c1:11"))
-        assertNull(ViewForm.ownerAfter(b, "c1:13"))
+        assertEquals(listOf("Budget: 500"), ViewForm.ownersAfter(b, "c1:11"))
+        assertEquals(emptyList<String>(), ViewForm.ownersAfter(b, "c1:13"))
         assertEquals(setOf("c1:11"), setOf(chiefViewId("c1", 11))) // another chat's message 11 is another view
         assertEquals(false, chiefViewId("c2", 11) == chiefViewId("c1", 11))
     }
@@ -47,6 +47,6 @@ class ViewChatsTest {
         )
         val b = groupBubbles(rows, later = emptyList())
         assertEquals("t2", ViewForm.newest(b))
-        assertEquals("Name: Ada", ViewForm.ownerAfter(b, "t1"))
+        assertEquals(listOf("Name: Ada"), ViewForm.ownersAfter(b, "t1"))
     }
 }

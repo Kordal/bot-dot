@@ -266,4 +266,27 @@ class AnswerViewUiTest {
         rule.onNodeWithText("Copied").assertIsDisplayed()
         rule.onAllNodesWithText("Plain").assertCountEquals(0) // no https address: the validator leaves it as one quiet line
     }
+
+    @Test fun aButtonWritesWhatItSendsUnderItsLabelWhenThatIsNotTheLabel() {
+        showIn(ViewChat(listOf(ViewBubble.bot("btn-4"))) { _, _ -> true }, "btn-4", buttons)
+        rule.onNodeWithText("Sends: Yes, go ahead with the cheaper plan").assertIsDisplayed()
+        rule.onAllNodesWithText("Sends:", substring = true).assertCountEquals(1) // "Approve" sends its label: nothing to add
+    }
+
+    @Test fun aViewOpensAgainWhenTheOwnerTakesTheirSendBack() {
+        var chat by mutableStateOf(ViewChat(listOf(ViewBubble.bot("btn-5"))) { _, _ -> true })
+        rule.setContent {
+            CompositionLocalProvider(LocalAnswerViews provides views, LocalViewChat provides chat) { ViewReplyScope("btn-5") { Column { MarkdownText(buttons) } } }
+        }
+        rule.onNodeWithText("Approve").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Sent: Approve").assertIsDisplayed() // posted, the chat does not show it yet
+        rule.runOnIdle { chat = ViewChat(listOf(ViewBubble.bot("btn-5"), ViewBubble.owner("Approve"))) { _, _ -> true } }
+        rule.waitForIdle()
+        rule.onNodeWithText("Sent: Approve").assertIsDisplayed() // the chat shows it now
+        rule.runOnIdle { chat = ViewChat(listOf(ViewBubble.bot("btn-5"))) { _, _ -> true } } // taken back
+        rule.waitForIdle()
+        rule.onAllNodesWithText("Sent:", substring = true).assertCountEquals(0)
+        rule.onNodeWithText("Approve").assertIsEnabled()
+    }
 }

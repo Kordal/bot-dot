@@ -295,9 +295,12 @@ class AnswerViewTest {
         assertEquals(ViewState.Sent("Yes"), ViewForm.state(newest = false, sent = "Yes"))
         assertEquals(ViewState.Closed, ViewForm.state(newest = false, sent = null))
         // The owner's message after a bot message, whatever else stands between them.
-        assertEquals("hi", ViewForm.ownerAfter(bubbles, "a"))
-        assertNull(ViewForm.ownerAfter(bubbles, "b"))
-        assertNull(ViewForm.ownerAfter(bubbles, "missing"))
+        assertEquals(listOf("hi"), ViewForm.ownersAfter(bubbles, "a"))
+        assertEquals(emptyList(), ViewForm.ownersAfter(bubbles, "b"))
+        assertEquals(emptyList(), ViewForm.ownersAfter(bubbles, "missing"))
+        // Everything the owner wrote up to the next bot message may be the send: something else first, the button after.
+        val more = listOf(ViewBubble.bot("a"), ViewBubble.owner("wait, one question"), ViewBubble.owner("Yes"), ViewBubble.bot("b"), ViewBubble.owner("later"))
+        assertEquals(listOf("wait, one question", "Yes"), ViewForm.ownersAfter(more, "a"))
     }
 
     @Test fun whatTheOwnerTypedStaysUntilItIsSentAndTheKeyOfAMessageIsTheSameWhileItsTextIs() {
@@ -308,9 +311,8 @@ class AnswerViewTest {
         val first = drafts.keyFor("r1#0", "Name: Grace")
         assertEquals(first, drafts.keyFor("r1#0", "Name: Grace"))
         assertNotEquals(first, drafts.keyFor("r1#0", "Name: Ada"))
-        drafts.sent("r1#0", "Name: Grace")
+        drafts.sent("r1#0")
         assertTrue(drafts.of("r1#0").isEmpty())
-        assertEquals("Name: Grace", drafts.sentOf("r1#0"))
         for (i in 0 until 400) drafts.put("v$i", "0", JsonPrimitive(i))
         assertTrue(drafts.size <= 300)
     }
@@ -318,5 +320,22 @@ class AnswerViewTest {
     @Test fun aNumberIsRoundedHalfUpAsTheWebPageDoes() {
         assertEquals("0.13", viewNumber(0.125))
         assertEquals("-2.5", viewNumber(-2.5))
+    }
+
+    @Test fun aViewIsOpenAgainWhenTheOwnerTakesAWaitingSendBack_theChatIsTheTruth() {
+        val says = listOf("Yes")
+        fun read(mine: List<String>, pending: String?) = ViewForm.sendOf(mine, says, emptyList(), pending)
+        assertEquals(ViewForm.SendRead("Yes", "Yes"), read(emptyList(), "Yes")) // posted, the chat does not show it yet
+        assertEquals(ViewForm.SendRead("Yes", null), read(listOf("Yes"), "Yes")) // the chat shows it: the post is forgotten
+        assertEquals(ViewForm.SendRead("Yes", null), read(listOf("Yes"), null))
+        assertEquals(ViewForm.SendRead(null, null), read(emptyList(), null)) // taken back: open again
+        assertEquals(ViewForm.SendRead("Yes", null), read(listOf("wait, one question", "Yes"), null))
+        assertEquals(ViewForm.SendRead(null, null), read(listOf("wait, one question"), null))
+        assertEquals(ViewForm.SendRead("Name: Ada", null), ViewForm.sendOf(listOf("Name: Ada"), emptyList(), listOf("Name"), "Name: Ada"))
+    }
+
+    @Test fun aButtonShowsWhatItSendsWhenThatIsNotItsLabel() {
+        val root = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"button","label":"Yes, go ahead","send":"Yes, go ahead with the cheaper plan"},{"type":"button","label":"Approve"}]}}""")).root
+        assertEquals(listOf("Yes, go ahead with the cheaper plan", ""), ViewForm.buttons(root).map { ViewForm.shows(it.node) })
     }
 }

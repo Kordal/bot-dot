@@ -177,6 +177,9 @@ object ViewForm {
     /** What a button posts: its `send` (200 characters at most), else its label. */
     fun press(n: ViewNode): String = cutText(n.text("send")?.jsTrim()?.takeIf { it.isNotEmpty() } ?: n.text("label").orEmpty(), SEND_MAX)
 
+    /** What the owner reads on a button before pressing it: what it posts when that is not its label, else ''. Never a tooltip alone: the owner sees exactly what is sent. */
+    fun shows(n: ViewNode): String = press(n).let { if (it == n.text("label")) "" else it }
+
     private fun cutText(s: String, n: Int): String {
         if (s.length <= n) return s
         val t = s.substring(0, n)
@@ -201,15 +204,28 @@ object ViewForm {
         return if (labels.isNotEmpty() && labels.all { l -> lines.any { it.startsWith("$l: ") } }) t else null
     }
 
+    /** What a view has sent, and what is still on its way: see [sendOf]. */
+    data class SendRead(val sent: String?, val pending: String?)
+
+    /**
+     * What a view has sent, from the chat first: [mine] are the owner's messages after the view (up to the next bot message,
+     * a waiting one included), [pending] what this phone posted that the chat may not show yet. The chat is the truth: once it
+     * shows the message the post is forgotten, so a message the owner takes back opens the view again.
+     */
+    fun sendOf(mine: List<String>, says: List<String>, labels: List<String>, pending: String?): SendRead {
+        val shown = mine.firstNotNullOfOrNull { sentFrom(it, says, labels) }
+        return if (shown != null) SendRead(shown, null) else SendRead(pending, pending)
+    }
+
     /** The id of the newest bot message a chat's views answer: the last one that is whole, from a bot to the owner. */
     fun newest(bubbles: List<ViewBubble>): String? =
         bubbles.lastOrNull { it.fromBot && !it.working && !it.problem && !it.folded }?.id
 
-    /** The owner's first message after the bot message [id], or null. */
-    fun ownerAfter(bubbles: List<ViewBubble>, id: String): String? {
+    /** Every message of the owner after the bot message [id], up to the next bot message: the owner may write something else first and press a button after. */
+    fun ownersAfter(bubbles: List<ViewBubble>, id: String): List<String> {
         val at = bubbles.indexOfFirst { it.fromBot && it.id == id }
-        if (at < 0) return null
-        return bubbles.drop(at + 1).firstOrNull { !it.fromBot }?.text
+        if (at < 0) return emptyList()
+        return bubbles.drop(at + 1).takeWhile { !it.fromBot }.mapNotNull { it.text }
     }
 
     fun state(newest: Boolean, sent: String?): ViewState = when {

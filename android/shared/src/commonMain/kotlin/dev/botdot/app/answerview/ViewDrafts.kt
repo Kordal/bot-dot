@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonElement
  * inputs, until it is sent. A view is named by its reply and its place in it. At most [CAP] views are kept.
  */
 class ViewDrafts {
-    private class Entry(val values: MutableMap<String, JsonElement> = LinkedHashMap(), var sent: String? = null, var last: Pair<String, String>? = null)
+    private class Entry(val values: MutableMap<String, JsonElement> = LinkedHashMap(), var last: Pair<String, String>? = null)
     private val views = LinkedHashMap<String, Entry>()
 
     val size get() = views.size
@@ -32,10 +32,8 @@ class ViewDrafts {
         return (h.last?.takeIf { it.first == text } ?: (text to messageKey()).also { h.last = it }).second
     }
 
-    /** [view] went, with [text]: its typed values are dropped. */
-    fun sent(view: String, text: String) { val h = entry(view); h.values.clear(); h.sent = text }
-
-    fun sentOf(view: String): String? = views[view]?.sent
+    /** [view] went: its typed values are dropped. */
+    fun sent(view: String) { entry(view).values.clear() }
 
     companion object { const val CAP = 300 }
 }

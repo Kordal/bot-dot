@@ -97,11 +97,11 @@ import kotlin.math.roundToInt
 class ViewChat(private val bubbles: List<ViewBubble>, private val send: suspend (String, String) -> Boolean) {
     private val newest = ViewForm.newest(bubbles)
     /** What the views of the bot message [id] may do. */
-    fun reply(id: String) = ViewReply(id, id == newest, ViewForm.ownerAfter(bubbles, id), send)
+    fun reply(id: String) = ViewReply(id, id == newest, ViewForm.ownersAfter(bubbles, id), send)
 }
 
-/** One bot message as its views read it: [newest] says it may be answered, [next] is the owner's message after it. */
-class ViewReply(val id: String, val newest: Boolean, val next: String?, val send: suspend (String, String) -> Boolean)
+/** One bot message as its views read it: [newest] says it may be answered, [mine] are the owner's messages after it, up to the next bot message. */
+class ViewReply(val id: String, val newest: Boolean, val mine: List<String>, val send: suspend (String, String) -> Boolean)
 
 /** The chat a view is in; null where a view only shows (a room, a tile, a document). */
 val LocalViewChat = compositionLocalOf<ViewChat?> { null }
@@ -117,12 +117,13 @@ fun ViewReplyScope(id: String, content: @Composable () -> Unit) {
     androidx.compose.runtime.CompositionLocalProvider(LocalViewReply provides reply, content = content)
 }
 
-/** What views remember for as long as the app runs: what was typed, what was sent, and the sends on their way. */
+/** What views remember for as long as the app runs: what was typed, what this phone posted that its chat may not show yet, and the sends on their way. */
 object AnswerViewMemory {
     /** Sends run here, not in a screen's scope: a view that scrolls away while its send is on its way still learns that it went. */
     val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
     val drafts = ViewDrafts()
-    val sent = mutableStateMapOf<String, String>()
+    /** A post is kept only until the chat shows the message ([ViewForm.sendOf]), so one the owner takes back opens its view again. */
+    val pending = mutableStateMapOf<String, String>()
     val sending = mutableStateMapOf<String, Boolean>()
 }
 
@@ -367,14 +368,22 @@ internal fun ViewButton(n: ViewNode) {
     val say = ViewForm.press(n)
     val on = f?.live == true
     val tone = n.text("tone")
-    // What it posts, when that is more than its label, is told to TalkBack (a tooltip is the web page's).
-    val mod = Modifier.heightIn(min = 48.dp).semantics { if (say != label) stateDescription = say }
-    if (tone.isNeutralTone()) SecondaryButton({ f?.press?.invoke(say) }, mod, enabled = on) { Text(label) }
-    else if (tone == "accent") Button({ f?.press?.invoke(say) }, mod, enabled = on) { Text(label) }
+    // What it posts, when that is more than its label, is written under the label: the owner sees exactly what is sent, and TalkBack reads it too.
+    val shown = ViewForm.shows(n)
+    val mod = Modifier.heightIn(min = 48.dp)
+    val face: @Composable () -> Unit = {
+        if (shown.isEmpty()) Text(label)
+        else Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label)
+            Text(tr("Sends: {text}", "text" to shown), fontSize = Type.s12)
+        }
+    }
+    if (tone.isNeutralTone()) SecondaryButton({ f?.press?.invoke(say) }, mod, enabled = on) { face() }
+    else if (tone == "accent") Button({ f?.press?.invoke(say) }, mod, enabled = on) { face() }
     else {
         val c = toneColors(tone)
         Button({ f?.press?.invoke(say) }, mod, enabled = on, colors = ButtonDefaults.buttonColors(containerColor = c.soft, contentColor = c.text, disabledContainerColor = c.soft.copy(alpha = 0.5f), disabledContentColor = p.faint),
-            border = BorderStroke(1.dp, c.accent.copy(alpha = if (on) 0.6f else 0.3f)), elevation = null) { Text(label) }
+            border = BorderStroke(1.dp, c.accent.copy(alpha = if (on) 0.6f else 0.3f)), elevation = null) { face() }
     }
 }
 
