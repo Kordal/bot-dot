@@ -335,6 +335,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun setLanguage(language: String) { send("PUT", "/settings", buildJsonObject { put("language", language) }) }
     /** The dictionary of [language] (GET /api/i18n/:language): English text to its translation. */
     suspend fun dictionary(language: String): JsonObject = (json.parseToJsonElement(get("/i18n/${enc(language)}")) as JsonObject)["strings"] as? JsonObject ?: JsonObject(emptyMap())
+    /** The catalog of answer views (GET /api/ui-catalog, ADR 264), as the server wrote it; from a server whose features name `ui-catalog`. */
+    suspend fun uiCatalog(): String = get("/ui-catalog")
     suspend fun whatsNew(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(get("/whats-new")))
     /** The What's new dialog was closed: these notes count as seen, here and on the web page. */
     suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }

@@ -34,7 +34,7 @@ private val RULES = setOf("---", "***", "___")
  * "Open on web" under a draft, ADR 041), a table row that is still being written waits, and so does the line of a
  * fence that is still being opened. The marks the last line opens and has not closed yet are left out
  * ([hideOpenMarks]), so a reply never flashes its ** as text. A `products` fence that is not closed yet waits whole: its
- * cards are drawn once it is (test/fixtures/products-cases.json).
+ * cards are drawn once it is (test/fixtures/products-cases.json), and so does a `ui` fence (an answer view, ADR 264).
  */
 fun draftSource(src: String): String {
     var lines = src.replace("\r\n", "\n").replace('\r', '\n').split("\n").toMutableList()
@@ -42,6 +42,8 @@ fun draftSource(src: String): String {
     var open = -1
     lines.forEachIndexed { i, l -> if (fence.containsMatchIn(l)) open = if (open < 0) i else -1 }
     if (open >= 0 && Regex("^\\s*```products\\s*$").matches(lines[open])) lines = lines.subList(0, open).toMutableList()
+    // A `ui` fence that is not closed yet waits whole: it stays open, and the app says "Drawing a view…" until it closes (ADR 264).
+    if (open >= 0 && Regex("^\\s*```ui\\s*$").matches(lines[open])) return lines.joinToString("\n")
     if (lines.isEmpty()) return ""
     val last = lines.last()
     if (lines.count { fence.containsMatchIn(it) } % 2 == 1) {

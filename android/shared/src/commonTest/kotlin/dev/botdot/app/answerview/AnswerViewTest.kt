@@ -158,4 +158,31 @@ class AnswerViewTest {
     @Test fun aFenceIsMeasuredInUtf8Bytes() {
         assertEquals(1 + 2 + 3 + 4, utf8Bytes("a\u00e9\u20ac\ud83d\ude00"))
     }
+
+    @Test fun aDraftKeepsAnOpenUiFenceOpenSoThatTheReplyCanSayItIsDrawingAView() {
+        val draft = "Looking.\n\n```ui\n{\"alt\":\"Revenue\",\"root\":{\"type\":\"sta"
+        assertEquals(draft, dev.botdot.app.markdown.draftSource(draft))
+        assertEquals(listOf(ReplyPart.Text("Looking."), ReplyPart.Drawing), views.split(dev.botdot.app.markdown.draftSource(draft), done = false))
+        // Another code block is closed for the draft, as before.
+        assertEquals("```kotlin\nval a = 1\n```", dev.botdot.app.markdown.draftSource("```kotlin\nval a = 1"))
+    }
+
+    @Test fun aCopyOfAReplyWritesTheAltOfAViewAndItsTablesAsMarkdownTables() {
+        val reply = "Here you go.\n\n```ui\n" + """{"alt":"Options compared","root":{"type":"stack","children":[{"type":"chart","series":[{"points":[1,2]}],"source":"s"},{"type":"table","title":"Options","columns":[{"label":"Option"},{"label":"Price"}],"rows":[["A","10"],["B | C","12"]],"source":"Pricing"}]}}""" + "\n```\n\nThe second one is cheaper."
+        assertEquals(
+            "Here you go.\n\nOptions compared\n\nOptions\n\n| Option | Price |\n| --- | --- |\n| A | 10 |\n| B \\| C | 12 |\n\nThe second one is cheaper.",
+            views.copyText(reply),
+        )
+        // A fence that can't be drawn is its alt and its code; one still being written is nothing.
+        assertEquals("Nothing here\n\n```ui\n{\"alt\":\"Nothing here\"}\n```", views.copyText("```ui\n{\"alt\":\"Nothing here\"}\n```"))
+        assertEquals("Looking.", views.copyText("Looking.\n\n```ui\n{\"alt\":\"R", done = false))
+    }
+
+    @Test fun theNumbersOfAChartAreReadAsATable() {
+        val r = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"chart","labels":["Q1","Q2"],"series":[{"label":"EU","points":[1,null]},{"label":"US","points":[3.14159,4]}],"unit":"k","source":"s"}}"""))
+        assertEquals(ViewTable(null, listOf("", "EU (k)", "US (k)"), listOf(listOf("Q1", "1", "3.14"), listOf("Q2", "", "4"))), r.root.dataTable())
+        val h = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"histogram","values":[1,2,2,3],"bins":2,"source":"s"}}"""))
+        assertEquals(listOf(listOf("1 – 2", "1"), listOf("2 – 3", "3")), h.root.dataTable()!!.rows)
+        assertNull(assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"divider"}}""")).root.dataTable())
+    }
 }
