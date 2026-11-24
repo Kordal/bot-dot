@@ -80,7 +80,7 @@ function unreadNow(chat) {
 const fresh = Fresh.keeper(window, () => api('/version'));
 // The front door's own answer (the request went before the session did, or the account's server wasn't reached) names
 // none of the account's features: they stay unknown, and the next refresh asks again.
-const loadFeatures = () => api('/version').then((v) => { if (v.frontDoor) return; state.features = v.features || []; state.version = { version: v.version, short: v.short }; fresh.seen(v); }).catch(() => {});
+const loadFeatures = () => api('/version').then((v) => { if (v.frontDoor) return; state.features = v.features || []; state.version = { version: v.version, short: v.short }; fresh.seen(v); return typeof AnswerViews === 'object' ? AnswerViews.load(api, state.features) : undefined; }).catch(() => {});
 const loadChief = () => api('/chief').then((c) => { Object.assign(state, { chats: c.chats, chiefBusy: c.busy, chiefUnread: Unread.count(c) }); if (takeChiefName(c.chief?.name)) drawChiefName(); renderContacts(); }).catch(() => {});
 
 let readChat = null; // the chat last seen on screen and in front
@@ -652,11 +652,12 @@ function sentArrives(keeper, thread, chat, sent) {
 }
 // The row moves. With reduced motion asked for it is not marked at all: the style switches the movement off too,
 // and no mark is left to move when the setting changes.
-// A screen reader hears it, motion or not (#1077): its words, without its buttons.
+// A screen reader hears it, motion or not (#1077): its words, without its buttons. An answer view is its one-line alt.
 function arrive(row) {
   if (!row) return;
   if (!reducedMotion()) row.classList.add('arrives');
-  if (globalThis.say) say([...row.querySelectorAll('.bubble')].map((b) => b.textContent).join(' '));
+  const words = (b) => { const c = b.cloneNode(true); c.querySelectorAll('.av').forEach((v) => v.replaceWith(v.getAttribute('aria-label') || '')); return c.textContent; };
+  if (globalThis.say) say([...row.querySelectorAll('.bubble')].map(words).join(' '));
 }
 // The Chief's chat as it is drawn: one row for each message, the owner's own with `.mine` and a reply that is
 // still being written with `data-pending`. A reply that is new arrives, its whole row. Called wherever a reply

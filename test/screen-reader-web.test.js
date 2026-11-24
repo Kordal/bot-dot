@@ -42,7 +42,7 @@ test('web: what is said is its words in one line; two at once are both kept, and
 
 test('web: a reply that arrives is said, motion or not, and the working line when its words change', () => {
   const arrive = cut('// A screen reader hears it, motion or not (#1077)', '// The Chief\'s chat as it is drawn');
-  assert.match(arrive, /if \(!reducedMotion\(\)\) row\.classList\.add\('arrives'\);\n\s*if \(globalThis\.say\) say\(\[\.\.\.row\.querySelectorAll\('\.bubble'\)\]\.map\(\(b\) => b\.textContent\)\.join\(' '\)\);/);
+  assert.match(arrive, /if \(!reducedMotion\(\)\) row\.classList\.add\('arrives'\);\n[^\n]*const words = \(b\) => \{[^\n]*querySelectorAll\('\.av'\)[^\n]*return c\.textContent; \};\n\s*if \(globalThis\.say\) say\(\[\.\.\.row\.querySelectorAll\('\.bubble'\)\]\.map\(words\)\.join\(' '\)\);/); // an answer view is its alt
   const line = cut('function drawStatusLine(thread', '// "Waiting for your OK"');
   assert.match(line, /if \(words && words !== thread\._said && globalThis\.say && onScreen\(thread\)\) \{ thread\._said = words; say\(words\); \}/);
   // The line is drawn anew each time: it is no live region of its own, so it is not read twice.
