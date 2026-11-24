@@ -81,3 +81,22 @@ test('a card of what every bot has, waiting from before, is dropped when the ask
   assert.deepEqual((await asksOf(bot)).map((a) => a.id), ['old-rules'], 'a change that also holds something else stays');
   assert.equal((await srv.api('/asks/old-cmd', { method: 'POST', body: { yes: true } })).status, 404, 'nothing to answer');
 });
+
+test('an old card of commands that held a run: the run carries on once at start, and the card is gone', async () => {
+  const bot = await makeBot(srv, { name: 'Waiter', allowedTools: ['Read'] });
+  const first = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'List the files' } });
+  const stopped = await srv.finished(first.data.id);
+  const at = new Date().toISOString();
+  const card = { id: 'old-held', kind: 'permission', botId: bot.id, permission: 'commands', reason: 'To list them', at, runs: [{ id: stopped.id, at }] };
+  srv = await restartServer(srv, (data) => writeData(path.join(data, 'asks.json'), [card]));
+  ({ asksOf, answer } = kit(srv));
+  const { carriedOn, runsOf } = kit(srv);
+  const next = await carriedOn(bot, stopped);
+  assert.equal(next.continues, stopped.id, 'its yes was as good as given: the run it held carries on');
+  assert.deepEqual(await asksOf(bot), [], 'the card is gone');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(srv.data, 'asks.json'), 'utf8')), [], 'and gone from the file');
+  const n = (await runsOf(bot)).length;
+  srv = await restartServer(srv);
+  ({ asksOf, answer } = kit(srv));
+  await kit(srv).startsNothing(bot, n);
+});

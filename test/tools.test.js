@@ -206,7 +206,7 @@ test('Install installs exactly the approved list, with no secret in the installe
   assert.match(turn.stdin, /botdot writes this, not the user: nobody typed it/);
   assert.match(turn.stdin, new RegExp(`for 🧪 Coder \\(bot id ${coder.id}\\)\\. Its commands: gh\\.`));
   assert.match(turn.stdin, /No bot asked for it in a run\./);
-  assert.match(turn.system, /Installed tools:\n- A bot that may run commands/);
+  assert.match(turn.system, /Installed tools:\n- A bot can get a command-line program/);
   assert.match(turn.system, /You install nothing yourself/);
   assert.match(turn.system, /put them to the user as a question and wait for the answer; never pick one yourself/);
   assert.match(turn.system, /Report it in one line[^\n]*When the result says installed and that a bot asked for the tool in a run, start that bot again on the work that stopped[^\n]*After an install that failed, and when no bot's work stopped, start nothing\./);

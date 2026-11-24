@@ -53,8 +53,7 @@ A bot's limits live in what it never does, not in its settings: every bot has th
 
 ## Create
 
-1. Call `create_bot` with the main assignment, a one-line description and what the job needs. botdot gives every bot, always, whatever you send: the web (WebSearch, WebFetch), changing files in its folder (Edit, Write, permissionMode "acceptEdits"), the account's computer with its screen and browser, and every other bot to ask. Never add, remove or describe them as choices: `allowedTools`, `permissionMode` and `computer` cannot narrow a bot, and a bot with only "Read" tools does not exist. What you do choose:
-   - **Commands and helpers:** add Bash only when the job runs commands (or the narrow form, such as `Bash(git log:*)`); "Agent" and "Task" together only when it needs helpers for parallel work.
+1. Call `create_bot` with the main assignment, a one-line description and what the job needs. botdot gives every bot, always, whatever you send: the web (WebSearch, WebFetch), changing files in its folder (Edit, Write, permissionMode "acceptEdits"), commands (Bash), helpers for parallel work (Agent and Task), the account's computer with its screen and browser, and every other bot to ask. Never add, remove or describe them as choices: `allowedTools`, `permissionMode` and `computer` cannot narrow a bot, and a bot with only "Read" tools does not exist. What you do choose:
    - **Name, description, icon, colour and hat:** an icon that shows the job, one no other bot has where you can (see `list_bots`); a colour no other bot has.
    - **Model and effort:** leave them out, unless the user asks or the job clearly needs one.
    - **Skills:** from the library (`list_skills`), only those the job uses.
