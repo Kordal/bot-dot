@@ -197,6 +197,30 @@ describe('settleGiven: old commands/helpers cards at the first start (ADR 268)',
     assert.deepEqual(fileAsks().map((a) => a.id).sort(), ['mixed', 'other-tool'], 'and the file holds exactly those');
   });
 
+  test('an old change of a prompt that also adds Bash keeps its card without the tools: it can be approved, and the run that waited carries on', async () => {
+    const bot = await makeBot(srv, { name: 'Mixed Waiter', allowedTools: ['Read'], prompt: 'Write the notes.' });
+    const stopped = await srv.finished((await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'List the files' } })).data.id);
+    const at = new Date().toISOString();
+    const card = { id: 'old-mixed', kind: 'bot-change', botId: bot.id, by: 'bot', changes: { prompt: 'Write the notes and look things up.', allowedTools: ['Read', 'Bash'] }, before: { prompt: 'Write the notes.', allowedTools: ['Read'] }, reason: '', at, runs: [{ id: stopped.id, at }] };
+    srv = await restartServer(srv, (data) => writeData(path.join(data, 'asks.json'), [card]));
+    ({ asksOf, answer } = kit(srv));
+    const { carriedOn, runsOf } = kit(srv);
+    const [listed] = await asksOf(bot);
+    assert.equal(listed.id, 'old-mixed', 'the card is still listed');
+    assert.deepEqual(listed.parts.map((x) => x.label), ['Main assignment'], 'it describes the prompt only, not "What it may do"');
+    assert.doesNotMatch(listed.title, /run commands|what it may do/i);
+    assert.deepEqual(fileAsks().map((a) => [a.changes, a.before]), [[{ prompt: 'Write the notes and look things up.' }, { prompt: 'Write the notes.' }]], 'the tools are out of it, in the file');
+    assert.equal((await answer({ id: 'old-mixed' }, true)).status, 200, 'its yes is no longer refused as stale');
+    const now = (await srv.api(`/bots/${bot.id}`)).data;
+    assert.deepEqual([now.prompt, now.allowedTools], ['Write the notes and look things up.', withAlways('Read')], 'the prompt is saved');
+    assert.equal((await carriedOn(bot, stopped)).continues, stopped.id, 'the run that waited carries on');
+    assert.deepEqual(await asksOf(bot), []);
+    const n = (await runsOf(bot)).length;
+    srv = await restartServer(srv);
+    ({ asksOf, answer } = kit(srv));
+    await kit(srv).startsNothing(bot, n);
+  });
+
   test('a mix in asks.json at the first start: what waited carries on once, what must stay stays, and nothing runs again at the next start', async () => {
     const waiter = await makeBot(srv, { name: 'Mix Waiter', allowedTools: ['Read'] });
     const stale = await makeBot(srv, { name: 'Mix Stale', allowedTools: ['Read'] });

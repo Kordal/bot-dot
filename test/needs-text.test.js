@@ -399,7 +399,7 @@ const TEXTS = {
   'a-skill': 'Asks to install the skill “tidy-desk”',
   'a-tool': 'Asks to install gh',
   'a-link': 'Asks to install stripe from a link',
-  'a-change': 'The Chief wants to change its rules and what it may do',
+  'a-change': 'The Chief wants to change its rules',
   'a-own': 'Wants to change its main assignment',
   'a-act': 'Wants to send email with Gmail',
   'a-app': 'Asks to use Gmail',
@@ -430,8 +430,8 @@ test('every ask of the feed has its line, and yesOn "card" for a changed bot and
   assert.match(asks[6].batch.title, /^Mail Sorter wants \d things for /);
   assert.ok(Date.parse(asks[6].stoppedAt) >= Date.parse(asks[6].at));
   // A changed bot has its card's own fields beside its line, so an app can draw it where it was asked for.
-  assert.deepEqual({ ...asks[4], at: null }, { id: 'a-change', kind: 'bot-change', ...who, what: null, skill: null, by: 'chief', title: 'Change Mail Sorter: commands and new rules?',
-    parts: [{ label: 'Rules', was: '', now: 'Never delete mail.' }, { label: 'What it may do', now: 'run commands' }], text: TEXTS['a-change'], yesOn: 'card', at: null, waitsForBrief: true });
+  assert.deepEqual({ ...asks[4], at: null }, { id: 'a-change', kind: 'bot-change', ...who, what: null, skill: null, by: 'chief', title: 'Change Mail Sorter: new rules?',
+    parts: [{ label: 'Rules', was: '', now: 'Never delete mail.' }], text: TEXTS['a-change'], yesOn: 'card', at: null, waitsForBrief: true });
   assert.deepEqual([asks[5].by, asks[5].title, 'chatId' in asks[5]], ['bot', 'Change Mail Sorter: new main assignment?', false]);
   // Nothing of what a card shows in full reaches a line. An action's arguments are in its rows and nowhere else.
   assert.doesNotMatch(JSON.stringify(asks.map((a) => a.text)), /friend@example\.com|secret plan|Never delete mail|Sort the mail twice/);
@@ -457,9 +457,9 @@ test('GET /api/asks says the same on each card, with what the card had before', 
   const byId = Object.fromEntries(cards.map((a) => [a.id, a]));
   assert.deepEqual(byId['a-perm'].what, { label: 'browse the web', hint: 'search, and read web pages', tools: ['WebSearch', 'WebFetch'] });
   // A changed bot: who proposed it, a title that names what changes, and its parts (docs/api.md).
-  assert.deepEqual([byId['a-change'].by, byId['a-change'].title], ['chief', 'Change Mail Sorter: commands and new rules?']);
-  assert.deepEqual(byId['a-change'].parts, [{ label: 'Rules', was: '', now: 'Never delete mail.' }, { label: 'What it may do', now: 'run commands' }]);
-  assert.match(byId['a-change'].details, /^Rules\nNow: \nProposed: Never delete mail\.\n\nTools\nNow: Read\nProposed: Read, Bash$/, '`details` stays for an app from before');
+  assert.deepEqual([byId['a-change'].by, byId['a-change'].title], ['chief', 'Change Mail Sorter: new rules?']);
+  assert.deepEqual(byId['a-change'].parts, [{ label: 'Rules', was: '', now: 'Never delete mail.' }]);
+  assert.match(byId['a-change'].details, /^Rules\nNow: \nProposed: Never delete mail\.$/, '`details` stays for an app from before');
   assert.deepEqual([byId['a-own'].by, byId['a-own'].title, byId['a-own'].parts], ['bot', 'Change Mail Sorter: new main assignment?', [{ label: 'Main assignment', was: 'Do the test task.', now: 'Sort the mail twice a day.' }]]);
   // Asked for before the Chief's tools said which chat asks: no chat, and a yes starts nothing.
   for (const id of ['a-change', 'a-own', 'a-skill']) assert.deepEqual([byId[id].chatId, byId[id].then], [undefined, undefined], id);
