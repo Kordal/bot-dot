@@ -47,8 +47,7 @@ async function find(test, what, timeout = 30000) {
 }
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
-// "-e datatype null": no data type beside the signal ("none" is no name Android knows, and an emulator image has read it as 3G).
-const NETWORK = '-e command network -e wifi show -e level 4 -e mobile show -e datatype null -e level 4';
+const NETWORK = '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4';
 /** The status bar as on a phone at rest: 09:30, full battery and signal, no notifications. (On API 35 a network
  * command with "-e fully true" or "-e mobile hide" leaves the status bar out of demo mode altogether.)
  * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
@@ -105,10 +104,13 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   adb('install', '-r', '-g', apk);
   // The phone's localhost is the computer's: the app takes plain HTTP only to a botdot on the phone itself.
   adb('reverse', `tcp:${scene.port}`, `tcp:${scene.port}`);
-  // The status bar shows the demo's icons only: the emulator's own wifi would add its own beside them, so it is off. The app
-  // reaches botdot over adb's reverse tunnel, which no radio carries.
+  // The status bar shows the demo's icons only: the emulator's own wifi and mobile network ("3G") would add theirs beside them,
+  // so its radios are off, wifi first (airplane mode leaves it as it is). The app reaches botdot over adb's reverse tunnel,
+  // which no radio carries.
   sh('svc wifi disable');
-  sh('svc data disable');
+  await sleep(2000);
+  sh('cmd connectivity airplane-mode enable');
+  await sleep(2000);
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
@@ -116,12 +118,6 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   const ui = sh('pidof com.android.systemui').trim();
   calm();
   await sleep(1500);
-  // TRYING: the bar under a few commands, for the record.
-  for (const [name, net] of Object.entries({ none: '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4', dis: '-e command network -e wifi show -e level 4 -e mobile show -e datatype dis -e level 4', main: NETWORK })) {
-    calm(net);
-    await sleep(4500);
-    fs.writeFileSync(path.join(OUT, `debug-bar-${name}.png`), execFileSync('adb', ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20 }));
-  }
   calm();
   // Said in the log: whether the system UI took the commands, or restarted on one of them.
   console.log('system UI', ui, '->', sh('pidof com.android.systemui').trim(), sh('logcat -d -b crash').split('\n').slice(-6).join(' / '));
