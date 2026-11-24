@@ -544,9 +544,11 @@ const AnswerViews = (() => {
       const b = e.target.closest?.('[data-av-copy]');
       if (!b) return;
       if (!(await copyText(b.dataset.avCopy))) return toast(tr("Couldn't copy"), true);
-      const label = b.textContent;
+      // The label is kept once, so a second tap within the 1.5 s never stores "Copied" as the label.
+      if (b.dataset.avLabel == null) b.dataset.avLabel = b.textContent;
       b.textContent = tr('Copied');
-      setTimeout(() => { b.textContent = label; }, 1500);
+      clearTimeout(b._avCopied);
+      b._avCopied = setTimeout(() => { b.textContent = b.dataset.avLabel; }, 1500);
     });
     // What the owner set stays when the chat is drawn again; a slider says its number; a range keeps its ends in order.
     document.addEventListener('input', (e) => {

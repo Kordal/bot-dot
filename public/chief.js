@@ -274,7 +274,7 @@ function wireComposer(form, onSend, uploadTo, chat) {
     if (under) under.style.transform = `translateY(${-ta.scrollTop}px)`;
   };
   ta.addEventListener('scroll', paint);
-  const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 200) + 'px'; paint(); };
+  const grow = () => { fitHeight(ta); paint(); };
   const mentions = chat ? wireMentions(form, chat, grow) : null;
   // The message that failed last, as it was sent: { text, files, key }. Sent again with this text and these files,
   // it is that message; an edit, or other files, makes a new one.
