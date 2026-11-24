@@ -119,6 +119,8 @@ fun ViewReplyScope(id: String, content: @Composable () -> Unit) {
 
 /** What views remember for as long as the app runs: what was typed, what was sent, and the sends on their way. */
 object AnswerViewMemory {
+    /** Sends run here, not in a screen's scope: a view that scrolls away while its send is on its way still learns that it went. */
+    val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
     val drafts = ViewDrafts()
     val sent = mutableStateMapOf<String, String>()
     val sending = mutableStateMapOf<String, Boolean>()
@@ -134,10 +136,11 @@ internal val LocalForm = compositionLocalOf<FormCtx?> { null }
 // ---- inputs ----
 
 @Composable
-private fun Labelled(label: String, shown: String? = null, content: @Composable () -> Unit) {
+private fun Labelled(label: String, shown: String? = null, group: Boolean = false, content: @Composable () -> Unit) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-        Row(Modifier.clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+        // A control that carries its label for TalkBack hides this line; a group of options reads it first, as a fieldset's legend.
+        Row(if (group) Modifier else Modifier.clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Text(label, color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f, fill = false))
             if (shown != null) Text(shown, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
         }
@@ -196,7 +199,7 @@ internal fun ViewInput(n: ViewNode, path: String) {
         "select" -> ViewSelect(n, label, (held as Held.Text).v, on) { set(JsonPrimitive(it)) }
         "multi-select" -> {
             val picked = (held as Held.Picks).v
-            Labelled(label) {
+            Labelled(label, group = true) {
                 Column(Modifier.selectableGroup()) {
                     n.strings("options").forEach { o ->
                         val ticked = o in picked
@@ -211,7 +214,7 @@ internal fun ViewInput(n: ViewNode, path: String) {
                 }
             }
         }
-        "radio" -> Labelled(label) {
+        "radio" -> Labelled(label, group = true) {
             val chosen = (held as Held.Text).v
             Column(Modifier.selectableGroup()) {
                 n.strings("options").forEach { o ->
@@ -223,7 +226,7 @@ internal fun ViewInput(n: ViewNode, path: String) {
                 }
             }
         }
-        "segmented" -> Labelled(label) {
+        "segmented" -> Labelled(label, group = true) {
             val chosen = (held as Held.Text).v
             Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                 n.strings("options").forEach { o ->
@@ -249,7 +252,7 @@ internal fun ViewInput(n: ViewNode, path: String) {
         "rating" -> {
             val grade = (held as Held.Grade).v
             val max = ViewForm.stars(n)
-            Labelled(label) {
+            Labelled(label, group = true) {
                 Row(Modifier.selectableGroup()) {
                     for (i in 1..max) {
                         Box(Modifier.size(48.dp).selectable(i == grade, enabled = on, role = Role.RadioButton) { set(JsonPrimitive(i)) }

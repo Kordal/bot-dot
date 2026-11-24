@@ -4,6 +4,7 @@ import dev.botdot.app.answerview.ViewBubble
 import dev.botdot.app.data.ChatOrder
 import dev.botdot.app.data.ChiefMessage
 import dev.botdot.app.data.GroupItem
+import dev.botdot.app.data.Groups
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.Unread
 
@@ -42,10 +43,11 @@ internal fun chiefBubbles(chatId: String?, messages: List<ChiefMessage>, first: 
 
 /** A group's chat, in the order it is read: the owner's messages and each member's reply. */
 internal fun groupBubbles(rows: List<GroupItem>, later: List<String>): List<ViewBubble> = buildList {
+    val inFolds = Groups.folded(rows).keys // a team's replies under its answer are no message to answer (ADR 201)
     rows.forEach { x ->
         when (x) {
             is GroupItem.Message -> if (!x.message.byChief) add(ViewBubble.owner(x.message.text))
-            is GroupItem.Reply -> add(ViewBubble.bot(x.id, working = x.run.isRunning, problem = !x.run.isRunning && x.run.status != "success"))
+            is GroupItem.Reply -> add(ViewBubble.bot(x.id, working = x.run.isRunning, problem = !x.run.isRunning && x.run.status != "success", folded = x.id in inFolds))
         }
     }
     later.forEach { add(ViewBubble.owner(it)) }

@@ -47,7 +47,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.Button
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -187,9 +186,9 @@ fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: I
     val state = if (reply == null) null else ViewForm.state(reply.newest, sent)
     val sending = AnswerViewMemory.sending[viewKey] == true
     val live = state == ViewState.Open && !sending
-    val scope = rememberCoroutineScope()
+    val scope = AnswerViewMemory.scope
     fun post(text: String) {
-        if (text.isEmpty() || reply == null || !live) return
+        if (text.isEmpty() || reply == null || !live || AnswerViewMemory.sending[viewKey] == true) return
         AnswerViewMemory.sending[viewKey] = true // before the tap is over: a second tap finds it
         val key = AnswerViewMemory.drafts.keyFor(viewKey, text) // the same text again is the same message
         scope.launch {
