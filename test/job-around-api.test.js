@@ -63,3 +63,27 @@ test('the Chief\'s own jobs take it: kept, shown in words, and run around the ti
   assert.equal(s.add({ name: 'Hourly', task: 'x', cron: '0 * * * *', around: true }).around, undefined);
   assert.equal(s.add({ name: 'Once', task: 'x', at: '2099-05-01T09:00', around: true }).around, undefined);
 });
+
+test('picking the same time as an exact one: "around": false makes a job around its time exact, and the Chief\'s asks the owner', async () => {
+  const made = (await srv.api(`/bots/${bot.id}/jobs`, { method: 'POST', body: { name: 'Digest3', kind: 'script', script: 'echo hi', cron: '0 8 * * *', around: true } })).data;
+  assert.equal(made.when, 'Daily around 08:00');
+  // The Chief says the same time exact on a script job: the job runs as it did and the change waits for the owner's OK.
+  const asked = (await srv.asChief(`/bots/${bot.id}/jobs/${made.id}`, { method: 'PUT', body: { cron: '0 8 * * *', around: false } })).data;
+  assert.equal(asked.around, true, 'it keeps running around its time until the OK');
+  assert.equal(asked.when, 'Daily around 08:00');
+  assert.equal(asked.change?.around, undefined, 'the change is the exact job');
+  assert.equal(asked.change?.when, 'Daily at 08:00');
+  // The owner picks "Daily at 08:00": the same cron, said exact.
+  const exact = (await srv.api(`/bots/${bot.id}/jobs/${made.id}`, { method: 'PUT', body: { cron: '0 8 * * *', around: false } })).data;
+  assert.equal(exact.around, undefined);
+  assert.equal(exact.when, 'Daily at 08:00');
+  assert.equal(exact.approved, true, 'the owner\'s own edit is approved at once');
+  assert.equal(exact.change, undefined, 'and drops the waiting change');
+  assert.equal(exact.nextRunAt.slice(11, 16), '08:00', 'the next run is at the minute');
+  const listed = (await srv.api(`/bots/${bot.id}/jobs`)).data.find((j) => j.id === made.id);
+  assert.equal(listed.around, undefined, 'it stays exact');
+  // Saying it exact when it was exact is no change.
+  const again = (await srv.api(`/bots/${bot.id}/jobs/${made.id}`, { method: 'PUT', body: { cron: '0 8 * * *', around: false } })).data;
+  assert.equal(again.around, undefined);
+  assert.equal(again.approved, true);
+});

@@ -356,6 +356,77 @@ test('web: the header and the line under the field follow the preview\'s answer,
   assert.equal(card.el('.job-cron').classList.contains('hidden'), true);
 });
 
+// A job around its time ("Daily around 08:00"): picking the listed time "Daily at 08:00", the same cron, makes it exact.
+const AROUND = { ...JOB, cron: '0 8 * * *', when: 'Daily around 08:00', around: true };
+const selectedOptions = (html) => (html.match(/<select name="jobWhen">[\s\S]*?<\/select>/)[0].match(/<option [^>]*\bselected\b/g) || []);
+
+test('web: a job around its time has one selected time, and is no listed one', () => {
+  for (const advanced of [true, false]) {
+    const page = jobsPage({ advanced: () => advanced });
+    const html = page.jobCardHTML(AROUND);
+    assert.equal(selectedOptions(html).length, 1, `one selected option, advanced ${advanced}`);
+    assert.match(html, /<details class="job-card" data-job="j1" data-around="1"/);
+    assert.doesNotMatch(html, /<option value="0 8 \* \* \*" selected>Daily at 08:00<\/option>/, 'not the listed time');
+    assert.match(html, /job-when">Daily around 08:00</);
+  }
+  const exact = jobsPage({ advanced: () => false }).jobCardHTML({ ...AROUND, around: undefined, when: 'Daily at 08:00' });
+  assert.equal(selectedOptions(exact).length, 1);
+  assert.match(exact, /<option value="0 8 \* \* \*" selected>Daily at 08:00<\/option>/, 'an exact job shows its listed time');
+  assert.doesNotMatch(exact, /data-around/);
+});
+
+test('web: picking the listed time on a job around its time saves it exact; an edit of its name keeps it around', async () => {
+  const calls = [];
+  const changed = [];
+  const page = jobsPage({
+    $: (sel, root) => root.querySelector(sel), botById: () => null, fmtTime: (t) => t,
+    api: async (url, opts = {}) => { calls.push({ url, method: opts.method, body: opts.body }); return url === '/cron/preview' ? { when: 'Daily at 08:00', next: [] } : { ...JOB, ...opts.body, id: 'j1', approved: true }; },
+    setTimeout: (fn) => { changed.push(fn); return changed.length; }, clearTimeout: () => {},
+  });
+  const card = fakeCard({ jobCron: '0 8 * * *', jobWhen: '0 8 * * *', jobKind: 'ai', jobName: 'Digest' });
+  card.dataset.around = '1';
+  const listeners = [];
+  card.addEventListener = (type, fn) => listeners.push([type, fn]);
+  card.el('.job-when').textContent = 'Daily around 08:00';
+  page.wireJobCard(card, { id: 'b1' });
+  const change = (name) => { for (const [type, fn] of listeners) if (type === 'change') fn({ target: { name } }); };
+  const save = async () => { while (changed.length) await changed.shift()(); await sleep(0); };
+  const puts = () => calls.filter((c) => c.method === 'PUT');
+
+  await sleep(0);
+  assert.equal(card.el('.job-when').textContent, 'Daily around 08:00', 'the preview does not say "at" of a job that still runs around its time');
+
+  card.el('[name=jobName]').value = 'Digest 2';
+  change('jobName');
+  await save();
+  assert.equal(puts().length, 1);
+  assert.equal(puts()[0].body.around, true, 'an edit that is not of the time keeps it around');
+  assert.equal(puts()[0].body.cron, '0 8 * * *');
+
+  // The owner picks "Daily at 08:00": the cron is the one it had, and the job is exact.
+  card.el('[name=jobWhen]').value = '0 8 * * *';
+  card.el('[name=jobWhen]').onchange();
+  await sleep(0);
+  assert.equal(card.el('.job-when').textContent, 'Daily at 08:00', 'its words say what is saved next');
+  change('jobWhen');
+  await save();
+  assert.equal(puts().length, 2, 'the same cron is still a change to save');
+  assert.deepEqual([puts()[1].body.cron, puts()[1].body.around], ['0 8 * * *', false]);
+  assert.equal(card.dataset.around, undefined);
+
+  // A time typed in the field is a time that was named, too.
+  const typed = fakeCard({ jobCron: '0 8 * * *', jobWhen: '', jobKind: 'ai', jobName: 'Digest' });
+  typed.dataset.around = '1';
+  const typedListeners = [];
+  typed.addEventListener = (type, fn) => typedListeners.push([type, fn]);
+  page.wireJobCard(typed, { id: 'b1' });
+  typed.el('[name=jobCron]').value = '0 9 * * *';
+  typed.el('[name=jobCron]').oninput();
+  for (const [type, fn] of typedListeners) if (type === 'change') fn({ target: { name: 'jobCron' } });
+  await save();
+  assert.deepEqual([puts()[2].body.cron, puts()[2].body.around], ['0 9 * * *', false]);
+});
+
 test('web: a card on a time that is not listed asks for its next runs when the page opens', async () => {
   const asked = [];
   const page = jobsPage({ api: (url, opts) => new Promise((resolve) => asked.push({ expr: opts.body.expr, resolve })), $: (sel, root) => root.querySelector(sel), fmtTime: (iso) => iso });

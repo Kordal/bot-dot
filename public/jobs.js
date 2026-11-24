@@ -88,7 +88,7 @@ function jobCardHTML(j, open = false) {
           <label class="field">${tr('Then ask the AI')}<select name="jobAiWhen">${Object.entries(AI_WHEN_TEXT).map(([k, v]) => `<option value="${k}" ${(j.aiWhen || 'output') === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
         </div>`;
   return `
-    <details class="job-card" data-job="${esc(j.id)}" data-line="${esc(jobLineSig(j))}" ${open || jobWaits(j) ? 'open' : ''}>
+    <details class="job-card" data-job="${esc(j.id)}" ${j.around ? 'data-around="1"' : ''} data-line="${esc(jobLineSig(j))}" ${open || jobWaits(j) ? 'open' : ''}>
       <summary>
         <span class="job-icon">${script ? '⚙️' : '🧠'}</span>
         <span class="grow"><b class="job-title">${esc(j.name || tr('New job'))}</b> <span class="faint job-when">${esc(j.when)}</span></span>
@@ -102,7 +102,7 @@ function jobCardHTML(j, open = false) {
         <div class="row">
           <label class="field">${tr('Name')}<input type="text" name="jobName" value="${esc(j.name)}" placeholder="${tr('e.g. Morning news')}" maxlength="60"></label>
           <label class="field">${tr('When')}<select name="jobWhen">
-            ${CRON_PRESETS.map((p) => `<option value="${p.cron}" ${p.cron === j.cron ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}
+            ${CRON_PRESETS.map((p) => `<option value="${p.cron}" ${preset && p.cron === j.cron ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}
             ${!adv && !preset && j.cron ? `<option value="${esc(j.cron)}" selected>${esc(j.when || j.cron)}</option>` : ''}
             ${adv || (!preset && !j.cron) ? `<option value="" ${preset ? '' : 'selected'}>${tr('Another time…')}</option>` : ''}
           </select></label>
@@ -138,6 +138,7 @@ const readJob = (card) => {
     name: v('jobName').value.trim(),
     kind: v('jobKind').value,
     cron: v('jobCron').value.trim(),
+    around: card.dataset.around === '1', // from the job; a new time from the owner clears it, and false says "exact" to the server
     prompt: v('jobPrompt').value,
     script: v('jobScript').value,
     aiWhen: v('jobAiWhen').value,
@@ -162,16 +163,16 @@ function wireJobCard(card, bot) {
     const mine = ++asked;
     const r = await api('/cron/preview', { method: 'POST', body: { expr: $in('jobCron').value } }).catch((e) => ({ error: e.message }));
     if (mine !== asked) return;
-    if (r.when) $('.job-when', card).textContent = r.when;
+    if (r.when && card.dataset.around !== '1') $('.job-when', card).textContent = r.when; // the preview ignores "around": a job still around keeps its own words
     const el = $('.cron-preview', card);
     el.classList.toggle('err', !!r.error);
     el.textContent = r.error ? r.error : r.next.length ? tr('{when}. Next: {times}', { when: r.when, times: r.next.map(fmtTime).join(' · ') }) : r.when;
   };
-  $in('jobCron').oninput = preview;
+  $in('jobCron').oninput = () => { delete card.dataset.around; preview(); }; // a time typed is a time that was named
   $in('jobWhen').onchange = () => {
     const cron = $in('jobWhen').value;
     $('.job-cron', card).classList.toggle('hidden', !!cron);
-    if (cron) $in('jobCron').value = cron;
+    if (cron) { $in('jobCron').value = cron; delete card.dataset.around; } // a listed time is a time that was named: exact, even the one it already had
     else $in('jobCron').focus();
     preview();
   };
