@@ -55,8 +55,8 @@ Want me to remind you when the installer sends the quote?`;
     const inbox = await bot('Inbox Triage', '#7f77dd', 'top-hat', 'Sorts the mail, drafts the answers.', 'Read my new mail, tell me which need an answer and draft them.', { group: 'Daily' });
     const plan = await bot('Weekly Planner', '#ef9f27', 'graduate', 'Plans the week from the calendar.', 'Plan my week from the calendar and the to-dos.', { group: 'Daily' });
     const recipe = await bot('Recipe Finder', '#d4537e', 'chef', 'Dinner ideas from what is in the fridge.', 'Suggest three dinners from what is in the fridge.', { group: 'Home' });
-    const money = await bot('Money Tracker', '#7cb342', 'cowboy', 'Where the money goes each month.', 'Read my bank export and tell me where the money went this month.', { group: 'Home' });
-    const spanish = await bot('Spanish Coach', '#2aa0c8', 'party', 'Short quizzes for the trip to Madrid.', 'Quiz me on Spanish for my trip, one question at a time.', { group: 'Daily' });
+    const money = await bot('Money Tracker', '#7cb342', 'cowboy', 'Where the money goes each month.', 'Read my bank export and tell me where the money went this month.', { group: 'Money' });
+    const spanish = await bot('Spanish Coach', '#2aa0c8', 'party', 'Short quizzes for the trip to Madrid.', 'Quiz me on Spanish for my trip, one question at a time.', { group: 'Learning' });
     const watch = await bot('Server Watch', '#d85a30', 'hard-hat', 'Backups, disks and updates of the home server.', 'Watch the home server: backups, disks, updates.', { group: 'Tech' });
 
     // ---- the Board ----
@@ -97,8 +97,8 @@ Want me to remind you when the installer sends the quote?`;
     run(news, 56, 57, { prompt: 'Anything new on the heat pump grants? Do we qualify?', result: NEWS_2 });
     run(inbox, 30, 31, { trigger: 'schedule', jobId: 'mail', jobName: 'Morning mail', customPrompt: false, notify: 'always', reporting: 'delivered', prompt: 'Morning mail', result: '**14 new emails: 2 need an answer.**\n\n- The school asks whether you can help at the winter fair on 12 December. I drafted a yes.\n- Your landlord wants a date for the boiler check. I suggested Tuesday morning.\n\nThe other 12 are newsletters and receipts: archived.' });
     run(inbox, 45, 46, { prompt: 'Send the answer to the school.', result: 'Sent. I also put the winter fair in your calendar for 12 December, 14:00 to 17:00.' });
-    run(money, 35, 36, { prompt: 'Where did my money go in October?', result: `You spent **€1,840** in October, 6% less than in September. Rent and groceries are 61% of it, and August's holiday is behind you.\n\n${ui(VIEWS.SPENDING)}` });
-    run(spanish, 40, 41, { prompt: 'I fly to Madrid on Friday. Quiz me on Spanish for restaurants, five questions, one at a time.', result: `Let's start with the bill. **Question 1:**\n\n${ui(VIEWS.QUIZ)}` });
+    run(money, 35, 36, { prompt: 'Where did my money go in October?', result: `You spent **€1,840** in October, 6% less than in September.\n\n${ui(VIEWS.SPENDING)}` });
+    run(spanish, 40, 41, { prompt: 'Quiz me on Spanish for my trip.', result: `Let's start with the bill. **Question 1:**\n\n${ui(VIEWS.QUIZ)}` });
     run(spanish, 42, 43, { prompt: 'La cuenta, por favor', result: '**Correct!** One of five done. Ready for number two?' });
     // Done: a task the Chief handed it this morning, which the owner has not looked at.
     run(plan, 20, 21, { startedBy: 'chief', notificationAudience: 'internal', prompt: 'Put the dentist on Tuesday into the week plan.', result: 'Added: Tuesday 10:30, dentist. I moved the gym to Wednesday.' });
@@ -106,7 +106,7 @@ Want me to remind you when the installer sends the quote?`;
     srv = await startServer({ dir: srv.dir, env: ENV });
 
     // ---- Server Watch answers with a view whose numbers read the Board's tiles ----
-    srv.reply(`Everything is in order. Disk, CPU and RAM below are read from your Board, so they stay current.\n\n${ui(VIEWS.SERVER_NOW)}\n\nThe kernel update waits for a restart: say **restart tonight** and I will do it at 03:00.`);
+    srv.reply(`All in order. Live from your Board:\n\n${ui(VIEWS.SERVER_NOW)}`);
     const liveRun = ok(await srv.api(`/bots/${watch.id}/run`, { method: 'POST', body: { prompt: 'How is the home server doing right now?' } }), 'live run');
     await srv.finished(liveRun.id || liveRun.run?.id);
 

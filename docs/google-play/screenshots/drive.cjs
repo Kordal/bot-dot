@@ -103,6 +103,9 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   adb('install', '-r', '-g', apk);
   // The phone's localhost is the computer's: the app takes plain HTTP only to a botdot on the phone itself.
   adb('reverse', `tcp:${scene.port}`, `tcp:${scene.port}`);
+  // The status bar shows the demo's icons only: the emulator's own wifi and mobile data would add theirs beside them.
+  sh('svc wifi disable');
+  sh('svc data disable');
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
@@ -128,6 +131,7 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // The Board, from its values on Home.
   tap(await find(byText('Unread mail'), 'the Board on Home'));
   await find(byText('Living room'), 'the Board');
+  await bring(byText('Disk'), 'the Server tiles on the Board', 560);
   await shot('8-board.png');
   // The Chief's chat: from where the owner asks for a bot, the Chief's plan under it; then at the end, its two cards that wait for an OK.
   open(`chief:${scene.chief}`);
@@ -139,21 +143,21 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // Server Watch's reply: its numbers read the Board's tiles.
   open(`bot:${scene.bots.watch}`);
   await find(byText('Its settings'), 'Server Watch\'s chat');
-  await bring(has(/^Everything is in order/), 'Server Watch\'s reply', 420);
+  await bring(has(/^How is the home server/), 'Server Watch\'s question', 330);
   await shot('4-server.png');
   // Money Tracker's chart.
   open(`bot:${scene.bots.money}`);
   await find(byText('Its settings'), 'Money Tracker\'s chat');
-  await bring(has(/^You spent/), 'Money Tracker\'s reply', 420);
+  await bring(has(/^Where did my money go/), 'Money Tracker\'s question', 330);
   await shot('5-spending.png');
   // Spanish Coach's quiz, answered.
   open(`bot:${scene.bots.spanish}`);
   await find(byText('Its settings'), 'Spanish Coach\'s chat');
-  await bring(has(/^Let's start with the bill/), 'Spanish Coach\'s quiz', 420);
+  await bring(has(/^Quiz me on Spanish/), 'Spanish Coach\'s question', 330);
   await shot('6-quiz.png');
   // The project's team chat: Quote Chaser's comparison of the quotes.
   open(`group:${scene.team}`);
   await find((n) => /Quote Chaser/.test(n.text), 'the team chat');
-  await bring(has(/^Two quotes are in/), 'Quote Chaser\'s reply', 560);
+  await bring(has(/^Quote Chaser$/), 'Quote Chaser\'s name over its reply', 330);
   await shot('7-quotes.png');
 })().catch((e) => { console.error(e.message); process.exit(1); });

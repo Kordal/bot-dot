@@ -16,18 +16,12 @@ const CHIEF_PLAN = {
 
 // Server Watch: its gauges and numbers read the Board's tiles (Disk; CPU and RAM), so they are live; the written values stay under them.
 const SERVER_NOW = {
-  alt: 'The home server now: uptime 99.9%, 7 of 7 backups verified, disk 62%, CPU 24%, RAM 60%, 48 °C.',
-  root: { type: 'stack', children: [
-    { type: 'stat-row', children: [
-      { type: 'kpi', label: 'Uptime', value: '99.9', unit: '%', points: [99.5, 99.7, 99.6, 99.8, 99.9, 99.8, 99.9], good: 'up', tone: 'good', sub: 'last 7 days', source: 'the uptime log' },
-      { type: 'kpi', label: 'Backups', value: '7', of: '7', tone: 'good', sub: 'all verified', source: 'the backup reports' },
-    ] },
-    { type: 'grid', columns: 2, children: [
-      { type: 'gauge', label: 'Disk', value: 62, unit: '%', tone: 'good', tile: 'Disk', bind: 'value.used', source: 'the Disk tile' },
-      { type: 'gauge', label: 'CPU', value: 24, unit: '%', tone: 'good', tile: 'CPU and RAM', bind: 'value.cpu', source: 'the CPU and RAM tile' },
-      { type: 'gauge', label: 'RAM', value: 60, unit: '%', tone: 'good', tile: 'CPU and RAM', bind: 'value.ram', source: 'the CPU and RAM tile' },
-      { type: 'gauge', label: 'Temperature', value: 48, unit: '°C', max: 90, tone: 'good', source: 'the sensors' },
-    ] },
+  alt: 'The home server now: disk 62%, CPU 24%, RAM 60%, 48 °C.',
+  root: { type: 'grid', columns: 2, children: [
+    { type: 'gauge', label: 'Disk', value: 62, unit: '%', tone: 'good', tile: 'Disk', bind: 'value.used', source: 'the Disk tile' },
+    { type: 'gauge', label: 'CPU', value: 24, unit: '%', tone: 'good', tile: 'CPU and RAM', bind: 'value.cpu', source: 'the CPU and RAM tile' },
+    { type: 'gauge', label: 'RAM', value: 60, unit: '%', tone: 'good', tile: 'CPU and RAM', bind: 'value.ram', source: 'the CPU and RAM tile' },
+    { type: 'gauge', label: 'Temperature', value: 48, unit: '°C', max: 90, tone: 'good', source: 'the sensors' },
   ] },
 };
 
@@ -36,10 +30,10 @@ const SPENDING = {
   alt: 'Monthly spending, May to October, by rent, groceries and the rest: €1,840 in October, down from €2,102 in August.',
   root: { type: 'stack', children: [
     { type: 'stat-row', children: [
-      { type: 'kpi', label: 'October', value: '€1,840', points: [2102, 1960, 1840], good: 'down', sub: 'September was €1,960', source: 'bank-export.csv' },
-      { type: 'kpi', label: 'Groceries', value: '€401', points: [452, 418, 401], good: 'down', sub: 'the lowest since June', source: 'bank-export.csv' },
+      { type: 'kpi', label: 'October', value: '€1,840', points: [2102, 1960, 1840], good: 'down', source: 'bank-export.csv' },
+      { type: 'kpi', label: 'Groceries', value: '€401', points: [452, 418, 401], good: 'down', source: 'bank-export.csv' },
     ] },
-    { type: 'chart', title: 'A month, May to October', style: 'stacked', unit: '€', labels: ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'], series: [
+    { type: 'chart', title: 'Spending a month, in €', style: 'stacked', labels: ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'], series: [
       { label: 'Rent', points: [720, 720, 720, 720, 720, 720] },
       { label: 'Groceries', points: [410, 395, 430, 452, 418, 401] },
       { label: 'The rest', points: [560, 640, 810, 930, 822, 719] },
