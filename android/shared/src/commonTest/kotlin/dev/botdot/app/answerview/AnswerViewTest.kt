@@ -185,4 +185,13 @@ class AnswerViewTest {
         assertEquals(listOf(listOf("1 – 2", "1"), listOf("2 – 3", "3")), h.root.dataTable()!!.rows)
         assertNull(assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"divider"}}""")).root.dataTable())
     }
+
+    @Test fun aNotificationReadsAViewAsItsAltAndNothingElseOfIt() {
+        val reply = "Here it is.\n\n```ui\n{\"alt\":\"Sales by quarter\",\"root\":{\"type\":\"chart\",\"series\":[{\"points\":[1,2]}]}}\n```\n\nExample:\n\n````md\n```ui\n{\"alt\":\"In a code block\"}\n```\n````"
+        // A ui fence inside another code block is only text, as everywhere else.
+        assertEquals("Here it is.\nSales by quarter\nExample:\nmd\nui\n{\"alt\":\"In a code block\"}", dev.botdot.app.data.plainText(reply))
+        // A fence still being written, or one that can't be drawn, is its alt too.
+        assertEquals("Looking.\nRevenue", dev.botdot.app.data.plainText("Looking.\n```ui\n{\"alt\":\"Revenue\",\"root\":{\"type\":\"sta"))
+        assertEquals("Plain text", dev.botdot.app.data.plainText("**Plain** text"))
+    }
 }

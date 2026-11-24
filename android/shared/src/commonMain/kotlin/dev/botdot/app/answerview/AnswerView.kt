@@ -259,39 +259,8 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
         }
     }
 
-    /** A fence's alt as far as it can be read from a text that is no JSON (a fence cut short, or too long to read). */
-    private fun altFrom(source: String): String {
-        val s = source.take(20000)
-        var from = 0
-        while (true) {
-            val at = s.indexOf("\"alt\"", from)
-            if (at < 0) return ""
-            from = at + 1
-            var i = at + 5
-            while (i < s.length && s[i].isJsSpace()) i++
-            if (i >= s.length || s[i] != ':') continue
-            i++
-            while (i < s.length && s[i].isJsSpace()) i++
-            if (i >= s.length || s[i] != '"') continue
-            i++
-            val start = i
-            var closed = false
-            while (i < s.length) {
-                val c = s[i]
-                if (c == '"') { closed = true; break }
-                if (c == '\\') { if (i + 1 >= s.length || s[i + 1].isLineEnd()) break; i += 2 } else i++
-            }
-            if (!closed) continue
-            val raw = StrictJson.unescape(s.substring(start, i)) ?: return ""
-            return text(JsonPrimitive(raw), false, limits.alt).orEmpty()
-        }
-    }
-
-    private fun altOf(src: String): String {
-        val j = StrictJson.parse(src)
-        if (j is JsonObject) { val a = j["alt"]; if (a is JsonPrimitive && a.isString) return text(a, false, limits.alt).orEmpty() }
-        return altFrom(src)
-    }
+    private fun altFrom(source: String) = altFromText(source, limits.alt)
+    private fun altOf(src: String) = altOfFence(src, limits.alt)
 
     /**
      * A reply's Markdown in its parts, in order: the text between the fences, each ```ui fence as a view, or as the code
@@ -514,6 +483,64 @@ private fun filePath(s: String, exts: List<String>?): String? {
         if (ext.isEmpty() || ext.length > 8 || !ext.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' } || ext.lowercase() !in exts) return null
     }
     return p
+}
+
+/** A fence's alt as far as it can be read from a text that is no JSON (a fence cut short, or too long to read). */
+internal fun altFromText(source: String, max: Int): String {
+    val s = source.take(20000)
+    var from = 0
+    while (true) {
+        val at = s.indexOf("\"alt\"", from)
+        if (at < 0) return ""
+        from = at + 1
+        var i = at + 5
+        while (i < s.length && s[i].isJsSpace()) i++
+        if (i >= s.length || s[i] != ':') continue
+        i++
+        while (i < s.length && s[i].isJsSpace()) i++
+        if (i >= s.length || s[i] != '"') continue
+        i++
+        val start = i
+        var closed = false
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '"') { closed = true; break }
+            if (c == '\\') { if (i + 1 >= s.length || s[i + 1].isLineEnd()) break; i += 2 } else i++
+        }
+        if (!closed) continue
+        val raw = StrictJson.unescape(s.substring(start, i)) ?: return ""
+        return text(JsonPrimitive(raw), false, max).orEmpty()
+    }
+}
+
+/** What a ```ui fence says in one line: its `alt`, read without the catalog (a notification, a preview and a copy have none). */
+fun altOfFence(src: String, max: Int = 200): String {
+    val j = StrictJson.parse(src)
+    if (j is JsonObject) { val a = j["alt"]; if (a is JsonPrimitive && a.isString) return text(a, false, max).orEmpty() }
+    return altFromText(src, max)
+}
+
+/** A reply's Markdown with each ```ui fence, drawn or not, as its `alt` line: what a notification, a preview or a list line reads. */
+fun answerViewAlts(md: String): String {
+    if (!md.contains("```ui")) return md
+    val lines = md.replace("\r\n", "\n").replace('\r', '\n').split("\n")
+    val out = ArrayList<String>()
+    var i = 0
+    while (i < lines.size) {
+        if (isUiOpen(lines[i])) {
+            val body = ArrayList<String>()
+            var j = i + 1
+            while (j < lines.size && !isUiClose(lines[j])) body += lines[j++]
+            altOfFence(body.joinToString("\n")).takeIf { it.isNotEmpty() }?.let { out += it }
+            i = j + 1
+            continue
+        }
+        out += lines[i]
+        val mark = otherFence(lines[i])
+        if (mark != null) { i++; while (i < lines.size) { out += lines[i]; if (closesFence(lines[i], mark.first, mark.second)) break; i++ } }
+        i++
+    }
+    return out.joinToString("\n")
 }
 
 // ---- the fences of a reply ----

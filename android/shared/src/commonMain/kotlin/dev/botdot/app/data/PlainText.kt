@@ -7,8 +7,8 @@ private val MD_LINK = Regex("\\[([^\\]]+)]\\([^)]*\\)")
 private val MD_BOLD = Regex("\\*\\*(.+?)\\*\\*|__(.+?)__")
 private val MD_ITALIC = Regex("(?<![*\\w])\\*([^*]+)\\*(?!\\w)")
 
-/** Replies are Markdown; a notification shows plain text ("## This week" -> "This week"). */
-fun plainText(md: String): String = md.lineSequence().map { line ->
+/** Replies are Markdown; a notification shows plain text ("## This week" -> "This week"). An answer view is its one-line `alt` (ADR 264). */
+fun plainText(md: String): String = dev.botdot.app.answerview.answerViewAlts(md).lineSequence().map { line ->
     line.trim()
         .replace(MD_HEADING, "")
         .replace(MD_ITEM, "• ")
