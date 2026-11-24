@@ -1,4 +1,4 @@
-// What ending a run does to its tool servers (ADR 267, #1670), and who may use a token, tried on the route itself: the
+// What ending a run does to its tool servers (ADR 270, #1670), and who may use a token, tried on the route itself: the
 // MCP route of botdot with the tokens of lib/mcp-sessions.js, in this process, and a stand-in for botdot's own routes
 // that the Chief's tools call. In-process, because the route's guard reads `identity.identify`, which can tell a bot's
 // Linux user from another's only on Linux with the broker: here the caller is whoever the test says.
