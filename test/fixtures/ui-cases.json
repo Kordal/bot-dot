@@ -1,0 +1,543 @@
+{
+  "about": "Answer views in a reply (ADR 264, #1623): a ```ui fence holds a JSON tree of the catalog's components (lib/ui-catalog.json); the apps read it with one generic validator driven by the catalog (public/answer-view.js, test/answer-view.test.js; the Android app reads the same cases in its own ticket). `cases`: `source` is what the fence holds (with `repeat`, its `mark` replaced by `with` written `times` times), then either `drawn`, the normalised view `{ alt, root }` with only what was read (defaults are the drawing's own, a value that was cut or left out is not there), or `refused`, why the fence is drawn as code, with `alt`, what could be read of the fence's alt for the quiet line above the code (an empty text without one). `problems` lists what was left out or cut and where (`at` is the node's path, `prop` the prop inside it), in the order it was met; a case without it has none. `replies`: a reply's Markdown (`done` is false while it is still being written, true when it has ended; true when not given) and `parts`, in order: `text` (Markdown between the fences), `view`, `code` (a fence drawn as code with its `alt` and why), and `drawing` (a fence still being written: the reply shows \"Drawing a view…\" and waits). A rule changes here and in every app together.",
+  "cases": [
+    {
+      "name": "a tree of layout and text is drawn as it is written",
+      "source": "{\"alt\":\"Q3 plan in three points\",\"root\":{\"type\":\"stack\",\"gap\":\"l\",\"children\":[{\"type\":\"heading\",\"text\":\"Q3 plan\",\"level\":1},{\"type\":\"text\",\"text\":\"Three things matter.\",\"tone\":\"accent\"},{\"type\":\"list\",\"items\":[\"One\",\"Two\"],\"ordered\":true},{\"type\":\"divider\",\"label\":\"Next\"}]}}",
+      "drawn": {"alt":"Q3 plan in three points","root":{"type":"stack","gap":"l","children":[{"type":"heading","text":"Q3 plan","level":1},{"type":"text","text":"Three things matter.","tone":"accent"},{"type":"list","items":["One","Two"],"ordered":true},{"type":"divider","label":"Next"}]}}
+    },
+    {
+      "name": "strings are cut to their length, their spaces collapse, and a number is read as text",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"heading\",\"text\":\"  Plan   for\\n the   year  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"},{\"type\":\"badge\",\"text\":12}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"heading","text":"Plan for the year xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"type":"badge","text":"12"}]}}
+    },
+    {
+      "name": "a text keeps its lines; a code block keeps its spaces",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"text\",\"text\":\"  Line one\\nLine  two\\n\\nLine four  \"},{\"type\":\"code\",\"text\":\"if (a) {\\n    go();\\n}\",\"lang\":\"js\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"text","text":"Line one\nLine  two\n\nLine four"},{"type":"code","text":"if (a) {\n    go();\n}","lang":"js"}]}}
+    },
+    {
+      "name": "a number written as text is read; one outside its range is kept inside it",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"progress\",\"label\":\"Done\",\"value\":\"150\"},{\"type\":\"progress\",\"label\":\"Late\",\"value\":-5},{\"type\":\"grid\",\"columns\":9,\"children\":[]},{\"type\":\"grid\",\"columns\":2.6,\"children\":[]}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"progress","label":"Done","value":100},{"type":"progress","label":"Late","value":0},{"type":"grid","columns":4,"children":[]},{"type":"grid","columns":3,"children":[]}]}}
+    },
+    {
+      "name": "section, quote, spacer and card with a tone are layout and text as the catalog says",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"section\",\"title\":\"Findings\",\"lead\":\"Short.\",\"children\":[{\"type\":\"quote\",\"text\":\"\\\"Ship it.\\\"\\nSecond line\",\"by\":\"The owner\"},{\"type\":\"spacer\",\"size\":\"l\"},{\"type\":\"card\",\"title\":\"Note\",\"tone\":\"warn\",\"children\":[{\"type\":\"text\",\"text\":\"Careful\"}]}]}}",
+      "drawn": {"alt":"A view","root":{"type":"section","title":"Findings","lead":"Short.","children":[{"type":"quote","text":"\"Ship it.\"\nSecond line","by":"The owner"},{"type":"spacer","size":"l"},{"type":"card","title":"Note","tone":"warn","children":[{"type":"text","text":"Careful"}]}]}}
+    },
+    {
+      "name": "a null is as good as no prop",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"card\",\"title\":null,\"children\":[]}}",
+      "drawn": {"alt":"A view","root":{"type":"card","children":[]}}
+    },
+    {
+      "name": "a component the catalog does not have is one quiet unknown node; its neighbours stay",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"heading\",\"text\":\"Flows\"},{\"type\":\"sankey\",\"links\":[1,2],\"children\":[{\"type\":\"text\",\"text\":\"hidden\"}]},{\"type\":\"text\",\"text\":\"After\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"heading","text":"Flows"},{"type":"unknown"},{"type":"text","text":"After"}]}},
+      "problems": [{"at":"root/children/1","code":"unknown-component","name":"sankey"}]
+    },
+    {
+      "name": "a node without a type, or with one that is no name of the catalog, is unknown too",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"text\":\"no type\"},{\"type\":42},{\"type\":\"constructor\"},{\"type\":\"__proto__\"},{\"type\":\"toString\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/0","code":"unknown-component"},{"at":"root/children/1","code":"unknown-component"},{"at":"root/children/2","code":"unknown-component","name":"constructor"},{"at":"root/children/3","code":"unknown-component","name":"__proto__"},{"at":"root/children/4","code":"unknown-component","name":"toString"}]
+    },
+    {
+      "name": "a root the catalog does not have is an unknown node",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"sankey\"}}",
+      "drawn": {"alt":"A view","root":{"type":"unknown"}},
+      "problems": [{"at":"root","code":"unknown-component","name":"sankey"}]
+    },
+    {
+      "name": "props the catalog does not have are dropped: no colour, size or style, no handler, no children on a leaf",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"text\",\"text\":\"Hi\",\"colour\":\"red\",\"style\":\"font-size:99px\",\"onclick\":\"x()\",\"children\":[{\"type\":\"divider\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"text","text":"Hi"}},
+      "problems": [{"at":"root","code":"unknown-prop","prop":"colour"},{"at":"root","code":"unknown-prop","prop":"style"},{"at":"root","code":"unknown-prop","prop":"onclick"},{"at":"root","code":"unknown-prop","prop":"children"}]
+    },
+    {
+      "name": "a prop of a list item the catalog does not have is dropped too",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"steps\",\"items\":[{\"title\":\"Plan\",\"state\":\"done\",\"icon\":\"x\"},{\"title\":\"Build\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"steps","items":[{"title":"Plan","state":"done"},{"title":"Build"}]}},
+      "problems": [{"at":"root","code":"unknown-prop","prop":"items/0/icon"}]
+    },
+    {
+      "name": "a bot names a tone, never a colour: all five are kept",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"row\",\"children\":[{\"type\":\"badge\",\"text\":\"neutral\",\"tone\":\"neutral\"},{\"type\":\"badge\",\"text\":\"good\",\"tone\":\"good\"},{\"type\":\"badge\",\"text\":\"warn\",\"tone\":\"warn\"},{\"type\":\"badge\",\"text\":\"bad\",\"tone\":\"bad\"},{\"type\":\"badge\",\"text\":\"accent\",\"tone\":\"accent\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"row","children":[{"type":"badge","text":"neutral","tone":"neutral"},{"type":"badge","text":"good","tone":"good"},{"type":"badge","text":"warn","tone":"warn"},{"type":"badge","text":"bad","tone":"bad"},{"type":"badge","text":"accent","tone":"accent"}]}}
+    },
+    {
+      "name": "a tone the catalog does not have is left out and the component stays",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"badge\",\"text\":\"New\",\"tone\":\"purple\"},{\"type\":\"badge\",\"text\":\"Old\",\"tone\":\"#ff0000\"},{\"type\":\"status\",\"text\":\"Fine\",\"tone\":\"GOOD\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"badge","text":"New"},{"type":"badge","text":"Old"},{"type":"status","text":"Fine"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-prop","prop":"tone"},{"at":"root/children/1","code":"bad-prop","prop":"tone"},{"at":"root/children/2","code":"bad-prop","prop":"tone"}]
+    },
+    {
+      "name": "a value outside an enum is left out and the component stays",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"gap\":\"huge\",\"children\":[]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[]}},
+      "problems": [{"at":"root","code":"bad-prop","prop":"gap"}]
+    },
+    {
+      "name": "a missing required prop cuts only its component",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"kpi\",\"label\":\"Done\"},{\"type\":\"heading\",\"text\":\"Still here\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"heading","text":"Still here"}]}},
+      "problems": [{"at":"root/children/0","code":"missing-prop","prop":"value"}]
+    },
+    {
+      "name": "a required prop of the wrong kind cuts only its component",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"heading\",\"text\":{\"a\":1}},{\"type\":\"heading\",\"text\":[\"x\"]},{\"type\":\"heading\",\"text\":true},{\"type\":\"heading\",\"text\":\"Fine\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"heading","text":"Fine"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-prop","prop":"text"},{"at":"root/children/1","code":"bad-prop","prop":"text"},{"at":"root/children/2","code":"bad-prop","prop":"text"}]
+    },
+    {
+      "name": "a required string that is empty counts as missing",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"heading\",\"text\":\"   \"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/0","code":"missing-prop","prop":"text"}]
+    },
+    {
+      "name": "a number that is no number cuts the component that needs it",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"progress\",\"label\":\"Done\",\"value\":\"lots\"},{\"type\":\"progress\",\"label\":\"Done\",\"value\":null},{\"type\":\"progress\",\"label\":\"Done\",\"value\":true}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"unknown"},{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-prop","prop":"value"},{"at":"root/children/1","code":"missing-prop","prop":"value"},{"at":"root/children/2","code":"bad-prop","prop":"value"}]
+    },
+    {
+      "name": "an optional prop that can not be read is left out and the component stays",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"progress\",\"label\":\"Done\",\"value\":50,\"text\":{\"a\":1},\"tone\":7}}",
+      "drawn": {"alt":"A view","root":{"type":"progress","label":"Done","value":50}},
+      "problems": [{"at":"root","code":"bad-prop","prop":"text"},{"at":"root","code":"bad-prop","prop":"tone"}]
+    },
+    {
+      "name": "a list keeps the items it can read",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"list\",\"items\":[\"a\",\"\",7,{\"x\":1},\"b\",null]}}",
+      "drawn": {"alt":"A view","root":{"type":"list","items":["a","7","b"]}},
+      "problems": [{"at":"root","code":"bad-item","prop":"items/1"},{"at":"root","code":"bad-item","prop":"items/3"},{"at":"root","code":"bad-item","prop":"items/5"}]
+    },
+    {
+      "name": "a list is cut to its length",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"list\",\"items\":[\"i0\",\"i1\",\"i2\",\"i3\",\"i4\",\"i5\",\"i6\",\"i7\",\"i8\",\"i9\",\"i10\",\"i11\",\"i12\",\"i13\",\"i14\",\"i15\",\"i16\",\"i17\",\"i18\",\"i19\",\"i20\",\"i21\",\"i22\",\"i23\",\"i24\",\"i25\",\"i26\",\"i27\",\"i28\",\"i29\",\"i30\"]}}",
+      "drawn": {"alt":"A view","root":{"type":"list","items":["i0","i1","i2","i3","i4","i5","i6","i7","i8","i9","i10","i11","i12","i13","i14","i15","i16","i17","i18","i19","i20","i21","i22","i23","i24","i25","i26","i27","i28","i29"]}}
+    },
+    {
+      "name": "a list with fewer readable items than it needs cuts its component",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"list\",\"items\":[\"\",\"\"]},{\"type\":\"list\",\"items\":[]},{\"type\":\"list\",\"items\":\"one\"},{\"type\":\"list\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-item","prop":"items/0"},{"at":"root/children/0","code":"bad-item","prop":"items/1"},{"at":"root/children/0","code":"bad-prop","prop":"items"},{"at":"root/children/1","code":"bad-prop","prop":"items"},{"at":"root/children/2","code":"bad-prop","prop":"items"},{"at":"root/children/3","code":"missing-prop","prop":"items"}]
+    },
+    {
+      "name": "an item that is an object needs its required props, or it is left out",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"key-value\",\"items\":[{\"key\":\"Owner\",\"value\":\"Ada\"},{\"key\":\"Orphan\"},{\"key\":\"Due\",\"value\":5},\"text\"]}}",
+      "drawn": {"alt":"A view","root":{"type":"key-value","items":[{"key":"Owner","value":"Ada"},{"key":"Due","value":"5"}]}},
+      "problems": [{"at":"root","code":"bad-item","prop":"items/1"},{"at":"root","code":"bad-item","prop":"items/3"}]
+    },
+    {
+      "name": "a container keeps at most its count of children",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"row\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"row","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]}}
+    },
+    {
+      "name": "a child that is no object is left out",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[\"text\",3,null,[{\"type\":\"divider\"}],{\"type\":\"divider\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"divider"}]}},
+      "problems": [{"at":"root/children/0","code":"not-a-component"},{"at":"root/children/1","code":"not-a-component"},{"at":"root/children/2","code":"not-a-component"},{"at":"root/children/3","code":"not-a-component"}]
+    },
+    {
+      "name": "children that is no list is left out",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":\"x\"}}",
+      "drawn": {"alt":"A view","root":{"type":"stack"}},
+      "problems": [{"at":"root","code":"bad-prop","prop":"children"}]
+    },
+    {
+      "name": "tabs hold tabs only, and accordions panels only",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"tabs\",\"children\":[{\"type\":\"tab\",\"label\":\"A\",\"children\":[{\"type\":\"text\",\"text\":\"First\"}]},{\"type\":\"text\",\"text\":\"Stray\"},{\"type\":\"tab\",\"label\":\"B\"}]},{\"type\":\"accordion\",\"children\":[{\"type\":\"panel\",\"title\":\"More\",\"open\":true,\"children\":[{\"type\":\"text\",\"text\":\"Details\"}]},{\"type\":\"tab\",\"label\":\"X\"}]}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"tabs","children":[{"type":"tab","label":"A","children":[{"type":"text","text":"First"}]},{"type":"tab","label":"B"}]},{"type":"accordion","children":[{"type":"panel","title":"More","open":true,"children":[{"type":"text","text":"Details"}]}]}]}},
+      "problems": [{"at":"root/children/0/children/1","code":"not-allowed-here"},{"at":"root/children/1/children/1","code":"not-allowed-here"}]
+    },
+    {
+      "name": "a tab outside tabs is left out",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"tab\",\"label\":\"A\"},{\"type\":\"divider\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"divider"}]}},
+      "problems": [{"at":"root/children/0","code":"not-allowed-here"}]
+    },
+    {
+      "name": "a stat row holds KPIs only",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stat-row\",\"children\":[{\"type\":\"kpi\",\"label\":\"Users\",\"value\":1200,\"source\":\"Analytics\"},{\"type\":\"text\",\"text\":\"Stray\"},{\"type\":\"sankey\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stat-row","children":[{"type":"kpi","label":"Users","value":"1200","source":"Analytics"}]}},
+      "problems": [{"at":"root/children/1","code":"not-allowed-here"},{"at":"root/children/2","code":"not-allowed-here"}]
+    },
+    {
+      "name": "a chart, a table and a KPI say where their numbers came from; one that does not is flagged",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"kpi\",\"label\":\"Users\",\"value\":\"1200\",\"source\":\"Analytics export\"},{\"type\":\"kpi\",\"label\":\"Churn\",\"value\":\"3%\"},{\"type\":\"chart\",\"series\":[{\"label\":\"EU\",\"points\":[1,2,3]}],\"source\":\"sales.csv\"},{\"type\":\"chart\",\"series\":[{\"label\":\"EU\",\"points\":[1,2,3]}]},{\"type\":\"table\",\"columns\":[{\"label\":\"A\"}],\"rows\":[[\"1\"]],\"source\":\"the bot's estimate\"},{\"type\":\"table\",\"columns\":[{\"label\":\"A\"}],\"rows\":[[\"1\"]],\"source\":\"   \"},{\"type\":\"pie\",\"slices\":[{\"label\":\"A\",\"value\":1}]},{\"type\":\"gauge\",\"label\":\"Disk\",\"value\":40},{\"type\":\"text\",\"text\":\"Prose needs none.\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"kpi","label":"Users","value":"1200","source":"Analytics export"},{"type":"kpi","label":"Churn","value":"3%","noSource":true},{"type":"chart","series":[{"label":"EU","points":[1,2,3]}],"source":"sales.csv"},{"type":"chart","series":[{"label":"EU","points":[1,2,3]}],"noSource":true},{"type":"table","columns":[{"label":"A"}],"rows":[["1"]],"source":"the bot's estimate"},{"type":"table","columns":[{"label":"A"}],"rows":[["1"]],"noSource":true},{"type":"pie","slices":[{"label":"A","value":1}],"noSource":true},{"type":"gauge","label":"Disk","value":40,"noSource":true},{"type":"text","text":"Prose needs none."}]}}
+    },
+    {
+      "name": "a source is cut to its length",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"kpi\",\"label\":\"Users\",\"value\":5,\"source\":\"ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\"}}",
+      "drawn": {"alt":"A view","root":{"type":"kpi","label":"Users","value":"5","source":"ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"}}
+    },
+    {
+      "name": "a table keeps the columns and rows it can read; a cell is text",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"table\",\"title\":\"Options\",\"columns\":[{\"label\":\"Option\"},{\"label\":\"Price\",\"align\":\"right\"},{\"align\":\"left\"}],\"rows\":[[\"A\",10],[\"B\",\"€12\",\"extra\"],\"bad\",[\"C\"],[null,\"x\",\"\"]],\"source\":\"Pricing page\"}}",
+      "drawn": {"alt":"A view","root":{"type":"table","title":"Options","columns":[{"label":"Option"},{"label":"Price","align":"right"}],"rows":[["A","10"],["B","€12","extra"],["C"],["","x",""]],"source":"Pricing page"}},
+      "problems": [{"at":"root","code":"bad-item","prop":"columns/2"},{"at":"root","code":"bad-item","prop":"rows/2"}]
+    },
+    {
+      "name": "a table with no readable row is cut",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"table\",\"columns\":[{\"label\":\"A\"}],\"rows\":[],\"source\":\"s\"},{\"type\":\"table\",\"rows\":[[\"x\"]],\"source\":\"s\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-prop","prop":"rows"},{"at":"root/children/1","code":"missing-prop","prop":"columns"}]
+    },
+    {
+      "name": "a comparison needs two to four options",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"comparison\",\"options\":[\"A\",\"B\",\"C\"],\"rows\":[{\"label\":\"Price\",\"values\":[\"€1\",\"€2\",\"€3\"]}],\"pick\":1},{\"type\":\"comparison\",\"options\":[\"A\"],\"rows\":[{\"label\":\"Price\",\"values\":[\"€1\"]}]}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"comparison","options":["A","B","C"],"rows":[{"label":"Price","values":["€1","€2","€3"]}],"pick":1},{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/1","code":"bad-prop","prop":"options"}]
+    },
+    {
+      "name": "hero, status, timeline, steps, checklist and callout are read by their props",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"hero\",\"eyebrow\":\"Report\",\"title\":\"Q3\",\"lead\":\"It went well.\",\"tags\":[\"sales\",\"\",\"eu\"]},{\"type\":\"status\",\"text\":\"On track\",\"tone\":\"good\"},{\"type\":\"timeline\",\"items\":[{\"when\":\"Mon\",\"title\":\"Kickoff\"},{\"title\":\"Ship\",\"tone\":\"accent\"}]},{\"type\":\"steps\",\"items\":[{\"title\":\"Plan\",\"state\":\"done\"},{\"title\":\"Build\",\"state\":\"current\"},{\"title\":\"Test\",\"state\":\"later\"}]},{\"type\":\"checklist\",\"title\":\"Before launch\",\"items\":[{\"text\":\"Docs\",\"done\":true},{\"text\":\"Tests\"}]},{\"type\":\"callout\",\"title\":\"Heads up\",\"text\":\"Budget is tight.\",\"tone\":\"warn\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"hero","eyebrow":"Report","title":"Q3","lead":"It went well.","tags":["sales","eu"]},{"type":"status","text":"On track","tone":"good"},{"type":"timeline","items":[{"when":"Mon","title":"Kickoff"},{"title":"Ship","tone":"accent"}]},{"type":"steps","items":[{"title":"Plan","state":"done"},{"title":"Build","state":"current"},{"title":"Test"}]},{"type":"checklist","title":"Before launch","items":[{"text":"Docs","done":true},{"text":"Tests"}]},{"type":"callout","title":"Heads up","text":"Budget is tight.","tone":"warn"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-item","prop":"tags/1"},{"at":"root/children/3","code":"bad-prop","prop":"items/2/state"}]
+    },
+    {
+      "name": "a chart keeps its series, null points for gaps, and a style from its list",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"chart\",\"title\":\"Sales\",\"style\":\"sparkle\",\"labels\":[\"Q1\",\"Q2\",\"Q3\",\"Q4\"],\"series\":[{\"label\":\"EU\",\"points\":[1,2,null,\"4\"]},{\"label\":\"US\",\"points\":[3,4,5,6]}],\"unit\":\"k€\",\"source\":\"sales.csv\"}}",
+      "drawn": {"alt":"A view","root":{"type":"chart","title":"Sales","labels":["Q1","Q2","Q3","Q4"],"series":[{"label":"EU","points":[1,2,null,4]},{"label":"US","points":[3,4,5,6]}],"unit":"k€","source":"sales.csv"}},
+      "problems": [{"at":"root","code":"bad-prop","prop":"style"}]
+    },
+    {
+      "name": "every chart style of the catalog is kept",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"row\",\"children\":[{\"type\":\"chart\",\"style\":\"line\",\"series\":[{\"points\":[1,2]}],\"source\":\"s\"},{\"type\":\"chart\",\"style\":\"area\",\"series\":[{\"points\":[1,2]}],\"source\":\"s\"},{\"type\":\"chart\",\"style\":\"bar\",\"series\":[{\"points\":[1,2]}],\"source\":\"s\"},{\"type\":\"chart\",\"style\":\"stacked\",\"series\":[{\"points\":[1,2]}],\"source\":\"s\"},{\"type\":\"chart\",\"style\":\"hbar\",\"series\":[{\"points\":[1,2]}],\"source\":\"s\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"row","children":[{"type":"chart","style":"line","series":[{"points":[1,2]}],"source":"s"},{"type":"chart","style":"area","series":[{"points":[1,2]}],"source":"s"},{"type":"chart","style":"bar","series":[{"points":[1,2]}],"source":"s"},{"type":"chart","style":"stacked","series":[{"points":[1,2]}],"source":"s"},{"type":"chart","style":"hbar","series":[{"points":[1,2]}],"source":"s"}]}}
+    },
+    {
+      "name": "a pie keeps the slices it can read; a value below 0 is 0",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"pie\",\"title\":\"Share\",\"donut\":true,\"slices\":[{\"label\":\"A\",\"value\":3},{\"label\":\"B\",\"value\":-1},{\"label\":\"C\"}],\"source\":\"poll\"}}",
+      "drawn": {"alt":"A view","root":{"type":"pie","title":"Share","donut":true,"slices":[{"label":"A","value":3},{"label":"B","value":0}],"source":"poll"}},
+      "problems": [{"at":"root","code":"bad-item","prop":"slices/2"}]
+    },
+    {
+      "name": "a scatter, a histogram and a gauge are read by their props",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"scatter\",\"series\":[{\"label\":\"Runs\",\"points\":[{\"x\":1,\"y\":2},{\"x\":\"a\",\"y\":1},{\"x\":\"3\",\"y\":\"4\"}]}],\"xLabel\":\"km\",\"yLabel\":\"min\",\"source\":\"s\"},{\"type\":\"histogram\",\"values\":[1,2,2,3],\"bins\":99,\"source\":\"s\"},{\"type\":\"gauge\",\"label\":\"Disk\",\"value\":70,\"max\":200,\"unit\":\"GB\",\"source\":\"s\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"scatter","series":[{"label":"Runs","points":[{"x":1,"y":2},{"x":3,"y":4}]}],"xLabel":"km","yLabel":"min","source":"s"},{"type":"histogram","values":[1,2,2,3],"bins":40,"source":"s"},{"type":"gauge","label":"Disk","value":70,"max":200,"unit":"GB","source":"s"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-item","prop":"series/0/points/1"}]
+    },
+    {
+      "name": "a sparkline needs two points",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"sparkline\",\"points\":[1],\"source\":\"s\"},{\"type\":\"sparkline\",\"points\":[1,null,3],\"tone\":\"good\",\"source\":\"s\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"sparkline","points":[1,null,3],"tone":"good","source":"s"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-prop","prop":"points"}]
+    },
+    {
+      "name": "an image from the bot's files",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out/chart.png\",\"caption\":\"Q3\"}}",
+      "drawn": {"alt":"A view","root":{"type":"image","alt":"Revenue chart","src":{"kind":"file","path":"out/chart.png"},"caption":"Q3"}}
+    },
+    {
+      "name": "a path may start with ./ or /workspace/, which are the bot's own folder",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"./out/a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"/workspace/out/b.JPG\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"c.webp\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"image","alt":"Revenue chart","src":{"kind":"file","path":"out/a.png"}},{"type":"image","alt":"Revenue chart","src":{"kind":"file","path":"out/b.JPG"}},{"type":"image","alt":"Revenue chart","src":{"kind":"file","path":"c.webp"}}]}}
+    },
+    {
+      "name": "an image from an https address botdot fetches",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"https://example.com/a/b.png?x=1\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"https://images.example.com/photo/123\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"image","alt":"Revenue chart","src":{"kind":"https","url":"https://example.com/a/b.png?x=1"}},{"type":"image","alt":"Revenue chart","src":{"kind":"https","url":"https://images.example.com/photo/123"}}]}}
+    },
+    {
+      "name": "an address that is neither a bot's file nor an https image cuts the image",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"http://example.com/a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"javascript:alert(1)\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"data:image/png;base64,AAAA\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"file:///etc/passwd\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"//example.com/a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"../secret.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out/../../secret.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"/etc/passwd.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"C:\\\\x\\\\a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out\\\\a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out/a.svg\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out/a\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out/\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"https://user:pw@example.com/a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"https://exa mple.com/a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"ftp://example.com/a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"~/a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out/a.png?x=1\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"out//a.png\"},{\"type\":\"image\",\"alt\":\"Revenue chart\",\"src\":\"\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"},{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-prop","prop":"src"},{"at":"root/children/1","code":"bad-prop","prop":"src"},{"at":"root/children/2","code":"bad-prop","prop":"src"},{"at":"root/children/3","code":"bad-prop","prop":"src"},{"at":"root/children/4","code":"bad-prop","prop":"src"},{"at":"root/children/5","code":"bad-prop","prop":"src"},{"at":"root/children/6","code":"bad-prop","prop":"src"},{"at":"root/children/7","code":"bad-prop","prop":"src"},{"at":"root/children/8","code":"bad-prop","prop":"src"},{"at":"root/children/9","code":"bad-prop","prop":"src"},{"at":"root/children/10","code":"bad-prop","prop":"src"},{"at":"root/children/11","code":"bad-prop","prop":"src"},{"at":"root/children/12","code":"bad-prop","prop":"src"},{"at":"root/children/13","code":"bad-prop","prop":"src"},{"at":"root/children/14","code":"bad-prop","prop":"src"},{"at":"root/children/15","code":"bad-prop","prop":"src"},{"at":"root/children/16","code":"bad-prop","prop":"src"},{"at":"root/children/17","code":"bad-prop","prop":"src"},{"at":"root/children/18","code":"bad-prop","prop":"src"},{"at":"root/children/19","code":"missing-prop","prop":"src"}]
+    },
+    {
+      "name": "an image without alt, or with an empty one, is cut",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"image\",\"src\":\"out/a.png\"},{\"type\":\"image\",\"src\":\"out/a.png\",\"alt\":\"  \"},{\"type\":\"image\",\"src\":\"out/a.png\",\"alt\":\"Fine\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"},{"type":"unknown"},{"type":"image","src":{"kind":"file","path":"out/a.png"},"alt":"Fine"}]}},
+      "problems": [{"at":"root/children/0","code":"missing-prop","prop":"alt"},{"at":"root/children/1","code":"missing-prop","prop":"alt"}]
+    },
+    {
+      "name": "video, audio and files come from the bot's own files only",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"video\",\"src\":\"clips/demo.mp4\",\"alt\":\"The demo\"},{\"type\":\"video\",\"src\":\"https://example.com/v.mp4\",\"alt\":\"Outside\"},{\"type\":\"video\",\"src\":\"clips/demo.mp4\"},{\"type\":\"audio\",\"src\":\"voice/note.m4a\",\"title\":\"Voice note\"},{\"type\":\"audio\",\"src\":\"https://example.com/n.mp3\",\"title\":\"Outside\"},{\"type\":\"audio\",\"src\":\"voice/note.pdf\",\"title\":\"Not sound\"},{\"type\":\"file\",\"src\":\"reports/q3.pdf\",\"title\":\"Q3 report\"},{\"type\":\"file\",\"src\":\"Makefile\"},{\"type\":\"file\",\"src\":\"https://example.com/q3.pdf\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"video","src":{"kind":"file","path":"clips/demo.mp4"},"alt":"The demo"},{"type":"unknown"},{"type":"unknown"},{"type":"audio","src":{"kind":"file","path":"voice/note.m4a"},"title":"Voice note"},{"type":"unknown"},{"type":"unknown"},{"type":"file","src":{"kind":"file","path":"reports/q3.pdf"},"title":"Q3 report"},{"type":"file","src":{"kind":"file","path":"Makefile"}},{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/1","code":"bad-prop","prop":"src"},{"at":"root/children/2","code":"missing-prop","prop":"alt"},{"at":"root/children/4","code":"bad-prop","prop":"src"},{"at":"root/children/5","code":"bad-prop","prop":"src"},{"at":"root/children/8","code":"bad-prop","prop":"src"}]
+    },
+    {
+      "name": "a gallery keeps the pictures it can read",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"gallery\",\"items\":[{\"src\":\"a.png\",\"alt\":\"One\"},{\"src\":\"http://x.example/b.png\",\"alt\":\"Two\"},{\"src\":\"c.png\"},{\"src\":\"https://x.example/d.jpg\",\"alt\":\"Four\",\"caption\":\"Last\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"gallery","items":[{"src":{"kind":"file","path":"a.png"},"alt":"One"},{"src":{"kind":"https","url":"https://x.example/d.jpg"},"alt":"Four","caption":"Last"}]}},
+      "problems": [{"at":"root","code":"bad-item","prop":"items/1"},{"at":"root","code":"bad-item","prop":"items/2"}]
+    },
+    {
+      "name": "a gallery with no readable picture is cut",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"gallery\",\"items\":[{\"src\":\"a.png\"}]}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"unknown"}]}},
+      "problems": [{"at":"root/children/0","code":"bad-item","prop":"items/0"},{"at":"root/children/0","code":"bad-prop","prop":"items"}]
+    },
+    {
+      "name": "a link card opens an https address only; its picture must be an https image",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"link-card\",\"url\":\"https://example.com/post\",\"title\":\"The post\",\"text\":\"Read it.\",\"image\":\"https://example.com/p.jpg\"},{\"type\":\"link-card\",\"url\":\"http://example.com/post\",\"title\":\"Plain http\"},{\"type\":\"link-card\",\"url\":\"https://example.com/x\",\"title\":\"Own picture\",\"image\":\"out/a.png\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"stack","children":[{"type":"link-card","url":"https://example.com/post","title":"The post","text":"Read it.","image":{"kind":"https","url":"https://example.com/p.jpg"}},{"type":"unknown"},{"type":"link-card","url":"https://example.com/x","title":"Own picture"}]}},
+      "problems": [{"at":"root/children/1","code":"bad-prop","prop":"url"},{"at":"root/children/2","code":"bad-prop","prop":"image"}]
+    },
+    {
+      "name": "product cards keep the products they can read, with https addresses only",
+      "source": "{\"alt\":\"A view\",\"root\":{\"type\":\"products\",\"items\":[{\"name\":\"Lift Pro 140\",\"url\":\"https://shop.example/a\",\"image\":\"https://img.example/a.jpg\",\"price\":\"€379\",\"rating\":7,\"reviews\":\"2140\",\"stray\":1},{\"url\":\"https://shop.example/x\"},{\"name\":\"Ergo S2\",\"url\":\"http://shop.example/b\"}]}}",
+      "drawn": {"alt":"A view","root":{"type":"products","items":[{"name":"Lift Pro 140","url":"https://shop.example/a","image":"https://img.example/a.jpg","price":"€379","rating":5,"reviews":2140},{"name":"Ergo S2"}]}},
+      "problems": [{"at":"root","code":"unknown-prop","prop":"items/0/stray"},{"at":"root","code":"bad-item","prop":"items/1"},{"at":"root","code":"bad-prop","prop":"items/2/url"}]
+    },
+    {
+      "name": "a view of exactly 200 nodes is drawn",
+      "source": "{\"alt\":\"Many nodes\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"}]}]}}",
+      "drawn": {"alt":"Many nodes","root":{"type":"stack","children":[{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"},{"type":"divider"}]},{"type":"stack","children":[{"type":"divider"},{"type":"divider"}]}]}}
+    },
+    {
+      "name": "a view of 201 nodes is refused, and says what it was",
+      "source": "{\"alt\":\"Many nodes\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]},{\"type\":\"stack\",\"children\":[{\"type\":\"divider\"},{\"type\":\"divider\"},{\"type\":\"divider\"}]}]}}",
+      "refused": "too-many-nodes",
+      "alt": "Many nodes"
+    },
+    {
+      "name": "nesting 6 deep is drawn",
+      "source": "{\"alt\":\"Deep view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"text\",\"text\":\"Deep\"}]}]}]}]}]}}",
+      "drawn": {"alt":"Deep view","root":{"type":"stack","children":[{"type":"stack","children":[{"type":"stack","children":[{"type":"stack","children":[{"type":"stack","children":[{"type":"text","text":"Deep"}]}]}]}]}]}}
+    },
+    {
+      "name": "nesting 7 deep is refused",
+      "source": "{\"alt\":\"Deep view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"text\",\"text\":\"Deep\"}]}]}]}]}]}]}}",
+      "refused": "too-deep",
+      "alt": "Deep view"
+    },
+    {
+      "name": "an unknown node 7 deep is refused too",
+      "source": "{\"alt\":\"Deep view\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"stack\",\"children\":[{\"type\":\"sankey\"}]}]}]}]}]}]}}",
+      "refused": "too-deep",
+      "alt": "Deep view"
+    },
+    {
+      "name": "a chart of 500 points is drawn",
+      "source": "{\"alt\":\"Many points\",\"root\":{\"type\":\"chart\",\"series\":[{\"points\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317,318,319,320,321,322,323,324,325,326,327,328,329,330,331,332,333,334,335,336,337,338,339,340,341,342,343,344,345,346,347,348,349,350,351,352,353,354,355,356,357,358,359,360,361,362,363,364,365,366,367,368,369,370,371,372,373,374,375,376,377,378,379,380,381,382,383,384,385,386,387,388,389,390,391,392,393,394,395,396,397,398,399,400,401,402,403,404,405,406,407,408,409,410,411,412,413,414,415,416,417,418,419,420,421,422,423,424,425,426,427,428,429,430,431,432,433,434,435,436,437,438,439,440,441,442,443,444,445,446,447,448,449,450,451,452,453,454,455,456,457,458,459,460,461,462,463,464,465,466,467,468,469,470,471,472,473,474,475,476,477,478,479,480,481,482,483,484,485,486,487,488,489,490,491,492,493,494,495,496,497,498,499]}],\"source\":\"s\"}}",
+      "drawn": {"alt":"Many points","root":{"type":"chart","series":[{"points":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317,318,319,320,321,322,323,324,325,326,327,328,329,330,331,332,333,334,335,336,337,338,339,340,341,342,343,344,345,346,347,348,349,350,351,352,353,354,355,356,357,358,359,360,361,362,363,364,365,366,367,368,369,370,371,372,373,374,375,376,377,378,379,380,381,382,383,384,385,386,387,388,389,390,391,392,393,394,395,396,397,398,399,400,401,402,403,404,405,406,407,408,409,410,411,412,413,414,415,416,417,418,419,420,421,422,423,424,425,426,427,428,429,430,431,432,433,434,435,436,437,438,439,440,441,442,443,444,445,446,447,448,449,450,451,452,453,454,455,456,457,458,459,460,461,462,463,464,465,466,467,468,469,470,471,472,473,474,475,476,477,478,479,480,481,482,483,484,485,486,487,488,489,490,491,492,493,494,495,496,497,498,499]}],"source":"s"}}
+    },
+    {
+      "name": "500 points are counted by chart, not by view",
+      "source": "{\"alt\":\"Many points\",\"root\":{\"type\":\"stack\",\"children\":[{\"type\":\"chart\",\"series\":[{\"points\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299]}],\"source\":\"s\"},{\"type\":\"chart\",\"series\":[{\"points\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299]}],\"source\":\"s\"}]}}",
+      "drawn": {"alt":"Many points","root":{"type":"stack","children":[{"type":"chart","series":[{"points":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299]}],"source":"s"},{"type":"chart","series":[{"points":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299]}],"source":"s"}]}}
+    },
+    {
+      "name": "a chart of 501 points is refused",
+      "source": "{\"alt\":\"Many points\",\"root\":{\"type\":\"chart\",\"series\":[{\"points\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317,318,319,320,321,322,323,324,325,326,327,328,329,330,331,332,333,334,335,336,337,338,339,340,341,342,343,344,345,346,347,348,349,350,351,352,353,354,355,356,357,358,359,360,361,362,363,364,365,366,367,368,369,370,371,372,373,374,375,376,377,378,379,380,381,382,383,384,385,386,387,388,389,390,391,392,393,394,395,396,397,398,399,400,401,402,403,404,405,406,407,408,409,410,411,412,413,414,415,416,417,418,419,420,421,422,423,424,425,426,427,428,429,430,431,432,433,434,435,436,437,438,439,440,441,442,443,444,445,446,447,448,449,450,451,452,453,454,455,456,457,458,459,460,461,462,463,464,465,466,467,468,469,470,471,472,473,474,475,476,477,478,479,480,481,482,483,484,485,486,487,488,489,490,491,492,493,494,495,496,497,498,499,500]}],\"source\":\"s\"}}",
+      "refused": "too-many-points",
+      "alt": "Many points"
+    },
+    {
+      "name": "the series of a chart are counted together",
+      "source": "{\"alt\":\"Many points\",\"root\":{\"type\":\"chart\",\"series\":[{\"points\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249]},{\"points\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250]}],\"source\":\"s\"}}",
+      "refused": "too-many-points",
+      "alt": "Many points"
+    },
+    {
+      "name": "the values of a histogram count as points too",
+      "source": "{\"alt\":\"Many points\",\"root\":{\"type\":\"histogram\",\"values\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317,318,319,320,321,322,323,324,325,326,327,328,329,330,331,332,333,334,335,336,337,338,339,340,341,342,343,344,345,346,347,348,349,350,351,352,353,354,355,356,357,358,359,360,361,362,363,364,365,366,367,368,369,370,371,372,373,374,375,376,377,378,379,380,381,382,383,384,385,386,387,388,389,390,391,392,393,394,395,396,397,398,399,400,401,402,403,404,405,406,407,408,409,410,411,412,413,414,415,416,417,418,419,420,421,422,423,424,425,426,427,428,429,430,431,432,433,434,435,436,437,438,439,440,441,442,443,444,445,446,447,448,449,450,451,452,453,454,455,456,457,458,459,460,461,462,463,464,465,466,467,468,469,470,471,472,473,474,475,476,477,478,479,480,481,482,483,484,485,486,487,488,489,490,491,492,493,494,495,496,497,498,499,500],\"source\":\"s\"}}",
+      "refused": "too-many-points",
+      "alt": "Many points"
+    },
+    {
+      "name": "a fence of exactly 64 KB is read; a long text is cut to its length",
+      "source": "{\"alt\":\"x\",\"root\":{\"type\":\"text\",\"text\":\"{N}\"}}",
+      "repeat": {"mark":"{N}","with":"a","times":65492},
+      "drawn": {"alt":"x","root":{"type":"text","text":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+    },
+    {
+      "name": "a fence of one byte more is refused",
+      "source": "{\"alt\":\"x\",\"root\":{\"type\":\"text\",\"text\":\"{N}\"}}",
+      "repeat": {"mark":"{N}","with":"a","times":65493},
+      "refused": "too-big",
+      "alt": "x"
+    },
+    {
+      "name": "a fence is measured in bytes, not characters",
+      "source": "{\"alt\":\"x\",\"root\":{\"type\":\"text\",\"text\":\"{N}\"}}",
+      "repeat": {"mark":"{N}","with":"€","times":30000},
+      "refused": "too-big",
+      "alt": "x"
+    },
+    {
+      "name": "a fence that is no JSON is refused",
+      "source": "this is not json",
+      "refused": "not-json",
+      "alt": ""
+    },
+    {
+      "name": "a fence cut short keeps the alt it had written",
+      "source": "{\"alt\":\"Revenue by region\",\"root\":{\"type\":\"sta",
+      "refused": "not-json",
+      "alt": "Revenue by region"
+    },
+    {
+      "name": "a fence with nothing in it is refused",
+      "source": "",
+      "refused": "not-json",
+      "alt": ""
+    },
+    {
+      "name": "a fence that holds a list is refused",
+      "source": "[1,2]",
+      "refused": "not-object",
+      "alt": ""
+    },
+    {
+      "name": "a fence that holds a string is refused",
+      "source": "\"hi\"",
+      "refused": "not-object",
+      "alt": ""
+    },
+    {
+      "name": "a fence that holds a number is refused",
+      "source": "42",
+      "refused": "not-object",
+      "alt": ""
+    },
+    {
+      "name": "a fence that holds null is refused",
+      "source": "null",
+      "refused": "not-object",
+      "alt": ""
+    },
+    {
+      "name": "a fence without alt is refused",
+      "source": "{\"root\":{\"type\":\"divider\"}}",
+      "refused": "no-alt",
+      "alt": ""
+    },
+    {
+      "name": "an empty alt is no alt",
+      "source": "{\"alt\":\"   \",\"root\":{\"type\":\"divider\"}}",
+      "refused": "no-alt",
+      "alt": ""
+    },
+    {
+      "name": "an alt that is no text is no alt",
+      "source": "{\"alt\":5,\"root\":{\"type\":\"divider\"}}",
+      "refused": "no-alt",
+      "alt": ""
+    },
+    {
+      "name": "an alt on the root component is not the fence's alt",
+      "source": "{\"root\":{\"type\":\"stack\",\"alt\":\"Hidden\",\"children\":[]}}",
+      "refused": "no-alt",
+      "alt": ""
+    },
+    {
+      "name": "a fence without a root is refused, and says what it was",
+      "source": "{\"alt\":\"Nothing here\"}",
+      "refused": "no-root",
+      "alt": "Nothing here"
+    },
+    {
+      "name": "a root that is string is refused",
+      "source": "{\"alt\":\"Odd root\",\"root\":\"stack\"}",
+      "refused": "no-root",
+      "alt": "Odd root"
+    },
+    {
+      "name": "a root that is a list is refused",
+      "source": "{\"alt\":\"Odd root\",\"root\":[{\"type\":\"divider\"}]}",
+      "refused": "no-root",
+      "alt": "Odd root"
+    },
+    {
+      "name": "a root that is null is refused",
+      "source": "{\"alt\":\"Odd root\",\"root\":null}",
+      "refused": "no-root",
+      "alt": "Odd root"
+    },
+    {
+      "name": "a root that is number is refused",
+      "source": "{\"alt\":\"Odd root\",\"root\":7}",
+      "refused": "no-root",
+      "alt": "Odd root"
+    },
+    {
+      "name": "the alt is cut to its length, its spaces collapsed",
+      "source": "{\"alt\":\"  Revenue   by\\nregion rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\",\"root\":{\"type\":\"divider\"}}",
+      "drawn": {"alt":"Revenue by region rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr","root":{"type":"divider"}}
+    },
+    {
+      "name": "what else the fence says is ignored",
+      "source": "{\"alt\":\"Extra\",\"version\":3,\"root\":{\"type\":\"divider\"},\"theme\":\"dark\"}",
+      "drawn": {"alt":"Extra","root":{"type":"divider"}}
+    }
+  ],
+  "replies": [
+    {
+      "name": "a reply without a fence is its text",
+      "reply": "Just prose.\n\nTwo paragraphs, and `code`.",
+      "parts": [{"text":"Just prose.\n\nTwo paragraphs, and `code`."}]
+    },
+    {
+      "name": "a view stands between the text before and after it",
+      "reply": "Here is the split.\n\n```ui\n{\"alt\":\"A divider\",\"root\":{\"type\":\"divider\"}}\n```\n\nThe rest.",
+      "parts": [{"text":"Here is the split."},{"view":{"alt":"A divider","root":{"type":"divider"}}},{"text":"The rest."}]
+    },
+    {
+      "name": "a fence closed while the reply is still written is drawn",
+      "reply": "Here is the split.\n\n```ui\n{\"alt\":\"A divider\",\"root\":{\"type\":\"divider\"}}\n```\n\nThe re",
+      "done": false,
+      "parts": [{"text":"Here is the split."},{"view":{"alt":"A divider","root":{"type":"divider"}}},{"text":"The re"}]
+    },
+    {
+      "name": "a fence may be indented and followed by spaces, and a reply by a Windows system",
+      "reply": "Look:\r\n  ```ui  \r\n{\"alt\":\"A divider\",\"root\":{\"type\":\"divider\"}}\r\n  ```\r\nDone.",
+      "parts": [{"text":"Look:"},{"view":{"alt":"A divider","root":{"type":"divider"}}},{"text":"Done."}]
+    },
+    {
+      "name": "two views in one reply",
+      "reply": "```ui\n{\"alt\":\"A divider\",\"root\":{\"type\":\"divider\"}}\n```\n\nand\n\n```ui\n{\"alt\":\"Hi\",\"root\":{\"type\":\"text\",\"text\":\"Hi\"}}\n```",
+      "parts": [{"view":{"alt":"A divider","root":{"type":"divider"}}},{"text":"and"},{"view":{"alt":"Hi","root":{"type":"text","text":"Hi"}}}]
+    },
+    {
+      "name": "only the first three fences are views; the next stays code, with its alt",
+      "reply": "```ui\n{\"alt\":\"View 1\",\"root\":{\"type\":\"divider\"}}\n```\n\n```ui\n{\"alt\":\"View 2\",\"root\":{\"type\":\"divider\"}}\n```\n\n```ui\n{\"alt\":\"View 3\",\"root\":{\"type\":\"divider\"}}\n```\n\n```ui\n{\"alt\":\"View 4\",\"root\":{\"type\":\"divider\"}}\n```",
+      "parts": [{"view":{"alt":"View 1","root":{"type":"divider"}}},{"view":{"alt":"View 2","root":{"type":"divider"}}},{"view":{"alt":"View 3","root":{"type":"divider"}}},{"code":"{\"alt\":\"View 4\",\"root\":{\"type\":\"divider\"}}","alt":"View 4","refused":"too-many-fences"}]
+    },
+    {
+      "name": "a fence still being written waits whole",
+      "reply": "Looking.\n\n```ui\n{\"alt\":\"Revenue\",\"root\":{\"type\":\"sta",
+      "done": false,
+      "parts": [{"text":"Looking."},{"drawing":true}]
+    },
+    {
+      "name": "a fence being opened waits too",
+      "reply": "Looking.\n\n```ui",
+      "done": false,
+      "parts": [{"text":"Looking."},{"drawing":true}]
+    },
+    {
+      "name": "a fence never closed stays code once the reply has ended, with its alt",
+      "reply": "Looking.\n\n```ui\n{\"alt\":\"Revenue\",\"root\":{\"type\":\"sta",
+      "done": true,
+      "parts": [{"text":"Looking."},{"code":"{\"alt\":\"Revenue\",\"root\":{\"type\":\"sta","alt":"Revenue","refused":"unclosed"}]
+    },
+    {
+      "name": "a fence that can not be drawn stays code, with its alt",
+      "reply": "Try this:\n\n```ui\n{\"alt\":\"Nothing here\"}\n```\n\nOr not.",
+      "parts": [{"text":"Try this:"},{"code":"{\"alt\":\"Nothing here\"}","alt":"Nothing here","refused":"no-root"},{"text":"Or not."}]
+    },
+    {
+      "name": "an empty fence stays code",
+      "reply": "```ui\n```",
+      "parts": [{"code":"","alt":"","refused":"not-json"}]
+    },
+    {
+      "name": "other code blocks are text, and a ui fence inside one stays text",
+      "reply": "Config:\n\n```json\n{\"alt\":\"x\"}\n```\n\nExample:\n\n````md\n```ui\n{\"alt\":\"A divider\",\"root\":{\"type\":\"divider\"}}\n```\n````\n\n```ui\n{\"alt\":\"A divider\",\"root\":{\"type\":\"divider\"}}\n```",
+      "parts": [{"text":"Config:\n\n```json\n{\"alt\":\"x\"}\n```\n\nExample:\n\n````md\n```ui\n{\"alt\":\"A divider\",\"root\":{\"type\":\"divider\"}}\n```\n````"},{"view":{"alt":"A divider","root":{"type":"divider"}}}]
+    },
+    {
+      "name": "a fence named for something else is not a view",
+      "reply": "```uis\n{\"alt\":\"x\",\"root\":{\"type\":\"divider\"}}\n```\n\n```products\n[]\n```",
+      "parts": [{"text":"```uis\n{\"alt\":\"x\",\"root\":{\"type\":\"divider\"}}\n```\n\n```products\n[]\n```"}]
+    }
+  ]
+}
