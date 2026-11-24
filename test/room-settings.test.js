@@ -12,6 +12,7 @@ const put = (bot, rooms, opts = {}) => srv.api(`/bots/${bot.id}`, { method: 'PUT
 
 test('a bot may be in rooms and is owner-only by default, and the features say so', async () => {
   assert.ok((await srv.api('/version')).data.features.includes('room-settings'));
+  assert.ok((await srv.api('/version')).data.features.includes('rooms-every-bot'), 'ADR 269: apps draw no switch for it');
   const bot = await makeBot(srv, { name: 'Scout' });
   assert.deepEqual(bot.rooms, { allowRooms: true, whoMayMention: 'owner' });
   assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.rooms, { allowRooms: true, whoMayMention: 'owner' });

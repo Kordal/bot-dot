@@ -303,5 +303,6 @@ class RoomsDeskTest {
         assertEquals("Delete Plans?", RoomWords.askTitle(true, "Plans"))
         assertEquals("Leave", RoomWords.askYes(false))
         assertEquals("Message the room…", RoomChat.placeholder(null))
+        assertTrue(Rooms.noneAllowed(listOf(Api.JSON.decodeFromString(Bot.serializer(), """{"id":"a","name":"A"}"""))))
     }
 }

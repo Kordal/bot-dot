@@ -10,8 +10,8 @@ import kotlinx.serialization.json.put
 
 /**
  * A bot's shared-room settings (ADR 060, #316), kept in its own account: whether it may be in shared rooms
- * ([allowRooms]: a server since ADR 269 sends true for every bot, an older one what its owner chose, and the apps no
- * longer draw a switch for it), and who may mention it there ([whoMayMention]: [OWNER], only its owner, or [MEMBERS],
+ * ([allowRooms]: a server with `rooms-every-bot`, ADR 269, sends true for every bot and the apps draw no switch for it;
+ * an older one sends what its owner chose, and the apps draw the switch), and who may mention it there ([whoMayMention]: [OWNER], only its owner, or [MEMBERS],
  * anyone in the room). The account refuses a room turn these do not allow, whatever the front door asks.
  */
 data class BotRooms(val allowRooms: Boolean = false, val whoMayMention: String = OWNER) {
@@ -224,6 +224,9 @@ object Rooms {
 
     /** Whether the room's settings show its invite link: the front door makes them ([links]), and [account] made [r]. */
     fun maker(r: Room?, account: String?, links: Boolean): Boolean = links && r != null && mayDelete(r, account)
+
+    /** Whether none of the owner's bots may be in shared rooms ([BotRooms.allowRooms]), on a server before ADR 269: the settings say where to switch it on. */
+    fun noneAllowed(mine: List<Bot>?): Boolean = mine.orEmpty().none { it.rooms?.allowRooms == true }
 
     /** This account's own messages among [messages], for [SentMessage]'s look: a person's message by [mine]. */
     fun own(messages: List<RoomMessage>, mine: String?): List<Queued> =

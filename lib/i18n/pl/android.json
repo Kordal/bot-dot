@@ -1089,6 +1089,7 @@
   "Bots": "Boty",
   "No bots yet.": "Jeszcze brak botów.",
   "Add one of yours": "Dodaj któregoś ze swoich",
+  "None of your bots may be in shared rooms yet: switch it on in a bot's settings.": "Żaden z twoich botów nie może jeszcze być we wspólnych pokojach: włącz to w ustawieniach bota.",
   "Reply to this task": "Odpowiedz na to zlecenie",
   "Details": "Szczegóły",
   "Reply to: {text}": "Odpowiedź na: {text}",

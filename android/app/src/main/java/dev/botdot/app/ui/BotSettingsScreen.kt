@@ -405,8 +405,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 // "Other bots may ask it" (#136): only from a server that has it.
                 if (dev.botdot.app.data.BotSettings.showsOthersMayAsk(b, others, server?.features)) SwitchRow(tr("Other bots may ask it"), checked = othersMayAsk) { othersMayAsk = it }
-                // Shared rooms (ADR 060, #316): who may mention it there. Every bot may be in them (ADR 269): no switch.
-                if (roomsShown) Choice(tr("Who may mention it"), rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
+                // Shared rooms (ADR 060, #316): whether it may be in rooms with other accounts' bots, and who may mention it there.
+                // A server with `rooms-every-bot` lets every bot be in them (ADR 269): no switch, and the choice always shows.
+                if (roomsShown) {
+                    val everyBot = dev.botdot.app.data.BotSettings.everyBotInRooms(server?.features)
+                    if (!everyBot) SwitchRow(tr("May be in shared rooms"), checked = rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
+                    if (everyBot || rooms.allowRooms) Choice(tr("Who may mention it"), rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
+                }
                 // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
                 // (#474). Revoke takes one off (saved right away).
                 if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection(tr("Always approved"), dev.botdot.app.data.BotSettings.alwaysLine(b)) {
