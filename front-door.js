@@ -63,7 +63,7 @@
 // FRONT_DOOR_FEEDBACK_TO_DEVELOPERS  1 or 0, what install.sh gives once at the first install: whether Feedback goes to
 //                     botdot's developers (ADR 259, #1566). Taken only while the front door's data has no answer; after
 //                     that the admin page's switch decides. FRONT_DOOR_FEEDBACK_RELAY: the relay's https address
-//                     (default https://feedback.botdot.app). Not on a managed machine
+//                     (default https://relay.botdot.app). Not on a managed machine
 // FRONT_DOOR_SUBSCRIPTION_URL  with FRONT_DOOR_MANAGED: the https page where an owner manages their subscription,
 //                     which Settings opens as "Subscription" (ADR 234, lib/front-door/subscription.js); `{account}` in
 //                     it is the account's name. Unset: no Subscription row
