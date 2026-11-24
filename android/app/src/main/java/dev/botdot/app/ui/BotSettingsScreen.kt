@@ -250,8 +250,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 // Advanced (ADR 205): without it, its model is left as it is and not shown.
                 val adv by dev.botdot.app.data.Advanced.on.collectAsState()
                 val shown = choices.shownModel(model)
-                if (adv) Choice(tr("Model"), shown, BotSettings.models(choices).map { it.id to it.label }) { model = it }
-                val effective = if (choices.provider == null) shown else shown.ifBlank { choices.settings.defaultModel }
+                if (adv && choices.mixed) ModelPick(tr("Model"), shown, if (shown.isEmpty()) tr("Default") else choices.modelLabel(shown), BotSettings.models(choices)) { model = it }
+                else if (adv) Choice(tr("Model"), shown, BotSettings.models(choices).map { it.id to it.label }) { model = it }
+                val effective = if (choices.provider == null || choices.mixed) shown else shown.ifBlank { choices.settings.defaultModel }
                 if (adv && choices.canThink(effective)) Choice(tr("Reasoning"), choices.shownEffort(effort, effective), BotSettings.efforts(choices, effective).map { it.id to it.label }) { effort = it }
             }
             SettingsGroup {
@@ -406,9 +407,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 // "Other bots may ask it" (#136): only from a server that has it.
                 if (dev.botdot.app.data.BotSettings.showsOthersMayAsk(b, others, server?.features)) SwitchRow(tr("Other bots may ask it"), checked = othersMayAsk) { othersMayAsk = it }
                 // Shared rooms (ADR 060, #316): whether it may be in rooms with other accounts' bots, and who may mention it there.
+                // A server with `rooms-every-bot` lets every bot be in them (ADR 269): no switch, and the choice always shows.
                 if (roomsShown) {
-                    SwitchRow(tr("May be in shared rooms"), checked = rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
-                    if (rooms.allowRooms) Choice(tr("Who may mention it"), rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
+                    val everyBot = dev.botdot.app.data.BotSettings.everyBotInRooms(server?.features)
+                    if (!everyBot) SwitchRow(tr("May be in shared rooms"), checked = rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
+                    if (everyBot || rooms.allowRooms) Choice(tr("Who may mention it"), rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
                 }
                 // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
                 // (#474). Revoke takes one off (saved right away).

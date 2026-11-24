@@ -392,7 +392,7 @@ private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean, features
     val reply: @Composable () -> Unit = {
         TheirBubble(footer, copyText = text, chips = learned, wholeChips = whole, plain = true) {
             Column {
-                MarkdownText((if (folded != null && !more) folded else text).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
+                MarkdownText(tables = true, text = (if (folded != null && !more) folded else text).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
                 if (folded != null && !more) Text(tr("More"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { more = true }.padding(top = Space.s8, bottom = Space.s4))
                 OpenAsDocument(text, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect, r.botId); PlanFold(plan)
             }

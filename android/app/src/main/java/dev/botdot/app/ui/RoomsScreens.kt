@@ -412,7 +412,7 @@ private fun RoomMessageRow(m: RoomMessage, room: Room?, mine: String?) {
                 if (m.bot != null) { Box(Modifier.padding(top = Space.s16)) { BotFigure(color ?: GONE_COLOR, "idle", 28, null) }; Spacer(Modifier.size(6.dp)) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                     Text(Rooms.author(m), color = if (m.bot != null) parseColor(color, p.muted) else p.muted, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
-                    TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text) }
+                    TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text, tables = m.bot != null) }
                     if (mentioned.isNotEmpty()) Text(mentioned, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
                 }
             }
@@ -434,6 +434,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
     val list by app.rooms.list.collectAsState()
     val mine by app.rooms.account.collectAsState()
     val bots by app.store.bots.value.collectAsState()
+    val server by app.store.version.value.collectAsState()
     val links by app.rooms.links.collectAsState()
     val room = list?.rooms?.firstOrNull { it.id == roomId }
     val maker = Rooms.maker(room, mine, links)
@@ -522,7 +523,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
                             TextButton(enabled = !busy, onClick = { act { app.rooms.took(api().addRoomBot(roomId, b.id)) } }) { Text(tr("Add"), color = p.text) }
                         }
                     }
-                } else if (Rooms.noneAllowed(bots)) Hint(tr("None of your bots may be in shared rooms yet: switch it on in a bot's settings."))
+                } else if (!dev.botdot.app.data.BotSettings.everyBotInRooms(server?.features) && Rooms.noneAllowed(bots)) Hint(tr("None of your bots may be in shared rooms yet: switch it on in a bot's settings."))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 SecondaryButton(enabled = !busy, onClick = { asking = "leave" }) { Text(tr("Leave"), color = p.err) }

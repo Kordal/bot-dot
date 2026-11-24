@@ -1,7 +1,7 @@
 # ADR-090: A bot's AI run signs git in through botdot
 
 - **Status:** Accepted (2026-10-25)
-- **Owning task:** [#549](https://github.com/Kordal/bot-dot/issues/549)
+- **Owning task:** [#549](https://github.com/ladrok/bot-dot/issues/549)
 
 ## Context
 

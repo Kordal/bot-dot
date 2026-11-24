@@ -73,7 +73,7 @@ const feed = require('./lib/events');
 const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1', relay: process.env.BOT_DOT_PUSH_RELAY });
 push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name, language: () => B.settings.get().language });
 const { signedIn } = require('./lib/setup');
-const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN, onClaudeAuthChange: changedClaudeAuth });
+const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN, onClaudeAuthChange: changedClaudeAuth, defaultModel: () => B.settings.get().defaultModel, setDefaultModel: (model) => B.settings.update({ defaultModel: model }) });
 const updates = require('./lib/updates').create({ busy: () => B.activeCount() + chief.activeCount(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
 // An account on a machine of one or more (ADR 028) never updates itself: the admin updates the front door and every
 // account together, on the admin page (#473).
@@ -376,7 +376,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'custom-mcp-servers', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'llm-provider', 'provider-model-catalog', 'provider-model-settings', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'bot-computer-place', 'boat-own-key', 'bot-own-machine', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'about-project', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'team-chat-members', 'team-chat-lead', 'team-chat-delete', 'project-lead', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts', 'every-bot-always', 'advanced', 'everything-allowed', 'project-chief', 'vault-categories', 'board-tidy', 'project-manager', 'project-manager-bot', 'teammate-steer', 'screen-done', 'project-bots', 'project-overview', 'overview-board', 'project-conversation', 'project-updates', 'asks-several', 'setup-existing-bots', 'watches', 'card-text-size', 'group-steer', 'computer-card', 'choices-dismiss', 'ui-catalog', 'ui-live'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'custom-mcp-servers', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'llm-provider', 'provider-model-catalog', 'provider-model-settings', 'provider-mix', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'bot-computer-place', 'boat-own-key', 'bot-own-machine', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'about-project', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'team-chat-members', 'team-chat-lead', 'team-chat-delete', 'project-lead', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts', 'every-bot-always', 'advanced', 'everything-allowed', 'project-chief', 'vault-categories', 'board-tidy', 'project-manager', 'project-manager-bot', 'teammate-steer', 'screen-done', 'project-bots', 'project-overview', 'overview-board', 'project-conversation', 'project-updates', 'asks-several', 'setup-existing-bots', 'watches', 'card-text-size', 'group-steer', 'computer-card', 'choices-dismiss', 'ui-catalog', 'ui-live', 'rooms-every-bot'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -850,6 +850,7 @@ ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
 // Upload from phone (ADR 165): its phone's requests reach phoneDrop alone, its file through api below.
 ctx.api = (req, res, url) => api(req, res, url);
 const drops = require('./lib/routes/drops').create(ctx);
+const mcpRoute = require('./lib/routes/mcp').create(ctx); // the run's tool servers, over MCP's Streamable HTTP (ADR 270)
 const ROUTES = [
   drops.routes,
   require('./lib/routes/system').create(ctx),
@@ -938,6 +939,7 @@ const SCRIPT_PATH = '/api/vault/script/';
 const GIT_PATH = '/api/vault/git/'; // git's credential helper in a bot's AI run (ADR 090)
 // What a replay's tools use (ADR 102): its connected apps and saved logins, in a dry run.
 const REPLAY_PATHS = ['/api/connectors/session', '/api/vault/session/logins', '/api/vault/session/http'];
+const mcpSessions = require('./lib/mcp-sessions'); // the run's tool servers, which botdot answers itself (ADR 270)
 const COPY_PATH = '/api/replay/session/'; // a replay's computer tools, on its copy of the bot's computer (ADR 104)
 const replayOf = (req, p) => (REPLAY_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) ? B.replaySession(req.headers['x-run-token'] || req.headers['x-vault-token']) : null);
 
@@ -972,6 +974,7 @@ function gate(req) {
     if (p.startsWith(GIT_PATH)) return B.gitSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     // A replay's computer tools (ADR 104): the key of a copy made for one of this bot's replays.
     if (p.startsWith(COPY_PATH)) return B.replayComputers.byKey(req.headers['x-replay-key'])?.botId === who.bot ? null : "That replay key isn't this bot's.";
+    if (p.startsWith(mcpSessions.PATH)) return null; // the run's tools served by botdot (ADR 270): its route checks the token, and that it is this bot's
     if (!BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`))) return "Bots can only use their own run's tools.";
     const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']) || replayOf(req, p);
     if (!session || session.botId !== who.bot) return "That run key isn't this bot's.";
@@ -986,6 +989,7 @@ function gate(req) {
   if (p.startsWith(GIT_PATH) && B.gitSession(req.headers['x-run-token'])) return null;
   if (p.startsWith(COPY_PATH) && B.replayComputers.byKey(req.headers['x-replay-key'])) return null;
   if (replayOf(req, p)) return null;
+  if (p.startsWith(mcpSessions.PATH)) return null; // the run's tools served by botdot (ADR 270): its route checks the token
   // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
   if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;
@@ -1084,6 +1088,8 @@ async function handle(req, res) {
   // from what a person sends: one with x-botdot-room is the front door's own.
   if (req.socket[FROM_FRONT_DOOR] && req.headers['x-botdot-room'] !== '1') activity.saw(req.method, url.pathname, req.headers['user-agent']);
   req.lang = readerLanguage(req);
+  // A run's tool servers (ADR 270): apart from the API's routes, whatever user asks, since its token is its key.
+  if (url.pathname.startsWith(mcpSessions.PATH)) return mcpRoute(req, res, url);
   try {
     await api(req, res, url);
   } catch (e) {

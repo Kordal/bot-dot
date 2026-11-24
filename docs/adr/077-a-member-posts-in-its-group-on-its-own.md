@@ -1,7 +1,7 @@
 # ADR-077: A member posts in its group on its own
 
 - **Status:** Accepted (by the owner, 2026-10-23)
-- **Owning task:** [#459](https://github.com/Kordal/bot-dot/issues/459)
+- **Owning task:** [#459](https://github.com/ladrok/bot-dot/issues/459)
 - **Changes:** [ADR 018](018-a-group-is-a-chat-of-its-own-and-a-turn-is-a-run-of-its-member.md) ("The owner's message in a group is the group's"), [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md) ("The botdot server keeps the line of turns for each message of the owner's")
 
 ## Context

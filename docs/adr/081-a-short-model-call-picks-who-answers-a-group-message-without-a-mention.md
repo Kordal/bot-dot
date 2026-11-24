@@ -1,7 +1,7 @@
 # ADR-081: A short model call picks who answers a group message without a mention
 
 - **Status:** Accepted (asked for by the owner, 2026-10-23)
-- **Owning task:** [#510](https://github.com/Kordal/bot-dot/issues/510)
+- **Owning task:** [#510](https://github.com/ladrok/bot-dot/issues/510)
 - **Changes:** [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md) ("every member, or the members the owner mentioned")
 
 ## Context

@@ -1,7 +1,7 @@
 # ADR-049: A note to a bot wakes it as soon as it is free
 
 - **Status:** Accepted (by the owner, 2026-10-21)
-- **Owning task:** [#225](https://github.com/Kordal/bot-dot/issues/225)
+- **Owning task:** [#225](https://github.com/ladrok/bot-dot/issues/225)
 - **Changes:** "anything else waits in its inbox and is read at the start of its next run" (`lib/messages.js`, the bots' messages since Milestone 2)
 
 ## Context

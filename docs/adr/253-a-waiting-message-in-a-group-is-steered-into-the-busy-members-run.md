@@ -33,4 +33,4 @@ A message waits in a group in two ways: its turn is in a busy member's queue (th
 - Every turn of a group that has tools may now read a steered message at its next tool call, as a run in a bot's own chat can (the hook was already in its settings).
 - A member's run that makes no more tool calls before its reply never reads it: the message then starts as its own turn, as if it had not been steered.
 - The run that read it holds the message in its record (`steered`); the group's chat draws it once, as the owner's message where it was written, and not again with the reply.
-- `steering` is new on a group's message and `group-steer` in `features` (docs/api.md, "Steer in a group"). The iOS app catches up with the Android app ([#1355](https://github.com/Kordal/bot-dot/issues/1355)).
+- `steering` is new on a group's message and `group-steer` in `features` (docs/api.md, "Steer in a group"). The iOS app catches up with the Android app ([#1355](https://github.com/ladrok/bot-dot/issues/1355)).

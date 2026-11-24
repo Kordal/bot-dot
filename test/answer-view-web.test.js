@@ -19,7 +19,7 @@ vm.runInContext(`${read('products.js')}
   ${read('answer-view.js')}
   ${read('answer-text.js')}
   ${read('answer-view-draw.js')}
-  ${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
+  ${cut('function md(src, botId, tables = false)', '// Link bare web addresses after rendering')}
   this.md = md; this.draftSource = draftSource; this.AnswerViews = AnswerViews; this.mdPreview = mdPreview; this.previewLines = previewLines;`, page);
 const { md, AnswerViews, previewLines } = page;
 AnswerViews.use(catalog);
@@ -671,7 +671,7 @@ test('once a poll or a quiz was sent, the choice that went is marked, and a quiz
 
 test('a view that names a tile (#1630) is drawn with its written values; an open chat swaps in the tile\'s live ones, and what the tile can\'t say leaves them', async () => {
   const lv = vm.createContext({ ...words, esc, URL, JSON, linkPaths: (html) => html, FILE_ICON: '<svg></svg>', wireCharts() {}, document: { addEventListener() {} }, $$: () => [] });
-  vm.runInContext(`${read('products.js')}\n${read('blocks.js')}\n${read('answer-view.js')}\n${read('answer-text.js')}\n${read('answer-view-draw.js')}\n${cut('function md(src, botId)', '// Link bare web addresses after rendering')}\nthis.md = md; this.AnswerViews = AnswerViews;`, lv);
+  vm.runInContext(`${read('products.js')}\n${read('blocks.js')}\n${read('answer-view.js')}\n${read('answer-text.js')}\n${read('answer-view-draw.js')}\n${cut('function md(src, botId, tables = false)', '// Link bare web addresses after rendering')}\nthis.md = md; this.AnswerViews = AnswerViews;`, lv);
   const asked = [];
   const answer = { nodes: [], tiles: ['t_q'] };
   await lv.AnswerViews.load(async (p, o) => { asked.push({ p, body: o.body }); assert.equal(o.method, 'POST'); return answer; }, ['ui-live']);
@@ -734,4 +734,50 @@ test('a server that does not say ui-live is never asked', async () => {
   await lv.AnswerViews.load(async () => { throw new Error('asked'); }, ['ui-catalog']).catch(() => {});
   lv.AnswerViews.use(catalog);
   lv.AnswerViews.tileChanged('t_q'); // nothing to ask with, nothing thrown
+});
+
+// ---------- a table in a reply's Markdown (ADR 264, amendment) ----------
+
+const HEAD = (c) => c.map((x) => `<th scope="col"${x[1] ? ` class="${x[1]}"` : ''}>${x[0]}</th>`).join('');
+test("a Markdown table is drawn as an answer view's table: the same grid, its alignment from the delimiter row, no source", () => {
+  const html = md('Compare:\n\n| Engine | Size | Fit |\n|:--|--:|:-:|\n| **Postgres** | 12 | [docs](https://pg.example.com) |\n| `lite` | 1 | |\n\nDone.', undefined, true);
+  assert.match(html, /^<p>Compare:<\/p>\n<div class="md-table"><table><thead><tr><th scope="col">Engine<\/th><th scope="col" class="num">Size<\/th><th scope="col" class="mid">Fit<\/th><\/tr><\/thead>/);
+  assert.match(html, /<td><strong>Postgres<\/strong><\/td><td class="num">12<\/td><td class="mid"><a href="https:\/\/pg.example.com" target="_blank" rel="noopener">docs<\/a><\/td>/, 'inline Markdown is drawn as in any line of a reply');
+  assert.match(html, /<td><code>lite<\/code><\/td><td class="num">1<\/td><td class="mid"><\/td><\/tr><\/tbody><\/table><\/div>\n<p>Done.<\/p>$/);
+  assert.doesNotMatch(html, /av-source|No source|av-title/, 'a table of a reply is no data a bot labelled');
+  // A column of only numbers, with no alignment set, lines up on the right, as it always did.
+  assert.match(md('| A | B |\n|---|---|\n| x | 1 |\n| y | 22 |', undefined, true), /<th scope="col">A<\/th><th scope="col" class="num">B<\/th>.*<td class="num">22<\/td>/);
+});
+
+test('a Markdown table keeps nothing a bot writes as markup', () => {
+  const html = md('| <b>x</b> | a&b |\n|---|---|\n| <img src=x onerror=alert(1)> | "q" |', undefined, true);
+  assert.match(html, /<th scope="col">&lt;b&gt;x&lt;\/b&gt;<\/th><th scope="col">a&amp;b<\/th>/);
+  assert.match(html, /<td>&lt;img src=x onerror=alert\(1\)&gt;<\/td><td>&quot;q&quot;<\/td>/);
+  assert.doesNotMatch(html, /<b>|<img/);
+});
+
+test('a table of a document, a tile or an owner message, one still being written or one over the limits is the Markdown table it always was', () => {
+  const src = '| A | B |\n|---|--:|\n| x | 1 |';
+  assert.doesNotMatch(md(src), /scope=/, 'drawn without asking for views: a document, a file, a tile, the owner\'s own message');
+  assert.match(md(src), /<th>A<\/th><th class="num">B<\/th>/);
+  assert.match(md(src, undefined, true), /<th scope="col">A<\/th>/);
+  assert.doesNotMatch(md(page.draftSource(src)), /scope=/, 'a draft: as it is today until the reply ends');
+  const wide = `| ${Array.from({ length: 13 }, (_, i) => `c${i}`).join(' | ')} |\n|${'---|'.repeat(13)}\n| ${Array.from({ length: 13 }, () => 'x').join(' | ')} |`;
+  assert.doesNotMatch(md(wide, undefined, true), /scope=/, 'thirteen columns');
+  assert.match(md(wide, undefined, true), /<div class="md-table"><table><thead><tr><th>c0<\/th>/);
+  // The last text of a reply with views is a draft while it is written (parts: done false), the text before a view is whole.
+  const parts = AnswerViews.parts(`| A |\n|---|\n| x |\n\n\`\`\`ui\n{"alt":"a","root":{"type":"text","text":"t"}}\n\`\`\`\n\n| B |\n|---|\n| y |`, { done: false, tables: true });
+  assert.match(parts[0], /scope="col">A</);
+  assert.doesNotMatch(parts.at(-1), /scope=/);
+});
+
+test('the style of a table has a centred column for views and replies alike', () => {
+  assert.match(read('style.css'), /\n\.md-table th\.mid, \.md-table td\.mid \{ text-align: center; \}/);
+});
+
+test("only a bot's, the Chief's or a group's reply asks for its tables as views: a document, a file, a tile and the owner's message do not", () => {
+  const asks = { 'bot-chat.js': /\$\{md\(body, failed \? null : r\.botId, !failed\)\}/, 'groups.js': /md\(reply, t\.id, true\)/, 'rooms.js': /md\(text, undefined, !!bot\)/, 'chief.js': /md\(m\.text, undefined, !m\.error\)[\s\S]*md\(m\.text, undefined, true\)[\s\S]*report-msg"><div class="md">\$\{md\(m\.text, undefined, !m\.error\)/ };
+  // A failed Chief reply or report keeps its table on the web page and in the Android app alike (ChiefScreen.kt: tables = error == null, !m.failed).
+  for (const [file, rx] of Object.entries(asks)) assert.match(read(file), rx, file);
+  for (const file of ['document.js', 'files.js', 'board.js', 'list.js', 'viewer.js', 'blocks.js', 'skills.js', 'runs.js']) assert.doesNotMatch(read(file), /\bmd\([^)]*(?:undefined|botId|doc\.botId), (?:true|!)/, `${file} keeps the table it had`);
 });

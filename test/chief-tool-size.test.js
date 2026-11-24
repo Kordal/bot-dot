@@ -35,5 +35,6 @@ test("the Chief's tools are about 25k characters shorter", () => {
   // 113.4k: create_bot and update_bot take verbatim, a task the owner dictated, which hints leave alone (#1543).
   // 113.8k: update_bot's boatOwnMachine and moveFiles, a bot's machine of its own on boat.dev (ADR 263).
   // 114.9k: list_mcp_servers and offer_mcp_server, the owner's own remote MCP servers (ADR 266).
-  assert.ok(size < 114_900, `${size} characters`);
+  // 115.7k: around on add_job, update_job, add_my_job and update_my_job, a job the owner named no clock time for (#1667).
+  assert.ok(size < 115_700, `${size} characters`);
 });

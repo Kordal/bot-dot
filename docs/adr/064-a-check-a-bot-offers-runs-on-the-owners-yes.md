@@ -1,7 +1,7 @@
 # ADR-064: A check a bot offers runs on the owner's yes
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#342](https://github.com/Kordal/bot-dot/issues/342)
+- **Owning task:** [#342](https://github.com/ladrok/bot-dot/issues/342)
 - **Changes:** who approves a job a bot sets up for itself (until now: always the owner, on a card)
 
 ## Context

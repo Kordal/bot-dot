@@ -1,7 +1,7 @@
 # ADR-054: A permission card comes only from the bot's ask
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#279](https://github.com/Kordal/bot-dot/issues/279)
+- **Owning task:** [#279](https://github.com/ladrok/bot-dot/issues/279)
 - **Amends:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (a refused tool no longer makes the ask that keeps the run)
 
 ## Context

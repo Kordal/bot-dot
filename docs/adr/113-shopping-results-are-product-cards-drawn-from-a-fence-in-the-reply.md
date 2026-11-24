@@ -1,7 +1,7 @@
 # ADR-113: Shopping results are product cards, drawn from a fence in the reply
 
 - **Status:** Accepted (by the owner, 2026-10-29, with direction B "Pick and list" of the mockups)
-- **Owning task:** [#682](https://github.com/Kordal/bot-dot/issues/682)
+- **Owning task:** [#682](https://github.com/ladrok/bot-dot/issues/682)
 - **Builds on:** [ADR 041](041-the-web-page-draws-mermaid-diagrams-with-a-vendored-mermaid-in-a-frame-of-its-own.md) (a fence in a reply drawn by the apps), [ADR 071](071-a-page-draws-the-block-kit-bound-to-the-boards-tiles.md) (blocks are fences), [ADR 086](086-botdot-fetches-site-icons-itself.md) (botdot fetches from the web, never the app), [ADR 004](004-pieces-as-restricted-shape-lists.md) (nothing from Claude is markup)
 
 ## Context

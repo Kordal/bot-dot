@@ -1,7 +1,7 @@
 # ADR-043: A run is ended when it is silent, not when it is long
 
 - **Status:** Accepted
-- **Owning task:** [#187](https://github.com/Kordal/bot-dot/issues/187)
+- **Owning task:** [#187](https://github.com/ladrok/bot-dot/issues/187)
 - **Supersedes:** the 60 minutes of [ADR 012](012-a-run-keeps-who-ended-it-and-a-stop-ends-what-its-turn-started.md)
 
 ## Context

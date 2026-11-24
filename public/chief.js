@@ -553,7 +553,7 @@ function chiefBubble(m, last = false, index = null) {
     : m.error && !m.text
       ? `<div class="md">${md(m.error)}</div>${files}`
       : m.text
-        ? `<div class="md">${md(m.text)}</div>${index != null && !m.error ? globalThis.docButton?.({ chat: state.chatId, at: index }, m.text) || '' : ''}${files}${pages}${m.error ? `<div class="problem-line"><div class="md">${md(m.error)}</div></div>` : ''}`
+        ? `<div class="md">${md(m.text, undefined, !m.error)}</div>${index != null && !m.error ? globalThis.docButton?.({ chat: state.chatId, at: index }, m.text) || '' : ''}${files}${pages}${m.error ? `<div class="problem-line"><div class="md">${md(m.error)}</div></div>` : ''}`
         : files + pages;
   // Its plan, folded under the reply (plan.js); a stopped or failed reply's stands above the message box instead.
   const plan = !m.pending && globalThis.Plan && m.plan && !(last && chiefStopped(m)) ? Plan.replyHTML(m.plan) : '';
@@ -593,7 +593,7 @@ const PLAN_APPROVAL = 'Approved. Go ahead.';
 const suggestionBubble = (m) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
     <div class="bot-msg-label">${tr('Suggestion from {name}', { name: m.from ? botLabel(m.from) : tr('a bot') })}</div>
-    <div class="bubble from-other-bot suggestion-msg" data-expand><div class="md clamp">${md(m.text)}</div></div>
+    <div class="bubble from-other-bot suggestion-msg" data-expand><div class="md clamp">${md(m.text, undefined, true)}</div></div>
     <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>
     ${m.status === 'pending' ? `<div class="suggestion-actions"><button class="btn" data-sug-dismiss>${tr('Decline')}</button><button class="btn primary" data-sug-build>${tr('Approve')}</button></div>` : m.status === 'dismissed' ? `<div class="bot-msg-label">${tr('You declined it')}</div>` : ''}
   </div></div>`;
@@ -603,7 +603,7 @@ const reportBubble = (m, at = null) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
     ${globalThis.aboutHTML?.(m) || ''}
     <div class="bot-msg-label">${tr('Message from {name}', { name: m.from ? botLabel(m.from) : tr('a bot') })}</div>
-    ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
+    ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text, undefined, !m.error)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
     <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
     ${m.error ? '' : globalThis.inlineCardsHTML?.(m) || ''}
   </div></div>`;

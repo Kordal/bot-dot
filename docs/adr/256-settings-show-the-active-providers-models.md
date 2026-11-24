@@ -1,6 +1,6 @@
 # ADR-256: Settings show the active provider’s models and reasoning levels
 
-- **Status:** Accepted (2026-11-17). Provider setup is updated by [ADR 257](257-provider-models-come-from-a-searchable-catalog.md).
+- **Status:** Accepted (2026-11-17). Provider setup is updated by [ADR 257](257-provider-models-come-from-a-searchable-catalog.md). The lists show every connected provider's models, not the active one's, since [ADR 267](267-several-providers-at-once-and-the-model-decides-which-one-runs.md).
 - **Owning task:** #1526
 - **Updates:** [ADR 255](255-bots-can-run-on-another-model-provider-under-claude-code.md) for model selection and reasoning.
 

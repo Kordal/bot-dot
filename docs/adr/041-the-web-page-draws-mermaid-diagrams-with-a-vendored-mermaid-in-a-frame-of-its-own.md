@@ -1,7 +1,7 @@
 # ADR-041: The web page draws Mermaid diagrams with a vendored Mermaid, in a frame of its own
 
 - **Status:** Accepted
-- **Owning task:** [#177](https://github.com/Kordal/bot-dot/issues/177)
+- **Owning task:** [#177](https://github.com/ladrok/bot-dot/issues/177)
 
 ## Context
 

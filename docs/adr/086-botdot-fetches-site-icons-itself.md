@@ -1,7 +1,7 @@
 # ADR-086: botdot fetches site icons itself
 
 - **Status:** Accepted (2026-10-24)
-- **Owning task:** [#530](https://github.com/Kordal/bot-dot/issues/530)
+- **Owning task:** [#530](https://github.com/ladrok/bot-dot/issues/530)
 
 ## Context
 

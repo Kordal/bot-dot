@@ -1,7 +1,7 @@
 # ADR-093: The owner watches a boat.dev machine's desktop through boat.dev's stream
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#564](https://github.com/Kordal/bot-dot/issues/564)
+- **Owning task:** [#564](https://github.com/ladrok/bot-dot/issues/564)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)
 
 ## Context

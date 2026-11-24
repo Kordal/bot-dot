@@ -1,7 +1,7 @@
 # ADR-097: A shared project is a folder on the account's computer
 
 - **Status:** Accepted (2026-10-26, the owner's decision)
-- **Owning task:** [#578](https://github.com/Kordal/bot-dot/issues/578)
+- **Owning task:** [#578](https://github.com/ladrok/bot-dot/issues/578)
 - **Amended by:** [ADR 135](135-a-projects-folder-follows-its-name.md) (a project's folder follows its name)
 - **Builds on:** [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)
 

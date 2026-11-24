@@ -1,0 +1,67 @@
+# The eval of answer views (`make ui-eval`, test/live/ui-eval.test.js, ADR 264) once a night: seven of its eight prompts go to a real
+# bot (the Claude CLI) on scratch botdot servers, and the run says whether kit:ui was picked where a view is right
+# (a table or a comparison included, with no Markdown table) and not where prose is, and whether every ui fence passes
+# the validator of the apps. A model decides itself whether to load a skill, so a change to the skill's words, the
+# prompt or the model can move the pick without a unit test seeing it; this is what sees it. A miss fails the run,
+# and GitHub mails the owner.
+#
+# It spends model usage: it signs in with the repository secret CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`,
+# the Claude plan's, which claude-review.yml and claude.yml use too). Only that one: a bot's run drops every *_KEY
+# variable of its environment unless the owner gave botdot an API key in its settings (lib/identity.js), so an
+# ANTHROPIC_API_KEY would sign nothing in. Without the secret the eval does not fail: it skips, saying why. A run by
+# hand (Actions → UI eval → Run workflow, on main) takes the cases (BOT_DOT_TEST_LIVE_ONLY, comma separated ids) and
+# the runs of each (BOT_DOT_TEST_LIVE_REPEAT; 3 or more says more about a pick that varies).
+#
+# Not in the nightly set: four-field-form. The bot asks the four questions in words and never loads kit:ui (0 of 7 runs on
+# the day this was written, with the sentence in the bot's prompt), so a night with it is red from the first. Run it
+# by hand (cases: four-field-form) until it is fixed, then take it off the list.
+#
+# The report (report.md and the evidence, results.json) is kept 14 days as the run's "ui-eval" artifact and shown on
+# the run's summary. It runs on GitHub's own machines (#528), on main only, and never for a pull request: a fork's gets
+# no secrets and the eval's cost is not for anyone to start.
+name: UI eval
+
+on:
+  schedule:
+    - cron: '30 3 * * *' # 03:30 UTC, after the nightly Android release (00:30), desktop (01:00) and images (02:30)
+  workflow_dispatch:
+    inputs:
+      cases: { description: 'Case ids, comma separated (default: all but four-field-form)', type: string, default: '' }
+      repeat: { description: 'Runs of each case', type: string, default: '1' }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      # The same Claude Code as the image's (Dockerfile): what the eval tests is what a bot runs on.
+      - run: npm install -g @anthropic-ai/claude-code@2.1.331
+      - id: eval
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          BOT_DOT_TEST_LIVE_ONLY: ${{ inputs.cases || 'compare-three,compare-databases-table,compare-databases,time-series,one-line-fact,apology,yes-no' }}
+          BOT_DOT_TEST_LIVE_REPEAT: ${{ inputs.repeat }}
+          BOT_DOT_TEST_LIVE_OUT: ${{ runner.temp }}/ui-eval
+        run: make ui-eval
+      - if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/ui-eval/report.md" ] && cat "$RUNNER_TEMP/ui-eval/report.md" >> "$GITHUB_STEP_SUMMARY" || echo "No report: the eval did not run (no Claude login?)." >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-eval
+          path: ${{ runner.temp }}/ui-eval
+          retention-days: 14
+          if-no-files-found: ignore

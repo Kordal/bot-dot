@@ -1,7 +1,7 @@
 # ADR-105: Runs of one bot see what the others are doing
 
 - **Status:** Accepted (2026-10-27)
-- **Owning task:** [#609](https://github.com/Kordal/bot-dot/issues/609)
+- **Owning task:** [#609](https://github.com/ladrok/bot-dot/issues/609)
 - **Amends:** [ADR 062](062-a-message-to-a-busy-bot-starts-beside-the-run-that-is-going.md), [ADR 040](040-a-waiting-message-is-steered-into-the-run-at-its-next-tool-call.md)
 
 ## Context

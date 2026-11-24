@@ -31,7 +31,8 @@ fun withIcon(outfit: JsonElement?, icon: String): JsonElement? =
     if (icon.isEmpty()) outfit else JsonObject(((outfit as? JsonObject) ?: JsonObject(emptyMap())) + ("icon" to JsonPrimitive(icon)))
 
 /** One choice of a picker: its wire value and its words. */
-data class Option(val id: String, val label: String)
+/** One choice of a picker; [group] heads the models of one provider (ADR 267) in a picker that shows groups. */
+data class Option(val id: String, val label: String, val group: String? = null)
 
 /**
  * A bot's settings as they are being edited: they start as the bot's own ([BotSettings.draft]), and what differs from
@@ -180,7 +181,7 @@ object BotSettings {
     fun canThink(models: List<ModelChoice>, model: String): Boolean = models.firstOrNull { it.id == model }?.effort ?: true
 
     /** The choices of a bot's Model, its own default first. */
-    fun models(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) }
+    fun models(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }, it.group) }
 
     /** The choices of a bot's Reasoning, its own default first. */
     fun efforts(info: SettingsInfo, model: String = info.settings.defaultModel): List<Option> =
@@ -201,6 +202,13 @@ object BotSettings {
 
     /** Its shared-room settings: a server that keeps them (`room-settings`) and has them for this bot. */
     fun showsRooms(b: Bot, features: Collection<String>?): Boolean = BotRooms.shows(features) && b.rooms != null
+
+    /**
+     * Whether the server lets every bot be in shared rooms (`rooms-every-bot`, ADR 269): then there is no "May be in
+     * shared rooms" switch and no hint to switch it on. A server without it, or whose features are not known yet, still
+     * keeps the switch per bot, so the app draws it as before.
+     */
+    fun everyBotInRooms(features: Collection<String>?): Boolean = features != null && "rooms-every-bot" in features
 
     /** Undo last change (#596): the card's change [change] undone on botdot, and the bot as it is now. */
     @Throws(Exception::class)
@@ -378,6 +386,8 @@ class BotSettingsState(
     val showsBrowser: Boolean get() = BotSettings.showsBrowser(features)
     /** Its shared-room settings, from a server that keeps them (`room-settings`). */
     val showsRooms: Boolean get() = bot?.let { BotSettings.showsRooms(it, features) } == true
+    /** Every bot is in shared rooms (ADR 269): no "May be in shared rooms" switch. */
+    val everyBotInRooms: Boolean get() = BotSettings.everyBotInRooms(features)
     /** Who may mention it in a room: the owner, or anyone in it. */
     val whoMayMention: List<Option> get() = BotRooms.WHO.map { (id, label) -> Option(id, label) }
     /** Undo last change: a change a card made to its assignment or rules that one tap undoes (#596). */

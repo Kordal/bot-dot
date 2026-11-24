@@ -1,7 +1,7 @@
 # ADR-244: An existing bot joins a proposed team as it is
 
 - **Status:** Accepted (2026-11-15, the owner: "During the setup of the project, it should be possible to already add the existing bots")
-- **Owning task:** [#1423](https://github.com/Kordal/bot-dot/issues/1423)
+- **Owning task:** [#1423](https://github.com/ladrok/bot-dot/issues/1423)
 - **Builds on:** [ADR 128](128-create-grants-what-the-team-cards-show.md), [ADR 199](199-a-bot-may-be-in-several-teams-of-one-project.md), [ADR 239](239-new-projects-start-in-their-chiefs-conversation.md)
 
 ## Context

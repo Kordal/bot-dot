@@ -12,7 +12,7 @@ No production credentials were identified by the secret scans. This does not off
 
 - Reviewed the server, bot/Chief execution and authorization paths, vault and backup handling, uploads, browser rendering, desktop/mobile update paths, Docker packaging, and GitHub Actions.
 - Reviewed 390 tracked files at commit `ae691277d0657da233646c1385a4b92c0a4c5150`. The working changes present at the start were committed during the scan; a final content comparison confirmed that every tracked file matched the source snapshot used for the review. The existing local `.claude/launch.json` change was not altered.
-- Confirmed through GitHub's API that `Kordal/bot-dot` is currently private. Repository visibility, workflows, runners, and secrets were not changed.
+- Confirmed through GitHub's API that `ladrok/bot-dot` is currently private. Repository visibility, workflows, runners, and secrets were not changed.
 - Ran `npm test`: **77 passed, 0 failed**, in approximately 104 seconds, using Node 26.8.1. These tests use scratch data and a fake Claude executable.
 - Reproduced Linux authorization failures in a disposable container using the reviewed source, separate UIDs, synthetic data, no external network, and no Docker socket. No production service was probed.
 - Ran Gitleaks **8.30.1** on the current source and all locally available Git refs. The history contained 116 reachable commits; Gitleaks reported scanning 112 commits with approximately 3.96 MB of content. Both scans flagged the same synthetic password in `test/backup.test.js:30`; manual inspection confirmed a test fixture. **No confirmed real secret found.** Ignored runtime `data/` was intentionally excluded from the source scan.
@@ -35,7 +35,7 @@ This was a source review with targeted exploit validation, not an exhaustive pen
 
 ### S1 — Public pull requests can compromise the build machines
 
-**Locations:** [tests.yml](../../.github/workflows/tests.yml), lines 9–10, 24–64; [runner setup](https://github.com/Kordal/bot-dot/blob/f86dacaa249b307ecbb6f162ee8cf09df003c76b/deploy/runners/setup.sh), lines 19 onward; [Linux releases](https://github.com/Kordal/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/.github/workflows/linux.yml).
+**Locations:** [tests.yml](../../.github/workflows/tests.yml), lines 9–10, 24–64; [runner setup](https://github.com/ladrok/bot-dot/blob/f86dacaa249b307ecbb6f162ee8cf09df003c76b/deploy/runners/setup.sh), lines 19 onward; [Linux releases](https://github.com/ladrok/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/.github/workflows/linux.yml).
 
 The `pull_request` workflow checks out contributor-controlled code and runs `npm test`, Gradle, Xcode, and Flatpak builds on `botdot-mac` and `botdot-linux`. The Mac runners run under the owner's account. The Linux runners are privileged containers with persistent state, their own Docker engines, and a shared release-artifact directory. The release workflows use the same runner labels.
 
@@ -124,7 +124,7 @@ Static serving calls `decodeURIComponent()` outside the request handler's `try/c
 
 ### S6 — Mac/Linux updates authenticate a checksum, not a publisher
 
-**Locations:** [Mac updater](https://github.com/Kordal/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/macos/BotDot/Data/AppUpdate.swift), lines 29–49; [Linux updater](https://github.com/Kordal/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/linux/src/update.rs), `download_and_install()`; Mac release workflow; [Linux release workflow](https://github.com/Kordal/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/.github/workflows/linux.yml).
+**Locations:** [Mac updater](https://github.com/ladrok/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/macos/BotDot/Data/AppUpdate.swift), lines 29–49; [Linux updater](https://github.com/ladrok/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/linux/src/update.rs), `download_and_install()`; Mac release workflow; [Linux release workflow](https://github.com/ladrok/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/.github/workflows/linux.yml).
 
 Both clients obtain update metadata and the binary from the same botdot server and compare the download with the checksum that server provided. Neither updater verifies an independent publisher signature. The Mac release uses ad-hoc signing; the Linux release builds bundles without a configured release-signing key. The Mac updater replaces and launches the downloaded app.
 

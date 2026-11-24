@@ -1,7 +1,7 @@
 # ADR-075: A job the owner asks the Chief for after the web needs no card
 
 - **Status:** Accepted (by the owner, 2026-10-23)
-- **Owning task:** [#424](https://github.com/Kordal/bot-dot/issues/424)
+- **Owning task:** [#424](https://github.com/ladrok/bot-dot/issues/424)
 - **Changes:** [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (every change of the Chief's after the web waits), as [ADR 066](066-a-task-the-chief-gives-a-bot-after-the-web-needs-no-card.md) did for a bot's task
 
 ## Context

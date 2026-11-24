@@ -1,7 +1,7 @@
 # ADR-234: A managed machine's Settings open the billing page the fleet console names
 
 - **Status:** Accepted (2026-11-13, the owner: "User should have a link in settings to manage his sub")
-- **Builds on:** [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (a managed machine, run by the fleet console), [#1312](https://github.com/Kordal/bot-dot/issues/1312) (a managed machine's "Delete account" opens a page of botdot.app)
+- **Builds on:** [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (a managed machine, run by the fleet console), [#1312](https://github.com/ladrok/bot-dot/issues/1312) (a managed machine's "Delete account" opens a page of botdot.app)
 
 ## Context
 

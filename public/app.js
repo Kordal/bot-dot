@@ -784,10 +784,12 @@ const MODE_INFO = {
 // Tiny markdown renderer. Input is escaped first, so output is safe: mdBlocks reads the escaped text into blocks
 // by the rules both apps share (test/fixtures/markdown-cases.json), and mdHTML writes them with its own tags.
 // [botId]: a bot's reply, whose file paths open in the viewer (linkPaths, #251).
-function md(src, botId) {
+// [tables]: a bot's reply, whose tables are drawn as answer views' tables (tableView, ADR 264 amendment); a document, a file, a tile
+// or the owner's own message keeps the table it always had.
+function md(src, botId, tables = false) {
   // A reply with answer views (answer-view-draw.js): its ```ui fences drawn, the rest as ever.
-  if (typeof AnswerViews === 'object' && AnswerViews.has(src)) return AnswerViews.parts(src, { botId }).join('\n'); // the paths of its text are links, the views' own words are not
-  const html = mdHTML(mdBlocks(src), botId);
+  if (typeof AnswerViews === 'object' && AnswerViews.has(src)) return AnswerViews.parts(src, { botId, tables }).join('\n'); // the paths of its text are links, the views' own words are not
+  const html = mdHTML(mdBlocks(src), botId, tables);
   return botId ? linkPaths(html, botId) : html;
 }
 
@@ -864,9 +866,26 @@ function tableHTML(rows, inline) {
   return `<div class="md-table"><table><thead>${row(rows[0], 'th')}</thead>${body.length ? `<tbody>${body.map((r) => row(r, 'td')).join('')}</tbody>` : ''}</table></div>`;
 }
 
+// A table of a reply as the `table` of an answer view (ADR 264, amendment): its header's cells are the columns, with the
+// alignment its delimiter row sets, and each row after it the row's cells, a short row blank at its end. The cells stay the
+// text as written, drawn like any line of a reply (mdInline), and it has no source line: it is no data a bot labelled. A table
+// the catalog's `table` can't hold whole is null, and stays the table it always was: a header cell of more than 40 characters,
+// a cell of more than 200, more than 12 columns or 100 rows, a row wider than its header, or a header alone. These are the
+// limits of lib/ui-catalog.json (test/markdown-web.test.js says so). Its text is escaped, as every block's is; an escaped
+// character counts as one.
+const TABLE_LIMITS = { columns: 12, rows: 100, label: 40, cell: 200 };
+function tableView({ rows, aligns }) {
+  const [head, ...body] = rows;
+  const over = (t, max) => t.replace(/&(?:amp|lt|gt|quot|#39);/g, '.').length > max;
+  if (!body.length || head.length > TABLE_LIMITS.columns || body.length > TABLE_LIMITS.rows || head.some((h) => over(h, TABLE_LIMITS.label))
+    || body.some((r) => r.length > head.length || r.some((c) => over(c, TABLE_LIMITS.cell)))) return null;
+  return { type: 'table', columns: head.map((label, c) => ({ label, ...(aligns[c] ? { align: aligns[c] } : {}) })), rows: body.map((r) => head.map((_, c) => r[c] ?? '')) };
+}
+
 // A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth, and task: "done" or
 // "todo" for a task item), quote (text),
-// rule, code (text, lang: the word after its fence) and table (rows). Android's parseBlocks returns the same for the same text.
+// rule, code (text, lang: the word after its fence) and table (rows, header first; aligns: one of left, right or center
+// for each column its delimiter row sets with colons, "" where it sets none). Android's parseBlocks returns the same for the same text.
 function mdBlocks(src) {
   const code = [];
   const lines = esc(src || '').replace(/\r\n?/g, '\n').replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, c) => {
@@ -894,12 +913,15 @@ function mdBlocks(src) {
     else if (isTable(t)) {
       flush(); endList();
       const rows = [];
+      let aligns = null;
       for (; i < lines.length && isTable(lines[i].trim()); i++) {
         const r = lines[i].trim();
-        if (!/^[|:\-\s]+$/.test(r)) rows.push(r.slice(1, -1).split('|').map((c) => c.trim()));
+        const cells = r.slice(1, -1).split('|').map((c) => c.trim());
+        if (!/^[|:\-\s]+$/.test(r)) rows.push(cells);
+        else if (rows.length === 1 && !aligns) aligns = cells.map((c) => (/^:-+:$/.test(c) ? 'center' : /^-+:$/.test(c) ? 'right' : /^:-+$/.test(c) ? 'left' : '')); // the line under the header
       }
       i--;
-      if (rows.length) out.push({ type: 'table', rows });
+      if (rows.length) out.push({ type: 'table', rows, aligns: rows[0].map((_, c) => aligns?.[c] ?? '') });
     }
     else if (!t) { flush(); if (item) blank = true; }
     else if (/^(---|\*\*\*|___)$/.test(t)) { flush(); endList(); out.push({ type: 'rule' }); }
@@ -951,8 +973,8 @@ const isWebAddress = (t) => /^https?:\/\/\S+$/i.test(t);
 const COPY_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>';
 const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="${tr('Copy code')}" aria-label="${tr('Copy code')}">${COPY_ICON}</button>`;
 
-// [botId]: a bot's reply, whose product cards can be saved (products.js).
-function mdHTML(blocks, botId) { return mdParts(blocks, botId).join('\n'); }
+// [botId]: a bot's reply, whose product cards can be saved (products.js). [tables]: as for md().
+function mdHTML(blocks, botId, tables = false) { return mdParts(blocks, botId, tables).join('\n'); }
 // A line of a block, its text escaped: code, struck, bold, italic and [words](address) links.
 function mdInline(t) {
   return t
@@ -982,8 +1004,10 @@ function previewLines(src) {
 }
 // Its HTML, links shortened as in a chat.
 function mdPreview(src) { return previewLines(src).map(mdInline).join('<br>'); }
-// The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists.
-function mdParts(blocks, botId) {
+// The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists. [tables]: a bot's reply that is
+// whole, whose tables are drawn as answer views' tables (tableView); a reply still being written draws them as they always were,
+// and they become views when it ends.
+function mdParts(blocks, botId, tables = false) {
   const text = (t) => t.split('\n').map(mdInline).join('<br>');
   const isItem = (i) => i < blocks.length && blocks[i].type === 'item';
   // The list that starts at blocks[i], its sub-lists inside their items: its HTML and the block after it.
@@ -1003,7 +1027,7 @@ function mdParts(blocks, botId) {
   // A block's text is escaped: the products are read from the text as written.
   const productsOf = (t) => (typeof Products === 'object' ? Products.parse(t.replace(/&(lt|gt|quot|#39|amp);/g, (_, e) => ({ lt: '<', gt: '>', quot: '"', '#39': "'", amp: '&' })[e])) : null);
   const out = [];
-  let cards;
+  let cards, table;
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
     if (b.type === 'item') { const l = list(i); out.push(l.html); i = l.next - 1; }
@@ -1015,7 +1039,8 @@ function mdParts(blocks, botId) {
     // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
     // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
     else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);
-    else if (b.type === 'table') out.push(tableHTML(b.rows, mdInline));
+    // A table of a bot's whole reply is drawn as an answer view's `table` (ADR 264, amendment), by the same code.
+    else if (b.type === 'table') out.push((tables && typeof AnswerViews === 'object' && (table = tableView(b))) ? AnswerViews.tableHTML(table, mdInline) : tableHTML(b.rows, mdInline));
     else out.push(`<p>${text(b.text)}</p>`);
   }
   return out;
@@ -1383,7 +1408,7 @@ async function readAll() {
     api(MEMORY_WAITS).then((p) => { if (!latest()) return; state.memPending = p; showNeeds(); }).catch(() => {});
     api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1').then((a) => { if (!latest()) return; state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { if (!latest()) return; state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
-    if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, modelProvider: cfg.provider });
+    if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, providers: cfg.providers });
     if (state.view === 'bot' && state.botId) { loadInbox(state.botId); loadWatches(state.botId); readOwnRuns(state.botId); }
     render();
     computersRead.then((c) => {

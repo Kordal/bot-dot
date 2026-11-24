@@ -1,7 +1,7 @@
 # ADR-240: Project updates use recorded work in the primary conversation
 
 - **Status:** Accepted (2026-11-13, the approved Projects simplification)
-- **Owning task:** [#1332](https://github.com/Kordal/bot-dot/issues/1332), spec [#1327](https://github.com/Kordal/bot-dot/issues/1327)
+- **Owning task:** [#1332](https://github.com/ladrok/bot-dot/issues/1332), spec [#1327](https://github.com/ladrok/bot-dot/issues/1327)
 - **Changes:** The automatic reporting portions of ADR 117 and ADR 118; preserves approved plan work, legacy settings and history.
 
 ## Context

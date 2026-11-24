@@ -1,7 +1,7 @@
 # ADR-039: A saved file is in the computer for the length of one command
 
-- **Status:** Accepted (2026-10-20, the owner's decision on [#157](https://github.com/Kordal/bot-dot/issues/157): option A, 64 KB). Changes one sentence of [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md): botdot never put a secret in a file; a file of the Vault now is one, for one command.
-- **Owning task:** [#157](https://github.com/Kordal/bot-dot/issues/157)
+- **Status:** Accepted (2026-10-20, the owner's decision on [#157](https://github.com/ladrok/bot-dot/issues/157): option A, 64 KB). Changes one sentence of [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md): botdot never put a secret in a file; a file of the Vault now is one, for one command.
+- **Owning task:** [#157](https://github.com/ladrok/bot-dot/issues/157)
 
 ## Context
 

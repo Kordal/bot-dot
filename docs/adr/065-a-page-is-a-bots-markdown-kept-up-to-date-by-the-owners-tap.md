@@ -1,7 +1,7 @@
 # ADR-065: A page is a bot's Markdown, kept up to date by the owner's tap
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#346](https://github.com/Kordal/bot-dot/issues/346)
+- **Owning task:** [#346](https://github.com/ladrok/bot-dot/issues/346)
 - **Builds on:** [ADR 004](004-pieces-as-restricted-shape-lists.md) (nothing from Claude is trusted as markup), [ADR 054](054-a-permission-card-comes-only-from-the-bots-ask.md) to [ADR 059](059-a-note-is-saved-without-an-ok.md) (fewer approvals)
 
 ## Context

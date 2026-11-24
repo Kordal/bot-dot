@@ -55,7 +55,7 @@ What a member does when it names another member in its reply: that member gets t
 _Avoid_: hand off (a bot hands off work with `message_bot`, outside a group), delegate, forward
 
 **Job**:
-A run of a bot (AI or script) on a schedule, repeating or run once, or when called.
+A run of a bot (AI or script) on a schedule, repeating or run once, or when called. A job the owner named no clock time for ("in the morning") runs *around* its time: a random minute within 15 minutes of it, a different one each day; one they gave a time for runs exactly then.
 _Avoid_: cron, task, schedule
 
 **Watch**:
@@ -171,7 +171,7 @@ A bot's, the Chief of Staff's or a group member's reply as it is being written, 
 _Avoid_: streaming message, typing indicator, partial reply
 
 **Answer view**:
-What a bot or the Chief of Staff draws in its answer when a chart, a table, KPIs or the like are clearer than text: one `ui` fence holding components from the catalog the server hands out, drawn by the apps in their own theme with its numbers' source beside them. Prose stays the default. A view only shows and, with inputs and buttons (wave 2), sends the owner's own plain message; it never approves, runs or changes anything. A number in it can be bound to a tile of the Board and then stays live in the open chat, the tile being its source. ADR 264, ADR 265.
+What a bot or the Chief of Staff draws in its answer when a chart, a table, KPIs or the like are clearer than text: one `ui` fence holding components from the catalog the server hands out, drawn by the apps in their own theme with its numbers' source beside them. Prose stays the default. A view only shows and, with inputs and buttons (wave 2), sends the owner's own plain message; it never approves, runs or changes anything. A number in it can be bound to a tile of the Board and then stays live in the open chat, the tile being its source. A table a bot writes in Markdown is drawn as the view's table, whatever the model wrote. ADR 264, ADR 265.
 _Avoid_: card (a card waits in Needs you), widget, generative UI
 
 **Plan**:

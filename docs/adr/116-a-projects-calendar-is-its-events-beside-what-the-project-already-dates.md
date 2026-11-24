@@ -1,7 +1,7 @@
 # ADR-116: A project's calendar is its events beside what the project already dates
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#695](https://github.com/Kordal/bot-dot/issues/695), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
+- **Owning task:** [#695](https://github.com/ladrok/bot-dot/issues/695), spec [#687](https://github.com/ladrok/bot-dot/issues/687)
 
 ## Context
 
