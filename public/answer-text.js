@@ -13,6 +13,7 @@
 //   text.form(root, values)      what a form posts (ADR 265): each input's label and its value, one per line; values: path -> what the owner set
 //   text.buttons(root)           the buttons of a view: [{ path, node }]
 //   text.press(button)           what a button posts: its `send` (200 characters at most), else its label
+//   text.shows(button)           what the page writes on it for the owner to read: that, when it is not the label
 //   text.start(node, raw)        what an input holds as the page shows it (what the owner set, else the bot's, kept to what the input allows)
 //   text.ends(node)              the ends of a slider or a range: [min, max], the bot's else 0 and 100
 
@@ -124,6 +125,9 @@ function of(view, opts) {
   // A form's message: "Budget: 500", one input to a line, a dash for what is empty. '' for a view with no input.
   const form = (root, values) => fields(root).map(({ path, node }) => `${node.label}: ${valueOf(node, values ? values[path] : undefined) || '–'}`).join('\n');
   const press = (n) => cutText((typeof n.send === 'string' ? n.send.trim() : '') || n.label, SEND_MAX);
+  // What the owner reads on a button before pressing it: what it posts when that is not its label, else ''. Never in a tooltip alone
+  // (a touch screen and the keyboard show none): the owner sees exactly what is sent.
+  const shows = (n) => { const t = press(n); return t === n.label ? '' : t; };
 
   // The numbers of a chart as a table of texts: its head and its rows. null for a node that is no chart.
   function data(n) {
@@ -224,7 +228,7 @@ function of(view, opts) {
   const alt = (reply, opts) => rewrite(reply, opts, { view: (v) => v.alt, code: (c) => c.alt });
   const text = (reply, opts) => rewrite(reply, opts, { view: (v) => join([v.alt, tree(v.root)]), code: (c) => join([c.alt, fenced(c.code, 'ui')]) });
 
-  return { alt, text, tree, data, has, fields, form, buttons, press, start, ends };
+  return { alt, text, tree, data, has, fields, form, buttons, press, shows, start, ends };
 }
 
 const api = { of, bins };

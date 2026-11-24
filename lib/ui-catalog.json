@@ -1,8 +1,9 @@
 {
-  "about": "The catalog of answer views (ADR 264): the components a bot may draw in a ```ui fence of its reply, with their props, lengths, tones, limits and the catalog version each came in (`since`). The server hands it out at GET /api/ui-catalog (`ui-catalog` in `features`); the apps read a fence with one generic validator driven by this file (public/answer-view.js; the shared fixtures are test/fixtures/ui-cases.json). A prop is `{ type, … }`: `string` (max, multiline; empty: an empty one is kept, as a table cell), `number` (min, max, nullable inside a list), `int`, `boolean`, `enum` (values), `tone` (one of `tones`), `https` (a web address), `media` (from: `file` is a path among the bot's files, `https` an image address; exts: the extensions a file may have), `list` (of, max, min) and `object` (props). `required` is a prop that must be there; `counts: \"points\"` adds a list's length to the node's points. A component has `children` (max, only), `in` (the parents it may stand in) and `sourced` (a chart, table or KPI says where its numbers came from). Lengths cut, never refuse; only `limits` refuse a fence.",
+  "about": "The catalog of answer views (ADR 264): the components a bot may draw in a ```ui fence of its reply, with their props, lengths, tones, limits and the catalog version each came in (`since`). The server hands it out at GET /api/ui-catalog (`ui-catalog` in `features`); the apps read a fence with one generic validator driven by this file (public/answer-view.js; the shared fixtures are test/fixtures/ui-cases.json). A prop is `{ type, … }`: `string` (max, multiline; empty: an empty one is kept, as a table cell), `number` (min, max, nullable inside a list), `int`, `boolean`, `enum` (values), `tone` (one of `tones`), `https` (a web address), `media` (from: `file` is a path among the bot's files, `https` an image address; exts: the extensions a file may have), `list` (of, max, min) and `object` (props). `required` is a prop that must be there; `counts: \"points\"` adds a list's length to the node's points. A component has `children` (max, only), `in` (the parents it may stand in) and `sourced` (a chart, table or KPI says where its numbers came from). `noReserved` on a string prop: a text that reads as one of the catalog's `reserved` phrases (the owner's words the server reads as an answer, such as the Approve button's: compared in lower case with everything but letters and digits left out) is not read: a prop that is not needed is dropped, one that is needed cuts out its component. Lengths cut, never refuse; only `limits` refuse a fence.",
   "version": 2,
   "limits": { "fences": 3, "nodes": 200, "depth": 6, "bytes": 65536, "points": 500, "alt": 200 },
   "tones": ["neutral", "good", "warn", "bad", "accent"],
+  "reserved": ["Approved. Go ahead.", "Build it."],
   "components": {
     "stack": { "group": "layout", "since": 1, "means": "Its children one under the other.",
       "props": { "gap": { "type": "enum", "values": ["s", "m", "l"], "default": "m" } },
@@ -175,8 +176,8 @@
     "segmented": { "group": "inputs", "since": 2, "means": "One option picked from two to six short ones, side by side.",
       "props": { "label": { "type": "string", "max": 60, "required": true }, "options": { "type": "list", "of": { "type": "string", "max": 30 }, "max": 6, "min": 2, "required": true }, "value": { "type": "string", "max": 30 } } },
 
-    "button": { "group": "actions", "since": 2, "means": "A button that sends `send` (or its label) as the owner's next message. It approves, runs and changes nothing.",
-      "props": { "label": { "type": "string", "max": 60, "required": true }, "send": { "type": "string", "max": 200 }, "tone": { "type": "tone", "default": "neutral" } } },
+    "button": { "group": "actions", "since": 2, "means": "A button that sends `send` (or its label) as the owner's next message. The page shows `send` on the button. It approves, runs and changes nothing.",
+      "props": { "label": { "type": "string", "max": 60, "required": true, "noReserved": true }, "send": { "type": "string", "max": 200, "noReserved": true }, "tone": { "type": "tone", "default": "neutral" } } },
     "button-group": { "group": "actions", "since": 2, "means": "Buttons side by side.",
       "props": { "label": { "type": "string", "max": 60 } },
       "children": { "max": 8, "only": ["button"] } },

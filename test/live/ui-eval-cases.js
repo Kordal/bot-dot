@@ -3,9 +3,10 @@
 // no lookup and no tool but the Skill tool. The data is made up.
 //
 // A case: { id, says (what the owner types), view: true (a view is right: the skill should be picked and a valid view
-// drawn), false (prose is right: no skill, no fence) or 'either' (the form: inputs are wave 2 of #1622, so for now a
-// view or a written list is fine, and a fence written must still be valid), fits?: components one of which a view
-// that answers it uses, wave? }.
+// drawn), false (prose is right: no skill, no fence) or 'either' (a view or a written answer is fine, and a fence
+// written must still be valid; for a wave whose components are not drawn yet: none now), fits?: components one of which
+// a view that answers it uses, wave? }. The form of four fields was 'either' until wave 2 (#1627) had inputs; it is
+// scored now, and a view with an input in it is what fits.
 
 const CASES = [
   {
@@ -22,8 +23,8 @@ const CASES = [
   },
   {
     id: 'four-field-form',
-    view: 'either',
-    wave: 2,
+    view: true,
+    fits: ['text-input', 'textarea', 'number', 'slider', 'range', 'select', 'multi-select', 'radio', 'checkbox', 'toggle', 'date', 'time', 'rating', 'segmented'],
     says: 'Help me plan a weekend trip. You need four things from me before you start: the destination, the dates, my budget and how many people come. Ask me for all four at once.',
   },
   {

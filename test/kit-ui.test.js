@@ -87,7 +87,7 @@ test('what the skill says in words is what the catalog and the validator hold', 
   assert.match(prose, /```ui/);
   assert.match(prose, /`alt`/);
   assert.match(prose, /`root`/);
-  // Source is required on data; a bot sets tones, not colours; media rules; a view never approves; no inputs yet.
+  // Source is required on data; a bot sets tones, not colours; media rules; a view never approves; inputs and buttons send back as the owner's own message.
   assert.match(prose, /`source`/);
   assert.match(prose, /No source/);
   for (const t of catalog.tones) assert.ok(prose.includes(`\`${t}\``) || prose.includes(t), t);
@@ -95,6 +95,7 @@ test('what the skill says in words is what the catalog and the validator hold', 
   assert.match(prose, /your own files|your files/i);
   assert.match(prose, /never approves|can't approve/i);
   assert.match(prose, /inputs|forms/i);
+  assert.doesNotMatch(prose, /not in the catalog yet/i, 'inputs are in the catalog now');
   // The limits are said once, in the generated part, so that they can't drift: the prose points to them and copies no number.
   assert.match(prose, /limits are in the reference below/i);
   for (const v of [catalog.limits.nodes, catalog.limits.points, `${catalog.limits.bytes / 1024} KB`]) assert.ok(!new RegExp(`(^|[^\\d€,.])${v}(?![\\d,.]\\d)`).test(prose), `${v} is not written by hand`);
@@ -125,4 +126,39 @@ test('every component it names as wave 1 is in the catalog, and none of the late
   const named = new Set([...body.matchAll(/`([a-z][a-z-]*)`/g)].map((m) => m[1]));
   for (const name of ['chart', 'table', 'comparison', 'kpi', 'stat-row', 'timeline', 'image']) assert.ok(named.has(name) && catalog.components[name], name);
   for (const [name, c] of Object.entries(catalog.components)) assert.ok(c.since <= catalog.version, name);
+});
+
+test('its section on inputs and send-back says what a form posts, that a button\'s send is shown, and what it never does', () => {
+  const { body } = parseSkillMd(text);
+  const prose = body.slice(0, body.indexOf(uiSkill.START));
+  const at = prose.indexOf('## Asking for input');
+  assert.ok(at > 0, 'a section of its own');
+  const section = prose.slice(at, prose.indexOf('\n## ', at + 4) > 0 ? prose.indexOf('\n## ', at + 4) : undefined);
+  assert.ok(section.length < 2600, 'short');
+  // the input components and the actions are named, and they are in the catalog
+  for (const name of ['text-input', 'select', 'number', 'button']) assert.ok(section.includes(`\`${name}\``) && catalog.components[name], name);
+  // One Send under a form, drawn by the page; the owner's message is "Label: value" lines, so labels are questions a bot can find again.
+  assert.match(section, /one Send/i);
+  assert.match(section, /Label: value|Budget: 500/);
+  assert.match(section, /`label`/);
+  // A button's `send` is shown to the owner under the button, and what it sends is the owner's message in their name.
+  assert.match(section, /`send`/);
+  assert.match(section, /shown|visible|reads it/i);
+  assert.match(section, /owner's own message|owner's own words|as the owner's/i);
+  // Never an approval: no `Approved. Go ahead.`, no `Build it.`; those cards are in Needs you.
+  assert.match(section, /Approved\. Go ahead\./);
+  assert.match(section, /Needs you/);
+  // Only the newest message's view can be answered, once.
+  assert.match(section, /newest/i);
+  assert.match(section, /once/i);
+  // Its example form is a view the validator reads whole, with inputs in it.
+  const form = fences(text).map((f) => view.validate(f)).find((r) => r.ok && JSON.stringify(r.root).includes('"text-input"'));
+  assert.ok(form, 'an example with inputs');
+  assert.deepEqual(form.problems, []);
+  // The old line that said there are no buttons is gone.
+  assert.doesNotMatch(prose, /There are no buttons here/);
+  // The reference lists the wave 2 components.
+  const ref = uiSkill.reference(catalog);
+  for (const name of ['text-input', 'textarea', 'number', 'slider', 'range', 'select', 'multi-select', 'radio', 'checkbox', 'toggle', 'date', 'time', 'rating', 'segmented', 'button', 'button-group', 'link', 'copy']) assert.match(ref, new RegExp(`^- \`${name}\` `, 'm'), name);
+  assert.match(ref, /Catalog version 2\./);
 });

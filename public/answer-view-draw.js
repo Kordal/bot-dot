@@ -259,9 +259,14 @@ const AnswerViews = (() => {
     }
   }
   // A button posts its `send` (200 characters at most), else its label; the page puts what it posts in data-say, so a view
-  // that was sent can be told from the owner's next message.
-  // When it posts more than its label, the owner can read what it posts before pressing (the tooltip).
-  const button = (n, path) => { const say = words.press(n); return `<button type="button" class="btn av-btn t-${tone(n)}" disabled data-av-press="${path}" data-say="${esc(say)}"${say === n.label ? '' : ` title="${esc(say)}"`}>${esc(n.label)}</button>`; };
+  // that was sent can be told from the owner's next message. When it posts more than its label, the owner reads it on the
+  // button before pressing, as text in the button (so a screen reader says it too): never a tooltip alone, which shows on
+  // neither a touch screen nor the keyboard. The owner always sees exactly what is sent (ADR 265).
+  const button = (n, path) => {
+    const say = words.press(n), shown = words.shows(n);
+    const inner = shown ? `<span class="av-btn-l">${esc(n.label)}</span><span class="av-btn-say">${esc(tr('Sends: {text}', { text: shown }))}</span>` : esc(n.label);
+    return `<button type="button" class="btn av-btn t-${tone(n)}" disabled data-av-press="${path}" data-say="${esc(say)}">${inner}</button>`;
+  };
 
   // Where a file is, or '' when this reply is no bot's.
   function mediaBox(n, ctx, inner, fallback) {
@@ -373,6 +378,15 @@ const AnswerViews = (() => {
     const lines = t.split('\n');
     return labels.length && labels.every((l) => lines.some((x) => x.startsWith(`${l}: `))) ? t : null;
   }
+  // What a view has sent, from the chat first: `mine` are the texts of the owner's messages after the view (up to the next bot message,
+  // a waiting one included), `pending` what this page posted that the chat may not show yet. The chat is the truth: once it shows the
+  // message the post is forgotten, so a message the owner takes back opens the view again. A post counts only until the chat shows it
+  // (it is on its way, not yet drawn as a bubble). → { sent: the text or null, pending: what is still not shown (or null) }.
+  function sendOf({ mine = [], says = [], labels = [], pending = null }) {
+    const shown = mine.map((t) => sentFrom(t, { says, labels })).find((t) => t != null) || null;
+    if (shown != null) return { sent: shown, pending: null };
+    return { sent: pending ?? null, pending: pending ?? null };
+  }
   // The id of the newest bot message a chat's views answer: the last one that is whole, from the bot to the owner. A reply still
   // being written, a failed one and a message between bots are not. bubbles: [{ from: 'bot' | 'me', id, working?, problem?, folded? }].
   function newest(bubbles) {
@@ -422,7 +436,8 @@ const AnswerViews = (() => {
       const mine = (upTo < 0 ? after : after.slice(0, upTo)).filter((b) => b.classList.contains('from-me'));
       const says = $$('[data-av-press]', av).map((b) => b.dataset.say);
       const labels = $$('[data-av-in][data-label]', av).map((f) => f.dataset.label);
-      const sent = av._avSent ?? (mine.map((b) => sentFrom(($('.clamp', b) || b).textContent, { says, labels })).find((t) => t != null) || null);
+      const { sent, pending } = sendOf({ mine: mine.map((b) => ($('.clamp', b) || b).textContent), says, labels, pending: av._avSent });
+      av._avSent = pending; // the chat shows it now, or it is still on its way
       paint(av, stateOf({ newest: at >= 0 && at === latest, sent }));
     }
   }
@@ -456,7 +471,8 @@ const AnswerViews = (() => {
     w.obs.observe(root, { childList: true, subtree: true });
     watchers.set(root, w);
   }
-  // Post a view's message through the chat; the view waits until it went, and stays read-only after: a view is sent once.
+  // Post a view's message through the chat; the view waits until it went, and stays read-only after: a view is sent once. What went is
+  // kept in _avSent only until the chat shows the message (sendOf); a failed send keeps nothing, and a taken-back one opens the view.
   async function post(av, text, send) {
     if (!text || av._avBusy || av.dataset.avState !== 'open') return;
     if (av._avLast?.text !== text) av._avLast = { text, key: messageKey() }; // the same text again is the same message
@@ -566,7 +582,7 @@ const AnswerViews = (() => {
   }
 
   return {
-    use, load, ready, has, parts, html, wire, wireChat, sentFrom, newest, stateOf,
+    use, load, ready, has, parts, html, wire, wireChat, sentFrom, sendOf, newest, stateOf,
     alt: (src, opts) => (words ? words.alt(src, opts) : String(src ?? '')),
     text: (src, opts) => (words ? words.text(src, opts) : String(src ?? '')),
   };
