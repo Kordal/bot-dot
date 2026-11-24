@@ -64,7 +64,7 @@ Want me to remind you when the installer sends the quote?`;
     const val = (id, value) => srv.asChief(`/dashboard/tiles/${id}/value`, { method: 'PUT', body: { value } });
     const mail = await add({ kind: 'value', title: 'Unread mail', section: 'Today', bot: inbox.id });
     for (const v of [6, 9, 8, 11, 12, 14]) await val(mail.id, v);
-    const next = await add({ kind: 'value', title: 'Next up', section: 'Today', bot: plan.id, value: '09:30 Team sync' });
+    const next = await add({ kind: 'value', title: 'Next up', section: 'Today', bot: plan.id, value: 'Tomorrow 09:30' });
     const note = await add({ kind: 'note', title: 'Morning summary', section: 'Today', bot: news.id, size: 'wide' });
     await val(note.id, '**Rail strike called off:** trains run as normal.\n\n**Heat pump grants** extended until March.\n\nNothing urgent on your other topics.');
     const temp = await add({ kind: 'value', title: 'Living room', section: 'Home', bot: home.id, unit: '°C', size: 'wide' });
