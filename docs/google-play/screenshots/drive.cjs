@@ -142,7 +142,7 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // The Chief's chat: from where the owner asks for a bot, the Chief's plan under it; then at the end, its two cards that wait for an OK.
   open(`chief:${scene.chief}`);
   await find(byText('New chat'), 'the Chief\'s chat');
-  await bring(has(/^Make me a bot that suggests/), 'the owner\'s ask in the Chief\'s chat', 400);
+  await bring(has(/^Make me a bot that suggests/), 'the owner\'s ask in the Chief\'s chat', 460);
   await shot('2-chief.png');
   await scroll('down', 8);
   await shot('3-approve.png');
@@ -159,7 +159,7 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // Spanish Coach's quiz, answered.
   open(`bot:${scene.bots.spanish}`);
   await find(byText('Its settings'), 'Spanish Coach\'s chat');
-  await bring(has(/^Quiz me on Spanish/), 'Spanish Coach\'s question', 330);
+  await bring(has(/^Quiz me on Spanish/), 'Spanish Coach\'s question', 360);
   await shot('6-quiz.png');
   // The project's team chat: Quote Chaser's comparison of the quotes.
   open(`group:${scene.team}`);
