@@ -102,8 +102,13 @@ const UI_OPEN = /^\s*```ui\s*$/;
 const UI_CLOSE = /^\s*```\s*$/;
 const FENCE = /^\s*(`{3,}|~{3,})/;
 
+// What a text is compared by, to tell a reserved phrase: lower case, with everything but letters and digits left out, so that
+// its case, spacing and punctuation change nothing ("APPROVED,  go-ahead!" is "Approved. Go ahead.").
+const phraseKey = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
 function of(catalog, options) {
   const L = catalog.limits;
+  const reserved = new Set((Array.isArray(catalog.reserved) ? catalog.reserved : []).map(phraseKey));
   const known = options && Number.isFinite(options.known) ? options.known : catalog.version;
   const components = catalog.components;
 
@@ -113,6 +118,7 @@ function of(catalog, options) {
     switch (spec.type) {
       case 'string': {
         const s = text(v, spec);
+        if (s !== NO && spec.noReserved && reserved.has(phraseKey(s))) return NO; // the owner's words the server reads as an answer
         return s === NO ? NO : s === '' && !spec.empty ? EMPTY : s;
       }
       case 'number': case 'int': {

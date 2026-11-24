@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -447,6 +448,10 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val sentArrives = Modifier.arrives(arrivals, onItsWay?.let { Arrivals.sent(it.key) })
 
     suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
+    // The inputs and buttons of an answer view send through the same function, as the owner's own message (ADR 265): a busy member shows it as waiting.
+    val sendView by rememberUpdatedState<suspend (String, String) -> Boolean> { t, k -> sendFrom(t, k) }
+    val viewLater = listOfNotNull(vm.sent?.text)
+    val viewChat = remember(vm.rows, viewLater) { ViewChat(groupBubbles(vm.rows, viewLater)) { t, k -> sendView(t, k) } }
 
     // Typing "@" in a group suggests its members, and "@all" first at the start of a message (#124); a member named in
     // the owner's message is drawn as a mention.
@@ -459,7 +464,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val api by app.api.collectAsState()
     // A file you sent in this group opens in the viewer (#268).
     val ownFiles = remember(groupId, server?.features) { { f: Attachment -> DocumentView.groupUpload(groupId, f.file) }.takeIf { DocumentView.opensChatFiles(server?.features) } }
-    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalBotLinks provides rememberBotLinks(app)) {
+    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalViewChat provides viewChat, LocalBotLinks provides rememberBotLinks(app)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
@@ -558,7 +563,9 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                                 if (x.id == vm.newFirst) NewLine(memberColor(bots, x.run.botId, x.run.botColor))
                                 // The answer buttons of the group's open question stand under the reply that asked: an
                                 // answer is a message to the group, and the member that asked has the first turn.
-                                GroupReply(x.run, bot, features, asks = vm.asks?.runId == x.run.id, putaway = if (hasChoicesDismiss(features)) Putaway(x.run.id, x.run.choicesDismissed) { app.api.value?.dismissChoices(x.run.id, it) ?: throw ApiException(NOT_CONNECTED) } else null) { text, key -> sendFrom(text, key) }
+                                ViewReplyScope(x.id) {
+                                    GroupReply(x.run, bot, features, asks = vm.asks?.runId == x.run.id, putaway = if (hasChoicesDismiss(features)) Putaway(x.run.id, x.run.choicesDismissed) { app.api.value?.dismissChoices(x.run.id, it) ?: throw ApiException(NOT_CONNECTED) } else null) { text, key -> sendFrom(text, key) }
+                                }
                                 if (x.run.status == "success") NamedCards(app, chatKey, namedHere[x.run.id])
                             }
                         }

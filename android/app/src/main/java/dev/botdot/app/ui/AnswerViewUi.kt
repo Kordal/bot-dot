@@ -45,6 +45,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.material3.Button
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import dev.botdot.app.answerview.ViewForm
+import dev.botdot.app.answerview.ViewState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
@@ -94,8 +103,8 @@ import kotlinx.serialization.json.JsonPrimitive
 /*
  * Answer views (#1626, ADR 264): a ```ui fence in a bot's or the Chief's reply, drawn from the tree the shared validator
  * reads (answerview/AnswerView.kt), in the app's own theme. A bot sets no colour, size or style: it names a tone, and
- * this file maps the five tones to the Paper's tokens. Every word of a view is drawn as text. No inputs and no actions
- * in this wave: a link card opens an https address and a file opens in the viewer, nothing sends or changes anything.
+ * this file maps the five tones to the Paper's tokens. Every word of a view is drawn as text. Wave 2 adds inputs and buttons
+ * (AnswerInputs.kt, ADR 265): they post the owner's own message and nothing else; nothing a view draws approves, runs or changes anything.
  */
 
 /** The catalog of answer views, from a server whose features name `ui-catalog`; null where there is none (a fence is then its code). */
@@ -144,10 +153,10 @@ private fun gap(g: String?) = when (g) { "s" -> Space.s8; "l" -> Space.s24; else
 
 /** The part of a reply the validator split: a view, the code of a fence that can't be drawn under its `alt`, or "Drawing a view…". */
 @Composable
-internal fun AnswerPart(part: ReplyPart, color: Color, copy: Boolean, modifier: Modifier = Modifier) {
+internal fun AnswerPart(part: ReplyPart, color: Color, copy: Boolean, modifier: Modifier = Modifier, at: Int = 0) {
     val p = LocalPaper.current
     when (part) {
-        is ReplyPart.View -> AnswerView(part.alt, part.root, modifier)
+        is ReplyPart.View -> AnswerView(part.alt, part.root, modifier, at)
         is ReplyPart.Code -> Column(modifier, verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             if (part.alt.isNotEmpty()) Text(part.alt, color = p.muted, fontSize = Type.s14)
             PlainCode(part.code, color, copy)
@@ -157,27 +166,69 @@ internal fun AnswerPart(part: ReplyPart, color: Color, copy: Boolean, modifier: 
     }
 }
 
-/** One view: its tree, with nothing around it (a card of its own is a `card` component). */
+/**
+ * One view: its tree, and under it, for a view with inputs, one Send (#1628, ADR 265). [at]: its place in its reply, which
+ * names it with the reply. In a chat that wires its views ([ViewReplyScope]) the newest bot message's inputs and buttons
+ * work and post the owner's own message; an older view is read-only and says what was sent, or "Not sent". Anywhere else
+ * a view only shows.
+ */
 @Composable
-fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth()) { ViewBlock(root, alt, top = true) }
+fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: Int = 0) {
+    val reply = LocalViewReply.current
+    val fields = remember(root) { ViewForm.fields(root) }
+    val buttons = remember(root) { ViewForm.buttons(root) }
+    val acts = fields.isNotEmpty() || buttons.isNotEmpty()
+    val viewKey = "${reply?.id.orEmpty()}#$at"
+    val values = remember(viewKey) { mutableStateMapOf<String, JsonElement>().apply { putAll(AnswerViewMemory.drafts.of(viewKey)) } }
+    val says = remember(buttons) { buttons.map { ViewForm.press(it.node) } }
+    val labels = remember(fields) { fields.map { it.node.text("label").orEmpty() } }
+    // The chat is the truth: what it shows of the owner's messages first, else what this phone posted that it does not show yet.
+    val posted = AnswerViewMemory.pending[viewKey]
+    val read = if (reply != null) ViewForm.sendOf(reply.mine, says, labels, posted) else null
+    val sent = read?.sent
+    // Keyed on the post too: a chat that shows the message before `send` returns leaves `read` the same when the post is stored, and the post must still go.
+    LaunchedEffect(viewKey, read, posted) { if (read != null && read.pending == null) AnswerViewMemory.pending.remove(viewKey) } // the chat shows it now: forget the post
+    val state = if (reply == null) null else ViewForm.state(reply.newest, sent)
+    val sending = AnswerViewMemory.sending[viewKey] == true
+    val live = state == ViewState.Open && !sending
+    val scope = AnswerViewMemory.scope
+    fun post(text: String) {
+        if (text.isEmpty() || reply == null || !live || AnswerViewMemory.sending[viewKey] == true) return
+        AnswerViewMemory.sending[viewKey] = true // before the tap is over: a second tap finds it
+        val key = AnswerViewMemory.drafts.keyFor(viewKey, text) // the same text again is the same message
+        scope.launch {
+            val went = try { reply.send(text, key) } catch (e: CancellationException) { throw e } catch (e: Exception) { false } finally { AnswerViewMemory.sending.remove(viewKey) }
+            if (went) { AnswerViewMemory.drafts.sent(viewKey); AnswerViewMemory.pending[viewKey] = text; values.clear() }
+        }
+    }
+    val form = remember(viewKey, live, values, reply) { FormCtx(viewKey, live, values) { post(it) } }
+    CompositionLocalProvider(LocalForm provides form) {
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+            ViewBlock(root, alt, "0", top = true)
+            if (fields.isNotEmpty()) Button({ post(ViewForm.form(root, values)) }, Modifier.heightIn(min = 48.dp), enabled = live) { Text(tr("Send")) }
+            if (acts && state != null && state != ViewState.Open) {
+                val line = if (state is ViewState.Sent) tr("Sent: {text}", "text" to state.said) else tr("Not sent")
+                Text(line, color = LocalPaper.current.muted, fontSize = Type.s14, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            }
+        }
+    }
 }
 
 private val INLINE = setOf("badge", "status")
 
 /** One component, by the tree's own name for it: no code of a component's own is the validator's, only the drawing is here. */
 @Composable
-private fun ViewBlock(n: ViewNode, alt: String, top: Boolean = false) {
+private fun ViewBlock(n: ViewNode, alt: String, path: String, top: Boolean = false) {
     when (n.type) {
-        "stack" -> Column(verticalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { n.children.orEmpty().forEach { ViewBlock(it, alt) } }
-        "row" -> ViewRow(n, alt)
-        "grid" -> ViewGrid(n.children.orEmpty(), (n.number("columns") ?: 2.0).toInt(), gap(n.text("gap")), alt)
+        "stack" -> Column(verticalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { n.children.orEmpty().forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") } }
+        "row" -> ViewRow(n, alt, path)
+        "grid" -> ViewGrid(n.children.orEmpty(), (n.number("columns") ?: 2.0).toInt(), gap(n.text("gap")), alt, path)
         "card" -> {
             val c = toneColors(n.text("tone"))
             val tinted = !n.text("tone").isNeutralTone()
             Column(Modifier.fillMaxWidth().let { if (tinted) it.clip(Radius.card).background(c.soft) else it.raised(Radius.card) }.padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 n.text("title")?.let { Text(it, color = if (tinted) c.text else LocalPaper.current.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() }) }
-                n.children.orEmpty().forEach { ViewBlock(it, alt) }
+                n.children.orEmpty().forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") }
             }
         }
         "section" -> Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
@@ -185,11 +236,11 @@ private fun ViewBlock(n: ViewNode, alt: String, top: Boolean = false) {
                 Text(n.text("title").orEmpty(), color = LocalPaper.current.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
                 n.text("lead")?.let { Text(it, color = LocalPaper.current.muted, fontSize = Type.s14) }
             }
-            n.children.orEmpty().forEach { ViewBlock(it, alt) }
+            n.children.orEmpty().forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") }
         }
-        "tabs" -> ViewTabs(n, alt)
-        "accordion" -> Column { n.children.orEmpty().forEach { ViewBlock(it, alt) } }
-        "panel" -> ViewPanel(n, alt)
+        "tabs" -> ViewTabs(n, alt, path)
+        "accordion" -> Column { n.children.orEmpty().forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") } }
+        "panel" -> ViewPanel(n, alt, path)
         "divider" -> ViewDivider(n.text("label"))
         "spacer" -> Spacer(Modifier.height(when (n.text("size")) { "s" -> Space.s8; "l" -> Space.s32; else -> Space.s16 }))
         "heading" -> {
@@ -212,7 +263,7 @@ private fun ViewBlock(n: ViewNode, alt: String, top: Boolean = false) {
         "steps" -> ViewSteps(n)
         "hero" -> ViewHero(n)
         "kpi" -> ViewKpi(n)
-        "stat-row" -> ViewGrid(n.children.orEmpty(), if (n.children.orEmpty().size <= 2) n.children.orEmpty().size.coerceAtLeast(1) else 2, Space.s16, alt, wide = n.children.orEmpty().size.coerceAtLeast(1))
+        "stat-row" -> ViewGrid(n.children.orEmpty(), if (n.children.orEmpty().size <= 2) n.children.orEmpty().size.coerceAtLeast(1) else 2, Space.s16, alt, path, wide = n.children.orEmpty().size.coerceAtLeast(1))
         "progress" -> ViewProgress(n)
         "table" -> ViewTableList(n)
         "timeline" -> ViewTimeline(n)
@@ -227,6 +278,11 @@ private fun ViewBlock(n: ViewNode, alt: String, top: Boolean = false) {
         "file" -> ViewFileRow(n.media("src"), n.text("title") ?: n.media("src")?.value?.substringAfterLast('/').orEmpty(), null, Icons.Outlined.Description, tr("File"))
         "link-card" -> ViewLinkCard(n)
         "products" -> ViewProducts(n)
+        "text-input", "textarea", "number", "slider", "range", "select", "multi-select", "radio", "checkbox", "toggle", "date", "time", "rating", "segmented" -> ViewInput(n, path)
+        "button" -> ViewButton(n)
+        "button-group" -> ViewButtons(n) { c, i -> ViewBlock(c, alt, "$path.$i") }
+        "link" -> ViewLink(n)
+        "copy" -> ViewCopy(n)
         else -> ViewUnknown(alt, top)
     }
 }
@@ -245,29 +301,29 @@ private fun ViewUnknown(alt: String, whole: Boolean) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ViewRow(n: ViewNode, alt: String) {
+private fun ViewRow(n: ViewNode, alt: String, path: String) {
     val kids = n.children.orEmpty()
     if (kids.isNotEmpty() && kids.all { it.type in INLINE }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) { kids.forEach { ViewBlock(it, alt) } }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) { kids.forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") } }
         return
     }
     // Side by side where there is room, one under the other on a phone's width.
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth < 480.dp || kids.isEmpty()) Column(verticalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { kids.forEach { ViewBlock(it, alt) } }
-        else Row(horizontalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { kids.forEach { Box(Modifier.weight(1f)) { ViewBlock(it, alt) } } }
+        if (maxWidth < 480.dp || kids.isEmpty()) Column(verticalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { kids.forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") } }
+        else Row(horizontalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { kids.forEachIndexed { i, c -> Box(Modifier.weight(1f)) { ViewBlock(c, alt, "$path.$i") } } }
     }
 }
 
 /** [columns] equal columns, fewer where a column would be under 140 dp wide; [wide] caps the columns of a roomy screen (a KPI strip). */
 @Composable
-private fun ViewGrid(kids: List<ViewNode>, columns: Int, space: androidx.compose.ui.unit.Dp, alt: String, wide: Int = columns) {
+private fun ViewGrid(kids: List<ViewNode>, columns: Int, space: androidx.compose.ui.unit.Dp, alt: String, path: String, wide: Int = columns) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val fit = ((maxWidth + space) / (140.dp + space)).toInt().coerceAtLeast(1)
         val cols = minOf(maxOf(columns, if (maxWidth >= 480.dp) wide else 1), fit).coerceAtLeast(1)
         Column(verticalArrangement = Arrangement.spacedBy(space)) {
-            kids.chunked(cols).forEach { rowKids ->
+            kids.withIndex().chunked(cols).forEach { rowKids ->
                 Row(horizontalArrangement = Arrangement.spacedBy(space)) {
-                    rowKids.forEach { Box(Modifier.weight(1f)) { ViewBlock(it, alt) } }
+                    rowKids.forEach { (i, c) -> Box(Modifier.weight(1f)) { ViewBlock(c, alt, "$path.$i") } }
                     repeat(cols - rowKids.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
@@ -276,15 +332,15 @@ private fun ViewGrid(kids: List<ViewNode>, columns: Int, space: androidx.compose
 }
 
 @Composable
-private fun ViewTabs(n: ViewNode, alt: String) {
+private fun ViewTabs(n: ViewNode, alt: String, path: String) {
     val p = LocalPaper.current
-    val tabs = n.children.orEmpty().filter { it.type == "tab" }
+    val tabs = n.children.orEmpty().withIndex().filter { it.value.type == "tab" }
     if (tabs.isEmpty()) return
     var at by remember(n) { mutableStateOf(0) }
     val shown = at.coerceIn(0, tabs.lastIndex)
     Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-            tabs.forEachIndexed { i, t ->
+            tabs.forEachIndexed { i, (_, t) ->
                 val on = i == shown
                 Box(
                     Modifier.heightIn(min = 48.dp).clip(Radius.pill).background(if (on) p.fill else Color.Transparent)
@@ -293,12 +349,12 @@ private fun ViewTabs(n: ViewNode, alt: String) {
                 ) { Text(t.text("label").orEmpty(), color = if (on) p.text else p.muted, fontSize = Type.s14, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1) }
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) { tabs[shown].children.orEmpty().forEach { ViewBlock(it, alt) } }
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) { tabs[shown].let { (at, tab) -> tab.children.orEmpty().forEachIndexed { j, c -> ViewBlock(c, alt, "$path.$at.$j") } } }
     }
 }
 
 @Composable
-private fun ViewPanel(n: ViewNode, alt: String) {
+private fun ViewPanel(n: ViewNode, alt: String, path: String) {
     val p = LocalPaper.current
     var open by remember(n) { mutableStateOf(n.flag("open") == true) }
     Column {
@@ -310,7 +366,7 @@ private fun ViewPanel(n: ViewNode, alt: String) {
             Text(n.text("title").orEmpty(), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = null, tint = p.muted, modifier = Modifier.size(20.dp))
         }
-        if (open) Column(Modifier.padding(bottom = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) { n.children.orEmpty().forEach { ViewBlock(it, alt) } }
+        if (open) Column(Modifier.padding(bottom = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) { n.children.orEmpty().forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") } }
         Box(Modifier.fillMaxWidth().height(1.dp).background(p.line2))
     }
 }

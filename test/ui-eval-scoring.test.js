@@ -89,12 +89,31 @@ test('a prompt where prose is right passes when the skill was not picked and no 
   assert.deepEqual(refused.checks.filter((x) => x.ok === false).map((x) => x.id), ['drew', 'valid']);
 });
 
-test('the form case of wave 2 may be a view or a written list: the pick is not scored, a fence written still must be valid', () => {
-  const c = { id: 'form', view: 'either', wave: 2 };
-  assert.equal(score(c, { picked: false, reply: '1. Where to? 2. When? 3. Budget? 4. Who comes?' }).pass, true);
-  assert.equal(score(c, { picked: false, reply: '1. Where to?' }).checks.find((x) => x.id === 'picked').ok, null);
-  assert.equal(score(c, { picked: true, reply: `Fill in:\n${fence({ alt: 'Four questions.', root: { type: 'list', items: ['Where to?', 'When?', 'Budget?', 'Who comes?'], ordered: true } })}` }).pass, true);
+const FORM = { alt: 'Four questions for the trip.', root: { type: 'stack', children: [
+  { type: 'text-input', label: 'Destination' }, { type: 'text-input', label: 'Dates' }, { type: 'number', label: 'Budget', unit: 'EUR' }, { type: 'number', label: 'People', min: 1 },
+] } };
+
+test('the form case is scored now that inputs exist: the skill picked and a view with inputs drawn, not a written list', () => {
+  const c = CASES.find((x) => x.id === 'four-field-form');
+  assert.equal(c.view, true);
+  assert.deepEqual(c.fits, ['text-input', 'textarea', 'number', 'slider', 'range', 'select', 'multi-select', 'radio', 'checkbox', 'toggle', 'date', 'time', 'rating', 'segmented']);
+  assert.equal(c.wave, undefined, 'no longer "wave 2, not scored"');
+  const good = score(c, { picked: true, reply: `Tell me these four.\n${fence(FORM)}` });
+  assert.equal(good.pass, true);
+  assert.equal(good.checks.find((x) => x.id === 'picked').ok, true);
+  assert.equal(good.checks.find((x) => x.id === 'fit').ok, true);
+  // A written list is no longer enough, and neither is a view of text with no input in it.
+  const list = score(c, { picked: false, reply: '1. Where to? 2. When? 3. Budget? 4. Who comes?' });
+  assert.deepEqual(list.checks.filter((x) => x.ok === false).map((x) => x.id), ['picked', 'drew', 'fit']);
+  const noInputs = score(c, { picked: true, reply: `Fill in:\n${fence({ alt: 'Four questions.', root: { type: 'list', items: ['Where to?', 'When?', 'Budget?', 'Who comes?'], ordered: true } })}` });
+  assert.deepEqual(noInputs.checks.filter((x) => x.ok === false).map((x) => x.id), ['fit']);
   assert.equal(score(c, { picked: true, reply: fence('{ nope') }).pass, false);
+});
+
+test('a case still marked "either" is not scored on the pick (the scoring keeps that rule for later waves)', () => {
+  const c = { id: 'x', view: 'either', wave: 3 };
+  assert.equal(score(c, { picked: false, reply: 'A list.' }).pass, true);
+  assert.equal(score(c, { picked: false, reply: 'A list.' }).checks.find((x) => x.id === 'picked').ok, null);
 });
 
 test('a run that did not finish is reported as an error, not as a failed case', () => {
@@ -122,12 +141,12 @@ test('the report names each case, how the skill was picked and every fence check
   assert.match(md, /fact · picked/);
 });
 
-test('its cases: two where a view is right, the form of wave 2 where either will do, three where prose is right', () => {
+test('its cases: three where a view is right (the form among them), three where prose is right', () => {
   assert.deepEqual(CASES.map((c) => c.id), ['compare-three', 'time-series', 'four-field-form', 'one-line-fact', 'apology', 'yes-no']);
   const ids = new Set(CASES.map((c) => c.id));
   assert.equal(ids.size, CASES.length);
-  assert.deepEqual(CASES.filter((c) => c.view === true).map((c) => c.id), ['compare-three', 'time-series']);
-  assert.deepEqual(CASES.filter((c) => c.view === 'either').map((c) => [c.id, c.wave]), [['four-field-form', 2]]);
+  assert.deepEqual(CASES.filter((c) => c.view === true).map((c) => c.id), ['compare-three', 'time-series', 'four-field-form']);
+  assert.deepEqual(CASES.filter((c) => c.view === 'either').map((c) => c.id), []);
   assert.deepEqual(CASES.filter((c) => c.view === false).map((c) => c.id), ['one-line-fact', 'apology', 'yes-no']);
   const catalog = require('../lib/ui-catalog.json');
   for (const c of CASES) {

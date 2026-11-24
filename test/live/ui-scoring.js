@@ -5,7 +5,7 @@
 // the Skill tool (from the run's events), and every ```ui fence of its reply, read by the very validator the apps
 // use (public/answer-view.js with lib/ui-catalog.json). A prompt where a view is right (`view: true`) should have the
 // skill picked and a valid view that fits it; one where prose is right (`view: false`) should have neither the skill
-// nor a fence; one marked `view: 'either'` (the form, until wave 2 has inputs) is not scored on the pick, and a fence
+// nor a fence; one marked `view: 'either'` (for a wave not drawn yet) is not scored on the pick, and a fence
 // written there must still be valid.
 
 const catalog = require('../../lib/ui-catalog.json');

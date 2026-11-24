@@ -3906,6 +3906,62 @@ h3.av-heading { font-size: var(--fs-16); }
 .av-link-t small { color: var(--faint); font-size: var(--fs-12); }
 .av-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .av a:focus-visible, .av summary:focus-visible, .av-tab:focus-visible, .av-tabpanel:focus-visible, .av video:focus-visible, .av audio:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Answer views, wave 2 (#1627, ADR 265): inputs, buttons, links and Copy. Real controls in the page's own look; read-only (disabled)
+   until the chat opens the newest bot message's views. */
+.av-field { display: flex; flex-direction: column; gap: var(--sp-4); width: min(100%, 440px); min-width: 0; margin: 0; padding: 0; border: 0; font-size: var(--fs-14); }
+.av-label { display: flex; justify-content: space-between; gap: var(--sp-12); padding: 0; color: var(--muted); font-size: var(--fs-12); }
+.av-out { color: var(--text); font-variant-numeric: tabular-nums; }
+.av-in:is(input[type="date"], input[type="time"]) { width: 100%; background: var(--raise-2); border: 0; box-shadow: var(--sink); border-radius: var(--r-14); padding: var(--sp-8) var(--sp-12); color: var(--text); }
+.av-in:disabled { cursor: not-allowed; opacity: .7; }
+textarea.av-in { resize: vertical; min-height: 0; }
+.av-with { display: flex; align-items: center; gap: var(--sp-8); }
+.av-with > .av-in { flex: 1; min-width: 0; }
+.av-unit { flex: none; color: var(--muted); white-space: nowrap; }
+input[type="range"].av-in { width: 100%; accent-color: var(--text); }
+.av-pair { display: grid; gap: var(--sp-8); }
+.av-opts { display: flex; flex-direction: column; gap: var(--sp-8); }
+.av-opt, .av-check { display: flex; align-items: center; gap: var(--sp-8); cursor: pointer; }
+.av-check { flex-direction: row; }
+.av-opt:has(input:disabled), .av-check:has(input:disabled) { cursor: not-allowed; }
+.av-seg .av-opts { flex-direction: row; flex-wrap: wrap; gap: var(--sp-4); align-self: flex-start; padding: var(--sp-4); border-radius: var(--r-pill); background: var(--sunk); }
+.av-seg .av-opt { position: relative; }
+.av-seg .av-opt input.av-in { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: inherit; }
+.av-seg .av-opt span { padding: var(--sp-4) var(--sp-16); border-radius: var(--r-pill); color: var(--muted); }
+.av-seg .av-opt:has(input:checked) span { background: var(--raise-2); box-shadow: var(--lift); color: var(--text); font-weight: 600; }
+.av-seg .av-opt:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--r-pill); }
+.av-toggle input { appearance: none; flex: none; width: calc(var(--sp-32) + var(--sp-4)); height: calc(var(--sp-16) + var(--sp-4)); margin: 0; border-radius: var(--r-pill); background: var(--line-2); position: relative; cursor: inherit; transition: background .15s cubic-bezier(.22, 1, .36, 1); }
+.av-toggle input::before { content: ""; position: absolute; top: 2px; left: 2px; width: var(--sp-16); height: var(--sp-16); border-radius: 50%; background: var(--bg); transition: transform .15s cubic-bezier(.22, 1, .36, 1); }
+.av-toggle input:checked { background: var(--ink); }
+.av-toggle input:checked::before { transform: translateX(var(--sp-16)); }
+.av-toggle input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.av-rating .av-opts { flex-direction: row; gap: var(--sp-4); }
+.av-star { position: relative; display: inline-flex; cursor: pointer; }
+.av-star input.av-in { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: inherit; }
+.av-star svg { width: var(--sp-24); height: var(--sp-24); fill: none; stroke: var(--faint); stroke-width: 1.5; stroke-linejoin: round; }
+.av-star:has(:checked) svg, .av-star:has(~ .av-star :checked) svg { fill: var(--warn); stroke: var(--warn); }
+.av-star:has(:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--r-8); }
+.av-star:has(:disabled) { cursor: default; }
+.av-actions { margin-top: var(--sp-12); }
+.av[data-av-act]:not([data-av-state]) .av-actions { display: none; } /* a chat that does not send (a room's) has no Send to press */
+.av-sent { margin-top: var(--sp-8); color: var(--muted); font-size: var(--fs-12); white-space: pre-line; overflow-wrap: anywhere; }
+.av-btns { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.av-btn, .av-ln, .av-copy, .av-send { align-self: flex-start; white-space: normal; text-align: center; max-width: 100%; }
+.chat-thread .bubble.from-bot .md .av a.av-ln { text-decoration: none; }
+.av-btn.t-accent { background: var(--ink); color: var(--ink-text); }
+.av-btn.t-good { color: var(--ok-text); }
+.av-btn.t-warn { color: var(--warn-text); }
+.av-btn.t-bad { color: var(--err); }
+.av-btn:disabled { cursor: not-allowed; }
+.av-btn:has(.av-btn-say) { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-4); text-align: left; }
+.av-btn-say { font-size: var(--fs-12); font-weight: 400; opacity: 0.85; overflow-wrap: anywhere; }
+.av-field :is(input, select, textarea):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.av .av-field input[type="checkbox"].av-in:focus-visible, .av .av-field input[type="radio"].av-in:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .av-btn, .av-ln, .av-copy, .av-send { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .av-toggle input, .av-toggle input::before { transition: none; }
+}
 @media (max-width: 600px) {
   .av-grid.pb-grid { grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr)); }
   .av-grid.pb-grid:has(> .pb-card .kit-chart), .av-grid.pb-grid:has(> .av-chart), .av-grid.pb-grid:has(> .av-block) { grid-template-columns: minmax(0, 1fr); }

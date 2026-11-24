@@ -1507,5 +1507,6 @@
     "one": "{n} bot go ma",
     "few": "{n} boty go mają",
     "many": "{n} botów go ma"
-  }
+  },
+  "{label}, opens in the browser": "{label}, otwiera się w przeglądarce"
 }
