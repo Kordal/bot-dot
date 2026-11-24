@@ -13,8 +13,11 @@ const TOOLS = [
 ];
 
 // opts: { key (the token it insists on, as a bearer token), header (insists on the key in this header, as it is), sse (answers as a stream),
-//   echoKey (a server that puts the key it was given in every tool's name, description, schema and title, as a careless one could) }
+//   echoKey (a server that puts the key it was given in every tool's name, description, schema and title, as a careless one could),
+//   delay (a slow server: { 'tools/list': ms, create_note: ms, … }, a pause before the answer to that method or that tool's call; the
+//   object is given back as `delay`, so a test can change it) }
 async function fakeMcpRemote(opts = {}) {
+  const delay = opts.delay || {};
   const calls = []; // what tools/call got: { name, arguments, auth, session }
   const seen = []; // every request: { method, headers }
   const sessions = new Set();
@@ -34,6 +37,12 @@ async function fakeMcpRemote(opts = {}) {
       try { msg = JSON.parse(raw); } catch { res.statusCode = 400; return res.end('bad json'); }
       if (msg.id === undefined) { res.statusCode = 202; return res.end(); } // a notification
       const answer = (result) => {
+        const wait = delay[msg.method === 'tools/call' ? msg.params?.name : msg.method];
+        if (wait) return setTimeout(() => reply(result), wait);
+        reply(result);
+      };
+      const reply = (result) => {
+        if (res.destroyed) return;
         const body = { jsonrpc: '2.0', id: msg.id, result };
         if (msg.method === 'initialize') { const id = `s-${sessions.size + 1}-${Math.random().toString(16).slice(2, 8)}`; sessions.add(id); res.setHeader('Mcp-Session-Id', id); }
         if (opts.sse) {
@@ -66,7 +75,7 @@ async function fakeMcpRemote(opts = {}) {
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}/mcp`;
-  return { url, calls, seen, sessions, close: () => { server.closeAllConnections?.(); server.close(); } };
+  return { url, calls, seen, sessions, delay, close: () => { server.closeAllConnections?.(); server.close(); } };
 }
 
 module.exports = { fakeMcpRemote, TOOLS };
