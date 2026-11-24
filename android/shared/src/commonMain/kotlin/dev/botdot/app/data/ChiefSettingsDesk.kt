@@ -21,6 +21,10 @@ class ChiefSettingsState(
     /** Its model and reasoning, with Advanced on; [effort] only for a model that reasons. */
     val advanced: Boolean = false,
     val model: String = "",
+    /** The model as its row says it, with its provider when it is not Claude's (ADR 267); "" for none picked. */
+    val modelName: String = "",
+    /** The server lists every connected provider's models (ADR 267): the picker is grouped and searchable. */
+    val grouped: Boolean = false,
     val effort: String = "",
     val thinks: Boolean = true,
     val models: List<Option> = emptyList(),
@@ -216,8 +220,9 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
         _state.value = ChiefSettingsState(
             loaded = loaded && settingsRead, failed = tried && !settingsRead, name = name,
             advanced = Advanced.on.value,
-            model = shown, effort = info.shownEffort(edit.chiefEffort, model), thinks = info.canThink(model),
-            models = listOf(Option("", tr("Same as the default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) },
+            model = shown, modelName = if (shown.isEmpty()) "" else info.modelLabel(shown), grouped = info.mixed,
+            effort = info.shownEffort(edit.chiefEffort, model), thinks = info.canThink(model),
+            models = listOf(Option("", tr("Same as the default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }, it.group) },
             efforts = listOf(Option("", tr("Same as the default"))) + info.availableEfforts(model).map { Option(it.id, it.label) },
             rules = edit.chiefRules,
             // The ones it has come first, as saved, so rows don't jump while they are ticked.

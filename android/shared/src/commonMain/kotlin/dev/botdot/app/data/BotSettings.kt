@@ -31,7 +31,8 @@ fun withIcon(outfit: JsonElement?, icon: String): JsonElement? =
     if (icon.isEmpty()) outfit else JsonObject(((outfit as? JsonObject) ?: JsonObject(emptyMap())) + ("icon" to JsonPrimitive(icon)))
 
 /** One choice of a picker: its wire value and its words. */
-data class Option(val id: String, val label: String)
+/** One choice of a picker; [group] heads the models of one provider (ADR 267) in a picker that shows groups. */
+data class Option(val id: String, val label: String, val group: String? = null)
 
 /**
  * A bot's settings as they are being edited: they start as the bot's own ([BotSettings.draft]), and what differs from
@@ -180,7 +181,7 @@ object BotSettings {
     fun canThink(models: List<ModelChoice>, model: String): Boolean = models.firstOrNull { it.id == model }?.effort ?: true
 
     /** The choices of a bot's Model, its own default first. */
-    fun models(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) }
+    fun models(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }, it.group) }
 
     /** The choices of a bot's Reasoning, its own default first. */
     fun efforts(info: SettingsInfo, model: String = info.settings.defaultModel): List<Option> =

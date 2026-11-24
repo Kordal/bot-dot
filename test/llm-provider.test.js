@@ -51,7 +51,7 @@ let url;
 before(async () => {
   await new Promise((r) => stand.listen(0, '127.0.0.1', r));
   url = `http://127.0.0.1:${stand.address().port}`;
-  srv = await startServer({});
+  srv = await startServer({ env: { CLAUDE_CODE_OAUTH_TOKEN: 'subscription-token' } }); // the Claude connection: a run on it has the token, one on a provider has none
 });
 after(async () => { await srv?.stop(); stand.closeAllConnections(); stand.close(); });
 
@@ -145,11 +145,12 @@ test('Settings show OpenCode Go\'s levels from the saved catalog, with no reques
   try {
     const settings = settingsLib.create(dir, {});
     const provider = providers.clean({ preset: 'opencode-go', key: KEY, big: 'deepseek-v4-pro', small: 'deepseek-v4.1-flash' });
-    const write = (catalog) => fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { ...provider, key: undefined, ...(catalog ? { catalog } : {}) } }));
+    const write = (catalog) => fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ providers: { 'opencode-go': { ...provider, key: undefined, ...(catalog ? { catalog } : {}) } } }));
+    const mine = () => settings.choices().models.filter((m) => m.provider === 'opencode-go');
     // Saved before this was kept: no levels, as before, and no --effort.
     write(null);
-    assert.ok(settings.choices().models.every((m) => m.effort === false));
-    const none = settings.choices().models[0].id;
+    assert.ok(mine().every((m) => m.effort === false));
+    const none = mine()[0].id;
     assert.deepEqual(settings.args({ model: none, effort: 'high' }), ['--model', 'deepseek-v4-pro']);
 
     write({ checkedAt: null, limited: false, models: [
@@ -157,11 +158,11 @@ test('Settings show OpenCode Go\'s levels from the saved catalog, with no reques
       { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', efforts: ['low', 'high', 'max'] },
       { id: 'minimax-m3', label: 'MiniMax M3', efforts: [] },
     ] });
-    const { models, efforts } = settings.choices();
+    const models = mine();
     assert.deepEqual(models.map((m) => [m.label, m.effort, m.efforts]), [
       ['DeepSeek V4 Pro', true, ['high', 'max']], ['DeepSeek V4.1 Flash', true, ['low', 'high', 'max']], ['MiniMax M3', false, []],
     ]);
-    assert.deepEqual(efforts.map((e) => e.id), ['low', 'high', 'max']);
+    assert.deepEqual(settings.choices().efforts.map((e) => e.id), ['low', 'medium', 'high', 'xhigh', 'max'], 'Claude\'s levels stay: they are the union');
     const [pro, flash] = models.map((m) => m.id);
     assert.deepEqual(settings.args({ model: models[2].id, effort: 'high' }), ['--model', 'minimax-m3']);
     assert.deepEqual(settings.args({ model: flash, effort: 'low' }), ['--model', 'deepseek-v4.1-flash', '--effort', 'low']);
@@ -183,13 +184,13 @@ test('refreshing the saved OpenCode Go catalog gives an already saved provider i
   try {
     const claudeKey = require('../lib/claude-key').create(dir);
     await claudeKey.saveProvider({ preset: 'opencode-go', key: KEY, big: 'deepseek-v4-pro', small: 'deepseek-v4.1-flash' }, { fetchImpl: async () => Response.json({}) });
-    assert.equal(claudeKey.providerModels().catalog, undefined, 'saved without levels, as before');
-    assert.deepEqual(providers.effortsFor(claudeKey.providerModels(), 'deepseek-v4.1-flash'), []);
+    assert.equal(claudeKey.providerModels('opencode-go').catalog, undefined, 'saved without levels, as before');
+    assert.deepEqual(providers.effortsFor(claudeKey.providerModels('opencode-go'), 'deepseek-v4.1-flash'), []);
 
     const listed = await claudeKey.providerCatalog({ preset: 'opencode-go', key: KEY });
     assert.deepEqual(listed.models[0], { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash' }, 'the setup answer stays { id, label }');
-    await claudeKey.refreshActiveProviderCatalog();
-    const saved = claudeKey.providerModels();
+    await claudeKey.refreshProviderCatalog('opencode-go');
+    const saved = claudeKey.providerModels('opencode-go');
     assert.deepEqual(providers.effortsFor(saved, 'deepseek-v4.1-flash'), ['low', 'high', 'max']);
     assert.deepEqual(providers.effortsFor(saved, 'deepseek-v4-pro'), ['high', 'max']);
     assert.deepEqual(providers.effortsFor(saved, 'minimax-m3'), []);
@@ -198,8 +199,8 @@ test('refreshing the saved OpenCode Go catalog gives an already saved provider i
 
     // The catalog is down: the list is incomplete, the saved choices are added without levels, and keep what they had.
     up = false;
-    await claudeKey.refreshActiveProviderCatalog();
-    const after = claudeKey.providerModels();
+    await claudeKey.refreshProviderCatalog('opencode-go');
+    const after = claudeKey.providerModels('opencode-go');
     assert.equal(after.catalog.limited, true);
     assert.deepEqual(providers.effortsFor(after, 'deepseek-v4.1-flash'), ['low', 'high', 'max']);
     assert.deepEqual(providers.effortsFor(after, 'deepseek-v4-pro'), ['high', 'max']);
@@ -207,8 +208,8 @@ test('refreshing the saved OpenCode Go catalog gives an already saved provider i
     // A model whose levels the catalog now drops has none.
     up = true;
     GO_MODELS.data[0].capabilities.reasoning = { supported: false };
-    await claudeKey.refreshActiveProviderCatalog();
-    assert.deepEqual(providers.effortsFor(claudeKey.providerModels(), 'deepseek-v4.1-flash'), []);
+    await claudeKey.refreshProviderCatalog('opencode-go');
+    assert.deepEqual(providers.effortsFor(claudeKey.providerModels('opencode-go'), 'deepseek-v4.1-flash'), []);
   } finally {
     GO_MODELS.data[0].capabilities.reasoning = { supported: true, effort: ['low', 'high', 'max'] };
     globalThis.fetch = realFetch; fs.rmSync(dir, { recursive: true, force: true });
@@ -234,15 +235,16 @@ test('a key the provider refuses, a model it does not know, a bad address or no 
 test('a saved provider is checked with a real request, kept encrypted and answered only as its last four', async () => {
   const r = await save({ key: `  ${KEY}\n` });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.data.claude.provider, { preset: 'custom', name: 'Other', key: '…wxyz', big: 'big-model', small: 'small-model', url });
-  assert.deepEqual([r.data.claude.using, r.data.claude.loggedIn, r.data.claude.subscription], ['provider', true, true]);
+  assert.deepEqual(r.data.claude.providers, [{ preset: 'custom', name: 'Other', key: '…wxyz', big: 'big-model', small: 'small-model', url }]);
+  assert.deepEqual([r.data.claude.using, r.data.claude.provider], ['subscription', null], 'saving a provider moves nothing: the account default is still Claude');
   const check = asked.find((a) => a.auth === `Bearer ${KEY}` && a.model === 'small-model');
   assert.deepEqual([check.method, check.url, check.max], ['POST', '/v1/messages', 16]);
   assert.doesNotMatch(JSON.stringify((await srv.api('/setup')).data), /sk-provider/, 'no answer holds the key');
   const file = path.join(srv.data, 'claude-key.json');
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-  assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(file, 'utf8')).provider.key).sort(), ['ct', 'iv', 'tag']);
+  assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(file, 'utf8')).providers.custom.key).sort(), ['ct', 'iv', 'tag']);
   assert.doesNotMatch(everything(), new RegExp(KEY), 'neither the log nor any file in the data folder holds it in the clear');
+  assert.deepEqual((await srv.api('/settings')).data.models.filter((m) => m.group === 'Other').map((m) => m.id), ['provider:custom:big-model', 'provider:custom:small-model']);
 });
 
 test('saved choices and the saved key work at the same address only', async () => {
@@ -261,15 +263,21 @@ test('saved choices and the saved key work at the same address only', async () =
     assert.equal((await list({ preset: 'custom', url, key: REFUSED, reuseKey: true })).status, 400);
   } finally { catalogAvailable = true; }
   assert.equal((await save({ key: '', reuseKey: true })).status, 200);
+  assert.equal((await claude()).provider, null, 'and saving it again picks nothing');
 });
 
-test('runs and Chief turns go to the provider with its models, and get no subscription token', async () => {
+test('runs and Chief turns on a provider\'s model go to the provider with its models, and get no subscription token', async () => {
+  const set = await srv.api('/settings', { method: 'PUT', body: { defaultModel: 'provider:custom:big-model' } });
+  assert.equal(set.status, 200);
+  const c = await claude();
+  assert.deepEqual([c.using, c.provider.preset, c.loggedIn], ['provider', 'custom', true], 'the apps that knew one provider read the account default\'s');
   const bot = await makeBot(srv, { name: 'On The Provider' });
   const run = await runOf(bot, 'with the provider');
   assert.equal(run.anthropic.ANTHROPIC_BASE_URL, url);
   assert.equal(run.anthropic.ANTHROPIC_AUTH_TOKEN, KEY);
   assert.equal(run.anthropic.ANTHROPIC_API_KEY, '');
   assert.deepEqual([run.anthropic.ANTHROPIC_MODEL, run.anthropic.ANTHROPIC_DEFAULT_OPUS_MODEL, run.anthropic.ANTHROPIC_DEFAULT_SONNET_MODEL, run.anthropic.ANTHROPIC_DEFAULT_HAIKU_MODEL], ['big-model', 'big-model', 'big-model', 'small-model']);
+  assert.equal(run.args[run.args.indexOf('--model') + 1], 'big-model');
   assert.equal(run.env.CLAUDE_CODE_OAUTH_TOKEN, undefined, 'no subscription token beside it');
   assert.equal(run.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS, '1');
   assert.equal(run.apiKey, null);
@@ -282,46 +290,44 @@ test('runs and Chief turns go to the provider with its models, and get no subscr
   assert.equal(turn.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
 });
 
-test('a model a bot asks for is the provider\'s, and no reasoning level is passed', async () => {
+test('a Claude model a bot asks for runs on Claude, a provider\'s on the provider, and no reasoning level is passed where it has none', async () => {
   const bot = await makeBot(srv, { name: 'Picks Model' });
   await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { model: 'opus', effort: 'high' } });
-  const run = await runOf(bot, 'opus on the provider');
-  const at = run.args.indexOf('--model');
-  assert.equal(run.args[at + 1], 'big-model');
-  assert.ok(!run.args.includes('--effort'));
-  await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { model: 'claude-haiku-5-5' } });
-  const small = await runOf(bot, 'haiku on the provider');
+  const claudeRun = await runOf(bot, 'opus stays on Claude');
+  assert.equal(claudeRun.args[claudeRun.args.indexOf('--model') + 1], 'opus');
+  assert.deepEqual(claudeRun.anthropic, {}, 'no provider variable on a Claude run');
+  assert.equal(claudeRun.env.CLAUDE_CODE_OAUTH_TOKEN, 'subscription-token', 'it is on the subscription');
+  await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { model: 'provider:custom:small-model', effort: 'high' } });
+  const small = await runOf(bot, 'small model on the provider');
   assert.equal(small.args[small.args.indexOf('--model') + 1], 'small-model');
+  assert.ok(!small.args.includes('--effort'), 'this model has no levels');
+  assert.equal(small.anthropic.ANTHROPIC_BASE_URL, url);
 });
 
-test('the owner picks which one runs use, and removing the provider goes back to the subscription', async () => {
-  const bot = await makeBot(srv, { name: 'Switches Provider' });
-  const sub = await srv.api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } });
-  assert.deepEqual([sub.status, sub.data.claude.using, sub.data.claude.provider.key], [200, 'subscription', '…wxyz'], 'the provider stays saved');
-  assert.deepEqual((await runOf(bot, 'back on the subscription')).anthropic, {});
-
-  assert.equal((await srv.api('/setup/claude/use', { method: 'PUT', body: { use: 'provider' } })).data.claude.using, 'provider');
-  assert.equal((await runOf(bot, 'on the provider again')).anthropic.ANTHROPIC_BASE_URL, url);
-
-  const gone = await srv.api('/setup/claude/provider', { method: 'DELETE' });
-  assert.deepEqual([gone.status, gone.data.claude.using, gone.data.claude.provider], [200, 'subscription', null]);
-  assert.deepEqual((await runOf(bot, 'provider removed')).anthropic, {});
+test('a model of a removed provider falls back to the account default, and the account default of a removed provider to Claude', async () => {
+  const bot = await makeBot(srv, { name: 'Switches Provider', model: 'provider:custom:small-model' });
+  assert.equal((await runOf(bot, 'on the provider')).anthropic.ANTHROPIC_BASE_URL, url);
+  const gone = await srv.api('/setup/claude/provider/custom', { method: 'DELETE' });
+  assert.deepEqual([gone.status, gone.data.claude.using, gone.data.claude.provider, gone.data.claude.providers], [200, 'subscription', null, []]);
+  const after = await runOf(bot, 'provider removed');
+  assert.deepEqual(after.anthropic, {}, 'the account default was the removed provider\'s: Claude');
+  assert.ok(!after.args.includes('--model'));
   const none = await srv.api('/setup/claude/use', { method: 'PUT', body: { use: 'provider' } });
-  assert.deepEqual([none.status, none.data.error], [400, 'Save a provider first.']);
+  assert.deepEqual([none.status, none.data.error], [400, 'Choose "api-key" or "subscription". A provider\'s models are picked in Settings → Model.']);
+  assert.equal((await srv.api('/settings', { method: 'PUT', body: { defaultModel: '' } })).status, 200);
 });
 
 test('a keyless provider (Ollama on this machine) is saved without a key', async () => {
   const r = await srv.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'ollama', url, big: 'big-model', small: 'small-model' } });
   assert.equal(r.status, 200);
-  assert.deepEqual([r.data.claude.using, r.data.claude.provider.key], ['provider', null]);
-  const { models, efforts, provider } = (await srv.api('/settings')).data;
-  assert.equal(provider.refreshable, true);
-  assert.deepEqual(models.map((model) => model.efforts), [['low', 'high'], []]);
-  assert.deepEqual(efforts.map((effort) => effort.id), ['low', 'high']);
+  assert.deepEqual([r.data.claude.using, r.data.claude.providers[0].key], ['subscription', null]);
+  const { models, providers: connected } = (await srv.api('/settings')).data;
+  assert.deepEqual(connected, [{ preset: 'ollama', name: 'Ollama', refreshable: true }]);
+  assert.deepEqual(models.filter((model) => model.group === 'Ollama').map((model) => model.efforts), [['low', 'high'], []]);
   assert.equal((await srv.api('/settings/refresh-models', { method: 'POST' })).status, 200);
-  const run = await runOf(await makeBot(srv, { name: 'Local Model' }), 'keyless');
+  const run = await runOf(await makeBot(srv, { name: 'Local Model', model: 'provider:ollama:big-model' }), 'keyless');
   assert.equal(run.anthropic.ANTHROPIC_AUTH_TOKEN, 'none');
-  await srv.api('/setup/claude/provider', { method: 'DELETE' });
+  await srv.api('/setup/claude/provider/ollama', { method: 'DELETE' });
 });
 
 test('a failed reasoning refresh reports the error and keeps the last known levels', async () => {
@@ -332,12 +338,12 @@ test('a failed reasoning refresh reports the error and keeps the last known leve
     const refresh = await srv.api('/settings/refresh-models', { method: 'POST' });
     assert.deepEqual([refresh.status, refresh.data.error], [502, "Couldn't refresh the provider's reasoning levels."]);
     const { models } = (await srv.api('/settings')).data;
-    assert.deepEqual(models.map((model) => model.efforts), [['low', 'high'], []]);
+    assert.deepEqual(models.filter((model) => model.group === 'Ollama').map((model) => model.efforts), [['low', 'high'], []]);
     reasoningAvailable = true;
     assert.equal((await srv.api('/settings/refresh-models', { method: 'POST' })).status, 200);
   } finally {
     reasoningAvailable = true;
-    await srv.api('/setup/claude/provider', { method: 'DELETE' });
+    await srv.api('/setup/claude/provider/ollama', { method: 'DELETE' });
   }
 });
 
@@ -369,15 +375,17 @@ test('the models of a preset are its own unless the owner names others, and a sm
   assert.throws(() => providers.cleanUrl('https://user:pw@example.com/x'));
 });
 
-test('settings.args turns a model into the provider\'s only while a provider is picked', () => {
+test('settings.args sends a provider\'s model by its own name and anything else as Claude\'s, whatever is saved', () => {
   const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'llm-args-'));
   try {
     const settings = settingsLib.create(dir, {});
     assert.deepEqual(settings.args({ model: 'opus', effort: 'high' }), ['--model', 'opus', '--effort', 'high'], 'as before without a provider');
-    fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { url: 'https://x.example', big: 'b', small: 's' } }));
-    assert.deepEqual(settings.args({ model: 'sonnet', effort: 'high' }), ['--model', 'b']);
-    assert.deepEqual(settings.args({ model: 'haiku', effort: '' }), ['--model', 's']);
-    assert.deepEqual(settings.args({ model: '', effort: 'high' }), [], 'no model: the provider\'s default in ANTHROPIC_MODEL');
+    fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ providers: { custom: { preset: 'custom', url: 'https://x.example', big: 'b', small: 's' } } }));
+    assert.deepEqual(settings.args({ model: 'sonnet', effort: 'high' }), ['--model', 'sonnet', '--effort', 'high'], 'a Claude name is Claude\'s: a provider saved beside it changes nothing');
+    assert.deepEqual(settings.args({ model: 'provider:custom:s', effort: 'high' }), ['--model', 's'], 'a provider\'s model by its own name, no level it has none of');
+    assert.deepEqual(settings.args({ model: 'provider:custom:nope', effort: '' }), [], 'a model it does not have is nobody\'s');
+    assert.deepEqual(settings.args({ model: 'provider:glm:glm-5.3', effort: '' }), [], 'nor one of a provider that is not saved');
+    assert.deepEqual(settings.args({ model: '', effort: '' }), []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -400,42 +408,45 @@ test('the Model row can discover and select models beyond provider setup', async
   } finally {
     catalogAvailable = true;
     await srv.api('/settings', { method: 'PUT', body: { defaultModel: '' } });
-    await srv.api('/setup/claude/provider', { method: 'DELETE' });
+    await srv.api('/setup/claude/provider/custom', { method: 'DELETE' });
   }
 });
 
-test('Settings offers the active provider’s models and uses a bot’s explicit selection', async () => {
+test('Settings offers every connected provider\'s models beside Claude\'s and uses a bot\'s explicit selection', async () => {
   assert.equal((await save({})).status, 200);
   try {
-    const { models, efforts, provider } = (await srv.api('/settings')).data;
-    assert.deepEqual(models.map((m) => m.label), ['big-model', 'small-model']);
-    assert.deepEqual(efforts, []);
-    const bot = await makeBot(srv, { name: 'Chooses Small', model: provider.helper });
+    const { models, providers: connected } = (await srv.api('/settings')).data;
+    assert.equal(models[0].group, 'Always the newest', 'Claude first');
+    assert.deepEqual(models.filter((m) => m.group === 'Other').map((m) => m.label), ['big-model', 'small-model']);
+    assert.deepEqual(connected, [{ preset: 'custom', name: 'Other', refreshable: false }]);
+    const helper = 'provider:custom:small-model';
+    const bot = await makeBot(srv, { name: 'Chooses Small', model: helper });
     const run = await runOf(bot, 'use the selected provider model');
     assert.equal(run.args[run.args.indexOf('--model') + 1], 'small-model');
     assert.equal((await save({ small: 'big-model' })).status, 200);
     const changed = await runOf(bot, 'fall back after the selected model is removed');
     assert.ok(!changed.args.includes('small-model'));
-    assert.equal(changed.anthropic.ANTHROPIC_MODEL, 'big-model');
-    await srv.api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } });
+    assert.deepEqual(changed.anthropic, {}, 'its model is gone and the account default is Claude: Claude\'s run');
+    await srv.api('/setup/claude/provider/custom', { method: 'DELETE' });
     const fallback = await runOf(bot, 'fall back to Claude');
-    assert.ok(!fallback.args.includes(provider.helper));
+    assert.ok(!fallback.args.includes(helper));
     assert.ok(!fallback.args.includes('small-model'));
-  } finally { await srv.api('/setup/claude/provider', { method: 'DELETE' }); }
+  } finally { await srv.api('/setup/claude/provider/custom', { method: 'DELETE' }); }
 });
 
 test('provider reasoning levels are applied only to models that accept them', () => {
   const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'llm-effort-'));
   try {
     const settings = settingsLib.create(dir, {});
+    const keep = (...saved) => fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ providers: Object.fromEntries(saved.map((p) => [p.preset, { ...p, key: undefined }])) }));
     for (const [preset, big, small] of [
       ['deepseek', 'deepseek-v4-pro', 'deepseek-flash'],
       ['glm', 'glm-5.3', 'glm-5.3-flash'],
     ]) {
       const provider = providers.clean({ preset, key: KEY, big, small });
-      fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { ...provider, key: undefined } }));
+      keep(provider);
       const { efforts, models } = settings.choices();
-      assert.deepEqual(efforts.map((e) => e.id), ['low', 'high', 'max']);
+      assert.ok(['low', 'high', 'max'].every((level) => efforts.some((e) => e.id === level)));
       const model = models.find((m) => m.label === small).id;
       const args = settings.args({ model, effort: 'max' });
       assert.deepEqual(args, ['--model', small, '--effort', 'max']);
@@ -447,9 +458,8 @@ test('provider reasoning levels are applied only to models that accept them', ()
       settings.update({ defaultEffort: 'high' });
       assert.deepEqual(settings.forBot({ model, effort: 'medium' }), { model, effort: 'high' });
     }
-    const minimax = providers.clean({ preset: 'minimax', key: KEY });
-    fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { ...minimax, key: undefined } }));
-    const { models } = settings.choices();
+    keep(providers.clean({ preset: 'minimax', key: KEY }));
+    const models = settings.choices().models.filter((m) => m.provider === 'minimax');
     assert.deepEqual(models.map((m) => [m.label, m.effort]), [['MiniMax-M3', false], ['MiniMax-M3.1-Flash', true]]);
     assert.deepEqual(settings.args({ model: models[0].id, effort: 'high' }), ['--model', 'MiniMax-M3']);
     assert.deepEqual(settings.args({ model: models[1].id, effort: 'xhigh' }), ['--model', 'MiniMax-M3.1-Flash', '--effort', 'xhigh']);

@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,6 +39,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ClaudeStatus
+import dev.botdot.app.data.Option
 import dev.botdot.app.data.ProviderModel
 import dev.botdot.app.data.ProviderModelCatalog
 import dev.botdot.app.data.SetupInfo
@@ -51,13 +55,17 @@ internal fun ProviderSetupForm(
     setup: SetupInfo,
     hasCatalog: Boolean,
     onCancel: () -> Unit,
+    /** The status after saving. The server decides what runs, so the screen only reloads (ADR 267). */
     onSaved: (ClaudeStatus?) -> Unit,
 ) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val presets = setup.providers
-    val saved = setup.claude.provider
-    var preset by remember { mutableStateOf(presets.firstOrNull { it.id == saved?.preset } ?: presets.first()) }
+    val connected = setup.claude.savedProviders
+    fun savedOf(id: String) = connected.firstOrNull { it.preset == id }
+    // Another provider first (ADR 267): the first one not connected yet; with the older single provider, the saved one.
+    var preset by remember { mutableStateOf((if (setup.claude.mixed) presets.firstOrNull { savedOf(it.id) == null } else presets.firstOrNull { savedOf(it.id) != null }) ?: presets.first()) }
+    val saved = savedOf(preset.id)
     var key by remember { mutableStateOf("") }
     var address by remember { mutableStateOf(saved?.url.orEmpty()) }
     var catalog by remember { mutableStateOf<ProviderModelCatalog?>(null) }
@@ -77,7 +85,7 @@ internal fun ProviderSetupForm(
     val same = tr("Same as main model")
     val url = address.trim().takeIf { preset.askUrl }
     val savedKey = saved?.key?.takeIf {
-        hasCatalog && saved.preset == preset.id && (!preset.askUrl || url?.trimEnd('/') == saved.url)
+        hasCatalog && (!preset.askUrl || url?.trimEnd('/') == saved.url)
     }
     val reuseKey = key.isBlank() && savedKey != null
     val keyReady = preset.keyless || key.isNotBlank() || reuseKey
@@ -85,11 +93,11 @@ internal fun ProviderSetupForm(
 
     BackHandler(enabled = open != null && !saving) { open = null }
     Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Choice(tr("Provider"), preset.id, presets.map { it.id to if (it.custom) tr("Other") else it.name }) { id ->
+        Choice(tr("Provider"), preset.id, presets.map { it.id to (if (it.custom) tr("Other") else it.name) }) { id ->
             if (!busy && id != preset.id) {
                 preset = presets.first { it.id == id }
                 key = ""
-                address = saved?.takeIf { it.preset == id }?.url.orEmpty()
+                address = savedOf(id)?.url.orEmpty()
                 reset()
             }
         }
@@ -140,7 +148,7 @@ internal fun ProviderSetupForm(
                         scope.launch {
                             try {
                                 val result = if (hasCatalog) api.claudeProviderModels(chosen.id, enteredKey, url, reuseKey) else {
-                                    val previous = saved?.takeIf { it.preset == chosen.id && (it.url == null || it.url == url?.trimEnd('/')) }
+                                    val previous = savedOf(chosen.id)?.takeIf { it.url == null || it.url == url?.trimEnd('/') }
                                     val known = listOfNotNull(previous?.big, previous?.small, chosen.big, chosen.small).filter { it.isNotBlank() }.distinct()
                                     ProviderModelCatalog(known.map { ProviderModel(it, it) }, previous?.big ?: chosen.big, previous?.small ?: chosen.small)
                                 }
@@ -165,7 +173,8 @@ internal fun ProviderSetupForm(
                         open = null
                         scope.launch {
                             try {
-                                onSaved(api.claudeSaveProvider(chosen.id, enteredKey, url, main, helper.ifEmpty { main }, reuseKey))
+                                val chosenMain = main
+                                onSaved(api.claudeSaveProvider(chosen.id, enteredKey, url, chosenMain, helper.ifEmpty { chosenMain }, reuseKey))
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
@@ -190,34 +199,60 @@ internal fun ProviderSetupForm(
 
 private val modelWordBoundary = Regex("""[\s._:/-]+""")
 
+/**
+ * A model's picker (ADR 267): one list, its models under their provider's name (Claude's first), and a search box over
+ * it (name, ID and provider), shown from [searchFrom] models on.
+ */
 @Composable
-internal fun ModelOptions(models: List<ProviderModel>, selected: String, onSelect: (String) -> Unit) {
+internal fun ModelOptions(models: List<ProviderModel>, selected: String, searchFrom: Int = 0, onSelect: (String) -> Unit) {
     val p = LocalPaper.current
     var query by remember { mutableStateOf("") }
     val visible = remember(models, query) {
         val words = query.lowercase().split(modelWordBoundary).filter { it.isNotEmpty() }
         models.filter { model ->
-            val text = "${model.label} ${model.id}".lowercase()
+            val text = "${model.label} ${model.id} ${model.group.orEmpty()}".lowercase()
             words.all { it in text }
         }
     }
-    Field(query, { query = it }, label = { Text(tr("Search models")) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+    if (models.size >= searchFrom) Field(query, { query = it }, label = { Text(tr("Search models")) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { visible.singleOrNull()?.let { onSelect(it.id) } }))
     if (visible.isEmpty()) Text(tr("No models match your search."), color = p.muted)
     else LazyColumn(Modifier.heightIn(max = 224.dp)) {
-        items(visible, key = { it.id }) { model ->
+        itemsIndexed(visible, key = { _, model -> model.id }) { index, model ->
             val checked = model.id == selected
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    .selectable(checked, role = Role.RadioButton, onClick = { onSelect(model.id) })
-                    .padding(horizontal = Space.s12, vertical = Space.s8),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.s8),
-            ) {
-                Text(model.label, color = p.text, modifier = Modifier.weight(1f))
-                if (checked) Icon(Icons.Filled.Check, contentDescription = null, tint = p.text)
+            Column {
+                val heading = model.group
+                if (!heading.isNullOrBlank() && heading != visible.getOrNull(index - 1)?.group) {
+                    Text(heading, color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Space.s12, vertical = Space.s8))
+                }
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        .selectable(checked, role = Role.RadioButton, onClick = { onSelect(model.id) })
+                        .padding(horizontal = Space.s12, vertical = Space.s8),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Space.s8),
+                ) {
+                    Text(model.label, color = p.text, modifier = Modifier.weight(1f))
+                    if (checked) Icon(Icons.Filled.Check, contentDescription = null, tint = p.text)
+                }
             }
         }
     }
+}
+
+/**
+ * A row to pick a model (ADR 267), as [Choice] draws one: its name, the model's [shown] name and a chevron; a tap opens one
+ * list of every connected provider's models, grouped, searchable from a dozen models on. [value] "" is the default choice.
+ */
+@Composable
+internal fun ModelPick(label: String, value: String, shown: String, options: List<Option>, onChange: (String) -> Unit) {
+    val p = LocalPaper.current
+    var open by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = label) { open = !open }.padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(shown, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
+        Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
+    }
+    if (open) ModelOptions(options.map { ProviderModel(it.id, it.label, it.group) }, value, searchFrom = 12) { open = false; onChange(it) }
 }
