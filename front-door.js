@@ -1808,7 +1808,7 @@ async function roomRoutes(req, res, p) {
     const bot = answer.data.bots.find((b) => b && b.id === botId);
     // These two checks stay for account servers older than `rooms-every-bot` (ADR 269): there a bot whose owner kept it out
     // of rooms is left out of /api/room-bots or sent with allowRooms false. On a new one every bot has allowRooms true.
-    if (!bot) return send(res, 404, { error: 'You have no such bot that may be in rooms. Turn "Rooms" on in its settings first.' });
+    if (!bot) return send(res, 404, { error: 'You have no such bot.' });
     if (bot.rooms?.allowRooms !== true) return send(res, 403, { error: `${String(bot.name || 'This bot').slice(0, 60)} is kept out of rooms. Turn "Rooms" on in its settings first.` });
     const room = rooms.addBot(id, account, bot);
     roomChanged(room);
