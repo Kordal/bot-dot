@@ -1,4 +1,4 @@
-// The tool servers that need a connected app, answered by botdot over HTTP (ADR 267, #1670): a bot's connectors server
+// The tool servers that need a connected app, answered by botdot over HTTP (ADR 270, #1670): a bot's connectors server
 // and the Chief's. The rest of the HTTP route is in mcp-http.test.js; this one needs the stand-in connected app
 // started before the server.
 const { test, before, after } = require('node:test');

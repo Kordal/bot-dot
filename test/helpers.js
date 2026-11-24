@@ -101,7 +101,7 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       // A run that a busy API ended carries on after a minute (bots.js TRANSIENT_RETRY_MS, #1093): at once here.
       BOT_DOT_TRANSIENT_RETRY_MS: '20',
       // The tool servers are processes of their own in the stand-in's records (the tests read each one's environment, which
-      // is where a run's token and flags are): botdot's own answering of them over HTTP (ADR 267, the default) has its
+      // is where a run's token and flags are): botdot's own answering of them over HTTP (ADR 270, the default) has its
       // own tests, which set BOT_DOT_MCP=http.
       BOT_DOT_MCP: 'stdio',
       // The group router (lib/group-router.js) would ask the stand-in before every turn of a group; its own tests switch it on.
