@@ -54,11 +54,12 @@ const ownFileHTML = (f, src, chat) => {
 // Files a bot attached to its reply: tap to open (a PDF) or download.
 const fileHref = (f) => `/api/files/${String(f.file).split('/').map(encodeURIComponent).join('/')}`;
 const isImage = (f) => /\.(png|jpe?g|gif|webp)$/i.test(f.name);
-// Pictures show as themselves (a QR code to scan can't wait for a download); tap for full size.
+// Pictures show as themselves (a QR code to scan can't wait for a download); tap for full size. Never lazy: one below
+// the visible part of the chat's own scroll is never loaded, and a picture that is not loaded has no height (#1647).
 // data-view: the viewer opens it, where the server has one (#251, viewer.js); else the link downloads it as before.
 const viewData = (f) => (state.features.includes('document-viewer') ? ` data-view="${esc(fileHref(f).slice(4))}" data-view-name="${esc(f.name)}"` : '');
 const botFileChipHTML = (f) => `<a class="file-chip link" href="${esc(fileHref(f))}" ${/\.pdf$/i.test(f.name) ? 'target="_blank" rel="noopener"' : `download="${esc(f.name)}"`}${viewData(f)} title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`;
-const botFilesHTML = (list) => (list?.length ? `<div class="bubble-files">${list.map((f) => isImage(f) ? `<a class="file-image" href="${esc(fileHref(f))}" target="_blank" rel="noopener" title="${esc(f.name)}"${viewData(f)}><img src="${esc(fileHref(f))}" alt="${esc(f.name)}" loading="lazy"></a>` : botFileChipHTML(f)).join('')}</div>` : '');
+const botFilesHTML = (list) => (list?.length ? `<div class="bubble-files">${list.map((f) => isImage(f) ? `<a class="file-image" href="${esc(fileHref(f))}" target="_blank" rel="noopener" title="${esc(f.name)}"${viewData(f)}><img src="${esc(fileHref(f))}" alt="${esc(f.name)}"></a>` : botFileChipHTML(f)).join('')}</div>` : '');
 
 // Files botdot already has (those of a message taken back), as the list of a message box holds them: ready to send.
 const readyFiles = (list) => (Array.isArray(list) ? list : []).filter((f) => f && typeof f.file === 'string')

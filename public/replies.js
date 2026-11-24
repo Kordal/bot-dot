@@ -180,9 +180,24 @@ const chatHeights = typeof ResizeObserver === 'function' ? new ResizeObserver((e
 // It also gets the button to its newest message (to-latest.js); `head` draws the head of the chat's one writer.
 function holdChatEnd(thread, head = null) {
   if (thread && typeof ToLatest !== 'undefined') ToLatest.watch(thread, head);
+  if (thread && !grownChats.has(thread)) followGrowth(thread);
   if (!thread || !chatHeights || heldChats.has(thread)) return;
   heldChats.set(thread, thread.clientHeight);
   chatHeights.observe(thread);
+}
+// What a chat holds grows after it was drawn: a picture of a reply loads and takes its height (#1647). A chat that was
+// at its end stays at its end; one the owner scrolled up to read is left where it is. Whether it was at the end is
+// what its last scroll left (scroll events do not come for growth), as the chats' other rules read it (160 px).
+const grownChats = new WeakSet();
+function followGrowth(thread) {
+  grownChats.add(thread);
+  const atEnd = () => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
+  let held = atEnd();
+  thread.addEventListener('scroll', () => { held = atEnd(); }, { passive: true });
+  // `load` and `error` do not bubble: caught on the way down, from every picture put into the chat later too.
+  const grew = () => { if (held) thread.scrollTop = thread.scrollHeight; };
+  thread.addEventListener('load', grew, true);
+  thread.addEventListener('error', grew, true);
 }
 // A chat's new replies changed (the live feed's `unread`, or this page's own report).
 function setUnread(chat, now) {
