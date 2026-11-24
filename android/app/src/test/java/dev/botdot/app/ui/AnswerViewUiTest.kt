@@ -61,6 +61,34 @@ class AnswerViewUiTest {
         rule.onAllNodesWithText("Source: analytics.csv").assertCountEquals(1)
     }
 
+    // A table in a reply's Markdown is drawn as an answer view's table (ADR 264, amendment): a list on a phone, its cells drawn
+    // as the reply draws a line, with no source line; a draft keeps the table it always was until the reply ends.
+    private val markdownTable = "Compare:\n\n| Engine | Size | Link |\n|---|--:|---|\n| **Postgres** | 12 | [docs](https://pg.example.com/docs) |\n| SQLite | 1 | |"
+
+    @Test fun aMarkdownTableIsAListOnAPhoneWithItsCellsDrawnAsMarkdownAndNoSource() {
+        show(markdownTable)
+        rule.onNodeWithText("Compare:").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Engine: Postgres, Size: 12, Link: docs").assertIsDisplayed() // a row is read as a list, its bold and its link as their words
+        rule.onNodeWithContentDescription("Engine: SQLite, Size: 1", substring = true).assertExists()
+        rule.onNodeWithText("Postgres").assertIsDisplayed()
+        rule.onAllNodesWithText("Size").assertCountEquals(2) // under each row, as a view's table has it
+        rule.onAllNodesWithText("**Postgres**").assertCountEquals(0)
+        rule.onNodeWithText("No source").assertDoesNotExist()
+    }
+
+    @Test fun aMarkdownTableStillBeingWrittenIsDrawnAsItAlwaysWas() {
+        show(markdownTable, draft = true)
+        rule.onNodeWithText("Postgres").assertIsDisplayed()
+        rule.onAllNodesWithContentDescription("Engine: Postgres", substring = true).assertCountEquals(0)
+    }
+
+    @Test fun aMarkdownTableOverTheLimitsIsDrawnAsItAlwaysWas() {
+        val wide = (1..13).joinToString(" | ", "| ", " |") { "c$it" } + "\n" + "|---".repeat(13) + "|\n" + (1..13).joinToString(" | ", "| ", " |") { "v$it" }
+        show(wide)
+        rule.onNodeWithText("c13").assertIsDisplayed()
+        rule.onAllNodesWithContentDescription("c1: v1", substring = true).assertCountEquals(0)
+    }
+
     @Test fun aChartHasADataToggleThatShowsItsNumbersAsATable() {
         show(fence("""{"alt":"Sales","root":{"type":"chart","title":"Sales","labels":["Q1","Q2"],"series":[{"label":"EU","points":[10,20]}],"source":"sales.csv"}}"""))
         rule.onNodeWithContentDescription("Line chart, Sales, 2 points. Data shows the numbers as a table.").assertIsDisplayed() // what TalkBack reads

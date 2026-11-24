@@ -11,9 +11,9 @@ const { read, cut, esc, words } = require('./web-page');
 const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'markdown-cases.json'), 'utf8'));
 const css = read('style.css');
 const page = vm.createContext({ ...words, esc });
-vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
-  this.md = md; this.mdBlocks = mdBlocks; this.previewLines = previewLines; this.mdPreview = mdPreview;`, page);
-const { md, mdBlocks, previewLines, mdPreview } = page;
+vm.runInContext(`${cut('function md(src, botId, draft = false)', '// Link bare web addresses after rendering')}
+  this.md = md; this.mdBlocks = mdBlocks; this.previewLines = previewLines; this.mdPreview = mdPreview; this.tableView = tableView;`, page);
+const { md, mdBlocks, previewLines, mdPreview, tableView } = page;
 // A reply's HTML without the Copy buttons of its code blocks and their boxes (#285, test/code-copy-web.test.js).
 const noCopy = (html) => html.replace(/<div class="code-block">(<pre[\s\S]*?<\/pre>)<button [^>]*code-copy[\s\S]*?<\/button><\/div>/g, '$1');
 const plain = (v) => JSON.parse(JSON.stringify(v));
@@ -194,4 +194,37 @@ test('web: every preview case of the shared fixture is drawn as its lines (proje
   assert.equal(mdPreview('<b>x</b> [a](https://x.dev/a)'), '&lt;b&gt;x&lt;/b&gt; <a href="https://x.dev/a" target="_blank" rel="noopener">a</a>');
   assert.equal(mdPreview('```\nnpm test\n```'), '<code>npm test</code>');
   assert.equal(mdPreview('see https://www.example.com/a/b'), 'see https://www.example.com/a/b', 'a bare address is linked by the page, as in a chat');
+});
+
+// A table of a reply as the answer view's `table` (ADR 264, amendment): public/app.js tableView, drawn in test/answer-view-web.test.js.
+const tableOf = (src) => { const b = mdBlocks(src).find((x) => x.type === 'table'); return b ? tableView(b) : null; };
+
+test('web: every table case of the shared fixture is the view of its first table, or none', () => {
+  const { tables } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'markdown-cases.json'), 'utf8'));
+  assert.ok(tables.length >= 8);
+  for (const c of tables) {
+    // The page escapes first, so its view holds escaped text.
+    const expected = c.view && { ...c.view, columns: c.view.columns.map((k) => ({ ...k, label: esc(k.label) })), rows: c.view.rows.map((r) => r.map(esc)) };
+    assert.deepEqual(plain(tableOf(c.source)), expected ?? null, c.name);
+  }
+});
+
+test("web: a table has the catalog's table limits; over them it stays the Markdown table", () => {
+  const limits = require('../lib/ui-catalog.json').components.table.props;
+  const row = (n, cell = 'x') => `| ${Array.from({ length: n }, () => cell).join(' | ')} |`;
+  const table = (cols, rows, { label = 'h', cell = 'x' } = {}) => [row(cols, label), row(cols, '---'), ...Array.from({ length: rows }, () => row(cols, cell))].join('\n');
+  assert.equal(limits.columns.max, 12);
+  assert.equal(limits.rows.max, 100);
+  assert.equal(limits.columns.of.props.label.max, 40);
+  assert.equal(limits.rows.of.of.max, 200);
+  assert.ok(tableOf(table(limits.columns.max, 1)), 'the most columns');
+  assert.equal(tableOf(table(limits.columns.max + 1, 1)), null, 'one column more');
+  assert.equal(tableOf(table(2, limits.rows.max))?.rows.length, limits.rows.max, 'the most rows');
+  assert.equal(tableOf(table(2, limits.rows.max + 1)), null, 'one row more');
+  assert.ok(tableOf(table(2, 1, { label: 'l'.repeat(limits.columns.of.props.label.max) })), 'the longest header cell');
+  assert.equal(tableOf(table(2, 1, { label: 'l'.repeat(limits.columns.of.props.label.max + 1) })), null, 'one character more in a header cell');
+  assert.ok(tableOf(table(2, 1, { cell: 'c'.repeat(limits.rows.of.of.max) })), 'the longest cell');
+  assert.equal(tableOf(table(2, 1, { cell: 'c'.repeat(limits.rows.of.of.max + 1) })), null, 'one character more in a cell');
+  // A character the page escapes counts once, as the owner reads it.
+  assert.ok(tableOf(table(2, 1, { cell: '&'.repeat(limits.rows.of.of.max) })), 'ampersands');
 });

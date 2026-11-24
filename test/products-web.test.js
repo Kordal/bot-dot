@@ -12,7 +12,7 @@ const { read, cut, esc, words } = require('./web-page');
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'products-cases.json'), 'utf8'));
 const page = vm.createContext({ ...words, esc, URL, linkPaths: (html) => html });
 vm.runInContext(`${read('products.js')}
-  ${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
+  ${cut('function md(src, botId, draft = false)', '// Link bare web addresses after rendering')}
   this.Products = Products; this.md = md; this.draftSource = draftSource;`, page);
 const { Products, md, draftSource } = page;
 const plain = (v) => JSON.parse(JSON.stringify(v));

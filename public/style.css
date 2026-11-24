@@ -3859,7 +3859,7 @@ h3.av-heading { font-size: var(--fs-16); }
 .av-progress { display: flex; flex-direction: column; gap: var(--sp-8); }
 .av-progress-l { display: flex; justify-content: space-between; gap: var(--sp-12); }
 .av-progress-l .n { color: var(--muted); font-variant-numeric: tabular-nums; }
-.av .md-table th.mid, .av .md-table td.mid { text-align: center; }
+.md-table th.mid, .md-table td.mid { text-align: center; }
 .av-compare th small { display: block; font-weight: 400; color: var(--mention); }
 .av-compare th.pick, .av-compare td.pick { background: color-mix(in srgb, var(--mention) 10%, var(--bg)); }
 .av-compare tbody th { text-align: left; font-weight: 400; color: var(--muted); }

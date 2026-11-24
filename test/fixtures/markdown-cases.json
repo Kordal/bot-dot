@@ -1,5 +1,5 @@
 {
-  "about": "How a reply is read into blocks, the same on the web page (mdBlocks in public/app.js, test/markdown-web.test.js) and in the Android app (parseBlocks in Markdown.kt, MarkdownTest.kt). Each case is a source text and the flat list of blocks it becomes: heading (level, text), para (text), item (text, number or null, depth, and task: \"done\" or \"todo\" only on an item that starts with [x] or [ ]), quote (text), rule, code (text, lang: the word after the opening fence, \"\" without one), table (rows). A rule changes here and in both apps together.",
+  "about": "How a reply is read into blocks, the same on the web page (mdBlocks in public/app.js, test/markdown-web.test.js) and in the Android app (parseBlocks in Markdown.kt, MarkdownTest.kt). Each case is a source text and the flat list of blocks it becomes: heading (level, text), para (text), item (text, number or null, depth, and task: \"done\" or \"todo\" only on an item that starts with [x] or [ ]), quote (text), rule, code (text, lang: the word after the opening fence, \"\" without one), table (rows, the header first; aligns: for each column left, right or center as its delimiter row says with colons, \"\" where it says none). A rule changes here and in both apps together.",
   "cases": [
     {
       "name": "depth: an item further right than an open item is its child",
@@ -429,6 +429,9 @@
             [
               "x"
             ]
+          ],
+          "aligns": [
+            ""
           ]
         },
         {
@@ -742,6 +745,10 @@
               "1",
               "2"
             ]
+          ],
+          "aligns": [
+            "",
+            "center"
           ]
         }
       ]
@@ -1095,6 +1102,10 @@
               "pve",
               "41%"
             ]
+          ],
+          "aligns": [
+            "",
+            ""
           ]
         }
       ]
@@ -1110,6 +1121,10 @@
               "Host",
               "Free"
             ]
+          ],
+          "aligns": [
+            "",
+            ""
           ]
         }
       ]
@@ -1129,6 +1144,10 @@
               "Host",
               "Free"
             ]
+          ],
+          "aligns": [
+            "",
+            ""
           ]
         }
       ]
@@ -1253,6 +1272,10 @@
               "1",
               "2"
             ]
+          ],
+          "aligns": [
+            "",
+            ""
           ]
         },
         {
@@ -1484,6 +1507,189 @@
       "lines": [
         "---"
       ]
+    }
+  ],
+  "tablesAbout": "A table of a reply as the `table` of an answer view (ADR 264, amendment: Markdown tables are drawn as answer views), the same on the web page (tableView in public/app.js, test/markdown-web.test.js) and in the Android app (tableView in Markdown.kt, MarkdownCasesTest.kt). Each case is a reply and the view its first table becomes, or null where it stays the Markdown table it was: the columns are the header cells, with an align only where the delimiter row sets one, the rows are the cells after it (a short row is blank at its end), and the cells are the text as written, inline Markdown and all. A view has no source and no title. The limits are the catalog table's: 12 columns, 100 rows, 40 characters in a header cell, 200 in a cell (the tests build the cases at the limits).",
+  "tables": [
+    {
+      "name": "a table is its columns, with an align only where the delimiter row sets one",
+      "source": "Compare:\n\n| Engine | Size | Fit |\n|:--|--:|:-:|\n| Postgres | 12 | big |\n| SQLite | 1 | small |",
+      "view": {
+        "type": "table",
+        "columns": [
+          {
+            "label": "Engine",
+            "align": "left"
+          },
+          {
+            "label": "Size",
+            "align": "right"
+          },
+          {
+            "label": "Fit",
+            "align": "center"
+          }
+        ],
+        "rows": [
+          [
+            "Postgres",
+            "12",
+            "big"
+          ],
+          [
+            "SQLite",
+            "1",
+            "small"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a column the delimiter row leaves plain has no align",
+      "source": "| A | B |\n|---|---|\n| 1 | 2 |",
+      "view": {
+        "type": "table",
+        "columns": [
+          {
+            "label": "A"
+          },
+          {
+            "label": "B"
+          }
+        ],
+        "rows": [
+          [
+            "1",
+            "2"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a short row is blank at its end",
+      "source": "| A | B | C |\n|---|---|---|\n| 1 |\n| 2 | 3 |",
+      "view": {
+        "type": "table",
+        "columns": [
+          {
+            "label": "A"
+          },
+          {
+            "label": "B"
+          },
+          {
+            "label": "C"
+          }
+        ],
+        "rows": [
+          [
+            "1",
+            "",
+            ""
+          ],
+          [
+            "2",
+            "3",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a cell keeps its Markdown as written",
+      "source": "| Tool | Note |\n|---|---|\n| **psql** | `\\d` and [docs](https://pg.example.com/docs) |",
+      "view": {
+        "type": "table",
+        "columns": [
+          {
+            "label": "Tool"
+          },
+          {
+            "label": "Note"
+          }
+        ],
+        "rows": [
+          [
+            "**psql**",
+            "`\\d` and [docs](https://pg.example.com/docs)"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a table without a delimiter row is still a table, its first row the header",
+      "source": "| A | B |\n| 1 | 2 |",
+      "view": {
+        "type": "table",
+        "columns": [
+          {
+            "label": "A"
+          },
+          {
+            "label": "B"
+          }
+        ],
+        "rows": [
+          [
+            "1",
+            "2"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "an empty header cell is an empty label",
+      "source": "| | Qty |\n|---|--:|\n| tea | 2 |",
+      "view": {
+        "type": "table",
+        "columns": [
+          {
+            "label": ""
+          },
+          {
+            "label": "Qty",
+            "align": "right"
+          }
+        ],
+        "rows": [
+          [
+            "tea",
+            "2"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "only the first table of a reply is read",
+      "source": "| A |\n|---|\n| 1 |\n\ntext\n\n| B |\n|---|\n| 2 |",
+      "view": {
+        "type": "table",
+        "columns": [
+          {
+            "label": "A"
+          }
+        ],
+        "rows": [
+          [
+            "1"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a header alone stays a Markdown table",
+      "source": "| A | B |\n|---|---|",
+      "view": null
+    },
+    {
+      "name": "a row wider than its header stays a Markdown table",
+      "source": "| A | B |\n|---|---|\n| 1 | 2 | 3 |",
+      "view": null
+    },
+    {
+      "name": "a reply without a table has no view",
+      "source": "Just text.",
+      "view": null
     }
   ]
 }

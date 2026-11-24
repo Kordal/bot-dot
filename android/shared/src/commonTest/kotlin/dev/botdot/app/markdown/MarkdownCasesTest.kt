@@ -24,7 +24,7 @@ class MarkdownCasesTest {
         "quote" -> Block.Quote(b.text())
         "rule" -> Block.Rule
         "code" -> Block.Code(b.text(), b.getValue("lang").jsonPrimitive.content)
-        "table" -> Block.Table(b.getValue("rows").jsonArray.map { row -> row.jsonArray.map { it.jsonPrimitive.content } })
+        "table" -> Block.Table(b.getValue("rows").jsonArray.map { row -> row.jsonArray.map { it.jsonPrimitive.content } }, b.getValue("aligns").jsonArray.map { it.jsonPrimitive.content })
         else -> error("The fixture has a block the app does not know: $type")
     }
 
@@ -38,6 +38,38 @@ class MarkdownCasesTest {
         val stream = markdown.getValue("stream").jsonArray.map { it.jsonObject }
         assertTrue(stream.size >= 10)
         for (c in stream) assertEquals(c.getValue("blocks").jsonArray.map { block(it.jsonObject) }, parseBlocks(draftSource(c.getValue("source").jsonPrimitive.content)), c.getValue("name").jsonPrimitive.content)
+    }
+
+    private fun firstTable(src: String) = parseBlocks(src).filterIsInstance<Block.Table>().firstOrNull()
+    private fun viewOf(src: String): JsonObject? = firstTable(src)?.let { tableView(it) }?.toJson()
+
+    @Test fun everyTableCaseOfTheSharedFixtureIsTheViewOfItsFirstTableOrNone() {
+        val tables = markdown.getValue("tables").jsonArray.map { it.jsonObject }
+        assertTrue(tables.size >= 8)
+        for (c in tables) {
+            val want = c.getValue("view").let { if (it is JsonObject) it else null }
+            assertEquals(want, viewOf(c.getValue("source").jsonPrimitive.content), c.getValue("name").jsonPrimitive.content)
+        }
+    }
+
+    @Test fun aTableHasTheCatalogsTableLimitsAndOverThemItStaysTheMarkdownTable() {
+        val limits = Json.parseToJsonElement(fixture("uiCatalog")).jsonObject.getValue("components").jsonObject.getValue("table").jsonObject.getValue("props").jsonObject
+        fun max(v: kotlinx.serialization.json.JsonElement) = v.jsonObject.getValue("max").jsonPrimitive.int
+        val columns = max(limits.getValue("columns"))
+        val rows = max(limits.getValue("rows"))
+        val label = max(limits.getValue("columns").jsonObject.getValue("of").jsonObject.getValue("props").jsonObject.getValue("label"))
+        val cell = max(limits.getValue("rows").jsonObject.getValue("of").jsonObject.getValue("of"))
+        assertEquals(listOf(12, 100, 40, 200), listOf(columns, rows, label, cell))
+        fun row(n: Int, text: String) = "| " + List(n) { text }.joinToString(" | ") + " |"
+        fun table(cols: Int, body: Int, head: String = "h", text: String = "x") = (listOf(row(cols, head), row(cols, "---")) + List(body) { row(cols, text) }).joinToString("\n")
+        assertTrue(viewOf(table(columns, 1)) != null, "the most columns")
+        assertEquals(null, viewOf(table(columns + 1, 1)), "one column more")
+        assertEquals(rows, viewOf(table(2, rows))!!.getValue("rows").jsonArray.size, "the most rows")
+        assertEquals(null, viewOf(table(2, rows + 1)), "one row more")
+        assertTrue(viewOf(table(2, 1, head = "l".repeat(label))) != null, "the longest header cell")
+        assertEquals(null, viewOf(table(2, 1, head = "l".repeat(label + 1))), "one character more in a header cell")
+        assertTrue(viewOf(table(2, 1, text = "c".repeat(cell))) != null, "the longest cell")
+        assertEquals(null, viewOf(table(2, 1, text = "c".repeat(cell + 1))), "one character more in a cell")
     }
 
     @Test fun everyPreviewCaseOfTheSharedFixtureIsItsLines() {

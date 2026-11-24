@@ -1,6 +1,10 @@
 package dev.botdot.app.markdown
 
+import dev.botdot.app.answerview.ViewNode
 import dev.botdot.app.data.parseUri
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 // A reply's Markdown, read as the web page reads it (public/app.js), for both phones (ADR 242): its blocks, a draft as
 // it can be drawn while it grows, and the web addresses in its text (test/fixtures/markdown-cases.json, chat-links.json).
@@ -14,7 +18,8 @@ sealed interface Block {
     data class Quote(val text: String) : Block
     /** [lang]: the word after the opening fence ("mermaid", "kotlin"), "" without one. */
     data class Code(val text: String, val lang: String = "") : Block
-    data class Table(val rows: List<List<String>>) : Block
+    /** [rows]: the header first. [aligns]: for each column of the header "left", "right" or "center" as its delimiter row says with colons, "" where it says none. */
+    data class Table(val rows: List<List<String>>, val aligns: List<String> = rows.firstOrNull().orEmpty().map { "" }) : Block
     data object Rule : Block
 }
 
@@ -150,13 +155,16 @@ fun parseBlocks(src: String): List<Block> {
                 // Tables, without the separator row.
                 flush(); endList()
                 val rows = mutableListOf<List<String>>()
+                var aligns: List<String>? = null
                 while (i < lines.size && isTable(lines[i].trim())) {
                     val r = lines[i].trim()
-                    if (!TABLE_RULE.matches(r)) rows += r.substring(1, r.length - 1).split("|").map { it.trim() }
+                    val cells = r.substring(1, r.length - 1).split("|").map { it.trim() }
+                    if (!TABLE_RULE.matches(r)) rows += cells
+                    else if (rows.size == 1 && aligns == null) aligns = cells.map(::alignOf) // the line under the header
                     i++
                 }
                 i--
-                if (rows.isNotEmpty()) out += Block.Table(rows)
+                if (rows.isNotEmpty()) out += Block.Table(rows, rows[0].indices.map { aligns?.getOrNull(it).orEmpty() })
             }
             t.isEmpty() -> { flush(); if (item >= 0) blank = true }
             t in RULES -> { flush(); endList(); out += Block.Rule }
@@ -204,6 +212,45 @@ fun parseBlocks(src: String): List<Block> {
     }
     flush()
     return out
+}
+
+/** What a cell of a table's delimiter row says: ":--" left, "--:" right, ":-:" center, "" nothing. */
+private fun alignOf(cell: String) = when {
+    CENTER_RULE.matches(cell) -> "center"
+    RIGHT_RULE.matches(cell) -> "right"
+    LEFT_RULE.matches(cell) -> "left"
+    else -> ""
+}
+private val CENTER_RULE = Regex("""^:-+:$""")
+private val RIGHT_RULE = Regex("""^-+:$""")
+private val LEFT_RULE = Regex("""^:-+$""")
+
+// The limits of the catalog's `table` (lib/ui-catalog.json; test/fixtures/markdown-cases.json says so on both sides).
+private const val TABLE_COLUMNS = 12
+private const val TABLE_ROWS = 100
+private const val TABLE_LABEL = 40
+private const val TABLE_CELL = 200
+
+/**
+ * A table of a reply as the `table` of an answer view (ADR 264, amendment: Markdown tables are drawn as answer views), by
+ * the rules the web page shares (the `tables` cases of test/fixtures/markdown-cases.json; tableView in public/app.js): the
+ * header's cells are its columns, with the alignment its delimiter row sets, and each row after it is the row's cells, a
+ * short row blank at its end. The cells stay the text as written, inline Markdown and all, drawn like any line of a reply;
+ * the view has no title and no source, not even "No source" (a bot wrote no data component here). A table the catalog's
+ * `table` can't hold whole stays the Markdown table it was, so this is null: a header cell of more than 40 characters, a
+ * cell of more than 200, more than 12 columns or 100 rows, a row wider than its header, or a header alone.
+ */
+fun tableView(table: Block.Table): ViewNode? {
+    val head = table.rows.firstOrNull() ?: return null
+    val body = table.rows.drop(1)
+    if (body.isEmpty() || head.size > TABLE_COLUMNS || body.size > TABLE_ROWS || head.any { it.length > TABLE_LABEL }
+        || body.any { it.size > head.size || it.any { cell -> cell.length > TABLE_CELL } }) return null
+    return ViewNode("table", JsonObject(mapOf(
+        "columns" to JsonArray(head.mapIndexed { c, label ->
+            JsonObject(buildMap { put("label", JsonPrimitive(label)); table.aligns.getOrNull(c)?.takeIf { it.isNotEmpty() }?.let { put("align", JsonPrimitive(it)) } })
+        }),
+        "rows" to JsonArray(body.map { r -> JsonArray(head.indices.map { JsonPrimitive(r.getOrElse(it) { "" }) }) }),
+    )))
 }
 
 // An address without https:// is a domain with a path, like x.com/dhh/status/1, on a common top-level domain, so that

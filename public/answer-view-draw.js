@@ -70,12 +70,13 @@ const AnswerViews = (() => {
   // A table of texts: a column of numbers lines up on the right, as a table in a reply does (tableHTML).
   const NUMBER = /^[-+−]?\d[\d\s.,:]*%?$/;
   const WITH_UNIT = /^[-+−]?\d[\d\s.,:]*(?:%|\s\S{1,12})?$/; // the numbers of a chart, with their unit
-  function grid(head, rows, aligns = [], unit = false) {
+  // [say]: how a cell's text is written as HTML: escaped, or (a table of a reply, whose text is already escaped) as a line of Markdown.
+  function grid(head, rows, aligns = [], unit = false, say = esc) {
     const number = unit ? WITH_UNIT : NUMBER;
     const right = (c) => aligns[c] === 'right' || (!aligns[c] && !(unit && c === 0) && rows.some((r) => r[c]) && rows.every((r) => !r[c] || number.test(r[c])));
     const cls = (c) => (right(c) ? ' class="num"' : aligns[c] === 'center' ? ' class="mid"' : '');
-    const th = head.map((h, c) => `<th scope="col"${cls(c)}>${h ? esc(h) : `<span class="sr-only">${tr('Label')}</span>`}</th>`).join('');
-    const body = rows.map((r) => `<tr>${head.map((_, c) => `<td${cls(c)}>${esc(r[c] ?? '')}</td>`).join('')}</tr>`).join('');
+    const th = head.map((h, c) => `<th scope="col"${cls(c)}>${h ? say(h) : `<span class="sr-only">${tr('Label')}</span>`}</th>`).join('');
+    const body = rows.map((r) => `<tr>${head.map((_, c) => `<td${cls(c)}>${say(r[c] ?? '')}</td>`).join('')}</tr>`).join('');
     return `<div class="md-table"><table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
 
@@ -182,6 +183,13 @@ const AnswerViews = (() => {
     const aligns = n.columns.map((c) => c.align);
     const rows = n.rows.map((r) => n.columns.map((_, i) => r[i] ?? ''));
     return `<div class="av-block">${title(n.title)}${grid(n.columns.map((c) => c.label), rows, aligns)}${source(n)}</div>`;
+  }
+
+  // A table of a reply's Markdown (app.js tableView), drawn as a `table` is: the same grid, in the page's theme. Its text is
+  // already escaped and is a line of Markdown (say: mdInline), and it has no title and no source line, not even "No source":
+  // a bot wrote no data component here. A column lines up as its delimiter row says, or on the right when it holds only numbers.
+  function tableHTML(n, say) {
+    return grid(n.columns.map((c) => c.label), n.rows, n.columns.map((c) => c.align), false, say);
   }
 
   function comparison(n) {
@@ -484,7 +492,8 @@ const AnswerViews = (() => {
       if (p.view) return [html(p.view, botId)];
       if (p.code != null) return [codeHTML(p)];
       if (p.drawing) return [drawingHTML()];
-      const text = mdParts(mdBlocks(!done && i === all.length - 1 ? draftSource(p.text) : p.text), botId);
+      const draft = !done && i === all.length - 1;
+      const text = mdParts(mdBlocks(draft ? draftSource(p.text) : p.text), botId, draft);
       return botId ? text.map((h) => linkPaths(h, botId)) : text; // the paths of a bot's text open in the viewer, as in any reply
     });
   }
@@ -833,7 +842,7 @@ const AnswerViews = (() => {
   }
 
   return {
-    use, load, ready, has, parts, html, wire, wireChat, tileChanged, sentFrom, sendOf, textOf, newest, stateOf, verdict, mark,
+    use, load, ready, has, parts, html, tableHTML, wire, wireChat, tileChanged, sentFrom, sendOf, textOf, newest, stateOf, verdict, mark,
     alt: (src, opts) => (words ? words.alt(src, opts) : String(src ?? '')),
     text: (src, opts) => (words ? words.text(src, opts) : String(src ?? '')),
   };

@@ -14,7 +14,7 @@ const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'fil
 // md() and the links of a reply, cut out of app.js, with the features the server named.
 function chat(features = ['document-viewer']) {
   const ctx = vm.createContext({ ...words, URL, esc, state: { features } });
-  vm.runInContext(`${cut('function md(src, botId)', 'function linkifyChat(root)')}
+  vm.runInContext(`${cut('function md(src, botId, draft = false)', 'function linkifyChat(root)')}
     Object.assign(this, { md, filePaths, isFilePath, linkPaths });`, ctx);
   return ctx;
 }
