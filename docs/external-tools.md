@@ -27,7 +27,7 @@ Status: **ok** = newest stable, **behind** = a newer stable exists, **held** = b
 | FastMCP | 3.2.4 | 4.1.6 | **Held**: cua-computer-server 0.3.46 (its newest) asks for `fastmcp<3.3`; 3.2.4 is the newest 3.2. Moves when cua does. |
 | FastAPI | 0.144.0 | 0.162.0 | **Held**: 0.145 refuses cua's `websocket_max_size` and the server dies at start (#601). |
 | Node 24 (server image) | 24.22.2 by digest | 24.22.2; LTS is 26.13.0 | Node 24 is maintenance LTS now; plan the move to 26 (image, CI and `CHECK_NODE` together). |
-| Claude Code | 2.1.316 | 2.1.318 | Each bump needs real `claude -p` runs with the bot flags (sleep/Monitor behaviour changed at 2.1.310). |
+| Claude Code | 2.1.331 | 2.1.331 | Each bump needs real `claude -p` runs with the bot flags (sleep/Monitor behaviour changed at 2.1.310). |
 
 ## Server image (`Dockerfile`)
 
@@ -37,7 +37,7 @@ Status: **ok** = newest stable, **behind** = a newer stable exists, **held** = b
 | llama.cpp server image | `ghcr.io/ggml-org/llama.cpp:server@sha256:f9115c…` | `Dockerfile:11` | `:server` now `sha256:c0a110…` | behind |
 | Docker CLI and Compose | `docker:29.7.2-cli` by digest | `Dockerfile:12` | 29.9.3 | behind |
 | micromamba | 2.9.0, sha256 per arch | `Dockerfile:17`-`25` | 2.9.0-0 on GitHub (2.10.0 on conda-forge) | ok |
-| Claude Code | `@anthropic-ai/claude-code@2.1.316` | `Dockerfile:52` | 2.1.318 | behind |
+| Claude Code | `@anthropic-ai/claude-code@2.1.331` | `Dockerfile:52` | 2.1.331 | ok |
 | Bitwarden CLI | `@bitwarden/cli@2026.9.0` | `Dockerfile:52` | 2026.10.1 | behind |
 | bge-m3 embedding model | sha256 `aa473d…` | `Dockerfile:66` | n/a | ok |
 | apt: ca-certificates, curl, git, openssh-client, python3, tzdata, tini | unpinned | `Dockerfile:34` | n/a | unpinned |
