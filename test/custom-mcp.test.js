@@ -385,9 +385,15 @@ test('a key is replaced after a check; removing the server takes its grants and 
   const r = await running(t, srv, bot);
   const grants = JSON.parse(fs.readFileSync(path.join(srv.data, 'connector-actions.json'), 'utf8'));
   assert.ok(Object.values(grants).some((list) => list.some((g) => g.startsWith(`${server.id}:`))), 'grants of the server exist');
-  assert.equal((await srv.api(`/connectors/servers/${server.id}`, { method: 'DELETE' })).status, 200);
+  // A Composio app whose slug is the server's name keeps its lasting grants when the server is removed by its name.
+  const appSlug = server.name.toLowerCase();
+  const appGrant = `${appSlug}:${appSlug.toUpperCase()}_CREATE_ISSUE`;
+  grants[bot.id] = [...(grants[bot.id] || []), appGrant];
+  fs.writeFileSync(path.join(srv.data, 'connector-actions.json'), JSON.stringify(grants));
+  assert.equal((await srv.api(`/connectors/servers/${encodeURIComponent(appSlug)}`, { method: 'DELETE' })).status, 200);
   const after = JSON.parse(fs.readFileSync(path.join(srv.data, 'connector-actions.json'), 'utf8'));
   assert.ok(!Object.values(after).some((list) => list.some((g) => g.startsWith(`${server.id}:`))), 'its lasting grants went with it');
+  assert.ok((after[bot.id] || []).includes(appGrant), "the Composio app of the same name keeps its grants");
   assert.match(said(await r.call('search_notes')), /You don't have that server/);
   assert.deepEqual((await srv.api('/connectors/servers')).data.servers, []);
   assert.equal((await srv.api(`/connectors/servers/${server.id}`, { method: 'DELETE' })).status, 404);
