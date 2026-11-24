@@ -1430,7 +1430,7 @@ data class Connection(val id: String, val toolkit: String = "", val status: Stri
 @Serializable
 data class ConnectorsInfo(val configured: Boolean = false, val account: String? = null, val keyHint: String? = null, val machine: Boolean = false, val error: String? = null, val keyRejected: Boolean = false, val connections: List<Connection> = emptyList(), val reconnect: List<ReconnectApp> = emptyList())
 
-/** One of the owner's own MCP servers (ADR 265): its address, whether it has a key (never the key) and the bots that have it. */
+/** One of the owner's own MCP servers (ADR 266): its address, whether it has a key (never the key) and the bots that have it. */
 @Serializable
 data class CustomServer(val id: String, val name: String = "", val url: String = "", val hasKey: Boolean = false, val toolCount: Int? = null, val usedBy: List<String> = emptyList())
 

@@ -1,4 +1,4 @@
-// The owner's own remote MCP servers (ADR 265, #1636): the address is judged (https, no key in it, no machine's or
+// The owner's own remote MCP servers (ADR 266, #1636): the address is judged (https, no key in it, no machine's or
 // network's own address), botdot is the MCP client, a bot's run, the Chief's turn and a replay reach a server only
 // through the stdio relay (lib/custom-mcp.js), a tool that only reads goes at once and any other waits for the owner's
 // card, and the key is in no file, environment, argument, log, chat or answer. Through the real server, the relay,
@@ -370,6 +370,12 @@ test('the Chief proposes a server by name and address: a card that opens the App
   assert.equal(second.asked, true);
   await srv.api('/asks/' + (await srv.api('/asks?connect-app=1')).data.find((a) => a.mode === 'server').id, { method: 'POST', body: { yes: false } });
   assert.equal((await srv.api('/asks?connect-app=1')).data.filter((a) => a.mode === 'server').length, 0, 'Not now closes it');
+  // Not now holds the next card for that address: the Chief is told so and no card comes back.
+  const held = await chief.json('offer_mcp_server', { name: 'Third', url: 'https://mcp.third.example/mcp' });
+  assert.equal(held.asked, false);
+  assert.equal(held.notNow, true);
+  assert.match(held.note, /Not now/);
+  assert.equal((await srv.api('/asks?connect-app=1')).data.filter((a) => a.mode === 'server').length, 0, 'no card after Not now');
 });
 
 // ---------- changing the key and removing it ----------
@@ -470,7 +476,7 @@ test("the Chief's write to a remote server that waits past the wait window carri
   await waitFor(async () => { const c = (await srv.api(`/chief/chats/${turn.chat.id}`)).data; return c.busy ? null : c; }, { what: 'the Chief to finish' });
 });
 
-// ---------- a turn botdot started has only the server it carries on (ADR 047, ADR 265) ----------
+// ---------- a turn botdot started has only the server it carries on (ADR 047, ADR 266) ----------
 
 test("a turn botdot started has no remote servers but the one its late yes was for: no relay after a Composio yes or a connected app", async (t) => {
   const app = await fakeConnectedApp({ connected: ['gmail'] });

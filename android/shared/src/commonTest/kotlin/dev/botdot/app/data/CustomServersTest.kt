@@ -16,7 +16,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 
 /**
- * The owner's own MCP servers (ADR 265, docs/api.md): `GET /api/connectors/servers` read as `lib/routes/custom-servers.js`
+ * The owner's own MCP servers (ADR 266, docs/api.md): `GET /api/connectors/servers` read as `lib/routes/custom-servers.js`
  * sends it, the four calls' paths, methods and bodies, and the line under a server's name.
  */
 class CustomServersTest {

@@ -184,7 +184,7 @@ chief.connectorsWith({
   // asks Composio all the same.
   // A look's session (ADR 070) is for the apps it names that are connected, and only reads.
   // A turn after an app was connected from the Chief's card has that app, also before a list of Composio's shows it.
-  // The owner's own remote MCP servers (ADR 265) are every Chief turn's the owner started (`owner`); a look has none,
+  // The owner's own remote MCP servers (ADR 266) are every Chief turn's the owner started (`owner`); a look has none,
   // and a turn botdot started has only the server its late yes was for (a grant of its own), never the others.
   open: ({ chatId, grants, connectedFor = [], apps: only = null, readOnly = false, owner = false }) => {
     const composio = grants.filter((g) => !isCustomApp(g.app));
@@ -879,7 +879,7 @@ const ROUTES = [
   require('./lib/routes/setup').create(ctx),
   require('./lib/routes/memory').create(ctx),
   require('./lib/routes/group-chats').create(ctx),
-  require('./lib/routes/custom-servers').create(ctx), // the owner's own remote MCP servers, before the connected apps' (ADR 265)
+  require('./lib/routes/custom-servers').create(ctx), // the owner's own remote MCP servers, before the connected apps' (ADR 266)
   require('./lib/routes/connectors').create(ctx),
   require('./lib/routes/settings').create(ctx),
   ctx.jobRoutes.preview,

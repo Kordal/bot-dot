@@ -1,4 +1,4 @@
-// What a remote MCP server of the owner's reaches (ADR 265): a look gets none, and a replay of a bot's past task lets
+// What a remote MCP server of the owner's reaches (ADR 266): a look gets none, and a replay of a bot's past task lets
 // the tools that only read run for real and answers every other with what it would have done (ADR 102), with no card,
 // also with "Always allow". Through the real server, the relay (lib/custom-mcp.js), the stand-in for Claude and a
 // stand-in remote server.
@@ -97,7 +97,7 @@ test('in a replay a tool that reads runs, and any other is not done, with no car
   assert.equal(gone.status, 403, 'the key goes with the replay');
 });
 
-test("what a remote server answers is outside content, as a connected app's answer is: the run says so, and a save after it is held the same way (ADR 015, ADR 265)", async (t) => {
+test("what a remote server answers is outside content, as a connected app's answer is: the run says so, and a save after it is held the same way (ADR 015, ADR 266)", async (t) => {
   const events = new Map();
   const asked = async (rec, runId, name) => {
     const list = [...(events.get(rec.n) || []), { type: 'assistant', message: { content: [{ type: 'tool_use', id: `t${rec.n}-${name}`, name, input: {} }] } }];

@@ -200,7 +200,7 @@ let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.
 const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, remote: mcp.mcpServers.remote || null, vault: mcp.mcpServers.vault || null, computer: mcp.mcpServers.computer || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
-// What a secret must not be in (ADR 265): the whole MCP config as written, and the environment this process was started with.
+// What a secret must not be in (ADR 266): the whole MCP config as written, and the environment this process was started with.
 try { const mc = val('--mcp-config'); rec.mcpText = mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8'); } catch { rec.mcpText = ''; }
 rec.envText = JSON.stringify(process.env);
 if (promptFile !== null) { const st = fs.statSync(promptFile); rec.promptFile = { path: promptFile, mode: st.mode & 0o777, uid: st.uid }; }

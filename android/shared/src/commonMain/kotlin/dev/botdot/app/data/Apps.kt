@@ -46,7 +46,7 @@ object Apps {
     /** How many apps a search shows. */
     const val FOUND = 30
 
-    /** Botdot's `features` name for the owner's own MCP servers (ADR 265). */
+    /** Botdot's `features` name for the owner's own MCP servers (ADR 266). */
     const val CUSTOM_SERVERS = "custom-mcp-servers"
 
     /** Under a server's name: whether it has a key, and which bots have it, "all bots" when every one of [bots] does. */

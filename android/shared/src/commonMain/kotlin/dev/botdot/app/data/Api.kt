@@ -1082,7 +1082,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun setComposioKey(key: String) { send("PUT", "/connectors/key", buildJsonObject { put("key", key) }) }
     suspend fun removeComposioKey() { send("DELETE", "/connectors/key") }
     suspend fun forgetReconnect(slug: String) { send("DELETE", "/connectors/reconnect/${enc(slug)}") }
-    /** The owner's own MCP servers (ADR 265), only with `custom-mcp-servers`. A server's key never comes back. */
+    /** The owner's own MCP servers (ADR 266), only with `custom-mcp-servers`. A server's key never comes back. */
     suspend fun customServers(): List<CustomServer> = json.decodeFromString<CustomServers>(get("/connectors/servers")).servers
     /** botdot checks the server (its address, its key) before it keeps it; a refusal comes back in words. */
     suspend fun addCustomServer(name: String, url: String, key: String): CustomServer =

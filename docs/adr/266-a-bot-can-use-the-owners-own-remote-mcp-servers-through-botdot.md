@@ -1,4 +1,4 @@
-# ADR-265: A bot can use the owner's own remote MCP servers, through botdot
+# ADR-266: A bot can use the owner's own remote MCP servers, through botdot
 
 - **Status:** Accepted (spec in [#1636](https://github.com/ladrok/bot-dot/issues/1636))
 - **Owning task:** [#1636](https://github.com/ladrok/bot-dot/issues/1636)

@@ -22,7 +22,7 @@ async function renderConnectors(force = false) {
   if (!works) { conn.catalog = []; conn.categories = []; conn.replacing = false; }
   if (works && !conn.catalog.length) await loadCatalog(true);
   if (works && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
-  // The owner's own MCP servers (ADR 265): drawn also without a Composio key. null: this botdot has none of it.
+  // The owner's own MCP servers (ADR 266): drawn also without a Composio key. null: this botdot has none of it.
   conn.servers = state.features?.includes('custom-mcp-servers') ? ((await api('/connectors/servers').catch(() => null))?.servers ?? null) : null;
   // The actions every bot may do without asking ("Always allow" for all bots on a card, ADR 201), each with Revoke.
   conn.everyBot = works && state.features?.includes('every-bot-always') ? ((await api('/connector-actions').catch(() => null))?.grants || []) : [];
@@ -183,7 +183,7 @@ function drawConnectors() {
   };
 }
 
-// ---------- the owner's own MCP servers (ADR 265) ----------
+// ---------- the owner's own MCP servers (ADR 266) ----------
 
 // The bots that have a server, as the apps' chips show them: "All bots" when it is every one.
 function serverChips(ids) {

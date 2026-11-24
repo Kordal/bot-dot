@@ -140,7 +140,7 @@ private fun ComposioKeyField(save: suspend (String) -> Boolean, onCancel: (() ->
 private const val COMPOSIO_KEYS = dev.botdot.app.data.Apps.COMPOSIO_KEYS
 
 /**
- * The owner's own MCP servers (ADR 265): the ones added, each with the bots that have it and Remove, and the form that adds
+ * The owner's own MCP servers (ADR 266): the ones added, each with the bots that have it and Remove, and the form that adds
  * one with its address and a key if it needs one. Nothing when this botdot has none of it ([servers] null).
  * [add] says whether botdot kept it, which clears the form.
  */
@@ -204,7 +204,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
 
     // What every bot may do without asking ("Always allow" for all bots on a card, ADR 201), each with Revoke.
     var everyBot by remember { mutableStateOf<List<AlwaysAllowed>>(emptyList()) }
-    // The owner's own MCP servers (ADR 265), drawn also without a Composio key; null on a botdot that has none of it.
+    // The owner's own MCP servers (ADR 266), drawn also without a Composio key; null on a botdot that has none of it.
     var servers by remember { mutableStateOf<List<CustomServer>?>(null) }
     var askRemoveServer by remember { mutableStateOf<CustomServer?>(null) }
     var serverBots by remember { mutableStateOf<CustomServer?>(null) }

@@ -1,4 +1,4 @@
-// A stand-in remote MCP server (Streamable HTTP) for the tests of ADR 265: `initialize`, `tools/list`, `tools/call`, the
+// A stand-in remote MCP server (Streamable HTTP) for the tests of ADR 266: `initialize`, `tools/list`, `tools/call`, the
 // Mcp-Session-Id header, an answer as JSON or as a stream of events, and a key it can insist on. It is on this machine
 // and speaks http, so a server of botdot that reaches it has BOT_DOT_MCP_ALLOW_LOCAL=1 (lib/mcp-client.js).
 const http = require('node:http');
