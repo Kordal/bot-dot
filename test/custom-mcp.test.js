@@ -393,3 +393,46 @@ test('a key in another header, an answer as a stream of events, and a server wit
     await srv.api(`/connectors/servers/${r.data.id}`, { method: 'DELETE' });
   } finally { open.close(); }
 });
+
+test("the Chief's write to a remote server that waits past the wait window carries on after a late yes: told remote_call, once", async (t) => {
+  const added = await srv.api('/connectors/servers', { method: 'POST', body: { name: 'Notes', url: remote.url, key: KEY } }); // the test before took the first one away
+  assert.equal(added.status, 201, JSON.stringify(added.data));
+  server = added.data;
+  const turn = await ownerTurn(t, srv, 'Add milk to my notes.');
+  const before = remote.calls.length;
+  const args = { title: 'Late milk' };
+  const waited = await turn.relay.call('remote_call', { server: server.id, tool: 'create_note', arguments: args });
+  assert.ok(waited.isError, 'the call waited past the window and was not done');
+  assert.match(said(waited), /has not answered yet/);
+  const late = await waitFor(async () => (await srv.api('/asks')).data.find((a) => a.kind === 'connector-action' && a.chief), { what: "the Chief's card" });
+  assert.equal(late.held, false);
+  assert.equal(late.then?.who, 'chief');
+  await turn.end();
+  assert.equal(remote.calls.length, before, 'nothing was done while it waited');
+
+  // The late yes: a Chief turn of botdot's in that chat, told remote_call (not connector_run), with the grant bound to it.
+  srv.hold();
+  const yes = await srv.api(`/asks/${late.id}`, { method: 'POST', body: { yes: true } });
+  assert.equal(yes.status, 200);
+  assert.equal(yes.data.carriesOn?.who, 'chief');
+  const rec = await srv.nextRun((x) => isChief(x) && x.stdin.includes('The user said yes on the card of your action in a connected app'), "the Chief's turn after the yes");
+  assert.ok(rec.remote, 'the carry-on turn has the relay, with no Composio app connected');
+  assert.equal(rec.connectors, null, 'and no connected apps');
+  assert.ok(rec.args.includes('mcp__remote'));
+  assert.match(rec.stdin, /Do it now with remote_call, and say in one line/);
+  assert.match(rec.stdin, /Call remote_call with server "mcp-/);
+  assert.ok(!/connector_run/.test(rec.stdin), 'connector_run is not named for a remote server');
+  assert.match(rec.stdin, /"title": "Late milk"/);
+  const relay = rpcClient(t, 'custom-mcp.js', rec.remote.env);
+  // Its call goes through to the remote server once, without a new card.
+  assert.equal(said(await relay.call('remote_call', { server: server.id, tool: 'create_note', arguments: args })), 'create_note done: {"title":"Late milk"}');
+  assert.deepEqual(remote.calls.slice(before).map((c) => [c.name, c.arguments]), [['create_note', args]]);
+  // Once: the same call again asks anew.
+  const twice = relay.call('remote_call', { server: server.id, tool: 'create_note', arguments: args });
+  const fresh = await waitFor(async () => (await srv.api('/asks')).data.find((a) => a.kind === 'connector-action' && a.chief && a.id !== late.id), { what: 'a new card for the second call' });
+  await srv.api(`/asks/${fresh.id}`, { method: 'POST', body: { yes: false } });
+  assert.match(said(await twice), /declined/);
+  assert.equal(remote.calls.length, before + 1);
+  srv.release(rec);
+  await waitFor(async () => { const c = (await srv.api(`/chief/chats/${turn.chat.id}`)).data; return c.busy ? null : c; }, { what: 'the Chief to finish' });
+});
