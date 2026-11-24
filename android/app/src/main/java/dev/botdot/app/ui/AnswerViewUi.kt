@@ -183,9 +183,11 @@ fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: I
     val says = remember(buttons) { buttons.map { ViewForm.press(it.node) } }
     val labels = remember(fields) { fields.map { it.node.text("label").orEmpty() } }
     // The chat is the truth: what it shows of the owner's messages first, else what this phone posted that it does not show yet.
-    val read = if (reply != null) ViewForm.sendOf(reply.mine, says, labels, AnswerViewMemory.pending[viewKey]) else null
+    val posted = AnswerViewMemory.pending[viewKey]
+    val read = if (reply != null) ViewForm.sendOf(reply.mine, says, labels, posted) else null
     val sent = read?.sent
-    LaunchedEffect(viewKey, read) { if (read != null && read.pending == null) AnswerViewMemory.pending.remove(viewKey) } // the chat shows it now: forget the post
+    // Keyed on the post too: a chat that shows the message before `send` returns leaves `read` the same when the post is stored, and the post must still go.
+    LaunchedEffect(viewKey, read, posted) { if (read != null && read.pending == null) AnswerViewMemory.pending.remove(viewKey) } // the chat shows it now: forget the post
     val state = if (reply == null) null else ViewForm.state(reply.newest, sent)
     val sending = AnswerViewMemory.sending[viewKey] == true
     val live = state == ViewState.Open && !sending

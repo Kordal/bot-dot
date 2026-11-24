@@ -289,4 +289,24 @@ class AnswerViewUiTest {
         rule.onAllNodesWithText("Sent:", substring = true).assertCountEquals(0)
         rule.onNodeWithText("Approve").assertIsEnabled()
     }
+
+    @Test fun aViewOpensAgainWhenTheChatShowedTheSendBeforeItReturnedAndTheOwnerTakesItBack() {
+        var chat by mutableStateOf(ViewChat(listOf(ViewBubble.bot("btn-6"))) { _, _ -> true })
+        // The send waits its turn: the chat shows the message (queued) before `send` returns.
+        val gate = CompletableDeferred<Boolean>()
+        chat = ViewChat(listOf(ViewBubble.bot("btn-6"))) { _, _ -> chat = ViewChat(listOf(ViewBubble.bot("btn-6"), ViewBubble.owner("Approve"))) { _, _ -> true }; gate.await() }
+        rule.setContent {
+            CompositionLocalProvider(LocalAnswerViews provides views, LocalViewChat provides chat) { ViewReplyScope("btn-6") { Column { MarkdownText(buttons) } } }
+        }
+        rule.onNodeWithText("Approve").performClick()
+        rule.waitForIdle() // the chat shows the message, `send` has not returned
+        rule.onNodeWithText("Sent: Approve").assertIsDisplayed()
+        gate.complete(true)
+        rule.waitForIdle()
+        rule.onNodeWithText("Sent: Approve").assertIsDisplayed()
+        rule.runOnIdle { chat = ViewChat(listOf(ViewBubble.bot("btn-6"))) { _, _ -> true } } // taken back
+        rule.waitForIdle()
+        rule.onAllNodesWithText("Sent:", substring = true).assertCountEquals(0)
+        rule.onNodeWithText("Approve").assertIsEnabled()
+    }
 }
