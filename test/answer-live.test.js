@@ -73,6 +73,12 @@ test('a chart reads a list of the tile, with the labels its rows name; a series 
   assert.equal(chart.source, 'Disk');
 });
 
+test("labels the bot wrote don't stay under the tile's points when the tile names none", () => {
+  const [chart] = live.fill([node({ type: 'chart', labels: ['Mon', 'Tue', 'Wed'], series: [{ points: [1, 2, 3], bind: 'value.used' }], tile: 'Disk' })], board).nodes;
+  assert.deepEqual(chart.series[0].points, [60, 65, 71]);
+  assert.equal(chart.labels, undefined);
+});
+
 test("a chart of one number shows the tile's recent values", () => {
   const [chart] = live.fill([node({ type: 'chart', title: 'Used', series: [{ points: [1, 2, 3], bind: 'value.used' }], tile: 'Disk' })], board).nodes;
   assert.deepEqual(chart.series[0].points, [60, 65, 71]);
