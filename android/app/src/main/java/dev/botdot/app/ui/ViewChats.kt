@@ -23,14 +23,17 @@ internal fun botBubbles(runs: List<Run>, later: List<String>): List<ViewBubble> 
     later.forEach { add(ViewBubble.owner(it)) }
 }
 
-/** The Chief's chat: a bot message is the Chief's own or a report; a message of the owner is theirs. Ids are the messages' places in the chat, from [first]. */
-internal fun chiefBubbles(messages: List<ChiefMessage>, first: Int, later: List<String>): List<ViewBubble> = buildList {
+/** The id of the Chief's message at [index] of the chat [chatId]: the Chief has several chats, and what a view remembers is kept by this id. */
+internal fun chiefViewId(chatId: String?, index: Int) = "${chatId.orEmpty()}:$index"
+
+/** The Chief's chat: a bot message is the Chief's own or a report; a message of the owner is theirs. Ids are [chiefViewId]s, the messages' places in the chat from [first]. */
+internal fun chiefBubbles(chatId: String?, messages: List<ChiefMessage>, first: Int, later: List<String>): List<ViewBubble> = buildList {
     messages.forEachIndexed { i, m ->
         when (m.role) {
             "user" -> add(ViewBubble.owner(m.text))
             "chief", "report" -> {
                 m.steered.filter { it.fromBot == null }.forEach { add(ViewBubble.owner(it.text)) } // steered into the reply: drawn before it
-                add(ViewBubble.bot("${first + i}", working = m.pending, problem = m.failed))
+                add(ViewBubble.bot(chiefViewId(chatId, first + i), working = m.pending, problem = m.failed))
             }
         }
     }

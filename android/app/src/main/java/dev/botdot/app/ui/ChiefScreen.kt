@@ -168,7 +168,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     // The inputs and buttons of an answer view send through the same function, as the owner's own message (ADR 265): a busy Chief shows it as waiting.
     val sendView by rememberUpdatedState<suspend (String, String) -> Boolean> { t, k -> sendFrom(t, k) }
     val viewLater = vm.queued.map { it.text } + listOfNotNull(vm.sent?.text)
-    val viewChat = remember(chat?.messages, chat?.offset, viewLater) { ViewChat(chiefBubbles(chat?.messages.orEmpty(), chat?.offset ?: 0, viewLater)) { t, k -> sendView(t, k) } }
+    val viewChat = remember(chatId, chat?.messages, chat?.offset, viewLater) { ViewChat(chiefBubbles(chatId, chat?.messages.orEmpty(), chat?.offset ?: 0, viewLater)) { t, k -> sendView(t, k) } }
     // A new chat (#727): the box in the middle, under its head and name, and its own jobs (#408) under it. Gone with the first message.
     val empty = chat?.messages.isNullOrEmpty() && vm.sent == null && vm.queued.isEmpty() && (chatId == null || chat != null)
     @Composable fun box() = Composer(
@@ -289,7 +289,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
                             if (!m.pending) m.about?.let { AboutLine(it, mine = m.role != "chief", onTeam = openTeam, onProject = onProject) }
                             val cardOpen = i == cardAt
-                            ViewReplyScope("$index") {
+                            ViewReplyScope(chiefViewId(chatId, index)) {
                                 Message(shownNewestFirst[i], if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
                                     plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
                                     onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },

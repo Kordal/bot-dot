@@ -30,10 +30,12 @@ class ViewChatsTest {
 
     @Test fun inTheChiefsChatEachReplyIsNamedByItsPlaceInTheWholeChat() {
         val messages = listOf(ChiefMessage(role = "user", text = "Hi"), ChiefMessage(role = "chief", text = "A"), ChiefMessage(role = "user", text = "Budget: 500"), ChiefMessage(role = "chief", text = "B", pending = true))
-        val b = chiefBubbles(messages, first = 10, later = emptyList())
-        assertEquals("11", ViewForm.newest(b)) // 13 is still being written
-        assertEquals("Budget: 500", ViewForm.ownerAfter(b, "11"))
-        assertNull(ViewForm.ownerAfter(b, "13"))
+        val b = chiefBubbles("c1", messages, first = 10, later = emptyList())
+        assertEquals("c1:11", ViewForm.newest(b)) // c1:13 is still being written
+        assertEquals("Budget: 500", ViewForm.ownerAfter(b, "c1:11"))
+        assertNull(ViewForm.ownerAfter(b, "c1:13"))
+        assertEquals(setOf("c1:11"), setOf(chiefViewId("c1", 11))) // another chat's message 11 is another view
+        assertEquals(false, chiefViewId("c2", 11) == chiefViewId("c1", 11))
     }
 
     @Test fun inAGroupTheOwnersMessagesAndTheMembersRepliesStandInTheOrderOfTheChat() {
