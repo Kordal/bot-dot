@@ -22,6 +22,8 @@ async function renderConnectors(force = false) {
   if (!works) { conn.catalog = []; conn.categories = []; conn.replacing = false; }
   if (works && !conn.catalog.length) await loadCatalog(true);
   if (works && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
+  // The owner's own MCP servers (ADR 266): drawn also without a Composio key. null: this botdot has none of it.
+  conn.servers = state.features?.includes('custom-mcp-servers') ? ((await api('/connectors/servers').catch(() => null))?.servers ?? null) : null;
   // The actions every bot may do without asking ("Always allow" for all bots on a card, ADR 201), each with Revoke.
   conn.everyBot = works && state.features?.includes('every-bot-always') ? ((await api('/connector-actions').catch(() => null))?.grants || []) : [];
   // A page that can't be drawn says why, never stays blank (#464).
@@ -56,7 +58,9 @@ function drawConnectors() {
         ${keyForm(d.configured ? tr('New Composio API key') : tr('Composio API key'), tr('Save'))}
         ${getKey}
       </div>
-      ${d.error && !d.keyRejected ? `<div class="req-note">${esc(d.error)}</div>` : ''}`;
+      ${d.error && !d.keyRejected ? `<div class="req-note">${esc(d.error)}</div>` : ''}
+      ${serversHTML()}`;
+    bindServers(root);
     $('#conn-key').onsubmit = async (e) => {
       e.preventDefault();
       const input = e.target.key;
@@ -106,6 +110,7 @@ function drawConnectors() {
     }).join('')}</div>` : `<div class="card empty" style="padding:26px 20px">${tr('No apps connected yet. Pick one below.')}</div>`}
     ${conn.everyBot?.length ? `<h3 class="page-sub">${tr('Always allowed for all bots')}</h3>
     <div class="set-list">${conn.everyBot.map((g) => `<div class="bs-row"><b>${esc(g.label)}</b><button class="btn sm" data-every-revoke="${esc(g.action)}">${tr('Revoke')}</button></div>`).join('')}</div>` : ''}
+    ${serversHTML()}
     <h3 class="page-sub">${tr('Marketplace')} <span class="faint">· ${conn.search || conn.category ? trn(conn.total, '{n} match', '{n} matches') : trn(conn.total, '{n} app', '{n} apps')}</span></h3>
     <div class="conn-filters">
       <input type="search" id="conn-search" placeholder="${esc(tr('Search apps, e.g. gmail, calendar, notion'))}" value="${esc(conn.search)}">
@@ -124,6 +129,7 @@ function drawConnectors() {
       </article>`).join('') || `<div class="faint">${conn.search ? tr('No apps match "{search}". Try another word.', { search: esc(conn.search) }) : tr('No apps match. Try another word.')}</div>`}</div>
     ${conn.next ? `<div style="text-align:center;margin:16px 0"><button class="btn" id="conn-more">${tr('Show more')}</button></div>` : ''}`;
 
+  bindServers(root);
   let t;
   $('#conn-search').oninput = (e) => {
     clearTimeout(t);
@@ -175,6 +181,88 @@ function drawConnectors() {
     conn.categories = [];
     renderConnectors(true);
   };
+}
+
+// ---------- the owner's own MCP servers (ADR 266) ----------
+
+// The bots that have a server, as the apps' chips show them: "All bots" when it is every one.
+function serverChips(ids) {
+  const known = ids.filter((id) => state.bots.some((b) => b.id === id));
+  if (!known.length) return `<span class="faint" style="font-size:12.5px">${tr('No bot has it')}</span>`;
+  if (state.bots.length > 1 && known.length === state.bots.length) return `<span class="chip">${tr('All bots')}</span>`;
+  return known.map((id) => `<span class="chip">${botLabel(state.bots.find((b) => b.id === id))}</span>`).join('');
+}
+// The section: the servers added, and the form that adds one. A server the Chief proposed in a card (Needs you) fills the
+// form; the key is typed here, never in a chat. conn.draft keeps what was typed when the page is drawn again.
+function serversHTML() {
+  if (!conn.servers) return '';
+  const proposal = (Array.isArray(state.asks) ? state.asks : []).find((a) => a?.kind === 'connect-app' && a.mode === 'server' && !conn.servers.some((x) => x.url === a.serverUrl));
+  const pre = conn.draft || (proposal ? { name: proposal.name || '', url: proposal.serverUrl || '' } : { name: '', url: '' });
+  return `<h3 class="page-sub">${tr('Your MCP servers')}</h3>
+    ${conn.servers.length ? `<div class="grid">${conn.servers.map((x) => `
+      <article class="card app-card" data-server="${esc(x.id)}">
+        <div class="app-top"><span class="app-logo ph">${esc((x.name || '?')[0])}</span><div class="grow"><b>${esc(x.name)}</b><div class="faint" style="font-size:12px;overflow-wrap:anywhere">${esc(x.url)}</div>${x.hasKey ? '' : `<div class="faint" style="font-size:12px">${tr('No key')}</div>`}</div></div>
+        <div class="chips">${serverChips(x.usedBy || [])}</div>
+        <div class="app-actions">
+          <button class="btn sm" data-server-bots="${esc(x.id)}">${tr('Bots…')}</button>
+          <button class="btn sm danger" data-server-remove="${esc(x.id)}">${tr('Remove')}</button>
+        </div>
+      </article>`).join('')}</div>` : `<div class="card empty" style="padding:20px">${tr('No MCP servers yet. Add one below: a remote server whose address starts with https://.')}</div>`}
+    <form id="mcp-add" class="set-list conn-setup" autocomplete="off">
+      ${proposal && !conn.draft ? `<div class="req-note">${tr('Your Chief of Staff suggested this one. Check the address, add its key if it needs one, then press Add.')}</div>` : ''}
+      <div class="bs-row key-row"><input type="text" name="name" maxlength="60" placeholder="${esc(tr('Name, e.g. Linear'))}" aria-label="${esc(tr('Name'))}" value="${esc(pre.name)}"></div>
+      <div class="bs-row key-row"><input type="url" name="url" placeholder="https://…/mcp" aria-label="${esc(tr('Address'))}" required value="${esc(pre.url)}"></div>
+      <div class="bs-row key-row"><input type="password" name="key" placeholder="${esc(tr('Key, if it needs one'))}" aria-label="${esc(tr('Key'))}" autocomplete="off"><button class="btn primary">${tr('Add')}</button></div>
+    </form>`;
+}
+function bindServers(root) {
+  if (!conn.servers) return;
+  const form = $('#mcp-add', root);
+  if (form) {
+    const keep = () => { conn.draft = { name: form.name.value, url: form.url.value }; };
+    form.name.oninput = keep;
+    form.url.oninput = keep;
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const button = form.querySelector('.btn.primary');
+      button.disabled = true;
+      try {
+        await api('/connectors/servers', { method: 'POST', body: { name: form.name.value, url: form.url.value, key: form.key.value } });
+        form.key.value = '';
+        conn.draft = null;
+        toast(tr('Added'));
+        await refresh();
+        renderConnectors(true);
+      } catch (err) { toast(err.message, true); button.disabled = false; }
+    };
+  }
+  $$('[data-server-remove]', root).forEach((b) => (b.onclick = async () => {
+    const x = conn.servers.find((v) => v.id === b.dataset.serverRemove);
+    if (!(await askFirst(tr('Remove {name}? Bots and your Chief of Staff lose its tools.', { name: x?.name || '' }), tr('Remove')))) return;
+    try { await api(`/connectors/servers/${encodeURIComponent(b.dataset.serverRemove)}`, { method: 'DELETE' }); toast(tr('Removed')); } catch (err) { return toast(err.message, true); }
+    renderConnectors(true);
+  }));
+  $$('[data-server-bots]', root).forEach((b) => (b.onclick = () => {
+    const x = conn.servers.find((v) => v.id === b.dataset.serverBots);
+    if (!x) return;
+    const m = openModal(`
+      <form id="server-bots">
+        <div class="modal-head"><h2>${tr('Bots that have {name}', { name: esc(x.name) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+        <div class="modal-body">
+          <div class="tool-toggles">${state.bots.map((bot) => `<label><input type="checkbox" name="bot" value="${esc(bot.id)}" ${(x.usedBy || []).includes(bot.id) ? 'checked' : ''}>${botLabel(bot)}</label>`).join('')}</div>
+        </div>
+        <div class="modal-foot"><button type="button" class="btn" data-dismiss>${tr('Cancel')}</button><button class="btn primary">${tr('Save')}</button></div>
+      </form>`);
+    $('#server-bots', m).onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api(`/connectors/servers/${encodeURIComponent(x.id)}/bots`, { method: 'PUT', body: { bots: $$('input[name=bot]:checked', m).map((c) => c.value) } });
+        m.close();
+        toast(tr('Saved'));
+        renderConnectors(true);
+      } catch (err) { toast(err.message, true); }
+    };
+  }));
 }
 
 // A Reconnect card under the reply of a job's run (#431, docs/api.md "A Reconnect card"): an app it found signed out, and

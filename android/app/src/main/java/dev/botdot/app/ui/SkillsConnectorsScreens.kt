@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -21,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +56,7 @@ import dev.botdot.app.data.AlwaysAllowed
 import dev.botdot.app.data.BuiltinSkill
 import dev.botdot.app.data.CatalogApp
 import dev.botdot.app.data.ConnectorsInfo
+import dev.botdot.app.data.CustomServer
 import dev.botdot.app.data.Skill
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
@@ -135,6 +139,50 @@ private fun ComposioKeyField(save: suspend (String) -> Boolean, onCancel: (() ->
 /** Where the owner makes a Composio API key: botdot makes no Composio account of its own. */
 private const val COMPOSIO_KEYS = dev.botdot.app.data.Apps.COMPOSIO_KEYS
 
+/**
+ * The owner's own MCP servers (ADR 266): the ones added, each with the bots that have it and Remove, and the form that adds
+ * one with its address and a key if it needs one. Nothing when this botdot has none of it ([servers] null).
+ * [add] says whether botdot kept it, which clears the form.
+ */
+private fun LazyListScope.serverItems(servers: List<CustomServer>?, bots: List<dev.botdot.app.data.Bot>, onBots: (CustomServer) -> Unit, onRemove: (CustomServer) -> Unit, add: suspend (String, String, String) -> Boolean) {
+    if (servers == null) return
+    item { Text(tr("Your MCP servers"), color = LocalPaper.current.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s12)) }
+    if (servers.isEmpty()) item { Hint(tr("No MCP servers yet. Add one below: a remote server whose address starts with https://.")) }
+    items(servers, key = { "s:${it.id}" }) { s ->
+        val p = LocalPaper.current
+        Row(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(s.name, color = p.text, style = MaterialTheme.typography.titleMedium)
+                Text(s.url, color = p.muted, fontSize = Type.s12, maxLines = 2)
+                Text(dev.botdot.app.data.Apps.serverLine(s, bots), color = p.muted, fontSize = Type.s12)
+            }
+            TextButton(onClick = { onBots(s) }) { Text(tr("Bots…"), color = p.text) }
+            TextButton(onClick = { onRemove(s) }) { Text(tr("Remove"), color = p.err) }
+        }
+    }
+    item {
+        val p = LocalPaper.current
+        val scope = rememberCoroutineScope()
+        var name by remember { mutableStateOf("") }
+        var url by remember { mutableStateOf("") }
+        var key by remember { mutableStateOf("") }
+        var adding by remember { mutableStateOf(false) }
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            Field(name, { name = it }, placeholder = { Text(tr("Name, e.g. Linear")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Field(url, { url = it }, placeholder = { Text("https://…/mcp") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
+            Field(key, { key = it }, placeholder = { Text(tr("Key, if it needs one")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+            Row {
+                Spacer(Modifier.weight(1f))
+                TextButton(enabled = url.isNotBlank() && !adding, onClick = {
+                    adding = true
+                    scope.launch { if (add(name.trim(), url.trim(), key.trim())) { name = ""; url = ""; key = "" }; adding = false }
+                }) { Text(tr("Add"), color = p.okText) }
+            }
+        }
+    }
+}
+
 /** Connectors: your apps through Composio. Connecting opens the app's sign-in in the phone's browser. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,8 +204,15 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
 
     // What every bot may do without asking ("Always allow" for all bots on a card, ADR 201), each with Revoke.
     var everyBot by remember { mutableStateOf<List<AlwaysAllowed>>(emptyList()) }
+    // The owner's own MCP servers (ADR 266), drawn also without a Composio key; null on a botdot that has none of it.
+    var servers by remember { mutableStateOf<List<CustomServer>?>(null) }
+    var askRemoveServer by remember { mutableStateOf<CustomServer?>(null) }
+    var serverBots by remember { mutableStateOf<CustomServer?>(null) }
     suspend fun load() {
         runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: tr("Couldn't load")) }
+        // A list that can't be read is told, as the sections above tell theirs, and the servers drawn before stay.
+        if (dev.botdot.app.data.Apps.CUSTOM_SERVERS in app.store.version.value.value?.features.orEmpty()) runCatching { api?.customServers() }.onSuccess { servers = it }.onError { tell(it.message ?: tr("Couldn't load")) }
+        else servers = null
         if ("every-bot-always" in app.store.version.value.value?.features.orEmpty()) runCatching { api?.everyBotGrants() }.onSuccess { everyBot = it.orEmpty() }
     }
     suspend fun saveKey(key: String): Boolean = runCatching { api!!.setComposioKey(key) }
@@ -189,6 +244,9 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
             if (title != null) {
                 // No key yet, or Composio refuses it (#409): botdot makes no Composio account, so the owner pastes one.
                 item { Section(title) { ComposioKeyField({ saveKey(it) }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } } }
+                serverItems(servers, botsNow.orEmpty(), { serverBots = it }, { askRemoveServer = it }) { name, url, key ->
+                    runCatching { api!!.addCustomServer(name, url, key) }.onSuccess { tell(tr("Added")); load() }.onError { tell(it.message ?: tr("Couldn't add")) }.isSuccess
+                }
                 return@LazyColumn
             }
             // The key, always at the top: replaced or removed here (#440).
@@ -239,6 +297,9 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                     }
                 }
             }
+            serverItems(servers, botsNow.orEmpty(), { serverBots = it }, { askRemoveServer = it }) { name, url, key ->
+                runCatching { api!!.addCustomServer(name, url, key) }.onSuccess { tell(tr("Added")); load() }.onError { tell(it.message ?: tr("Couldn't add")) }.isSuccess
+            }
             item {
                 Field(query, { query = it }, placeholder = { Text(tr("Find an app: Gmail, Notion, Slack…")) }, singleLine = true,
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
@@ -257,6 +318,34 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
         }
     }
 
+    askRemoveServer?.let { s ->
+        AlertDialog(
+            onDismissRequest = { askRemoveServer = null },
+            title = { Text(tr("Remove {name}?", "name" to s.name)) },
+            text = { Text(tr("Bots and your Chief of Staff lose its tools.")) },
+            confirmButton = { TextButton(onClick = { askRemoveServer = null; scope.launch { runCatching { api!!.removeCustomServer(s.id) }.onSuccess { tell(tr("Removed")) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load() } }) { Text(tr("Remove"), color = p.err) } },
+            dismissButton = { TextButton(onClick = { askRemoveServer = null }) { Text(tr("Keep"), color = p.text) } },
+        )
+    }
+    serverBots?.let { s ->
+        var picked by remember(s.id) { mutableStateOf(s.usedBy.toSet()) }
+        AlertDialog(
+            onDismissRequest = { serverBots = null },
+            title = { Text(tr("Bots that have {name}", "name" to s.name)) },
+            text = {
+                Column {
+                    botsNow.orEmpty().forEach { b ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { picked = if (b.id in picked) picked - b.id else picked + b.id }) {
+                            Checkbox(b.id in picked, { picked = if (it) picked + b.id else picked - b.id }, colors = CheckboxDefaults.colors(checkedColor = p.ink, checkmarkColor = p.inkText))
+                            Text(b.name, color = p.text)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { serverBots = null; scope.launch { runCatching { api!!.setCustomServerBots(s.id, picked.toList()) }.onSuccess { tell(tr("Saved")) }.onError { tell(it.message ?: tr("Couldn't save")) }; load() } }) { Text(tr("Save"), color = p.okText) } },
+            dismissButton = { TextButton(onClick = { serverBots = null }) { Text(tr("Cancel"), color = p.text) } },
+        )
+    }
     if (askRemoveKey) AlertDialog(
         onDismissRequest = { askRemoveKey = false },
         title = { Text(tr("Remove your Composio key?")) },

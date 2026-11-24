@@ -663,5 +663,11 @@
   "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele.",
   "a machine of its own": "osobna maszyna",
   "Machine on the External Virtual PC": "Maszyna na Zewnętrznym wirtualnym PC",
-  "a machine of its own on boat.dev, which has costs{files}": "osobna maszyna na boat.dev, która kosztuje{files}"
+  "a machine of its own on boat.dev, which has costs{files}": "osobna maszyna na boat.dev, która kosztuje{files}",
+  "Add the MCP server {app}?": "Dodać serwer MCP {app}?",
+  "Wants to add the MCP server {app}": "Chce dodać serwer MCP {app}",
+  "Checking your MCP servers": "Sprawdzam Twoje serwery MCP",
+  "Asking to add an MCP server": "Proszę o dodanie serwera MCP",
+  "Using one of your MCP servers": "Używam jednego z Twoich serwerów MCP",
+  "used one of the owner's MCP servers": "użył jednego z serwerów MCP właściciela"
 }

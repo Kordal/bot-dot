@@ -45,6 +45,17 @@ object Apps {
 
     /** How many apps a search shows. */
     const val FOUND = 30
+
+    /** Botdot's `features` name for the owner's own MCP servers (ADR 266). */
+    const val CUSTOM_SERVERS = "custom-mcp-servers"
+
+    /** Under a server's name: whether it has a key, and which bots have it, "all bots" when every one of [bots] does. */
+    fun serverLine(s: CustomServer, bots: List<Bot>): String {
+        val n = s.usedBy.size
+        val allBots = bots.size > 1 && bots.all { it.id in s.usedBy }
+        val key = if (s.hasKey) tr("has a key") else tr("no key")
+        return "$key · " + if (n == 0) tr("no bot has it") else if (allBots) tr("all bots have it") else trn(n, "{n} bot has it", "{n} bots have it")
+    }
 }
 
 /** Apps at one moment, as the iPhone draws them. [info]: null until botdot answered. */
