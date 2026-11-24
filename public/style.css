@@ -3942,6 +3942,7 @@ input[type="range"].av-in { width: 100%; accent-color: var(--text); }
 .av-star:has(:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--r-8); }
 .av-star:has(:disabled) { cursor: default; }
 .av-actions { margin-top: var(--sp-12); }
+.av[data-av-act]:not([data-av-state]) .av-actions { display: none; } /* a chat that does not send (a room's) has no Send to press */
 .av-sent { margin-top: var(--sp-8); color: var(--muted); font-size: var(--fs-12); white-space: pre-line; overflow-wrap: anywhere; }
 .av-btns { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
 .av-btn, .av-ln, .av-copy, .av-send { align-self: flex-start; white-space: normal; text-align: center; max-width: 100%; }
