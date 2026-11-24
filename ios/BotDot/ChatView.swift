@@ -400,7 +400,7 @@ private struct StepRow: View {
     }
 
     /// A step's time as its chat writes it: the hour and minute.
-    static func clock(_ at: String) -> String { String(BotChatKt.chatClock(iso: at).split(separator: ",").last ?? "").trimmingCharacters(in: .whitespaces) }
+    static func clock(_ at: String) -> String { BotChatKt.stepClock(iso: at) }
 }
 
 /// A page a reply made or changed (Android's PageChips): its title, a tap opens it in the viewer.

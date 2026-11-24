@@ -1,6 +1,7 @@
 package dev.botdot.app.ui
 
 import dev.botdot.app.data.without
+import dev.botdot.app.data.chatClock
 import dev.botdot.app.data.withFailed
 import dev.botdot.app.data.waitsUntil
 import dev.botdot.app.data.messageKey
@@ -206,14 +207,9 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
 
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
 private val DAY get() = DateTimeFormatter.ofPattern("d MMM", I18n.locale)
-private val DAY_TIME get() = DateTimeFormatter.ofPattern("d MMM, HH:mm", I18n.locale)
-fun shortTime(iso: String?): String {
-    if (iso.isNullOrBlank()) return ""
-    return runCatching {
-        val t = Instant.parse(iso).atZone(ZoneId.systemDefault())
-        if (t.toLocalDate() == java.time.LocalDate.now()) t.format(TIME) else t.format(DAY_TIME)
-    }.getOrDefault("")
-}
+
+/** A time as a message shows it: "13:52" today, "5 Oct, 13:52" another day; "" for none. The same function iOS draws with ([chatClock]). */
+fun shortTime(iso: String?): String = chatClock(iso)
 
 /** When a chat last had something, as short as the list needs it: the time today, then the day, then the date. */
 fun listTime(iso: String?): String {

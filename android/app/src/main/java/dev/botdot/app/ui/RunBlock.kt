@@ -1,6 +1,7 @@
 package dev.botdot.app.ui
 
 import dev.botdot.app.data.steered
+import dev.botdot.app.data.stepClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -202,7 +203,7 @@ private fun Timeline(r: Run) {
     ) {
         rows.forEach { row ->
             Row(Modifier.padding(vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                Text(row.at?.let { shortTime(it).substringAfterLast(", ") }.orEmpty(), color = p.faint, fontSize = Type.s12, fontFamily = FontFamily.Monospace, maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = 40.dp))
+                Text(stepClock(row.at), color = p.faint, fontSize = Type.s12, fontFamily = FontFamily.Monospace, maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = 40.dp))
                 val icon: ImageVector = when (row.kind) { RunSteps.MESSAGE -> Icons.AutoMirrored.Outlined.Chat; RunSteps.SKILL, RunSteps.CHANGED -> Icons.Outlined.AutoAwesome; else -> Icons.Outlined.Check }
                 Icon(icon, null, tint = when (row.kind) { RunSteps.SKILL, RunSteps.CHANGED -> p.dot; "" -> p.ok; else -> p.muted }, modifier = Modifier.size(16.dp).padding(top = 1.dp))
                 Column {

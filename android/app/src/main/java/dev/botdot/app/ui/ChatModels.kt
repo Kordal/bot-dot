@@ -1,18 +1,17 @@
 package dev.botdot.app.ui
 
-import dev.botdot.app.data.mergeNewest
 import dev.botdot.app.data.takesOnce
 import dev.botdot.app.data.without
-import dev.botdot.app.data.withWaiting
 import dev.botdot.app.data.withAnswer
 import dev.botdot.app.data.stopNote
-import dev.botdot.app.data.stillStarting
 import dev.botdot.app.data.steered
 import dev.botdot.app.data.ownWords
 import dev.botdot.app.data.notSent
-import dev.botdot.app.data.leftQueue
 import dev.botdot.app.data.SentMessage
 import dev.botdot.app.data.Outbox
+import dev.botdot.app.data.BotChat
+import dev.botdot.app.data.PlanView
+import dev.botdot.app.data.ReplyingTo
 import dev.botdot.app.data.NOT_CONNECTED
 import android.net.Uri
 import androidx.compose.runtime.derivedStateOf
@@ -31,13 +30,10 @@ import dev.botdot.app.data.ChiefChat
 import dev.botdot.app.data.InboxNote
 import dev.botdot.app.data.OpeningLine
 import dev.botdot.app.data.Queued
-import dev.botdot.app.data.TakenBack
 import dev.botdot.app.data.Ratings
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.ReplyDraft
-import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.str
-import dev.botdot.app.data.statusWords
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -45,355 +41,134 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.JsonObject
-import java.io.IOException
-import java.util.UUID
 
 /**
- * A bot's chat, kept while it's open (and while the phone turns): its runs, the notes waiting for its next run, what
- * it's doing now, the files attached in the message box. After an event only its newest runs are fetched again;
- * older ones come a page at a time as you scroll up.
+ * A bot's chat on screen, kept while it's open (and while the phone turns): the shared [BotChat] has its runs, the
+ * notes waiting for its next run, what it's doing now and every rule of sending, taking back and stopping (ADR 242),
+ * and this reads its [state] for the screen. What is its own is the files attached in the message box, which are
+ * Android's (a Uri, and a line for each while it uploads).
  */
-@OptIn(FlowPreview::class)
 class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() {
-    private val _notes = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    // The app's scope, not the screen's: a send, a Take back or a Stop goes on when the chat is left.
+    private val chat = BotChat(app.scope, { app.api.value }, app.store, app.feed.events, botId, app.plans)
+    private val own = MutableSharedFlow<String>(extraBufferCapacity = 8)
     /** Something to say at the bottom of the screen ("Couldn't send…"). */
-    val notes: SharedFlow<String> = _notes
+    val notes: Flow<String> = merge(chat.notices, own)
 
-    val files = PendingFiles(viewModelScope, app, { app.api.value }, { "bot:$botId" }) { _notes.tryEmit(it) }
+    val files = PendingFiles(viewModelScope, app, { app.api.value }, { "bot:$botId" }) { own.tryEmit(it) }
     private var sharedTaken = false
     /** Files shared from another app: into the message box once (not again when the phone turns). */
     fun addShared(uris: List<Uri>) { if (!sharedTaken && uris.isNotEmpty()) { sharedTaken = true; files.add(uris) } }
 
-    private var all by mutableStateOf<List<Run>>(emptyList()) // newest first, quiet ones too (they anchor the pages)
-    /** Its runs as the chat shows them (quiet ones are only in its run history). */
-    val runs: List<Run> by derivedStateOf { all.filterNot { it.quiet || it.isQueued } } // one that waits is in [queued], not a run yet
+    /** The chat as the shared [BotChat] says it. Each part below changes the screen only when it changes itself. */
+    var state by mutableStateOf(chat.state.value)
+        private set
+    /** Its runs as the chat shows them (quiet ones are only in its run history, and one that waits is in [queued], not a run yet). */
+    val runs: List<Run> by derivedStateOf { state.shown }
     /** The owner's messages that wait until the bot is free, oldest first: the server's list (`queued` on the bot). */
-    var queued by mutableStateOf<List<Queued>>(emptyList())
-        private set
-    /**
-     * The owner's messages whose turn came: they left [queued], and their runs (the same ids) are not in the chat yet,
-     * which reads them again only after the feed said so. Drawn as they stood until then, without buttons: a message
-     * never leaves the chat in between.
-     */
-    private var starting by mutableStateOf<List<Queued>>(emptyList())
-    val started: List<Queued> by derivedStateOf { stillStarting(starting, all) }
-    private val takenBack = HashSet<String>() // the messages this chat took back: they leave the list without starting
-    private val taking = HashSet<String>() // being taken back now
-    var waiting by mutableStateOf<List<InboxNote>>(emptyList()) // notes for its next run
-        private set
-    var watches by mutableStateOf<List<dev.botdot.app.data.Watch>>(emptyList()) // what it watches (ADR 248)
-        private set
-    var loaded by mutableStateOf(false)
-        private set
-    private var noOlder = false
-    private var loadingOlder = false
-
+    val queued: List<Queued> by derivedStateOf { state.queued }
+    /** The owner's messages whose turn came, until their runs are in the chat: drawn as they stood, without buttons. */
+    val started: List<Queued> by derivedStateOf { state.started }
+    /** Notes for its next run. */
+    val waiting: List<InboxNote> by derivedStateOf { state.waiting }
+    /** What it watches (ADR 248). */
+    val watches: List<dev.botdot.app.data.Watch> by derivedStateOf { state.watches }
+    val loaded: Boolean by derivedStateOf { state.loaded }
     /** The run the "New" line is drawn at: the server's first new reply when the chat came on screen. Kept until the chat is left. */
-    var newFirst by mutableStateOf<String?>(null)
-        private set
+    val newFirst: String? by derivedStateOf { state.newFirst }
+    /** The reply of each run at work as it is written so far, by its run (ReplyDraft): drawn in its place. */
+    val drafts: Map<String, String> by derivedStateOf { state.drafts }
+    /** The run the owner picked Reply on (#627), until the message goes or ✕. */
+    val reply: ReplyingTo? by derivedStateOf { state.reply }
+    /** The owner's message on its way, drawn until the server's version of it is in the chat ([SentMessage]). */
+    val sent: SentMessage? by derivedStateOf { state.sent }
+    /** Its plan above the message box (docs/api.md, "The plan"), and whether it is folded to its one line. */
+    val plan: PlanView? by derivedStateOf { state.plan?.view }
+    val planFolded: Boolean by derivedStateOf { state.plan?.folded ?: false }
 
-    /** The run the owner picked Reply on (#627), until the message goes or ✕: [text] names its block's request. */
-    data class Replying(val runId: String, val text: String)
-    var replying by mutableStateOf<Replying?>(null)
+    /** What its message box is told about a send: under way, failed and why, the message to take back. */
+    val outbox get() = chat.outbox
+
+    init {
+        viewModelScope.launch { chat.state.collect { state = it } }
+        // Nothing is asked before the app is connected.
+        viewModelScope.launch { app.api.filterNotNull().first(); chat.start() }
+    }
+
+    override fun onCleared() { chat.stop() }
 
     /**
      * The chat came on screen, with the app in front: the line goes where the server says the new replies begin now,
      * asked before the app reports the chat as read. True when the line was placed or moved.
      */
-    suspend fun arrive(): Boolean {
-        // Not answered in a moment (a poor connection): what the app knows, so the report isn't kept waiting.
-        val asked = runCatching { withTimeoutOrNull(ASK_MS) { app.api.value?.bot(botId) } }.getOrNull()
-        currentCoroutineContext().ensureActive() // the chat was left meanwhile: nothing is placed, nothing reported
-        val now = asked ?: app.store.bots.value.value?.firstOrNull { it.id == botId } ?: return false
-        val first = Unread.line(newFirst, now.unread, now.firstUnread)
-        if (first == newFirst) return false
-        newFirst = first
-        return true
-    }
+    suspend fun arrive(): Boolean = chat.arrive()
 
     /** The chat was left: its line goes. */
-    fun leave() { newFirst = null }
+    fun leave() = chat.clearNew()
 
     /** Waits for the chat, and brings in the run the line is at: a reply from while the app was away, or an older page. */
-    suspend fun reachNew(): Boolean {
-        val id = newFirst ?: return false
-        snapshotFlow { loaded }.first { it }
-        refresh() // what came while the app was away, all of it, before the chat is scrolled
-        return reach(id)
-    }
-
-    private val kicks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-
-    init {
-        viewModelScope.launch { app.api.filterNotNull().first(); load() }
-        // What waits for it, from the list of bots the app keeps: fetched while this chat looks at it, and put in
-        // place there whenever the feed's `queued` event says the list changed (Store).
-        viewModelScope.launch {
-            app.store.bots.value.collect { bots ->
-                bots?.firstOrNull { it.id == botId }?.let { b ->
-                    val left = leftQueue(starting, queued, b.queued, taking + takenBack)
-                    queued = b.queued
-                    if (left.size > starting.size) { starting = left; viewModelScope.launch { findStarted() } }
-                }
-            }
-        }
-        // What changed for this bot: its newest runs again, once a burst is over.
-        viewModelScope.launch {
-            app.feed.events.collect { ev ->
-                when {
-                    ev.type == "reset" -> load()
-                    // Its plan as it changes (#629): from the feed too, which reconnects, so a run's stream that
-                    // dropped leaves no plan behind. On the running run as this chat holds it; nothing is read again.
-                    ev.type == "run_plan" && ev.data.str("botId") == botId -> ev.data.str("runId").let { id ->
-                        val plan = ev.data["plan"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }
-                        all = all.map { if (it.id == id && it.isRunning) it.copy(planValue = plan) else it }
-                    }
-                    // Its steps so far, rows and all (#633), each time it takes one: an open step line grows as it goes.
-                    ev.type == "run_steps" && ev.data.str("botId") == botId -> ev.data.str("runId").let { id ->
-                        val steps = (ev.data["steps"] as? JsonObject) ?: return@let
-                        if (all.any { it.id == id && it.isRunning && it.stepsValue != steps }) all = all.map { if (it.id == id && it.isRunning) it.copy(stepsValue = steps) else it }
-                    }
-                    ev.type.startsWith("run_") && ev.data.str("botId") == botId -> kicks.tryEmit(Unit)
-                    ev.type == "bot_message" && (ev.data["to"] as? JsonObject)?.str("id") == botId -> kicks.tryEmit(Unit)
-                    ev.type == "notes_held" && ev.data.str("botId") == botId -> kicks.tryEmit(Unit) // the wake gate held a note (ADR 083)
-                    ev.type == "watches" && ev.data.str("botId") == botId -> viewModelScope.launch { readWatches() } // set, read, ended or stopped (ADR 248)
-                    // While it works, a card came, went or changed: an action in a connected app may have begun or
-                    // ended its wait for the owner's OK, which the run says in this list (`waitingFor`).
-                    ev.type == "asks" && all.any { it.isRunning } -> kicks.tryEmit(Unit)
-                }
-            }
-        }
-        viewModelScope.launch { kicks.debounce(250).collect { refresh() } }
-    }
-
-    /** The runs of the messages that started, into the chat: one botdot has no run for (taken back elsewhere) goes. */
-    private suspend fun findStarted() {
-        refresh()
-        val a = app.api.value
-        for (q in stillStarting(starting, all)) {
-            val run = runCatching { a?.run(q.id) }.getOrNull()
-            if (run != null && run.id == q.id && !run.isQueued) all = withAnswer(all, run)
-            else starting = starting.filterNot { it.id == q.id }
-        }
-        starting = stillStarting(starting, all)
-    }
-
-    /** The newest page, from scratch. */
-    suspend fun load() {
-        val a = app.api.value ?: return
-        val (r, w) = coroutineScope { async { runCatching { a.runs(botId, PAGE) } } to async { runCatching { a.inbox(botId) } } }
-        r.await().onSuccess { all = it; noOlder = it.size < PAGE; loaded = true; follow() }.onError { _notes.tryEmit(it.message ?: tr("Couldn't load")) }
-        w.await().onSuccess { waiting = it } // an older botdot has no inbox to show
-        readWatches()
-    }
-
-    /** What it watches (ADR 248); an older botdot has none to show. */
-    private suspend fun readWatches() {
-        val a = app.api.value ?: return
-        if (app.store.version.value.value?.features?.contains("watches") != true) return // an older botdot has none
-        runCatching { a.watches(botId) }.onSuccess { watches = it }
-    }
-
-    /** Stop on a watch: gone at once here, and on the server. */
-    fun stopWatch(id: String) {
-        watches = watches.filterNot { it.id == id }
-        viewModelScope.launch {
-            try { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopWatch(botId, id) } catch (e: CancellationException) { throw e } catch (e: Exception) { _notes.tryEmit(e.message ?: tr("Couldn't stop it")); readWatches() } // as the server has them
-        }
-    }
-
-    /** Only its newest runs, put in place of what the chat had. */
-    suspend fun refresh() {
-        val a = app.api.value ?: return
-        if (!loaded) return load()
-        val (r, w) = coroutineScope { async { runCatching { a.runs(botId, NEWEST) } } to async { runCatching { a.inbox(botId) } } }
-        w.await().onSuccess { waiting = it }
-        readWatches()
-        val fresh = r.await().getOrNull() ?: return
-        val merged = mergeNewest(all, fresh, NEWEST) ?: return load() // more new runs than one look brings: start over
-        all = merged
-        follow()
-    }
-
-    /** The next page of older runs (the chat was scrolled up). */
-    fun loadOlder() {
-        if (noOlder || loadingOlder || !loaded) return
-        val oldest = all.lastOrNull()?.id ?: return
-        loadingOlder = true
-        viewModelScope.launch {
-            runCatching { app.api.value?.runs(botId, PAGE, before = oldest) }.onSuccess { page ->
-                val known = all.mapTo(HashSet()) { it.id }
-                // An older botdot sends the newest again: nothing older to show then.
-                if (page == null || page.isEmpty() || page.first().id in known) noOlder = true
-                else { all = all + page.filter { it.id !in known }; noOlder = page.size < PAGE }
-            }
-            loadingOlder = false
-        }
-    }
+    suspend fun reachNew(): Boolean = chat.reachNew()
 
     /** Older pages until this run is in the chat (a search match), a few at most. True when it is. */
-    suspend fun reach(runId: String): Boolean {
-        repeat(10) {
-            if (all.any { it.id == runId }) return true
-            if (noOlder) return false
-            val oldest = all.lastOrNull()?.id ?: return false
-            val page = runCatching { app.api.value?.runs(botId, PAGE, before = oldest) }.getOrNull().orEmpty()
-            val known = all.mapTo(HashSet()) { it.id }
-            if (page.isEmpty() || page.first().id in known) { noOlder = true; return false }
-            all = all + page.filter { it.id !in known }
-        }
-        return all.any { it.id == runId }
-    }
+    suspend fun reach(runId: String): Boolean = chat.reach(runId)
 
-    /** What its message box is told about a send: under way, failed and why, the message to take back. */
-    val outbox = Outbox.of("bot:$botId")
+    /** Only its newest runs, put in place of what the chat had. */
+    suspend fun refresh() = chat.refresh()
+
+    /** The next page of older runs (the chat was scrolled up). */
+    fun loadOlder() = chat.loadOlder()
+
+    /** What it watches: Stop on one. */
+    fun stopWatch(id: String) = chat.stopWatch(id)
 
     /**
      * Sends a message; true once it went. [box]: it came from the message box, and goes back there when it failed.
      * The request outlives this chat's screen: leaving the chat neither stops it nor loses a message it could not send.
      */
-    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, replyTo: String? = null, answers: String? = null): Deferred<Boolean> {
-        var waits = false // the answer was a message that waits its turn: it is in the bot's list, not among its runs
-        val known = ownWords(all, queued).mapTo(HashSet()) { it.id }
+    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, replyTo: String? = null, answers: String? = null): Deferred<Boolean> =
         // Begun in the tap itself: the message is in the chat before anything else is drawn.
-        return app.scope.async(start = CoroutineStart.UNDISPATCHED) {
-            outbox.send(text, attachments, box, key, once = takesOnceIn(app), known = known) { k ->
-                val run = (app.api.value ?: throw ApiException(NOT_CONNECTED)).runBot(botId, text, attachments, k, replyTo, answers)
-                if (replyTo != null && replying?.runId == replyTo) replying = null
-                waits = run.isQueued
-                took(run, text, attachments)
-            }
-        }.also { sent -> viewModelScope.launch { sent.await(); refresh(); if (waits) app.store.bots.refresh() } }
-    }
+        app.scope.async(start = CoroutineStart.UNDISPATCHED) { chat.submit(text, attachments, box, key, replyTo, answers) }
 
-    /** The owner's message on its way, drawn until the server's version of it is in the chat ([SentMessage]). */
-    val sent: SentMessage? by derivedStateOf { outbox.sent?.unlessIn(ownWords(all, queued)) }
+    /** "Take back" on a message that waits: it leaves the server, and its text and files are in the message box again. */
+    fun takeBack(q: Queued) = chat.takeBack(q)
 
-    /** botdot's answer to a send, in the chat at once: the run it started, or the message among those that wait. */
-    private fun took(run: Run, text: String, attachments: List<Attachment>) {
-        if (!run.isQueued) { all = withAnswer(all, run); follow(); return }
-        val q = Queued(run.id, text, attachments)
-        queued = withWaiting(queued, q)
-        app.store.bots.update { bots -> bots.map { if (it.id == botId) it.copy(queuedValue = withWaiting(it.queuedValue, q)) else it } }
-    }
+    /** "Steer" on a message that waits (ADR 040). */
+    fun steer(q: Queued) = chat.steer(q)
 
-    /**
-     * "Take back" on a message that waits: it leaves the server, and its text and files are in the message box
-     * again, as after a failed send. When it has started meanwhile, the box's line says so and the chat shows its run.
-     */
-    fun takeBack(q: Queued) {
-        if (!taking.add(q.id)) return
-        val taken = app.scope.async { outbox.takeBack { (app.api.value ?: throw ApiException(NOT_CONNECTED)).takeBack(botId, q.id) } }
-        viewModelScope.launch {
-            // Gone from the list the app keeps, before the server's list says so: this chat's follows it.
-            if (taken.await()) { takenBack.add(q.id); app.store.bots.update { all -> all.map { if (it.id == botId) it.copy(queuedValue = without(it.queuedValue, q.id)) else it } } }
-            taking.remove(q.id)
-            refresh(); app.store.bots.refresh()
-        }
-    }
+    /** "Run now" under the notes that wait (#225). */
+    fun runNotes() = chat.runNotes()
 
-    /** "Run now" under the notes that wait (#225): the bot starts with them, or once it is free; the chat says which. */
-    fun runNotes() {
-        viewModelScope.launch {
-            try {
-                val r = (app.api.value ?: throw ApiException(NOT_CONNECTED)).runNotes(botId)
-                if (r.status == "queued") _notes.tryEmit(tr("It's busy: it reads them once it's free."))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _notes.tryEmit(e.message ?: tr("Couldn't start it"))
-            }
-            refresh(); app.store.bots.refresh()
-        }
-    }
-
-    /**
-     * "Steer" on a message that waits (ADR 040): the run that is going reads it at its next tool call, and until then
-     * it shows "Steering…". When botdot refused (the run can't take it, or it has started), the box's line says why.
-     */
-    fun steer(q: Queued) {
-        if (!taking.add(q.id)) return
-        viewModelScope.launch {
-            try {
-                (app.api.value ?: throw ApiException(NOT_CONNECTED)).steer(botId, q.id)
-                app.store.bots.update { all -> all.map { if (it.id == botId) it.copy(queuedValue = steered(it.queuedValue, q.id)) else it } }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                outbox.steerFailed(e)
-                refresh()
-            } finally {
-                taking.remove(q.id)
-            }
-            app.store.bots.refresh()
-        }
-    }
-
-    fun stop() {
-        val r = all.firstOrNull { it.isRunning } ?: return
-        stop(r.id)
-    }
+    /** Stop the run that is going: the message box's. */
+    fun stop() = chat.stopRun()
 
     /** Stop one of its runs: Stop in its block (RunBlock). */
-    fun stop(runId: String) {
-        viewModelScope.launch {
-            _notes.tryEmit(stopNote(runCatching { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopRun(runId) }))
-            refresh()
-        }
-    }
+    fun stop(runId: String) = chat.stopRun(runId)
 
-    /** The reply of each run at work as it is written so far, by its run (ReplyDraft): drawn in its place. */
-    var drafts by mutableStateOf<Map<String, String>>(emptyMap())
-        private set
+    /** Whether [runId] takes a reply (`reply-to`, #627). */
+    fun replies(runId: String): Boolean = chat.replies(runId)
 
-    // Follow every run that's going on now (a message to a busy bot starts beside the run that is going, ADR 062):
-    // what each attaches, its line as it changes, its draft, its end.
-    private val streams = mutableMapOf<String, Job>()
-    private fun follow() {
-        // The lines of its runs that still go on, as this list has them; those of runs that ended go.
-        app.store.lines.sync(OpeningLine.live(all, app.store.lines.features)) { it == "bot:$botId" }
-        val going = all.filter { it.isRunning }
-        val ids = going.map { it.id }.toSet()
-        // The runs that ended: their streams go, and their drafts, whose replies stand in their place.
-        streams.keys.filter { it !in ids }.forEach { streams.remove(it)?.cancel() }
-        if (drafts.keys.any { it !in ids }) drafts = drafts.filterKeys { it in ids }
-        for (r in going) {
-            if (streams[r.id]?.isActive == true) continue // a stream that dropped while the run goes on is followed again
-            streams[r.id] = viewModelScope.launch {
-                runCatching {
-                    app.api.value?.runStream(r.id)?.collect { ev ->
-                        when (ev) {
-                            is RunEvent.Step -> Unit // a working bot is its status line: the steps are in the run's details
-                            is RunEvent.Text -> Unit // the reply shows when it's done, or grows as its draft
-                            is RunEvent.Draft -> if (ReplyDraft.shows(app.store.version.value.value?.features)) drafts = if (ev.text.isEmpty()) drafts - r.id else drafts + (r.id to ev.text)
-                            is RunEvent.End -> kicks.tryEmit(Unit) // the draft stays until the reply that takes its place is read (follow)
-                            is RunEvent.File -> kicks.tryEmit(Unit) // show it now: a QR code to scan can't wait for the reply
-                            is RunEvent.Line -> app.store.lines.streamed("bot:$botId", ev, r.id)
-                            // Its plan as it changes: on the run as this chat holds it, until the run is read again.
-                            is RunEvent.Planned -> all = all.map { if (it.id == r.id) it.copy(planValue = ev.value?.takeIf { v -> v !is kotlinx.serialization.json.JsonNull }) else it }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    /** "Reply" on a block: the next message replies to its newest round. */
+    fun replyTo(runId: String) = chat.replyTo(runId)
 
-    companion object {
-        const val PAGE = 40
-        const val NEWEST = 8
-    }
+    /** ✕ on the reply above the box. */
+    fun clearReply() = chat.clearReply()
+
+    /** The plan's dock folded to its one line, or open. */
+    fun foldPlan(folded: Boolean) = chat.foldPlan(folded)
+
+    /** A stopped plan's Dismiss. */
+    fun dismissPlan() = chat.dismissPlan()
 }
 
 /** How long a chat that came on screen waits for botdot to say what is new in it, before it goes by what the app knows. */
