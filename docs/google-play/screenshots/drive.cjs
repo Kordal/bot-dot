@@ -105,8 +105,9 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // The phone's localhost is the computer's: the app takes plain HTTP only to a botdot on the phone itself.
   adb('reverse', `tcp:${scene.port}`, `tcp:${scene.port}`);
   // The status bar shows the demo's icons only: the emulator's own wifi and mobile data ("3G") would add theirs beside them,
-  // so its radios are off. The app reaches botdot over adb's reverse tunnel, which no radio carries.
+  // so its radios are off (the bar keeps the demo's wifi). The app reaches botdot over adb's reverse tunnel, which no radio carries.
   sh('cmd connectivity airplane-mode enable');
+  sh('svc wifi disable'); // airplane mode leaves wifi on if it was
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
