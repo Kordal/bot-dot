@@ -1919,6 +1919,8 @@
   "Video: {alt}": "Wideo: {alt}",
   "Audio: {title}": "Dźwięk: {title}",
   "No source": "Brak źródła",
+  "yes": "tak",
+  "no": "nie",
   "Can't show this here": "Tego tu nie da się pokazać",
   "Label": "Etykieta",
   "Data": "Dane",

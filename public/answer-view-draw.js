@@ -415,10 +415,14 @@ const AnswerViews = (() => {
       if (seen.has(av.dataset.av) && !av._avNamed) { av._avNamed = true; $$('input[type="radio"]', av).forEach((r) => { r.name = `${r.name}-${views.indexOf(av)}`; }); }
       seen.add(av.dataset.av);
       const at = all.indexOf(av.closest('.bubble.from-bot'));
-      const next = at < 0 ? null : all.slice(at + 1).find((b) => b.classList.contains('from-me'));
+      // Every owner message between this view and the next bot message may be its send: the owner can write something else
+      // first and press the button after, and the view must stay sent on the next redraw.
+      const after = at < 0 ? [] : all.slice(at + 1);
+      const upTo = after.findIndex((b) => b.classList.contains('from-bot'));
+      const mine = (upTo < 0 ? after : after.slice(0, upTo)).filter((b) => b.classList.contains('from-me'));
       const says = $$('[data-av-press]', av).map((b) => b.dataset.say);
       const labels = $$('[data-av-in][data-label]', av).map((f) => f.dataset.label);
-      const sent = av._avSent ?? sentFrom(next ? ($('.clamp', next) || next).textContent : null, { says, labels });
+      const sent = av._avSent ?? (mine.map((b) => sentFrom(($('.clamp', b) || b).textContent, { says, labels })).find((t) => t != null) || null);
       paint(av, stateOf({ newest: at >= 0 && at === latest, sent }));
     }
   }
