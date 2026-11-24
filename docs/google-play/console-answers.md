@@ -59,7 +59,7 @@ Play Console → App content → Foreground service permissions. Type: **Special
 
 - Description: `botdot keeps one open connection (server-sent events) to the user's own self-hosted botdot server, so a bot's reply or a request that needs the user's approval shows as a notification within seconds. A self-hosted server cannot use Firebase Cloud Messaging without a relay run by the developer, which would route every user's notifications through a third party. The service starts when the user signs in, shows an ongoing notification for as long as it runs, and stops when the user signs out.`
 - User impact if deferred: `Notifications would arrive minutes to hours late: approvals a bot waits for would block its work.`
-- Video: a 30-second screen recording: sign in, the ongoing notification appears, lock the phone, a bot reply arrives as a notification, tap it, the chat opens.
+- Video: a screen recording of under a minute: sign in, the ongoing notification appears, send a message to a bot, lock the phone, the bot's reply arrives as a notification, tap it, the chat opens. Made by the **Play video** workflow ([README](README.md#making-the-foreground-service-video)); upload it to YouTube as Unlisted and paste the link.
 
 ## Other declarations
 

@@ -1,8 +1,9 @@
 // The Play screenshots' scene (docs/google-play/README.md): a real botdot server with the tests' stand-in Claude
 // (test/fixtures/fake-claude.js) and scratch data, staged as the README's screenshots are. Only the data is staged;
 // every pixel is the Android app's own code (drive.cjs takes the pictures on an emulator).
-// node docs/google-play/screenshots/scene.cjs <dir>: writes <dir>/scene.json ({ port, bots }) once it serves, and
-// stops when <dir>/stop appears.
+// node docs/google-play/screenshots/scene.cjs <dir> [video]: writes <dir>/scene.json ({ port, bots }) once it serves, and
+// stops when <dir>/stop appears. With "video" (the foreground-service video, docs/google-play/video/record.cjs) no bot
+// is at work at the start, and Weekly Planner holds its next reply until <dir>/reply appears, then gives the scripted one.
 process.env.TZ = 'Europe/Brussels';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -13,6 +14,7 @@ const { shortName } = require(path.join(ROOT, 'public', 'mentions.js'));
 const OUT = path.resolve(process.argv[2] || '.');
 fs.mkdirSync(OUT, { recursive: true });
 const ENV = { TZ: 'Europe/Brussels' };
+const VIDEO = process.argv[3] === 'video';
 
 // "This morning": today at 07:00 here, or yesterday's when it is not 08:00 yet.
 const morning = (() => { const d = new Date(); if (d.getHours() < 8) d.setDate(d.getDate() - 1); d.setHours(7, 0, 0, 0); return d.getTime(); })();
@@ -138,16 +140,18 @@ const PAGE = [
     ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Make me a bot that suggests three dinners each evening from what is in the fridge.' } }), 'chief message');
     await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { timeout: 20000, what: 'the Chief\'s reply' });
     fs.rmSync(path.join(srv.out, 'events.json'));
-    // The second turn: the Chief puts a tile with a script on the Board, which waits for the owner's OK.
-    srv.reply('Both are set up:\n\n- **Router uptime**, a tile for Server Watch under Server. It reads the router every 5 minutes.\n- **Night mode**, a job for Home Helper, every day at 22:30: night scene on, thermostats to 17 °C.\n\nEach is one command with no AI, and runs on this computer, so both wait for your OK below.');
-    srv.hold();
-    ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Can you also put my router\'s uptime on the Board, and have Home Helper switch the house to night mode at 22:30?' } }), 'chief message 2');
-    const chiefRun = await srv.nextRun((x) => x.stdin.includes('uptime'), 'the Chief\'s second turn');
-    ok(await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'Router uptime', section: 'Server', bot: watch.id, every: 300, read: { type: 'script', script: 'ssh router uptime -p | sed "s/^up //"' } } }), 'router tile');
-    ok(await srv.asChief(`/bots/${home.id}/jobs`, { method: 'POST', body: { name: 'Night mode', kind: 'script', cron: '30 22 * * *', script: 'ha-cli scene apply night', assessment: 'A fixed routine at a fixed time: no AI needed.' } }), 'job');
-    srv.release(chiefRun);
-    srv.unhold();
-    await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { timeout: 20000, what: 'the Chief\'s second reply' });
+    if (!VIDEO) {
+      // The second turn: the Chief puts a tile with a script on the Board, which waits for the owner's OK.
+      srv.reply('Both are set up:\n\n- **Router uptime**, a tile for Server Watch under Server. It reads the router every 5 minutes.\n- **Night mode**, a job for Home Helper, every day at 22:30: night scene on, thermostats to 17 °C.\n\nEach is one command with no AI, and runs on this computer, so both wait for your OK below.');
+      srv.hold();
+      ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Can you also put my router\'s uptime on the Board, and have Home Helper switch the house to night mode at 22:30?' } }), 'chief message 2');
+      const chiefRun = await srv.nextRun((x) => x.stdin.includes('uptime'), 'the Chief\'s second turn');
+      ok(await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'Router uptime', section: 'Server', bot: watch.id, every: 300, read: { type: 'script', script: 'ssh router uptime -p | sed "s/^up //"' } } }), 'router tile');
+      ok(await srv.asChief(`/bots/${home.id}/jobs`, { method: 'POST', body: { name: 'Night mode', kind: 'script', cron: '30 22 * * *', script: 'ha-cli scene apply night', assessment: 'A fixed routine at a fixed time: no AI needed.' } }), 'job');
+      srv.release(chiefRun);
+      srv.unhold();
+      await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { timeout: 20000, what: 'the Chief\'s second reply' });
+    }
     await srv.api('/read', { method: 'POST', body: { app: 'scene', chat: `chief:${chat.id}` } });
     await srv.api('/read', { method: 'POST', body: { app: 'scene', chat: null } });
 
@@ -184,23 +188,38 @@ const PAGE = [
     for (const f of fs.readdirSync(srv.out).filter((f) => /^result-/.test(f))) fs.rmSync(path.join(srv.out, f));
     void c0;
 
-    // ---- Home Helper at work ----
-    fs.writeFileSync(path.join(srv.out, `hold-${shortName('Home Helper')}`), '');
-    fs.writeFileSync(path.join(srv.out, 'events.json'), JSON.stringify([
-      { type: 'assistant', message: { content: [{ type: 'text', text: 'Checking the thermostats in every room.' }, { type: 'tool_use', id: 'th', name: 'Bash', input: { command: 'ha-cli climate list', description: 'Read the thermostats' } }] } },
-    ]));
-    ok(await srv.api(`/bots/${home.id}/run`, { method: 'POST', body: { prompt: 'Which windows are open, and is it warm enough in the kids\' room?' } }), 'home run');
-    await waitFor(async () => (await srv.api('/bots')).data.find((b) => b.id === home.id)?.running, { what: 'Home Helper at work' });
-    await sleep(1500);
-    fs.rmSync(path.join(srv.out, 'events.json'));
+    if (VIDEO) {
+      // ---- Weekly Planner's next reply is scripted, and held until the video asks for it ----
+      fs.writeFileSync(path.join(srv.out, `result-${shortName('Weekly Planner')}.txt`), 'Tomorrow is light: **09:30** team sync, then **14:00** a call with the school about the winter fair. The rest of the day is free, so I kept it for the Kitchen renovation quotes.');
+      fs.writeFileSync(path.join(srv.out, `hold-${shortName('Weekly Planner')}`), '');
+    } else {
+      // ---- Home Helper at work ----
+      fs.writeFileSync(path.join(srv.out, `hold-${shortName('Home Helper')}`), '');
+      fs.writeFileSync(path.join(srv.out, 'events.json'), JSON.stringify([
+        { type: 'assistant', message: { content: [{ type: 'text', text: 'Checking the thermostats in every room.' }, { type: 'tool_use', id: 'th', name: 'Bash', input: { command: 'ha-cli climate list', description: 'Read the thermostats' } }] } },
+      ]));
+      ok(await srv.api(`/bots/${home.id}/run`, { method: 'POST', body: { prompt: 'Which windows are open, and is it warm enough in the kids\' room?' } }), 'home run');
+      await waitFor(async () => (await srv.api('/bots')).data.find((b) => b.id === home.id)?.running, { what: 'Home Helper at work' });
+      await sleep(1500);
+      fs.rmSync(path.join(srv.out, 'events.json'));
+    }
 
     await srv.api('/dashboard/refresh', { method: 'POST', body: { all: true } });
     await sleep(2000);
 
+    if (VIDEO) {
+      // Nothing is new: the notifications the video shows are its own, not a pile of this morning's.
+      const reading = [...(await srv.api('/bots')).data.map((b) => `bot:${b.id}`), `chief:${chat.id}`, `group:${group.id}`];
+      for (const key of [...reading, null]) await srv.api('/read', { method: 'POST', body: { app: 'scene', chat: key } });
+    }
+
     // ---- served until drive.cjs is done ----
-    fs.writeFileSync(path.join(OUT, 'scene.json'), JSON.stringify({ port: Number(new URL(srv.base).port), base: srv.base, bots: { news: news.id, home: home.id, watch: watch.id, recipe: recipe.id }, chief: chat.id, team: group.id }));
+    fs.writeFileSync(path.join(OUT, 'scene.json'), JSON.stringify({ port: Number(new URL(srv.base).port), base: srv.base, bots: { news: news.id, planner: plan.id, home: home.id, watch: watch.id, recipe: recipe.id }, chief: chat.id, team: group.id }));
     console.log('serving', srv.base);
-    while (!fs.existsSync(path.join(OUT, 'stop'))) await sleep(1000);
+    while (!fs.existsSync(path.join(OUT, 'stop'))) {
+      if (fs.existsSync(path.join(OUT, 'reply'))) { fs.rmSync(path.join(OUT, 'reply')); fs.rmSync(path.join(srv.out, `hold-${shortName('Weekly Planner')}`), { force: true }); }
+      await sleep(300);
+    }
   } finally {
     for (const f of fs.existsSync(srv.out) ? fs.readdirSync(srv.out).filter((f) => /^hold/.test(f)) : []) fs.rmSync(path.join(srv.out, f));
     await srv.stop();
