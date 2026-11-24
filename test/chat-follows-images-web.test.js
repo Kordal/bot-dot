@@ -18,17 +18,20 @@ vm.runInContext(`${src.slice(src.lastIndexOf('const heldChats', from), to)}\nthi
 // A thread that scrolls: its content's height and how far it is scrolled; as a browser has it, a scroll event follows a move.
 function thread({ content = 3000, view = 700, top = 2300 } = {}) {
   const t = {
-    listeners: {}, clientHeight: view, content,
+    listeners: {}, clientHeight: view, content, lineAt: null,
     addEventListener(type, fn, capture) { (t.listeners[type] ||= []).push({ fn, capture }); },
     get scrollHeight() { return t.content; },
     set scrollTop(v) { t.top = Math.min(v, t.content - t.clientHeight); },
     get scrollTop() { return t.top; },
     top,
-    fire(type) { for (const { fn } of t.listeners[type] || []) fn({}); },
+    fire(type, e = {}) { for (const { fn } of t.listeners[type] || []) fn(e); },
+    getBoundingClientRect() { return { top: 0 }; },
+    // A "New" line at `lineAt` px of the content, as a chat opened on its New line has one.
+    querySelector(sel) { return sel === '.new-line' && t.lineAt !== null ? { getBoundingClientRect: () => ({ top: t.lineAt - t.top }) } : null; },
     // The owner scrolls (or the page does): the scroll event comes after.
     scrollTo(v) { t.scrollTop = v; t.fire('scroll'); },
     // A picture loads and takes `px` of height: no scroll event, as in a browser.
-    grow(px) { t.content += px; t.fire('load'); },
+    grow(px) { t.content += px; t.fire('load', { target: { offsetHeight: px } }); },
   };
   return t;
 }
@@ -52,6 +55,45 @@ test('web: a chat the owner scrolled up in is left where it is', () => {
   t.scrollTo(t.scrollHeight - t.clientHeight - 100); // back near the end: following again
   t.grow(270);
   assert.equal(t.scrollHeight - t.scrollTop - t.clientHeight, 0);
+});
+
+test('web: a chat opened on its New line keeps the line in sight while the pictures under it load', () => {
+  // One line of text and three pictures under the line, the chat placed with the line 28 px from the top (scrollToNew).
+  const t = thread({ content: 1400, view: 700, top: 0 });
+  t.lineAt = 700;
+  ctx.holdChatEnd(t);
+  t.scrollTo(672);
+  for (let i = 0; i < 3; i++) {
+    t.grow(270);
+    assert.equal(t.lineAt - t.scrollTop, 28, `the line stays where scrollToNew put it after picture ${i + 1}`);
+  }
+});
+
+test('web: a chat opened on its New line still follows growth up to the line, so no more than that', () => {
+  const t = thread({ content: 1400, view: 700, top: 0 });
+  t.lineAt = 700;
+  ctx.holdChatEnd(t);
+  t.scrollTo(600); // the line is 100 px down, the end 100 px away: held
+  t.grow(1000); // takes all the room
+  assert.equal(t.lineAt - t.scrollTop, 28);
+  assert.equal(t.scrollTop, 672);
+});
+
+test('web: a New line scrolled out of sight (above) no longer holds the chat back', () => {
+  const t = thread({ content: 3000, view: 700, top: 2300 });
+  t.lineAt = 200;
+  ctx.holdChatEnd(t);
+  t.grow(270);
+  assert.equal(t.scrollHeight - t.scrollTop - t.clientHeight, 0);
+});
+
+test('web: where the chat was is read when a picture loads, so a chat drawn after it was watched is not held by a stale answer', () => {
+  const t = thread({ content: 0, view: 700, top: 0 }); // empty when watched: "at its end"
+  ctx.holdChatEnd(t);
+  t.content = 3000; // drawn, the owner reading from the top
+  t.top = 0;
+  t.grow(270); // a cached picture loads before any scroll event
+  assert.equal(t.scrollTop, 0);
 });
 
 test('web: a picture that fails to load (it shows its words) also keeps the chat at its end', () => {

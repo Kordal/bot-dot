@@ -186,16 +186,23 @@ function holdChatEnd(thread, head = null) {
   chatHeights.observe(thread);
 }
 // What a chat holds grows after it was drawn: a picture of a reply loads and takes its height (#1647). A chat that was
-// at its end stays at its end; one the owner scrolled up to read is left where it is. Whether it was at the end is
-// what its last scroll left (scroll events do not come for growth), as the chats' other rules read it (160 px).
+// at its end stays at its end; one the owner scrolled up to read is left where it is. Where the chat was is read when
+// the picture loads, from where it is now less the height the picture just took (scroll events do not come for growth,
+// and a chat drawn after it was watched has no last scroll), as the chats' other rules read the end (160 px). A chat
+// opened on its "New" line keeps the line in sight, the way keepFold keeps a clicked line: it follows no further.
 const grownChats = new WeakSet();
 function followGrowth(thread) {
   grownChats.add(thread);
-  const atEnd = () => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
-  let held = atEnd();
-  thread.addEventListener('scroll', () => { held = atEnd(); }, { passive: true });
   // `load` and `error` do not bubble: caught on the way down, from every picture put into the chat later too.
-  const grew = () => { if (held) thread.scrollTop = thread.scrollHeight; };
+  const grew = (e) => {
+    const took = e.target?.offsetHeight || 0;
+    if (thread.scrollHeight - took - thread.scrollTop - thread.clientHeight >= 160) return;
+    const toEnd = thread.scrollHeight - thread.clientHeight - thread.scrollTop;
+    const line = thread.querySelector('.new-line');
+    const lineTop = line ? line.getBoundingClientRect().top - thread.getBoundingClientRect().top : -1;
+    const room = lineTop >= 0 ? Math.max(0, lineTop - 28) : toEnd; // how far the New line can go up and stay in sight
+    if (toEnd > 0) thread.scrollTop += Math.min(toEnd, room);
+  };
   thread.addEventListener('load', grew, true);
   thread.addEventListener('error', grew, true);
 }
