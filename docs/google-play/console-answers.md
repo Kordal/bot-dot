@@ -44,10 +44,14 @@ Data that leaves the phone goes only to the server the user signs in to, which t
 | Personal info → Name (the account's name) | Yes | No | No | App functionality, Account management |
 | Messages → Other in-app messages | Yes | No | No | App functionality |
 | Photos and videos → Photos | Yes | No | Yes | App functionality |
+| Photos and videos → Videos | Yes | No | Yes | App functionality |
+| Audio files → Voice or sound recordings, Other audio files | Yes | No | Yes | App functionality |
 | Files and docs | Yes | No | Yes | App functionality |
 | App activity → Other user-generated content (answers on cards, Board, settings) | Yes | No | No | App functionality |
 
-Not collected: location, contacts, calendar, health, financial info, web history, device IDs, crash logs, diagnostics, audio. Processed ephemerally: No. Data is processed by the user's own server, not by the developer.
+Videos and audio files are collected only as files the owner attaches to a chat or shares into botdot from another app, through Android's own file picker and share sheet, which take a file of any type; they go to the user's own server like any other file. Attaching is optional, so both are **Optional: Yes**. The app has no camera or microphone code and asks for neither permission (see the manifest), so it records no video and no audio itself: it can only send a recording that already exists on the phone.
+
+Not collected: location, contacts, calendar, health, financial info, web history, device IDs, crash logs, diagnostics, and audio the app records (it records none). Processed ephemerally: No, for every type above, videos and audio files included: the user's server stores what is attached. Data is processed by the user's own server, not by the developer.
 
 ## Foreground service (Android 14+)
 

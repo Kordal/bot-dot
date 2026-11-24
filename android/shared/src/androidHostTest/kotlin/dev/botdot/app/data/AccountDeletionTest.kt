@@ -55,14 +55,14 @@ class AccountDeletionTest {
 
     @Test fun aManagedMachineOpensThePageTheFrontDoorNames() {
         val accounts = listOf("accounts")
-        val url = "https://botdot.app/account-deletion/"
+        val url = "https://botdot.app/account-deletion"
         val managed = obj("""{"account":"solo","admin":false,"deleteAccount":false,"deleteAccountPage":"$url"}""")
         assertEquals(url, AccountDeletion.page(accounts, managed))
         assertFalse("no Delete of its own", AccountDeletion.on(accounts, managed))
         assertEquals("a self-hosted machine names none", null, AccountDeletion.page(accounts, obj("""{"account":"solo","deleteAccount":false,"deleteAccountPage":null}""")))
         assertEquals("an older front door", null, AccountDeletion.page(accounts, obj("""{"account":"solo","deleteAccount":false}""")))
         assertEquals("no front door", null, AccountDeletion.page(emptyList(), managed))
-        for (bad in listOf("http://botdot.app/account-deletion/", "javascript:alert(1)", "not a url", "https://")) {
+        for (bad in listOf("http://botdot.app/account-deletion", "javascript:alert(1)", "not a url", "https://")) {
             assertEquals(bad, null, AccountDeletion.page(accounts, obj("""{"deleteAccountPage":"$bad"}""")))
         }
         assertEquals("not a string", null, AccountDeletion.page(accounts, obj("""{"deleteAccountPage":42}""")))

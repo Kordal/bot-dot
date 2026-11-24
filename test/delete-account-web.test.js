@@ -58,11 +58,11 @@ test("web: the admin's own account is not offered it, and Settings says the mach
 
 test('web: a managed machine opens the page of botdot.app the front door names, in a new tab (#1312)', () => {
   const { ctx } = page();
-  const html = ctx.deleteCardInner({ account: 'solo', admin: false, deleteAccount: false, deleteAccountPage: 'https://botdot.app/account-deletion/' });
-  assert.match(html, /<a[^>]*id="delete-account-page"[^>]*href="https:\/\/botdot\.app\/account-deletion\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*>Delete account…<\/a>/);
+  const html = ctx.deleteCardInner({ account: 'solo', admin: false, deleteAccount: false, deleteAccountPage: 'https://botdot.app/account-deletion' });
+  assert.match(html, /<a[^>]*id="delete-account-page"[^>]*href="https:\/\/botdot\.app\/account-deletion"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*>Delete account…<\/a>/);
   assert.match(html, /Your account is deleted on botdot\.app: the page says how\./);
   assert.doesNotMatch(html, /id="delete-account"[ >]/, 'no Delete of its own');
-  for (const bad of ['http://botdot.app/account-deletion/', 'javascript:alert(1)', 'not a url', 42]) {
+  for (const bad of ['http://botdot.app/account-deletion', 'javascript:alert(1)', 'not a url', 42]) {
     assert.equal(ctx.deleteCardInner({ account: 'solo', deleteAccount: false, deleteAccountPage: bad }), '', String(bad));
   }
   assert.equal(ctx.deleteCardInner({ account: 'solo', admin: false, deleteAccount: false, deleteAccountPage: null }), '', 'a self-hosted machine of one account shows nothing');
