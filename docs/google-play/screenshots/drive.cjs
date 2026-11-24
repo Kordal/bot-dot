@@ -137,7 +137,7 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // The Board, from its values on Home.
   tap(await find(byText('Unread mail'), 'the Board on Home'));
   await find(byText('Living room'), 'the Board');
-  await bring(byText('Disk'), 'the Server tiles on the Board', 400);
+  await bring(byText('Disk'), 'the Server tiles on the Board', 450);
   await shot('8-board.png');
   // The Chief's chat: from where the owner asks for a bot, the Chief's plan under it; then at the end, its two cards that wait for an OK.
   open(`chief:${scene.chief}`);

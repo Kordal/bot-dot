@@ -125,13 +125,13 @@ Want me to remind you when the installer sends the quote?`;
     await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { timeout: 20000, what: 'the Chief\'s reply' });
     fs.rmSync(path.join(srv.out, 'events.json'));
     if (!VIDEO) {
-      // The second turn: the Chief puts a tile with a script on the Board, which waits for the owner's OK.
-      srv.reply('Both are set up:\n\n- **Router uptime**, a tile for Server Watch under Server. It reads the router every 5 minutes.\n- **Night mode**, a job for Home Helper, every day at 22:30: night scene on, thermostats to 17 °C.\n\nEach is one command with no AI, and runs on this computer, so both wait for your OK below.');
+      // The second turn: the Chief puts two tiles with a script on the Board, which wait for the owner's OK.
+      srv.reply('Two tiles, each read by one command here. Both wait for your OK below.');
       srv.hold();
-      ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Can you also put my router\'s uptime on the Board, and have Home Helper switch the house to night mode at 22:30?' } }), 'chief message 2');
-      const chiefRun = await srv.nextRun((x) => x.stdin.includes('uptime'), 'the Chief\'s second turn');
+      ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Router uptime and humidity, please.' } }), 'chief message 2');
+      const chiefRun = await srv.nextRun((x) => x.stdin.includes('humidity'), 'the Chief\'s second turn');
       ok(await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'Router uptime', section: 'Server', bot: watch.id, every: 300, read: { type: 'script', script: 'ssh router uptime -p | sed "s/^up //"' } } }), 'router tile');
-      ok(await srv.asChief(`/bots/${home.id}/jobs`, { method: 'POST', body: { name: 'Night mode', kind: 'script', cron: '30 22 * * *', script: 'ha-cli scene apply night', assessment: 'A fixed routine at a fixed time: no AI needed.' } }), 'job');
+      ok(await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'Humidity', section: 'Home', bot: home.id, unit: '%', every: 300, read: { type: 'script', script: 'ha-cli sensor read humidity' } } }), 'humidity tile');
       srv.release(chiefRun);
       srv.unhold();
       await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { timeout: 20000, what: 'the Chief\'s second reply' });
