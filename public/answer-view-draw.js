@@ -520,8 +520,8 @@ const AnswerViews = (() => {
       filled.delete(key);
       filled.set(key, { at: Date.now(), nodes, tiles: Array.isArray(r.tiles) ? r.tiles : [] });
       if (filled.size > 300) filled.delete(filled.keys().next().value);
-      repaintLive(key);
-    } catch { /* the written values stay */ } finally { asking.delete(key); }
+    } catch { return; /* the written values stay */ } finally { asking.delete(key); }
+    repaintLive(key); // outside the try: a fault in drawing is not hidden as a tile that could not be read
   }
   // Each place a view is drawn: only the boxes of its bound components are drawn again, so what the owner typed and opened stays.
   function repaintLive(key) {
@@ -536,7 +536,7 @@ const AnswerViews = (() => {
         const html = drawNode(liveOf(key, at.path) || at.node, ctx, at.path);
         if (box.innerHTML !== html) box.innerHTML = html;
       }
-      wire(av);
+      wireTips(av); // the new charts' tooltips only: wire() would scan for live numbers again
     }
   }
   // The views of a chat that are due: those never asked, or asked longer ago than STALE.
@@ -708,11 +708,14 @@ const AnswerViews = (() => {
   const values = (av) => Object.fromEntries($$('[data-av-in]', av).map((f) => [f.dataset.avIn, read(f)]));
 
   // The tooltips of the charts drawn under `root`, once each.
-  function wire(root) {
+  function wireTips(root) {
     $$('.av .kit-plot[data-chart]:not([data-wired])', root).forEach((el) => {
       el.dataset.wired = '1';
       wireCharts(el.parentElement);
     });
+  }
+  function wire(root) {
+    wireTips(root);
     liveScan(root); // the numbers of a view that binds to a tile
   }
 

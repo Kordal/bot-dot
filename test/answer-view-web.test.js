@@ -691,7 +691,10 @@ test('a view that names a tile (#1630) is drawn with its written values; an open
   assert.match(boxes[0].innerHTML, /Source: Queue/, "the tile's name is the source");
   assert.match(boxes[1].innerHTML, /<td>x<\/td>/, 'a tile that could not be read: the written table stays');
   assert.match(boxes[1].innerHTML, /av-source none/, 'with the quiet source line as before, and no error');
-  assert.equal(asked[0].body.bot, 'shopper', "whose reply it is: of tiles of one title, that bot's first");
+  // The chat drawn again once the answer is in: its views repaint from what it has, with no loop and nothing thrown (no new ask: it is fresh).
+  assert.doesNotThrow(() => { lv.AnswerViews.wireChat(chat, async () => true); lv.AnswerViews.wire(chat); });
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].body.bot, 'shopper',"whose reply it is: of tiles of one title, that bot's first");
 
   // Asked again when the live feed says that tile changed; not for another tile, and not in a document or a room (no chat).
   lv.AnswerViews.tileChanged('t_other');
