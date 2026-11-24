@@ -93,7 +93,8 @@ test('the catalog: every component says its group, its meaning and the version i
     if (c.sourced) assert.ok(c.props.source?.type === 'string', `${name}: a sourced component has a source`);
     assert.ok(!('type' in c.props) && !('children' in c.props), `${name}: type and children are the node's own`);
   }
-  assert.equal(catalog.version, Math.max(...Object.values(catalog.components).map((c) => c.since)), 'the version is the newest since');
+  // The version is raised by a wave of components, and by a change of what a component carries (4: a data component may bind to a tile, #1630).
+  assert.ok(catalog.version >= Math.max(...Object.values(catalog.components).map((c) => c.since)), 'the version is at least the newest since');
   assert.deepEqual(catalog.tones, ['neutral', 'good', 'warn', 'bad', 'accent']);
   assert.deepEqual(catalog.limits, { fences: 3, nodes: 200, depth: 6, bytes: 65536, points: 500, alt: 200 });
   for (const group of ['layout', 'text', 'data', 'charts', 'media', 'inputs', 'actions']) assert.ok(names.some((n) => catalog.components[n].group === group), group);
@@ -176,7 +177,6 @@ test('a calendar\'s month, a tree\'s depths and a heatmap\'s shades are read as 
 
 test('the long tail of wave 3 is a poll, a quiz and the rest, none of which runs, approves or changes anything', () => {
   for (const name of ['tree', 'calendar', 'kanban', 'heatmap', 'alert', 'empty-state', 'countdown', 'poll', 'quiz']) assert.equal(catalog.components[name]?.since, 3, name);
-  assert.equal(catalog.version, 3);
   // Only a poll's and a quiz's choices and an empty state's buttons are asked for by the owner, and they only post text (ADR 265).
   assert.deepEqual(catalog.components['empty-state'].children.only, ['button', 'button-group', 'link']);
   assert.equal(catalog.components.heatmap.sourced, true);

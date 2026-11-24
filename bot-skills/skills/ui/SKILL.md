@@ -37,6 +37,10 @@ A view is one fenced block named `ui` in your reply, holding one JSON object wit
 
 Every chart, table and KPI (each component in the reference marked "Give it a `source`") takes a `source`: a file of yours, a link, a tile, a tool you used, or "the bot's estimate". **`source` is required on data**: a view without one is drawn with a quiet "No source" mark, so the owner knows the number is unchecked. Say where each number really came from. Never invent a source, and never put a number in a view that you did not read or work out: write "the bot's estimate" for a figure you reckoned yourself.
 
+## Live numbers from a tile
+
+A kpi, gauge, sparkline, chart or table can read a tile of the owner's Board, so its numbers stay current with no run of yours. Give it `tile` (the tile's id; its title works too) and `bind`, the path in the tile's data (`value`, `value.used`; a table's `bind` is a list, and each column's `item` the field of a row; a chart's series each take a `bind`, with `item` and `labelItem` for a list of objects). Still write the values you have now (`value`, `points`, `rows`): they are what Copy, a notification, a room and any reader outside botdot show, and what stays if the tile is gone. The app fills in the tile's live values and names the tile as the source, so you need no `source` for it. A tile is the source with its own logins, scripts and the owner's OK, as for a page: you add one as you do for a page (suggest_tile, or set_tile for your own), never by a number you made up in a view. A chart or sparkline of one number shows the recent values the tile keeps; bind to a list the tile reads when you want a series.
+
 ## Tones, not colours
 
 You set no colour, size, font, style or CSS, and no HTML: everything is drawn as text in the app's own theme. You name a **tone** (`neutral`, `good`, `warn`, `bad`, `accent`) for what a thing means, and in a chart a series is drawn in a colour by its number. A tone or a value that isn't in a prop's list is read as its default.
@@ -169,7 +173,7 @@ Everything below is the catalog the apps read: only these components and props a
 
 <!-- ui-catalog:start (written by node scripts/ui-skill.js from lib/ui-catalog.json: do not edit by hand) -->
 
-Catalog version 3. A component is `{ "type": "<name>", …its props, "children": [ … ] }`. A prop not marked (needed) is optional; a text is cut to its length, never refused.
+Catalog version 4. A component is `{ "type": "<name>", …its props, "children": [ … ] }`. A prop not marked (needed) is optional; a text is cut to its length, never refused.
 
 **Limits.** At most 3 `ui` fences in a reply, 200 components in a fence, nesting 6 deep (the root is 1), 500 points in one chart (all its series together), 64 KB for a fence, and an `alt` of at most 200 characters. Past one of these the whole fence is drawn as code.
 
@@ -203,11 +207,11 @@ Catalog version 3. A component is `{ "type": "<name>", …its props, "children":
 ### Data
 
 - `hero` — The top of a view: a title with a small line above it, a lead and tags. Props: `title` text ≤ 120 (needed); `eyebrow` text ≤ 60; `lead` text ≤ 400; `tags` list of text ≤ 30 (at most 8 items).
-- `kpi` — One number with its label, its unit, what it is out of, a note and its recent values. Props: `label` text ≤ 60 (needed); `value` text ≤ 40 (needed); `unit` text ≤ 20; `of` text ≤ 20; `sub` text ≤ 120; `good` up | down; `tone` tone (default neutral); `points` list of number, null for a gap (at most 60 items); `source` text ≤ 120. Give it a `source`.
+- `kpi` — One number with its label, its unit, what it is out of, a note and its recent values. Props: `label` text ≤ 60 (needed); `value` text ≤ 40 (needed); `unit` text ≤ 20; `of` text ≤ 20; `sub` text ≤ 120; `good` up | down; `tone` tone (default neutral); `points` list of number, null for a gap (at most 60 items); `tile` text ≤ 80; `bind` text ≤ 200; `source` text ≤ 120. Give it a `source`.
 - `stat-row` — KPIs side by side. No props. Holds `kpi`, at most 6.
 - `progress` — A bar showing how far something is, 0 to 100. Props: `label` text ≤ 60 (needed); `value` number 0 to 100 (needed); `text` text ≤ 60; `tone` tone (default neutral).
 - `status` — A pill that says how something stands. Props: `text` text ≤ 60 (needed); `tone` tone (default neutral).
-- `table` — Rows under column headings; on a phone, a list. Props: `title` text ≤ 80; `columns` list of { `label` text ≤ 40 (needed), `align` left | right | center (default left) } (1 to 12 items) (needed); `rows` list of list of text ≤ 200, may be empty (at most 12 items) (1 to 100 items) (needed); `source` text ≤ 120. Give it a `source`.
+- `table` — Rows under column headings; on a phone, a list. Props: `title` text ≤ 80; `columns` list of { `label` text ≤ 40 (needed), `align` left | right | center (default left), `item` text ≤ 100 } (1 to 12 items) (needed); `rows` list of list of text ≤ 200, may be empty (at most 12 items) (1 to 100 items) (needed); `tile` text ≤ 80; `bind` text ≤ 200; `source` text ≤ 120. Give it a `source`.
 - `timeline` — Events in order, each with when it happened. Props: `items` list of { `when` text ≤ 30, `title` text ≤ 80 (needed), `text` text ≤ 200, `tone` tone (default neutral) } (1 to 20 items) (needed).
 - `comparison` — Two to four options side by side, row by row; `pick` marks the one the bot recommends (a number from 0). Props: `title` text ≤ 80; `options` list of text ≤ 40 (2 to 4 items) (needed); `rows` list of { `label` text ≤ 60 (needed), `values` list of text ≤ 100, may be empty (1 to 4 items) (needed) } (1 to 20 items) (needed); `pick` whole number 0 to 3.
 - `checklist` — Items with a tick for each one done. It only shows them. Props: `title` text ≤ 80; `items` list of { `text` text ≤ 120 (needed), `done` true or false } (1 to 30 items) (needed).
@@ -217,12 +221,12 @@ Catalog version 3. A component is `{ "type": "<name>", …its props, "children":
 
 ### Charts
 
-- `chart` — Lines, areas, bars, stacked bars or horizontal bars over `labels`; a series is drawn in a colour by its number. Props: `title` text ≤ 80; `style` line | area | bar | stacked | hbar (default line); `labels` list of text ≤ 30 (at most 100 items); `series` list of { `label` text ≤ 40, `points` list of number, null for a gap (at least 1 items) (needed) } (1 to 6 items) (needed); `unit` text ≤ 20; `source` text ≤ 120. Give it a `source`.
+- `chart` — Lines, areas, bars, stacked bars or horizontal bars over `labels`; a series is drawn in a colour by its number. Props: `title` text ≤ 80; `style` line | area | bar | stacked | hbar (default line); `labels` list of text ≤ 30 (at most 100 items); `series` list of { `label` text ≤ 40, `points` list of number, null for a gap (at least 1 items) (needed), `bind` text ≤ 200 } (1 to 6 items) (needed); `unit` text ≤ 20; `tile` text ≤ 80; `item` text ≤ 100; `labelItem` text ≤ 100; `source` text ≤ 120. Give it a `source`.
 - `pie` — Parts of a whole as slices, or as a ring with `donut`. Props: `title` text ≤ 80; `slices` list of { `label` text ≤ 40 (needed), `value` number at least 0 (needed) } (1 to 12 items) (needed); `donut` true or false; `unit` text ≤ 20; `source` text ≤ 120. Give it a `source`.
 - `scatter` — Points placed by two numbers, x and y. Props: `title` text ≤ 80; `series` list of { `label` text ≤ 40, `points` list of { `x` number (needed), `y` number (needed) } (at least 1 items) (needed) } (1 to 6 items) (needed); `xLabel` text ≤ 30; `yLabel` text ≤ 30; `source` text ≤ 120. Give it a `source`.
 - `histogram` — How many of `values` fall in each of `bins` equal ranges. Props: `title` text ≤ 80; `values` list of number (at least 1 items) (needed); `bins` whole number 2 to 40 (default 10); `unit` text ≤ 20; `source` text ≤ 120. Give it a `source`.
-- `sparkline` — A small line of recent values, with no axes. Props: `label` text ≤ 40; `points` list of number, null for a gap (at least 2 items) (needed); `tone` tone (default neutral); `source` text ≤ 120. Give it a `source`.
-- `gauge` — One value on a dial between `min` (0) and `max` (100). Props: `label` text ≤ 60 (needed); `value` number (needed); `min` number; `max` number; `unit` text ≤ 20; `tone` tone (default neutral); `source` text ≤ 120. Give it a `source`.
+- `sparkline` — A small line of recent values, with no axes. Props: `label` text ≤ 40; `points` list of number, null for a gap (at least 2 items) (needed); `tone` tone (default neutral); `tile` text ≤ 80; `bind` text ≤ 200; `source` text ≤ 120. Give it a `source`.
+- `gauge` — One value on a dial between `min` (0) and `max` (100). Props: `label` text ≤ 60 (needed); `value` number (needed); `min` number; `max` number; `unit` text ≤ 20; `tone` tone (default neutral); `tile` text ≤ 80; `bind` text ≤ 200; `source` text ≤ 120. Give it a `source`.
 - `heatmap` — A grid of numbers shaded by size: a row for each of `rows`, a column for each of `columns`, `values` one list of numbers per row. Props: `title` text ≤ 80; `rows` list of text ≤ 30 (1 to 30 items) (needed); `columns` list of text ≤ 30 (1 to 30 items) (needed); `values` list of list of number, null for a gap (at most 30 items) (1 to 30 items) (needed); `unit` text ≤ 20; `source` text ≤ 120. Give it a `source`.
 
 ### Media

@@ -3778,6 +3778,8 @@ button.po-meta:focus-visible { outline: 2px solid var(--focus-ring); outline-off
 .av-alt, .av-drawing, .av-unknown, .av-source, .av-missing { color: var(--faint); font-size: var(--fs-12); }
 .md .av-alt, .md .av-drawing { margin: var(--sp-12) 0 var(--sp-4); }
 .av-source.none { color: var(--faint); }
+/* A component bound to a tile of the Board (#1630) is in a box of its own, so that a live update can swap it; the box takes no place. */
+.av-live { display: contents; }
 .av-stack { display: flex; flex-direction: column; gap: var(--sp-12); }
 .av-row { display: flex; flex-wrap: wrap; gap: var(--sp-12); align-items: flex-start; }
 .av-row > * { flex: 1 1 160px; }

@@ -214,7 +214,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // The inputs and buttons of an answer view send through the same function, as the owner's own message (ADR 265): a busy bot shows it as waiting.
     val sendView by rememberUpdatedState<suspend (String, String) -> Boolean> { t, k -> sendFrom(t, k) }
     val viewLater = vm.started.map { it.text } + vm.queued.map { it.text } + listOfNotNull(vm.sent?.text)
-    val viewChat = remember(runs, viewLater) { ViewChat(botBubbles(runs, viewLater)) { t, k -> sendView(t, k) } }
+    val viewChat = remember(runs, viewLater, botId) { ViewChat(botBubbles(runs, viewLater), bot = botId) { t, k -> sendView(t, k) } }
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
     // puts text selected in a message: this chat's message box (QuoteUi.kt).

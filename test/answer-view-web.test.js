@@ -656,3 +656,70 @@ test('once a poll or a quiz was sent, the choice that went is marked, and a quiz
     assert.deepEqual([reveal.hidden, b.attrs['aria-pressed'], b.attrs['data-result']], [true, undefined, undefined]);
   } finally { page.$$ = saved; page.$ = undefined; }
 });
+
+test('a view that names a tile (#1630) is drawn with its written values; an open chat swaps in the tile\'s live ones, and what the tile can\'t say leaves them', async () => {
+  const lv = vm.createContext({ ...words, esc, URL, JSON, linkPaths: (html) => html, FILE_ICON: '<svg></svg>', wireCharts() {}, document: { addEventListener() {} }, $$: () => [] });
+  vm.runInContext(`${read('products.js')}\n${read('blocks.js')}\n${read('answer-view.js')}\n${read('answer-text.js')}\n${read('answer-view-draw.js')}\n${cut('function md(src, botId)', '// Link bare web addresses after rendering')}\nthis.md = md; this.AnswerViews = AnswerViews;`, lv);
+  const asked = [];
+  const answer = { nodes: [], tiles: ['t_q'] };
+  await lv.AnswerViews.load(async (p, o) => { asked.push({ p, body: o.body }); assert.equal(o.method, 'POST'); return answer; }, ['ui-live']);
+  lv.AnswerViews.use(catalog);
+
+  const kpi = { type: 'kpi', label: 'Queue', value: '5', unit: ' jobs', source: 'the bot', tile: 'Queue', bind: 'value' };
+  const text = { type: 'text', text: 'Hi' };
+  const html = lv.md(reply(view({ type: 'stack', children: [text, kpi, { type: 'table', columns: [{ label: 'A' }], rows: [['x']], tile: 'Queue' }] })), 'shopper');
+  assert.match(html, /<div class="av" [^>]*data-av-live>/);
+  assert.equal((html.match(/<div class="av-live" data-av-at="0\.\d">/g) || []).length, 2, 'the two that bind each have their own box, by their path');
+  assert.match(html, /av-kpi[^]*?>5</, 'the written value shows first');
+  assert.doesNotMatch(html, /data-av-live[^>]*>[^]*<p class="av-text[^]*av-live[^]*Hi/);
+  const plainReply = lv.md(reply(view({ type: 'kpi', label: 'K', value: '1' })), 'shopper');
+  assert.doesNotMatch(plainReply, /av-live/, 'a view that binds nothing has no box and asks nothing');
+
+  // A chat that wired its views asks, once, with the nodes that bind; the answer is drawn into their boxes only.
+  const key = /data-av="([a-z0-9]+)"/.exec(html)[1];
+  const boxes = [{ dataset: { avAt: '0.1' }, innerHTML: '' }, { dataset: { avAt: '0.2' }, innerHTML: '' }];
+  const chat = { parentElement: null, matches: () => false };
+  const av = { dataset: { av: key }, parentElement: chat, matches: (s) => s === '.av[data-av-live]' };
+  lv.$$ = (sel) => (sel === '.av[data-av-live]' ? [av] : sel === `.av[data-av="${key}"]` ? [av] : sel === '.av-live' ? boxes : []);
+  answer.nodes = [{ ...kpi, value: '7', source: 'Queue' }, null];
+  lv.AnswerViews.wireChat(chat, async () => true);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].p, '/dashboard/live');
+  assert.deepEqual(Array.from(asked[0].body.nodes, (n) => n.type), ['kpi', 'table'], 'only the nodes that bind, as they were written');
+  assert.match(boxes[0].innerHTML, /av-kpi[^]*?>7</, 'the live value over the written one');
+  assert.match(boxes[0].innerHTML, /Source: Queue/, "the tile's name is the source");
+  assert.match(boxes[1].innerHTML, /<td>x<\/td>/, 'a tile that could not be read: the written table stays');
+  assert.match(boxes[1].innerHTML, /av-source none/, 'with the quiet source line as before, and no error');
+  // The chat drawn again once the answer is in: its views repaint from what it has, with no loop and nothing thrown (no new ask: it is fresh).
+  assert.doesNotThrow(() => { lv.AnswerViews.wireChat(chat, async () => true); lv.AnswerViews.wire(chat); });
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].body.bot, 'shopper',"whose reply it is: of tiles of one title, that bot's first");
+
+  // Asked again when the live feed says that tile changed; not for another tile, and not in a document or a room (no chat).
+  lv.AnswerViews.tileChanged('t_other');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(asked.length, 1);
+  answer.nodes = [{ ...kpi, value: '9', source: 'Queue' }, null];
+  lv.AnswerViews.tileChanged('t_q');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(asked.length, 2);
+  assert.match(boxes[0].innerHTML, />9</);
+  lv.AnswerViews.tileChanged(undefined);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(asked.length, 3, 'the Board changed: every view that binds asks');
+  const loose = { dataset: { av: key }, parentElement: { parentElement: null }, matches: () => true };
+  lv.$$ = (sel) => (sel === '.av[data-av-live]' ? [loose] : []);
+  lv.AnswerViews.wire({ matches: () => false });
+  lv.AnswerViews.tileChanged('t_q');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(asked.length, 3, 'outside a chat of the owner a view shows what was written');
+});
+
+test('a server that does not say ui-live is never asked', async () => {
+  const lv = vm.createContext({ ...words, esc, URL, JSON, document: { addEventListener() {} }, $$: () => [] });
+  vm.runInContext(`${read('answer-view.js')}\n${read('answer-text.js')}\n${read('answer-view-draw.js')}\nthis.AnswerViews = AnswerViews;`, lv);
+  await lv.AnswerViews.load(async () => { throw new Error('asked'); }, ['ui-catalog']).catch(() => {});
+  lv.AnswerViews.use(catalog);
+  lv.AnswerViews.tileChanged('t_q'); // nothing to ask with, nothing thrown
+});

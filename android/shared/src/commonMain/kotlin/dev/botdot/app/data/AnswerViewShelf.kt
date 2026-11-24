@@ -11,7 +11,7 @@ object AnswerViewShelf {
     const val FEATURE = "ui-catalog"
 
     /** The newest catalog version this app draws: a component that came in a later one is one quiet line. */
-    const val KNOWN = 3
+    const val KNOWN = 4
 
     fun shows(features: List<String>?) = features?.contains(FEATURE) == true
 

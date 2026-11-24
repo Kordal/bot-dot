@@ -1,6 +1,6 @@
 {
-  "about": "The catalog of answer views (ADR 264): the components a bot may draw in a ```ui fence of its reply, with their props, lengths, tones, limits and the catalog version each came in (`since`). The server hands it out at GET /api/ui-catalog (`ui-catalog` in `features`); the apps read a fence with one generic validator driven by this file (public/answer-view.js; the shared fixtures are test/fixtures/ui-cases.json). A prop is `{ type, … }`: `string` (max, multiline; empty: an empty one is kept, as a table cell), `number` (min, max, nullable inside a list), `int`, `boolean`, `enum` (values), `tone` (one of `tones`), `https` (a web address), `media` (from: `file` is a path among the bot's files, `https` an image address; exts: the extensions a file may have), `list` (of, max, min) and `object` (props). `required` is a prop that must be there; `counts: \"points\"` adds a list's length to the node's points. A component has `children` (max, only), `in` (the parents it may stand in) and `sourced` (a chart, table or KPI says where its numbers came from). `noReserved` on a string prop (or on the items of a list of strings, as a poll's options): a text that reads as one of the catalog's `reserved` phrases (the owner's words the server reads as an answer, such as the Approve button's: compared in lower case with everything but letters and digits left out) is not read: a prop that is not needed is dropped, one that is needed cuts out its component. `indexes` on an int: a place in the sibling list it names, read as where that item stands among the ones kept. A list whose items stand by position with another's never has a dropped item shift its neighbours: `by` names the list of the same component it is paired with (an item left out of that one is left out here at the same place), `inPlace` keeps an item that can't be read as a blank (an empty text, a null number, an empty list) and, when nothing in the list could be read, cuts the list. Lengths cut, never refuse; only `limits` refuse a fence.",
-  "version": 3,
+  "about": "The catalog of answer views (ADR 264): the components a bot may draw in a ```ui fence of its reply, with their props, lengths, tones, limits and the catalog version each came in (`since`). The server hands it out at GET /api/ui-catalog (`ui-catalog` in `features`); the apps read a fence with one generic validator driven by this file (public/answer-view.js; the shared fixtures are test/fixtures/ui-cases.json). A prop is `{ type, … }`: `string` (max, multiline; empty: an empty one is kept, as a table cell), `number` (min, max, nullable inside a list), `int`, `boolean`, `enum` (values), `tone` (one of `tones`), `https` (a web address), `media` (from: `file` is a path among the bot's files, `https` an image address; exts: the extensions a file may have), `list` (of, max, min) and `object` (props). `required` is a prop that must be there; `counts: \"points\"` adds a list's length to the node's points. A component has `children` (max, only), `in` (the parents it may stand in) and `sourced` (a chart, table or KPI says where its numbers came from). `noReserved` on a string prop (or on the items of a list of strings, as a poll's options): a text that reads as one of the catalog's `reserved` phrases (the owner's words the server reads as an answer, such as the Approve button's: compared in lower case with everything but letters and digits left out) is not read: a prop that is not needed is dropped, one that is needed cuts out its component. `indexes` on an int: a place in the sibling list it names, read as where that item stands among the ones kept. A list whose items stand by position with another's never has a dropped item shift its neighbours: `by` names the list of the same component it is paired with (an item left out of that one is left out here at the same place), `inPlace` keeps an item that can't be read as a blank (an empty text, a null number, an empty list) and, when nothing in the list could be read, cuts the list. A component with a `tile` prop (kpi, gauge, sparkline, chart, table) is bound to a tile of the Board (ADR 264, amendment; ADR 071): `bind` is the path in the tile's data it reads (`value`, `value.used`), a chart's series each have their own `bind` (and the chart's `item` is the field of each row when it is a list of objects, `labelItem` the field that names it), a table's `bind` is its list and each column's `item` the field of a row; the app shows the tile's live values over the written ones, which stay what Copy, notifications and any other reader see. Lengths cut, never refuse; only `limits` refuse a fence.",
+  "version": 4,
   "limits": { "fences": 3, "nodes": 200, "depth": 6, "bytes": 65536, "points": 500, "alt": 200 },
   "tones": ["neutral", "good", "warn", "bad", "accent"],
   "reserved": ["Approved. Go ahead.", "Build it."],
@@ -70,6 +70,7 @@
         "unit": { "type": "string", "max": 20 }, "of": { "type": "string", "max": 20 }, "sub": { "type": "string", "max": 120 },
         "good": { "type": "enum", "values": ["up", "down"] }, "tone": { "type": "tone", "default": "neutral" },
         "points": { "type": "list", "of": { "type": "number", "nullable": true }, "max": 60, "counts": "points" },
+        "tile": { "type": "string", "max": 80 }, "bind": { "type": "string", "max": 200 },
         "source": { "type": "string", "max": 120 }
       } },
     "stat-row": { "group": "data", "since": 1, "means": "KPIs side by side.",
@@ -85,8 +86,9 @@
     "table": { "group": "data", "since": 1, "means": "Rows under column headings; on a phone, a list.", "sourced": true,
       "props": {
         "title": { "type": "string", "max": 80 },
-        "columns": { "type": "list", "max": 12, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 40, "required": true }, "align": { "type": "enum", "values": ["left", "right", "center"], "default": "left" } } } },
+        "columns": { "type": "list", "max": 12, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 40, "required": true }, "align": { "type": "enum", "values": ["left", "right", "center"], "default": "left" }, "item": { "type": "string", "max": 100 } } } },
         "rows": { "type": "list", "max": 100, "min": 1, "required": true, "of": { "type": "list", "max": 12, "by": "columns", "inPlace": true, "of": { "type": "string", "max": 200, "empty": true } } },
+        "tile": { "type": "string", "max": 80 }, "bind": { "type": "string", "max": 200 },
         "source": { "type": "string", "max": 120 }
       } },
     "timeline": { "group": "data", "since": 1, "means": "Events in order, each with when it happened.",
@@ -152,8 +154,8 @@
         "title": { "type": "string", "max": 80 },
         "style": { "type": "enum", "values": ["line", "area", "bar", "stacked", "hbar"], "default": "line" },
         "labels": { "type": "list", "of": { "type": "string", "max": 30 }, "max": 100, "inPlace": true },
-        "series": { "type": "list", "max": 6, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 40 }, "points": { "type": "list", "of": { "type": "number", "nullable": true }, "min": 1, "required": true, "counts": "points", "inPlace": true } } } },
-        "unit": { "type": "string", "max": 20 }, "source": { "type": "string", "max": 120 }
+        "series": { "type": "list", "max": 6, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 40 }, "points": { "type": "list", "of": { "type": "number", "nullable": true }, "min": 1, "required": true, "counts": "points", "inPlace": true }, "bind": { "type": "string", "max": 200 } } } },
+        "unit": { "type": "string", "max": 20 }, "tile": { "type": "string", "max": 80 }, "item": { "type": "string", "max": 100 }, "labelItem": { "type": "string", "max": 100 }, "source": { "type": "string", "max": 120 }
       } },
     "pie": { "group": "charts", "since": 1, "means": "Parts of a whole as slices, or as a ring with `donut`.", "sourced": true,
       "props": {
@@ -177,13 +179,13 @@
       "props": {
         "label": { "type": "string", "max": 40 },
         "points": { "type": "list", "of": { "type": "number", "nullable": true }, "min": 2, "required": true, "counts": "points" },
-        "tone": { "type": "tone", "default": "neutral" }, "source": { "type": "string", "max": 120 }
+        "tone": { "type": "tone", "default": "neutral" }, "tile": { "type": "string", "max": 80 }, "bind": { "type": "string", "max": 200 }, "source": { "type": "string", "max": 120 }
       } },
     "gauge": { "group": "charts", "since": 1, "means": "One value on a dial between `min` (0) and `max` (100).", "sourced": true,
       "props": {
         "label": { "type": "string", "max": 60, "required": true }, "value": { "type": "number", "required": true },
         "min": { "type": "number" }, "max": { "type": "number" }, "unit": { "type": "string", "max": 20 },
-        "tone": { "type": "tone", "default": "neutral" }, "source": { "type": "string", "max": 120 }
+        "tone": { "type": "tone", "default": "neutral" }, "tile": { "type": "string", "max": 80 }, "bind": { "type": "string", "max": 200 }, "source": { "type": "string", "max": 120 }
       } },
 
     "heatmap": { "group": "charts", "since": 3, "means": "A grid of numbers shaded by size: a row for each of `rows`, a column for each of `columns`, `values` one list of numbers per row.", "sourced": true,
