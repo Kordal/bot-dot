@@ -1,4 +1,4 @@
-# ADR-267: A run's tools are served by botdot itself over MCP's Streamable HTTP, not by Node processes
+# ADR-270: A run's tools are served by botdot itself over MCP's Streamable HTTP, not by Node processes
 
 - **Status:** Accepted (spec in [#1670](https://github.com/ladrok/bot-dot/issues/1670))
 - **Owning task:** [#1670](https://github.com/ladrok/bot-dot/issues/1670)

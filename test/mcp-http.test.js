@@ -1,4 +1,4 @@
-// A run's tool servers answered by botdot itself over MCP's Streamable HTTP (ADR 267, #1670): what the run's MCP file
+// A run's tool servers answered by botdot itself over MCP's Streamable HTTP (ADR 270, #1670): what the run's MCP file
 // holds, what the route answers (initialize, tools/list, a tools/call as a stream with keep-alive comments), who it lets
 // in, that the Chief's key never reaches the file, and that BOT_DOT_MCP=stdio brings the processes back. Through the real
 // server and the stand-in Claude; the end-to-end check with the real Claude Code is in the ADR.
@@ -278,6 +278,7 @@ test("the Chief's turn reaches botdot's tools by a token, and its key is in no f
 
 test("a look's tools are the reading ones only, with the same token and no key", async () => {
   srv.hold();
+  await srv.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } }); // the tests run at any hour
   const started = srv.api('/chief/checkup/now', { method: 'POST' });
   const rec = await srv.nextRun((x) => x.botdot && x.args.includes('🧭 Chief of Staff · checkup'), 'the checkup');
   try {
