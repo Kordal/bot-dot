@@ -4,6 +4,7 @@ import dev.botdot.app.data.tr
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.floor
 
@@ -68,8 +69,20 @@ object ViewForm {
     /** The inputs of a view, in the order of the tree. */
     fun fields(root: ViewNode): List<ViewFound> = walk(root) { it.type in INPUTS }
 
-    /** The buttons of a view, in the order of the tree. */
-    fun buttons(root: ViewNode): List<ViewFound> = walk(root) { it.type == "button" }
+    /**
+     * The buttons of a view, in the order of the tree. A poll's and a quiz's choices count as buttons that post their own words,
+     * each at the path of its poll or quiz and its number ("0.1.0"), so that a view knows what it sent by the same rule (wave 3).
+     */
+    fun buttons(root: ViewNode): List<ViewFound> {
+        val out = ArrayList<ViewFound>()
+        fun go(n: ViewNode, path: String) {
+            if (n.type == "button") out += ViewFound(path, n)
+            if (n.type == "poll" || n.type == "quiz") n.strings("options").forEachIndexed { i, o -> out += ViewFound("$path.$i", ViewNode("button", JsonObject(mapOf("label" to JsonPrimitive(o))))) }
+            n.children.orEmpty().forEachIndexed { i, c -> go(c, "$path.$i") }
+        }
+        go(root, "0")
+        return out
+    }
 
     // ---- numbers and text, the way JavaScript reads them ----
 

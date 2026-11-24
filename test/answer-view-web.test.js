@@ -530,3 +530,129 @@ test('every owner bubble the page draws carries its message as data-text, escape
     for (const b of owner) assert.match(b, / data-text="\$\{esc\([^"]+\)\}"/, `${file}: ${b}`);
   }
 });
+
+// ---------- wave 3 (#1629): the long tail of components ----------
+
+test('a tree is nested lists, as deep as its items say and never more than one level at a time', () => {
+  const html = draw({ type: 'tree', title: 'Plan', items: [
+    { text: 'Plan', depth: 0 }, { text: 'Research', depth: 1, note: 'two weeks' }, { text: 'Interviews', depth: 2, tone: 'good' }, { text: 'Deep', depth: 5 }, { text: 'Build', depth: 0 }] });
+  assert.match(html, /<div class="av-block"><div class="av-title">Plan<\/div><ul class="av-tree">/);
+  // Plan > Research > (Interviews > Deep, since the depth 5 is read as 3), then Build beside Plan
+  assert.match(html, /<li class="t-neutral"><span class="av-tree-t">Plan<\/span><ul><li class="t-neutral"><span class="av-tree-t">Research<\/span><small>two weeks<\/small><ul><li class="t-good"><span class="av-tree-t">Interviews<\/span><ul><li class="t-neutral"><span class="av-tree-t">Deep<\/span><\/li><\/ul><\/li><\/ul><\/li><\/ul><\/li><li class="t-neutral"><span class="av-tree-t">Build<\/span><\/li><\/ul>/);
+});
+
+test('a calendar is a month table with a mark on each day that has an event, and its events listed in date order under it', () => {
+  const html = draw({ type: 'calendar', title: 'Plans', month: '2026-11', events: [
+    { date: '2026-11-17', title: 'Release', tone: 'good' }, { date: '2026-11-03', title: 'Standup' }, { date: '2026-12-01', title: 'Next month' }, { date: 'soon', title: 'Someday' }] });
+  assert.match(html, /<table class="av-month"><caption>[^<]*2026[^<]*<\/caption>/);
+  assert.equal(html.split('<th scope="col"').length - 1, 7);
+  // 30 days; November 2026 starts on a Sunday, so six empty cells come first
+  assert.equal(html.split('<td class="empty"').length - 1 >= 6, true);
+  assert.match(html, /<td class="has t-neutral"><span aria-hidden="true">3<\/span><span class="sr-only">3[^<]*: Standup<\/span><\/td>/);
+  assert.match(html, /<td class="has t-good">/);
+  assert.equal((html.match(/<td class="(?:has|day)/g) || []).length, 30);
+  // the agenda: by date, the day that is no day last, the other month's event too
+  assert.match(html, /<ol class="av-agenda"><li class="t-neutral"><time datetime="2026-11-03">[^<]*<\/time> Standup<\/li><li class="t-good"><time datetime="2026-11-17">[^<]*<\/time> Release<\/li><li class="t-neutral"><time datetime="2026-12-01">[^<]*<\/time> Next month<\/li><li class="t-neutral"><span>soon<\/span> Someday<\/li><\/ol>/);
+  // a month that is no month: only the list
+  const bad = draw({ type: 'calendar', month: 'November', events: [{ date: '2026-11-03', title: 'Standup' }] });
+  assert.doesNotMatch(bad, /<table/);
+  assert.match(bad, /<ol class="av-agenda">/);
+});
+
+test('a kanban is a section for each column, a list of its cards under its title, and no handle to move one', () => {
+  const html = draw({ type: 'kanban', title: 'Sprint', columns: [
+    { title: 'To do', cards: [{ title: 'Write', text: 'for Monday', tone: 'warn' }, { title: 'Book' }] }, { title: 'Done', cards: [] }] });
+  assert.match(html, /<div class="av-block"><div class="av-title">Sprint<\/div><div class="av-kanban">/);
+  assert.match(html, /<section class="av-col" aria-label="To do"><h4>To do<small> 2<\/small><\/h4><ul><li class="t-warn"><b>Write<\/b><span>for Monday<\/span><\/li><li class="t-neutral"><b>Book<\/b><\/li><\/ul><\/section>/);
+  assert.match(html, /<section class="av-col" aria-label="Done"><h4>Done<small> 0<\/small><\/h4><\/section>/);
+  assert.doesNotMatch(html, /draggable|<button|tabindex/);
+});
+
+test('a heatmap shades each cell by its number, shows the number, has its Data and its source', () => {
+  const html = draw({ type: 'heatmap', title: 'Visits', rows: ['Mon', 'Tue'], columns: ['9', '12'], values: [[0, 10], [5, null]], unit: 'visits', source: 'analytics.csv' });
+  assert.match(html, /<figure class="av-chart pb-card"><div class="av-plot" role="group" aria-label="Visits">/);
+  assert.match(html, /<table class="av-heat">/);
+  assert.match(html, /<th scope="row">Mon<\/th><td style="--i:0">0<\/td><td style="--i:1">10<\/td>/);
+  assert.match(html, /<th scope="row">Tue<\/th><td style="--i:0.5">5<\/td><td class="none"><\/td>/);
+  assert.match(html, /<details class="av-data"[^>]*><summary>Data<\/summary>.*<td class="num">10 visits<\/td>/);
+  assert.match(html, /<p class="av-source">Source: analytics.csv<\/p>/);
+  assert.match(draw({ type: 'heatmap', rows: ['A'], columns: ['x'], values: [[1]] }), /<p class="av-source none">No source<\/p>/);
+});
+
+test('an alert says its tone in a word as well as a colour, an empty state holds its buttons, and a countdown is a timer of its own', () => {
+  const alert = draw({ type: 'alert', title: 'Heads up', text: 'The report is late.' });
+  assert.match(alert, /<div class="av-alert t-warn" role="group" aria-label="Warning"><span class="av-alert-i" aria-hidden="true">!<\/span><div><b>Heads up<\/b>The report is late\.<\/div><\/div>/);
+  assert.match(draw({ type: 'alert', text: 'Saved.', tone: 'good' }), /av-alert t-good" role="group" aria-label="Done"/);
+  assert.match(draw({ type: 'alert', text: 'x', tone: 'bad' }), /aria-label="Problem"/);
+  assert.match(draw({ type: 'alert', text: 'x', tone: 'accent' }), /aria-label="Note"/);
+  const empty = draw({ type: 'empty-state', title: 'No invoices yet', text: 'Add one.', children: [{ type: 'button', label: 'Add one', send: 'Add an invoice' }] });
+  assert.match(empty, /<div class="av-empty"><b>No invoices yet<\/b><span>Add one\.<\/span><div class="av-btns" role="group">.*data-av-press="0\.0" data-say="Add an invoice"/);
+  const count = draw({ type: 'countdown', label: 'Launch', to: '2026-12-31T18:00', tone: 'accent' });
+  assert.match(count, /<div class="av-countdown t-accent" role="timer" aria-label="Launch" data-av-count="2026-12-31T18:00"><span class="av-count-l">Launch<\/span><time class="av-count-n">[^<]*<\/time><\/div>/);
+  // a moment that is no moment is its label and what it said
+  assert.match(draw({ type: 'countdown', label: 'Soon', to: 'next Friday' }), /<div class="av-countdown t-neutral"><span class="av-count-l">Soon<\/span><span class="av-count-n">next Friday<\/span><\/div>/);
+});
+
+test('a poll and a quiz are buttons that post their own words, and a view with only them is one to press', () => {
+  const poll = draw({ type: 'poll', question: 'Which day?', options: ['Monday', 'Tuesday'] });
+  assert.match(poll, /data-av-act="press"/);
+  assert.match(poll, /<div class="av-poll" role="group" aria-label="Which day\?"><b class="av-q">Which day\?<\/b><div class="av-btns"><button type="button" class="btn av-btn av-choice t-neutral" disabled data-av-press="0\.0" data-say="Monday">Monday<\/button><button[^>]*data-av-press="0\.1" data-say="Tuesday">Tuesday<\/button><\/div><\/div>/);
+  const quiz = draw({ type: 'quiz', question: 'Capital?', options: ['Kraków', 'Warsaw'], answer: 1, explain: 'Since 1596.' });
+  assert.match(quiz, /<div class="av-poll av-quiz" role="group" aria-label="Capital\?" data-correct="Warsaw" data-explain="Since 1596\.">/);
+  assert.match(quiz, /<p class="av-reveal" role="status" hidden><\/p>/);
+  assert.doesNotMatch(poll, /av-reveal|data-correct/);
+  // a poll's choice that is not a quiz's answer index in range reveals no right or wrong
+  assert.doesNotMatch(draw({ type: 'quiz', question: 'Q', options: ['A', 'B'], answer: 5 }), /data-correct/);
+});
+
+test('a quiz says whether the choice that was sent was right, once it was sent, and what the answer is when it was not', () => {
+  const v = AnswerViews.verdict;
+  const n = { type: 'quiz', question: 'Capital?', options: ['Kraków', 'Warsaw'], answer: 1, explain: 'Since 1596.' };
+  assert.deepEqual(plain(v(n, 'Warsaw')), { right: true, text: 'Correct. Since 1596.' });
+  assert.deepEqual(plain(v(n, 'Kraków')), { right: false, text: 'Not quite. The answer is Warsaw. Since 1596.' });
+  assert.equal(v(n, 'Something else'), null);
+  assert.equal(v({ ...n, answer: 5 }, 'Warsaw'), null);
+  assert.deepEqual(plain(v({ ...n, explain: undefined }, 'Warsaw')), { right: true, text: 'Correct.' });
+});
+
+test('the new components are text too: Copy and export give an outline, an agenda, columns, a table, a question and its choices', () => {
+  const tx = (root) => AnswerViews.text(reply(view(root, 'Alt')), { done: true });
+  const has = (root, re) => assert.match(tx(root), re);
+  has({ type: 'tree', title: 'Plan', items: [{ text: 'A', depth: 0 }, { text: 'B', depth: 3, note: 'n' }] }, /\*\*Plan\*\*\n\n- A\n {2}- B \(n\)/);
+  has({ type: 'calendar', title: 'Plans', month: '2026-11', events: [{ date: '2026-11-17', title: 'b' }, { date: '2026-11-03', title: 'a' }] }, /\*\*Plans\*\*\n\n\*\*2026-11\*\*\n\n- 2026-11-03: a\n- 2026-11-17: b/);
+  has({ type: 'kanban', columns: [{ title: 'To do', cards: [{ title: 'Write', text: 'now' }] }, { title: 'Done' }] }, /\*\*To do\*\*\n\n- Write: now\n\n\*\*Done\*\*/);
+  has({ type: 'heatmap', rows: ['Mon'], columns: ['9', '12'], values: [[1, null]], source: 's.csv' }, /\| {2}\| 9 \| 12 \|\n\| --- \| --- \| --- \|\n\| Mon \| 1 \| {2}\|\n\n\*Source: s\.csv\*/);
+  has({ type: 'alert', title: 'Late', text: 'The report.' }, /> \*\*Late\*\* The report\./);
+  has({ type: 'empty-state', title: 'Nothing', text: 'Yet.', children: [{ type: 'button', label: 'Add' }] }, /\*\*Nothing\*\*\n\nYet\.\n\n\[Add\]/);
+  has({ type: 'countdown', label: 'Launch', to: '2026-12-31' }, /\*\*Launch:\*\* 2026-12-31/);
+  has({ type: 'poll', question: 'Which?', options: ['A', 'B'] }, /\*\*Which\?\*\*\n\n- A\n- B/);
+  // the answer of a quiz is not in its copy
+  assert.doesNotMatch(tx({ type: 'quiz', question: 'Q?', options: ['A', 'B'], answer: 1, explain: 'because' }), /because/);
+});
+
+test('once a poll or a quiz was sent, the choice that went is marked, and a quiz says whether it was right; before, it says nothing', () => {
+  // the page's $$ over stand-in elements: each holds the parts a selector finds in it
+  const el = (props = {}, parts = {}) => ({ dataset: {}, hidden: true, textContent: '', attrs: {}, parts, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { this.attrs[k] = undefined; }, ...props });
+  const choice = (say) => el({ dataset: { avPress: 'x', say } });
+  const [a, b] = [choice('Kraków'), choice('Warsaw')];
+  const reveal = el();
+  const quiz = el({ dataset: { correct: 'Warsaw', explain: 'Since 1596.' } }, { '[data-av-press]': [a, b], '.av-reveal': [reveal] });
+  const av = el({}, { '.av-poll': [quiz] });
+  const saved = page.$$;
+  page.$$ = (sel, root) => root.parts[sel] || [];
+  page.$ = (sel, root) => (root.parts[sel] || [])[0] || null;
+  try {
+    AnswerViews.mark(av, { state: 'open' });
+    assert.equal(reveal.hidden, true);
+    assert.equal(a.attrs['aria-pressed'], undefined);
+    AnswerViews.mark(av, { state: 'sent', said: 'Kraków' });
+    assert.equal(reveal.hidden, false);
+    assert.equal(reveal.textContent, 'Not quite. The answer is Warsaw. Since 1596.');
+    assert.deepEqual([a.attrs['aria-pressed'], b.attrs['aria-pressed'], a.attrs['data-result'], b.attrs['data-result']], ['true', 'false', 'wrong', 'right']);
+    AnswerViews.mark(av, { state: 'sent', said: 'Warsaw' });
+    assert.deepEqual([reveal.textContent, b.attrs['data-result'], a.attrs['data-result']], ['Correct. Since 1596.', 'right', undefined]);
+    // taking the send back opens it again
+    AnswerViews.mark(av, { state: 'open' });
+    assert.deepEqual([reveal.hidden, b.attrs['aria-pressed'], b.attrs['data-result']], [true, undefined, undefined]);
+  } finally { page.$$ = saved; page.$ = undefined; }
+});

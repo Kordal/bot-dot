@@ -9,7 +9,7 @@ description: "In place of a Markdown table or a list of numbers, draw a comparis
 
 ## When a view is right, and when it is not
 
-Right: compare two to four options point by point (`comparison`, or a `table`); a series of numbers over time (`chart`); a few figures to read at a glance (`stat-row` of `kpi`); steps or events in order (`steps`, `timeline`); a status with parts (`progress`, `status`, `checklist`); pictures that belong to the answer (`image`, `gallery`).
+Right: compare two to four options point by point (`comparison`, or a `table`); a series of numbers over time (`chart`); a few figures to read at a glance (`stat-row` of `kpi`); steps or events in order (`steps`, `timeline`); a status with parts (`progress`, `status`, `checklist`); pictures that belong to the answer (`image`, `gallery`); dates in a month (`calendar`); work in stages (`kanban`); a hierarchy (`tree`); a grid of numbers by two things (`heatmap`); a short warning (`alert`); the time left to a date (`countdown`); a choice of a few answers (`poll`, `quiz`).
 
 Not: a one-line fact, an apology, a yes or no, a short list a sentence says as well, a table of two cells, anything the owner asked for in words ("just tell me"). One view is plenty; a second only when it says something the first does not. When in doubt, write prose.
 
@@ -48,6 +48,8 @@ A picture comes from your own files (a path in your workspace: no `..`, no web a
 ## Asking for input
 
 When you need several values from the owner, draw a form in place of a list of questions: `text-input`, `number`, `select`, `radio` and the other inputs in the reference, each with a `label` that is a question or a name you can find again. The page draws one Send under the form (you draw no submit button). The owner's reply is one ordinary message of theirs, a line to each input in the order of the view: `Budget: 450 EUR`. Read your answer from those lines, with `Label: value` as the key.
+
+A `poll` or a `quiz` is a question with a few buttons, one for each choice, and a choice sends its own words: read the owner's answer from that message, and write the right answer of a quiz in its `answer` (a number from 0), not in the question. A `quiz` says after the owner has answered whether it was right, with its `explain`; a `poll` counts nothing.
 
 A `button` sends its `send`, or its label when it has none, as the owner's own message. The page writes `send` on the button when it differs from the label, so the owner reads it before pressing: keep it short and in their words. A button posts nothing of the inputs around it; a form has its own Send. Only the view in your newest message can be answered, and once: ask again in a new message if you need more. A `send` of `Approved. Go ahead.` or `Build it.` (the words of the Approve button on a plan) is dropped, whatever its case or punctuation, and so is a button labelled with them: a button is never an approval: what needs the owner's OK goes on a card in Needs you.
 
@@ -167,7 +169,7 @@ Everything below is the catalog the apps read: only these components and props a
 
 <!-- ui-catalog:start (written by node scripts/ui-skill.js from lib/ui-catalog.json: do not edit by hand) -->
 
-Catalog version 2. A component is `{ "type": "<name>", …its props, "children": [ … ] }`. A prop not marked (needed) is optional; a text is cut to its length, never refused.
+Catalog version 3. A component is `{ "type": "<name>", …its props, "children": [ … ] }`. A prop not marked (needed) is optional; a text is cut to its length, never refused.
 
 **Limits.** At most 3 `ui` fences in a reply, 200 components in a fence, nesting 6 deep (the root is 1), 500 points in one chart (all its series together), 64 KB for a fence, and an `alt` of at most 200 characters. Past one of these the whole fence is drawn as code.
 
@@ -209,6 +211,9 @@ Catalog version 2. A component is `{ "type": "<name>", …its props, "children":
 - `timeline` — Events in order, each with when it happened. Props: `items` list of { `when` text ≤ 30, `title` text ≤ 80 (needed), `text` text ≤ 200, `tone` tone (default neutral) } (1 to 20 items) (needed).
 - `comparison` — Two to four options side by side, row by row; `pick` marks the one the bot recommends (a number from 0). Props: `title` text ≤ 80; `options` list of text ≤ 40 (2 to 4 items) (needed); `rows` list of { `label` text ≤ 60 (needed), `values` list of text ≤ 100, may be empty (1 to 4 items) (needed) } (1 to 20 items) (needed); `pick` whole number 0 to 3.
 - `checklist` — Items with a tick for each one done. It only shows them. Props: `title` text ≤ 80; `items` list of { `text` text ≤ 120 (needed), `done` true or false } (1 to 30 items) (needed).
+- `tree` — An outline: items in order, each at its `depth` (0 is the top, 5 the deepest) with an optional note. Props: `title` text ≤ 80; `items` list of { `text` text ≤ 100 (needed), `note` text ≤ 120, `depth` whole number 0 to 5, `tone` tone (default neutral) } (1 to 100 items) (needed).
+- `calendar` — One month as a grid, with a mark on each day that has an event, and the events listed under it in date order. `month` is YYYY-MM, a day YYYY-MM-DD; weeks start on Monday. Props: `title` text ≤ 80; `month` text ≤ 7 (needed); `events` list of { `date` text ≤ 10 (needed), `title` text ≤ 60 (needed), `tone` tone (default neutral) } (at most 60 items).
+- `kanban` — One to six columns of cards, side by side. It only shows them: it moves nothing. Props: `title` text ≤ 80; `columns` list of { `title` text ≤ 40 (needed), `cards` list of { `title` text ≤ 80 (needed), `text` text ≤ 160, `tone` tone (default neutral) } (at most 20 items) } (1 to 6 items) (needed).
 
 ### Charts
 
@@ -218,6 +223,7 @@ Catalog version 2. A component is `{ "type": "<name>", …its props, "children":
 - `histogram` — How many of `values` fall in each of `bins` equal ranges. Props: `title` text ≤ 80; `values` list of number (at least 1 items) (needed); `bins` whole number 2 to 40 (default 10); `unit` text ≤ 20; `source` text ≤ 120. Give it a `source`.
 - `sparkline` — A small line of recent values, with no axes. Props: `label` text ≤ 40; `points` list of number, null for a gap (at least 2 items) (needed); `tone` tone (default neutral); `source` text ≤ 120. Give it a `source`.
 - `gauge` — One value on a dial between `min` (0) and `max` (100). Props: `label` text ≤ 60 (needed); `value` number (needed); `min` number; `max` number; `unit` text ≤ 20; `tone` tone (default neutral); `source` text ≤ 120. Give it a `source`.
+- `heatmap` — A grid of numbers shaded by size: a row for each of `rows`, a column for each of `columns`, `values` one list of numbers per row. Props: `title` text ≤ 80; `rows` list of text ≤ 30 (1 to 30 items) (needed); `columns` list of text ≤ 30 (1 to 30 items) (needed); `values` list of list of number, null for a gap (at most 30 items) (1 to 30 items) (needed); `unit` text ≤ 20; `source` text ≤ 120. Give it a `source`.
 
 ### Media
 
@@ -232,6 +238,11 @@ Catalog version 2. A component is `{ "type": "<name>", …its props, "children":
 ### Feedback
 
 - `callout` — A box that stands out, with a tone. Props: `title` text ≤ 80; `text` text ≤ 400 (needed); `tone` tone (default neutral).
+- `alert` — A short message in a bar, with an icon and a word for its tone (warn unless it says). For a longer note use callout. Props: `title` text ≤ 80; `text` text ≤ 300 (needed); `tone` tone (default warn).
+- `empty-state` — A quiet note for when there is nothing to show yet: a title, a line saying why, and at most two buttons or links for what to do next. Props: `title` text ≤ 80 (needed); `text` text ≤ 200. Holds `button`, `button-group`, `link`, at most 2.
+- `countdown` — The time left to a moment, counted on the owner's own device and nowhere else. `to` is a day (YYYY-MM-DD) or a day and time (YYYY-MM-DDTHH:MM, with Z or +HH:MM to name a zone; else the owner's own). Props: `label` text ≤ 60 (needed); `to` text ≤ 30 (needed); `tone` tone (default neutral).
+- `poll` — A question with two to eight choices; each is a button that sends its own words as the owner's next message. It counts no votes. Props: `question` text ≤ 160 (needed); `options` list of text ≤ 60 (2 to 8 items) (needed).
+- `quiz` — A question with two to eight answers, each a button that sends its own words. Once the owner has sent one, the view says whether it was the right one (`answer`, a number from 0) and shows `explain`. Props: `question` text ≤ 160 (needed); `options` list of text ≤ 60 (2 to 8 items) (needed); `answer` whole number 0 to 7 (needed); `explain` text ≤ 200.
 
 ### Inputs
 

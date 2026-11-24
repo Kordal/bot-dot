@@ -105,6 +105,7 @@ import kotlinx.serialization.json.JsonPrimitive
  * reads (answerview/AnswerView.kt), in the app's own theme. A bot sets no colour, size or style: it names a tone, and
  * this file maps the five tones to the Paper's tokens. Every word of a view is drawn as text. Wave 2 adds inputs and buttons
  * (AnswerInputs.kt, ADR 265): they post the owner's own message and nothing else; nothing a view draws approves, runs or changes anything.
+ * Wave 3 (#1629, AnswerTail.kt) adds the long tail: tree, calendar, kanban, heatmap, alert, empty state, countdown, poll and quiz.
  */
 
 /** The catalog of answer views, from a server whose features name `ui-catalog`; null where there is none (a fence is then its code). */
@@ -202,7 +203,7 @@ fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: I
         }
     }
     val form = remember(viewKey, live, values, reply) { FormCtx(viewKey, live, values) { post(it) } }
-    CompositionLocalProvider(LocalForm provides form) {
+    CompositionLocalProvider(LocalForm provides form, LocalViewSaid provides (state as? ViewState.Sent)?.said) {
         Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             ViewBlock(root, alt, "0", top = true)
             if (fields.isNotEmpty()) Button({ post(ViewForm.form(root, values)) }, Modifier.heightIn(min = 48.dp), enabled = live) { Text(tr("Send")) }
@@ -218,7 +219,7 @@ private val INLINE = setOf("badge", "status")
 
 /** One component, by the tree's own name for it: no code of a component's own is the validator's, only the drawing is here. */
 @Composable
-private fun ViewBlock(n: ViewNode, alt: String, path: String, top: Boolean = false) {
+internal fun ViewBlock(n: ViewNode, alt: String, path: String, top: Boolean = false) {
     when (n.type) {
         "stack" -> Column(verticalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { n.children.orEmpty().forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") } }
         "row" -> ViewRow(n, alt, path)
@@ -270,7 +271,14 @@ private fun ViewBlock(n: ViewNode, alt: String, path: String, top: Boolean = fal
         "comparison" -> ViewComparison(n)
         "checklist" -> ViewChecklist(n)
         "callout" -> ViewCallout(n)
-        "chart", "pie", "scatter", "histogram", "sparkline", "gauge" -> ViewChart(n)
+        "tree" -> ViewTree(n)
+        "calendar" -> ViewCalendar(n)
+        "kanban" -> ViewKanban(n)
+        "alert" -> ViewAlert(n)
+        "empty-state" -> ViewEmptyState(n) { c, i -> ViewBlock(c, alt, "$path.$i") }
+        "countdown" -> ViewCountdown(n)
+        "poll", "quiz" -> ViewPoll(n)
+        "chart", "pie", "scatter", "histogram", "sparkline", "gauge", "heatmap" -> ViewChart(n)
         "image" -> ViewImage(n.media("src"), n.text("alt").orEmpty(), n.text("caption"), Modifier.fillMaxWidth(), square = false)
         "gallery" -> ViewGallery(n)
         "video" -> ViewFileRow(n.media("src"), n.text("alt").orEmpty(), n.text("caption"), Icons.Outlined.PlayCircleOutline, tr("Video"))

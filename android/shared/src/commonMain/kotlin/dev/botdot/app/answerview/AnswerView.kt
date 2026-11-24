@@ -94,7 +94,7 @@ data class ViewLimits(val fences: Int, val nodes: Int, val depth: Int, val bytes
 internal class PropSpec(
     val type: String, val max: Int?, val min: Double?, val maxValue: Double?, val required: Boolean, val multiline: Boolean,
     val empty: Boolean, val nullable: Boolean, val values: List<String>, val from: List<String>, val exts: List<String>?,
-    val counts: String?, val minItems: Int?, val of: PropSpec?, val props: Map<String, PropSpec>?, val noReserved: Boolean = false,
+    val counts: String?, val minItems: Int?, val of: PropSpec?, val props: Map<String, PropSpec>?, val noReserved: Boolean = false, val indexes: String? = null,
 )
 
 internal class ChildrenSpec(val max: Int, val only: List<String>?)
@@ -114,7 +114,11 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
         class Got(val v: JsonElement) : Read
     }
 
-    private class Ctx { var nodes = 0; var points = 0; val problems = mutableListOf<Problem>() }
+    private class Ctx {
+        var nodes = 0; var points = 0; val problems = mutableListOf<Problem>()
+        /** Where each kept item of a list stood in the list the bot wrote, by the node's path and the list's own, for a prop that names a place in it. */
+        val kept = HashMap<String, List<Int>>()
+    }
 
     /** A fence limit that was passed: the fence is drawn as code. */
     private class Refusal(val why: String) : Exception()
@@ -132,6 +136,13 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
             "number", "int" -> {
                 var n = numberOf(v) ?: return Read.No
                 if (spec.type == "int") n = floor(n + 0.5)
+                if (spec.indexes != null) {
+                    // A place in a sibling list (`indexes` names it), as the bot counted it in the list it wrote: where that item stands
+                    // among the ones kept. An item that was left out, or a number past the list, names nothing: no clamping to the nearest one.
+                    val kept = ctx.kept["$at|${where.substring(0, where.lastIndexOf('/') + 1)}${spec.indexes}"]
+                    val place = if (kept != null && abs(n) < 1e9) kept.indexOf(n.toInt()) else -1
+                    return if (place < 0) Read.No else Read.Got(number(place.toDouble()))
+                }
                 spec.min?.let { n = maxOf(n, it) }
                 spec.maxValue?.let { n = minOf(n, it) }
                 return Read.Got(number(if (n == 0.0) 0.0 else n))
@@ -153,14 +164,17 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
                     if (ctx.points > limits.points) throw Refusal("too-many-points")
                 }
                 val out = ArrayList<JsonElement>()
+                val kept = ArrayList<Int>() // where each kept item stood in the list the bot wrote, for a prop that names a place in it
                 val of = spec.of ?: return Read.No
                 var i = 0
                 while (i < v.size && (spec.max == null || out.size < spec.max)) {
                     val item = read(v[i], of, at, "$where/$i", ctx)
-                    if (item is Read.Got) out += item.v else ctx.problems += Problem(at, "bad-item", "$where/$i")
+                    if (item is Read.Got) { out += item.v; kept += i } else ctx.problems += Problem(at, "bad-item", "$where/$i")
                     i++
                 }
-                return if (spec.minItems != null && spec.minItems > 0 && out.size < spec.minItems) Read.No else Read.Got(JsonArray(out))
+                if (spec.minItems != null && spec.minItems > 0 && out.size < spec.minItems) return Read.No
+                ctx.kept["$at|$where"] = kept
+                return Read.Got(JsonArray(out))
             }
             "object" -> {
                 if (v !is JsonObject) return Read.No
@@ -336,6 +350,7 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
             values = strings(o["values"]).orEmpty(), from = strings(o["from"]).orEmpty(), exts = strings(o["exts"]),
             counts = (o["counts"] as? JsonPrimitive)?.takeIf { it.isString }?.content, minItems = int(o["min"]),
             of = obj(o["of"])?.let { spec(it) }, props = obj(o["props"])?.let { props(it) }, noReserved = bool(o["noReserved"]),
+            indexes = (o["indexes"] as? JsonPrimitive)?.takeIf { it.isString }?.content,
         )
         private fun props(o: Map<String, JsonElement>): Map<String, PropSpec> = LinkedHashMap<String, PropSpec>().also { m -> for ((k, v) in o) obj(v)?.let { m[k] = spec(it) } }
 
