@@ -182,10 +182,10 @@ test('web: a provider is saved and removed with the server\'s routes, moving not
   assert.doesNotMatch(app + read('claude-card.js'), /console\.\w+\([^)]*key/i, 'the key is never logged');
 });
 
-test('web: nothing but a signed-out Claude makes a saved provider the account default', () => {
+test('web: saving a provider only redraws from the answer: the server decides whether it becomes the account default', () => {
   const wire = cut('function wireClaudeKey(', '// First start, or Claude is known');
-  const grab = /const pform[\s\S]*?\n {2}\}, tr\('Connected\. Its models are in the Model list\.'\), true\)\);/.exec(wire);
+  const grab = /const pform[\s\S]*?tr\('Connected\. Its models are in the Model list\.'\), true\)\);/.exec(wire);
   assert.ok(grab, 'the provider form saves through this');
-  assert.match(grab[0], /if \(saved\.claude\.loggedIn \|\| claudeUnknown\(saved\.claude\)\) return saved;/);
-  assert.match(grab[0], /defaultModel: `provider:\$\{body\.preset\}:\$\{body\.big\}`/);
+  assert.match(grab[0], /api\('\/setup\/claude\/provider', \{ method: 'PUT', body \}\)/);
+  assert.doesNotMatch(grab[0], /defaultModel|\/settings/, 'the page sets no default model of its own (docs/api.md, PUT /api/setup/claude/provider)');
 });

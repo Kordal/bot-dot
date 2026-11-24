@@ -333,14 +333,8 @@ function wireClaudeKey(root, c, redraw) {
     ask(() => api('/setup/claude/key', { method: 'DELETE' }), tr('API key removed'));
   });
   const pform = $('#claude-provider-form', root);
-  // Saving adds the provider and moves nothing (ADR 267). Only when nothing else could run (Claude is signed out and
-  // has no key) its main model becomes the account default, or setup would wait for a model nobody can pick.
-  if (pform) wireProviderForm(pform, c, (body) => ask(async () => {
-    const saved = await api('/setup/claude/provider', { method: 'PUT', body });
-    if (saved.claude.loggedIn || claudeUnknown(saved.claude)) return saved;
-    await api('/settings', { method: 'PUT', body: { defaultModel: `provider:${body.preset}:${body.big}` } });
-    return { claude: (await api('/setup')).claude };
-  }, tr('Connected. Its models are in the Model list.'), true));
+  // Saving adds the provider and the server decides what runs (ADR 267): the answer already says it, the page only redraws.
+  if (pform) wireProviderForm(pform, c, (body) => ask(() => api('/setup/claude/provider', { method: 'PUT', body }), tr('Connected. Its models are in the Model list.'), true));
   const form = $('#claude-key-form', root);
   if (form) {
     form.key.focus();

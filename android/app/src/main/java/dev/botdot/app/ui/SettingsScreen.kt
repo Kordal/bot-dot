@@ -212,17 +212,11 @@ fun SettingsScreen(
                 ProviderSetupForm(
                     connected, s, server?.features?.contains("provider-model-catalog") == true,
                     onCancel = { providerOpen = false },
-                    onSaved = { status, modelId ->
+                    onSaved = { status ->
                         tell(claudeCouldNotTell(status) ?: if (s.claude.mixed) tr("Connected. Its models are in the Model list.") else tr("Saved. Bots now run on it"))
                         providerOpen = false
-                        scope.launch {
-                            // Saving moves nothing (ADR 267). Only when Claude can't run (signed out, no key) its main model
-                            // becomes the account default, or nothing could run at all.
-                            if (s.claude.mixed && status != null && !status.loggedIn && status.error.isNullOrBlank() && edit.defaultModel.isBlank()) {
-                                runCatching { api!!.saveSettings(edit.copy(defaultModel = modelId)) }.onSuccess { info = it; edit = it.settings }
-                            }
-                            load()
-                        }
+                        // Saving moves nothing the server doesn't decide (ADR 267): it makes the provider's main model the default when Claude can't run.
+                        scope.launch { load() }
                     },
                 )
             }

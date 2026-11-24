@@ -268,3 +268,106 @@ test('the usage-limit hold clears only when the Claude connection changes, not w
     assert.equal(key.credential(), null, 'on the subscription');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// The first connection is decided once, by the server (ADR 267): when the Claude connection can't run (the subscription
+// is signed out and there is no API key) and a provider is saved, its main model becomes the account default, also when
+// the default is a Claude model, which can't run. The apps only redraw from the answer.
+test('saving a provider while Claude cannot run makes its main model the account default, also over an explicit Claude model', async (t) => {
+  const own = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropicStand.address().port}` } });
+  const signedOut = path.join(own.out, 'signed-out');
+  t.after(async () => { fs.rmSync(signedOut, { force: true }); await own.stop(); });
+  const save = (preset, url, key) => own.api('/setup/claude/provider', { method: 'PUT', body: { preset, url, key, big: 'model-a', small: 'model-b' } });
+
+  assert.equal((await own.api('/settings', { method: 'PUT', body: { defaultModel: 'opus' } })).status, 200);
+  fs.writeFileSync(signedOut, '');
+  assert.equal((await own.api('/setup/claude', { method: 'DELETE' })).status, 200);
+  const before = (await own.api('/setup')).data.claude;
+  assert.deepEqual([before.subscription, before.loggedIn, before.using], [false, false, 'subscription'], 'signed out, no key, the default is opus');
+
+  const saved = await save('custom', first, KEY_A);
+  assert.equal(saved.status, 200);
+  assert.equal((await own.api('/settings')).data.settings.defaultModel, 'provider:custom:model-a', 'the server moved the default: opus could not run');
+  assert.deepEqual([saved.data.claude.using, saved.data.claude.provider.preset, saved.data.claude.loggedIn, saved.data.claude.subscription], ['provider', 'custom', true, false], 'and the answer already shows it: nothing to ask again');
+
+  // A second provider saved while the default is a provider's model that runs moves nothing.
+  assert.equal((await save('ollama', second, KEY_B)).status, 200);
+  assert.equal((await own.api('/settings')).data.settings.defaultModel, 'provider:custom:model-a');
+});
+
+test('saving a provider moves the default of no account where Claude can run: a signed-in subscription, or an API key', async (t) => {
+  const own = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropicStand.address().port}` } });
+  const signedOut = path.join(own.out, 'signed-out');
+  t.after(async () => { fs.rmSync(signedOut, { force: true }); await own.stop(); });
+  await own.api('/settings', { method: 'PUT', body: { defaultModel: 'opus' } });
+  assert.equal((await own.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'custom', url: first, key: KEY_A, big: 'model-a', small: 'model-b' } })).status, 200);
+  assert.equal((await own.api('/settings')).data.settings.defaultModel, 'opus', 'signed in: nothing moves');
+
+  assert.equal((await own.api('/setup/claude/provider/custom', { method: 'DELETE' })).status, 200);
+  fs.writeFileSync(signedOut, '');
+  assert.equal((await own.api('/setup/claude', { method: 'DELETE' })).status, 200);
+  assert.equal((await own.api('/setup/claude/key', { method: 'PUT', body: { key: API_KEY } })).status, 200);
+  assert.equal((await own.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'custom', url: first, key: KEY_A, big: 'model-a', small: 'model-b' } })).status, 200);
+  assert.equal((await own.api('/settings')).data.settings.defaultModel, 'opus', 'signed out but on an API key: Claude can run, nothing moves');
+});
+
+// An account saved on one provider (ADR 255) whose Claude connection can't run (the subscription is signed out; a key
+// that was saved was not the one in use): the Chief and every bot's own Claude name ran on the provider's models then,
+// and would fail on Claude now, so they are translated as the account default is, once (ADR 267, Migration).
+const FAKE_CLAUDE = path.join(__dirname, 'fixtures', 'fake-claude.js');
+const legacyAccount = (dir, { signedOut }) => {
+  const out = path.join(dir, 'fake');
+  fs.mkdirSync(out, { recursive: true });
+  if (signedOut) fs.writeFileSync(path.join(out, 'signed-out'), '');
+  fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { preset: 'custom', name: 'Other', url: 'https://x.example', big: 'big-m', small: 'small-m' } }));
+  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ defaultModel: 'sonnet', chiefModel: 'opus', language: 'pl' }));
+  const bots = [
+    { id: 'a', name: 'Opus bot', model: 'opus' },
+    { id: 'b', name: 'Haiku bot', model: 'claude-haiku-5-5' },
+    { id: 'c', name: 'Full name bot', model: 'claude-sonnet-5-5' },
+    { id: 'd', name: 'No model of its own', model: '' },
+    { id: 'e', name: 'Already on the provider', model: 'provider:custom:small-m' },
+  ];
+  fs.writeFileSync(path.join(dir, 'bots.json'), JSON.stringify(bots, null, 2));
+  return { out, models: () => JSON.parse(fs.readFileSync(path.join(dir, 'bots.json'), 'utf8')).map((b) => b.model) };
+};
+const withFake = (out, fn) => {
+  const was = process.env.FAKE_OUT;
+  process.env.FAKE_OUT = out;
+  try { return fn(); } finally { if (was === undefined) delete process.env.FAKE_OUT; else process.env.FAKE_OUT = was; }
+};
+
+test('a legacy account whose Claude cannot run has the Chief\'s and every bot\'s Claude name translated once: Haiku to the small model, any other to the big one', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mix-legacy-chief-'));
+  try {
+    const { out, models } = legacyAccount(dir, { signedOut: true });
+    const settings = withFake(out, () => settingsLib.create(dir, { claudeBin: FAKE_CLAUDE }));
+    const got = settings.get();
+    assert.deepEqual([got.defaultModel, got.chiefModel, got.language], ['provider:custom:big-m', 'provider:custom:big-m', 'pl']);
+    assert.deepEqual(models(), ['provider:custom:big-m', 'provider:custom:small-m', 'provider:custom:big-m', '', 'provider:custom:small-m'], 'Opus and a full Sonnet name: big; Haiku: small; none and a provider\'s own stay');
+    assert.deepEqual(settings.forChief(), { model: 'provider:custom:big-m', effort: '' });
+    // Once: a later start leaves the owner's own choice of Claude models alone.
+    settings.update({ chiefModel: 'opus' });
+    fs.writeFileSync(path.join(dir, 'bots.json'), JSON.stringify([{ id: 'a', name: 'Opus bot', model: 'opus' }]));
+    const again = withFake(out, () => settingsLib.create(dir, { claudeBin: FAKE_CLAUDE }));
+    assert.equal(again.get().chiefModel, 'opus');
+    assert.deepEqual(models(), ['opus']);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a legacy account whose Claude can run keeps the Chief\'s and the bots\' Claude names, and only its default moves; one that could not be asked is left alone too', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mix-legacy-signed-in-'));
+  try {
+    const { out, models } = legacyAccount(dir, { signedOut: false });
+    const got = withFake(out, () => settingsLib.create(dir, { claudeBin: FAKE_CLAUDE })).get();
+    assert.deepEqual([got.defaultModel, got.chiefModel], ['provider:custom:big-m', 'opus']);
+    assert.deepEqual(models(), ['opus', 'claude-haiku-5-5', 'claude-sonnet-5-5', '', 'provider:custom:small-m']);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  const unasked = fs.mkdtempSync(path.join(os.tmpdir(), 'mix-legacy-unasked-'));
+  try {
+    const { out, models } = legacyAccount(unasked, { signedOut: true });
+    fs.writeFileSync(path.join(out, 'auth-fails'), ''); // the check fails without a word: botdot could not tell
+    const got = withFake(out, () => settingsLib.create(unasked, { claudeBin: FAKE_CLAUDE })).get();
+    assert.equal(got.chiefModel, 'opus', 'not asked is never "signed out"');
+    assert.deepEqual(models().slice(0, 3), ['opus', 'claude-haiku-5-5', 'claude-sonnet-5-5']);
+  } finally { fs.rmSync(unasked, { recursive: true, force: true }); }
+});

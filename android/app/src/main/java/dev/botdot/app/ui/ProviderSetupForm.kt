@@ -55,8 +55,8 @@ internal fun ProviderSetupForm(
     setup: SetupInfo,
     hasCatalog: Boolean,
     onCancel: () -> Unit,
-    /** The status after saving, and the saved provider's main model's ID (`provider:<preset>:<model>`, ADR 267). A save picks nothing by itself. */
-    onSaved: (ClaudeStatus?, String) -> Unit,
+    /** The status after saving. The server decides what runs, so the screen only reloads (ADR 267). */
+    onSaved: (ClaudeStatus?) -> Unit,
 ) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
@@ -174,7 +174,7 @@ internal fun ProviderSetupForm(
                         scope.launch {
                             try {
                                 val chosenMain = main
-                                onSaved(api.claudeSaveProvider(chosen.id, enteredKey, url, chosenMain, helper.ifEmpty { chosenMain }, reuseKey), "provider:${chosen.id}:$chosenMain")
+                                onSaved(api.claudeSaveProvider(chosen.id, enteredKey, url, chosenMain, helper.ifEmpty { chosenMain }, reuseKey))
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
