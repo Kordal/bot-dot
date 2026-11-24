@@ -5,6 +5,7 @@ import dev.botdot.app.data.refreshLine
 import dev.botdot.app.markdown.Block
 import dev.botdot.app.data.stripTiles
 import dev.botdot.app.data.stripKpi
+import dev.botdot.app.data.stripNote
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.Tile
 import org.junit.Assert.assertEquals
@@ -64,6 +65,21 @@ class BoardWordsTest {
         assertNull("a bar's text has its unit already", bar.unit)
         assertEquals("a tile with no number: its one-line value", "3 items", stripKpi(Tile(id = "t4", title = "Shopping", look = dev.botdot.app.data.TileLook(short = "3 items")))?.text)
         assertNull("nor that: its dot", stripKpi(Tile(id = "t5", title = "Heating", kind = "switch", look = dev.botdot.app.data.TileLook())))
+    }
+
+    // A note's text on the strip (#1505), the web page's rule (list.js, stripKpi, #1502)
+
+    @Test fun aNoteWithTextShowsItsTextOnTheStripAndOneWithoutKeepsItsDot() {
+        val text = dev.botdot.app.data.Block(type = "text", text = "Buy milk and bread", markdown = true, lines = 3)
+        val note = Tile(id = "n1", title = "QA note", kind = "note", look = dev.botdot.app.data.TileLook(face = listOf(text)))
+        assertEquals("a note with text: its text block", "Buy milk and bread", stripNote(note)?.text)
+        assertNull("it has no number", stripKpi(note))
+        val empty = Tile(id = "n2", title = "Empty note", kind = "note", look = dev.botdot.app.data.TileLook(face = listOf(text.copy(text = ""))))
+        assertNull("a note with no text keeps its dot", stripNote(empty))
+        val value = Tile(id = "t1", title = "Living room", look = dev.botdot.app.data.TileLook(face = listOf(dev.botdot.app.data.Block(type = "value", text = "21.5", unit = "°C"), text)))
+        assertNull("a tile with a number is as before", stripNote(value))
+        assertNull("a switch is as before", stripNote(Tile(id = "t2", title = "Heating", kind = "switch", look = dev.botdot.app.data.TileLook())))
+        assertNull("a text block that is not markdown is not a note's text", stripNote(note.copy(look = dev.botdot.app.data.TileLook(face = listOf(text.copy(markdown = false))))))
     }
 
     @Test fun aPageWithNoNumberShowsItsAgeOnTheStrip() {
