@@ -7,7 +7,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.floor
-import kotlin.math.round
 
 // What an answer view says as text, for both phones (#1626, ADR 264): the numbers of a chart as a table (its "Data"), and a
 // reply with views as the plain text a Copy writes: a view is its `alt`, a table a Markdown table, as the spec says.
@@ -16,7 +15,7 @@ import kotlin.math.round
 data class ViewTable(val title: String?, val head: List<String>, val rows: List<List<String>>)
 
 /** A number as it is read on a screen: whole as it is, else to two decimals. */
-fun viewNumber(d: Double): String = jsNumberText(round(d * 100) / 100)
+fun viewNumber(d: Double): String = jsNumberText(floor(d * 100 + 0.5) / 100) // as JavaScript's Math.round: half up
 
 private fun JsonElement.num(): Double? = asNumber()
 private fun JsonElement.obj() = this as? JsonObject

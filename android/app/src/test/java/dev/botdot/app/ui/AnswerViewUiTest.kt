@@ -5,6 +5,18 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import dev.botdot.app.answerview.ViewBubble
+import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -131,5 +143,127 @@ class AnswerViewUiTest {
         rule.onAllNodesWithContentDescription("Pie chart", substring = true).assertCountEquals(0)
         rule.onAllNodesWithContentDescription("Donut chart", substring = true).assertCountEquals(1)
         rule.onAllNodesWithContentDescription("Gauge", substring = true).assertCountEquals(1)
+    }
+
+    // ---- wave 2: inputs and buttons that send the owner's own message (#1628, ADR 265) ----
+
+    private val form = fence("""{"alt":"A form","root":{"type":"stack","children":[
+        {"type":"text-input","label":"Name","value":"Ada"},{"type":"number","label":"Budget","value":300,"unit":"EUR"},
+        {"type":"toggle","label":"Alerts"},{"type":"rating","label":"Grade","max":5,"value":3}]}}""")
+    private val buttons = fence("""{"alt":"A choice","root":{"type":"stack","children":[
+        {"type":"button","label":"Yes, go ahead","send":"Yes, go ahead with the cheaper plan"},{"type":"button","label":"Approve"}]}}""")
+
+    private fun field(label: String) = rule.onNode(hasContentDescription(label) and hasSetTextAction())
+
+    private fun showIn(chat: ViewChat?, id: String, reply: String) = rule.setContent {
+        CompositionLocalProvider(LocalAnswerViews provides views, LocalViewChat provides chat) { ViewReplyScope(id) { Column { MarkdownText(reply) } } }
+    }
+
+    @Test fun aFormOnTheNewestMessageTakesInputAndSendsOneMessageOfTheOwnersOwn() {
+        val sent = mutableListOf<Pair<String, String>>()
+        showIn(ViewChat(listOf(ViewBubble.bot("form-1"))) { t, k -> sent += t to k; true }, "form-1", form)
+        field("Name").performTextReplacement("Adam") // "Adam"
+        rule.onNodeWithText("Send").performClick()
+        rule.waitForIdle()
+        assertEquals(1, sent.size)
+        assertEquals("Name: Adam\nBudget: 300 EUR\nAlerts: no\nGrade: 3/5", sent[0].first)
+        rule.onNodeWithText("Sent: Name: Adam\nBudget: 300 EUR\nAlerts: no\nGrade: 3/5").assertIsDisplayed()
+        rule.onNodeWithText("Send").assertIsNotEnabled()
+    }
+
+    @Test fun everyInputHasItsLabelForTalkBack() {
+        showIn(ViewChat(listOf(ViewBubble.bot("form-2"))) { _, _ -> true }, "form-2", form)
+        field("Name").assertExists()
+        field("Budget").assertExists()
+        rule.onNodeWithText("Alerts").assertExists()
+        rule.onNodeWithContentDescription("3 of 5").assertExists()
+        rule.onAllNodesWithContentDescription("5 of 5").assertCountEquals(1)
+    }
+
+    @Test fun aDoubleTapSendsOnce() {
+        val sent = mutableListOf<String>()
+        val gate = CompletableDeferred<Boolean>()
+        showIn(ViewChat(listOf(ViewBubble.bot("form-3"))) { t, _ -> sent += t; gate.await() }, "form-3", form)
+        rule.onNodeWithText("Send").performClick()
+        rule.onNodeWithText("Send").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Send").assertIsNotEnabled() // on its way
+        gate.complete(true)
+        rule.waitForIdle()
+        assertEquals(1, sent.size)
+    }
+
+    @Test fun aSendThatDidNotGoLeavesTheFormOpenWithWhatWasTyped() {
+        var tries = 0
+        showIn(ViewChat(listOf(ViewBubble.bot("form-4"))) { _, _ -> tries++; false }, "form-4", form)
+        field("Name").performTextReplacement("Adam")
+        rule.onNodeWithText("Send").performClick()
+        rule.waitForIdle()
+        assertEquals(1, tries)
+        rule.onNodeWithText("Send").assertIsEnabled()
+        rule.onAllNodesWithText("Sent:", substring = true).assertCountEquals(0)
+        field("Name").assertTextContains("Adam")
+    }
+
+    @Test fun whatWasTypedStaysWhenTheViewIsDrawnAgain() {
+        var shown by mutableStateOf(true)
+        rule.setContent {
+            CompositionLocalProvider(LocalAnswerViews provides views, LocalViewChat provides ViewChat(listOf(ViewBubble.bot("form-5"))) { _, _ -> true }) {
+                if (shown) ViewReplyScope("form-5") { Column { MarkdownText(form) } }
+            }
+        }
+        field("Name").performTextReplacement("Adam")
+        rule.runOnIdle { shown = false }
+        rule.waitForIdle()
+        rule.runOnIdle { shown = true }
+        rule.waitForIdle()
+        field("Name").assertTextContains("Adam")
+    }
+
+    @Test fun anOlderViewIsReadOnlyAndSaysItWasNotSent() {
+        showIn(ViewChat(listOf(ViewBubble.bot("form-6"), ViewBubble.owner("Thanks"), ViewBubble.bot("form-7"))) { _, _ -> true }, "form-6", form)
+        rule.onNodeWithText("Send").assertIsNotEnabled()
+        rule.onNode(hasContentDescription("Name")).assertIsNotEnabled()
+        rule.onNodeWithText("Not sent").assertIsDisplayed()
+    }
+
+    @Test fun anOlderViewTheOwnerAnsweredSaysWhatWasSentReadFromTheirNextMessage() {
+        val chat = ViewChat(listOf(ViewBubble.bot("form-8"), ViewBubble.owner("Name: Ada\nBudget: 300 EUR\nAlerts: no\nGrade: 3/5"), ViewBubble.bot("form-9"))) { _, _ -> true }
+        showIn(chat, "form-8", form)
+        rule.onNodeWithText("Sent: Name: Ada\nBudget: 300 EUR\nAlerts: no\nGrade: 3/5").assertIsDisplayed()
+        rule.onAllNodesWithText("Not sent").assertCountEquals(0)
+    }
+
+    @Test fun aViewWhereNoChatWiresItIsReadOnlyWithNoLineAsInARoom() {
+        showIn(null, "room-1", form)
+        rule.onNodeWithText("Send").assertIsNotEnabled()
+        rule.onAllNodesWithText("Not sent").assertCountEquals(0)
+        rule.onNode(hasContentDescription("Name")).assertIsNotEnabled()
+    }
+
+    @Test fun aButtonSendsItsTextOrItsLabelAndApproveIsOnlyTheWord() {
+        val sent = mutableListOf<String>()
+        showIn(ViewChat(listOf(ViewBubble.bot("btn-1"))) { t, _ -> sent += t; true }, "btn-1", buttons)
+        rule.onNodeWithText("Approve").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("Approve"), sent)
+        rule.onNodeWithText("Sent: Approve").assertIsDisplayed()
+        rule.onNodeWithText("Yes, go ahead").assertIsNotEnabled() // a view is sent once
+    }
+
+    @Test fun aViewWithOnlyButtonsHasNoSendAndAnOlderOneIsClosed() {
+        showIn(ViewChat(listOf(ViewBubble.bot("btn-2"), ViewBubble.bot("btn-3"))) { _, _ -> true }, "btn-2", buttons)
+        rule.onAllNodesWithText("Send").assertCountEquals(0)
+        rule.onNodeWithText("Yes, go ahead").assertIsNotEnabled()
+        rule.onNodeWithText("Not sent").assertIsDisplayed()
+    }
+
+    @Test fun aLinkAndACopyButtonWorkInAViewThatIsClosed() {
+        val v = fence("""{"alt":"Tools","root":{"type":"stack","children":[{"type":"link","label":"Read the offer","url":"https://example.com/offer"},{"type":"copy","label":"Copy the code","text":"npm test"},{"type":"link","label":"Plain","url":"http://example.com"}]}}""")
+        showIn(null, "tools-1", v)
+        rule.onNodeWithText("Read the offer").assertIsEnabled()
+        rule.onNodeWithText("Copy the code").assertIsEnabled().performClick()
+        rule.onNodeWithText("Copied").assertIsDisplayed()
+        rule.onAllNodesWithText("Plain").assertCountEquals(0) // no https address: the validator leaves it as one quiet line
     }
 }

@@ -54,6 +54,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -164,6 +165,10 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     fun send(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments) }
     // From a quick answer, a question card, a plan's Approve: whether it went. What was tapped stays until it did.
     suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
+    // The inputs and buttons of an answer view send through the same function, as the owner's own message (ADR 265): a busy Chief shows it as waiting.
+    val sendView by rememberUpdatedState<suspend (String, String) -> Boolean> { t, k -> sendFrom(t, k) }
+    val viewLater = vm.queued.map { it.text } + listOfNotNull(vm.sent?.text)
+    val viewChat = remember(chat?.messages, chat?.offset, viewLater) { ViewChat(chiefBubbles(chat?.messages.orEmpty(), chat?.offset ?: 0, viewLater)) { t, k -> sendView(t, k) } }
     // A new chat (#727): the box in the middle, under its head and name, and its own jobs (#408) under it. Gone with the first message.
     val empty = chat?.messages.isNullOrEmpty() && vm.sent == null && vm.queued.isEmpty() && (chatId == null || chat != null)
     @Composable fun box() = Composer(
@@ -194,7 +199,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val onWeb = api?.let { a -> chatId?.let { chatOnWeb(a.baseUrl, "chief", it) } }
     // A file you sent in this chat opens in the viewer (#268).
     val ownFiles = remember(chatId, server?.features) { chatId?.takeIf { DocumentView.opensChatFiles(server?.features) }?.let { id -> { f: Attachment -> DocumentView.chiefUpload(id, f.file) } } }
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalBotLinks provides rememberBotLinks(app, Mentions.CHIEF)) {
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalViewChat provides viewChat, LocalBotLinks provides rememberBotLinks(app, Mentions.CHIEF)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
@@ -284,11 +289,13 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
                             if (!m.pending) m.about?.let { AboutLine(it, mine = m.role != "chief", onTeam = openTeam, onProject = onProject) }
                             val cardOpen = i == cardAt
-                            Message(shownNewestFirst[i], if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
-                                plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
-                                onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
-                                onDismiss = { vm.dismiss() },
-                                thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
+                            ViewReplyScope("$index") {
+                                Message(shownNewestFirst[i], if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
+                                    plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
+                                    onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
+                                    onDismiss = { vm.dismiss() },
+                                    thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
+                            }
                             // The cards it names, under it, to answer here (ADR 252).
                             if (!m.pending && !m.failed && m.role in setOf("chief", "report")) NamedCards(app, "chief", namedHere["${messages.size - 1 - i}"])
                             // A mail draft (#415): its card under the reply, with its own buttons in place of the answer buttons.

@@ -1496,5 +1496,6 @@
   "Minimum": "Minimum",
   "Maximum": "Maksimum",
   "Up {amount}": "W górę o {amount}",
-  "Down {amount}": "W dół o {amount}"
+  "Down {amount}": "W dół o {amount}",
+  "{label}, opens in the browser": "{label}, otwiera się w przeglądarce"
 }

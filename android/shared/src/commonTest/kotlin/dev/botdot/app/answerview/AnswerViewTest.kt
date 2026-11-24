@@ -216,4 +216,107 @@ class AnswerViewTest {
         assertEquals("Looking.\nRevenue", dev.botdot.app.data.plainText("Looking.\n```ui\n{\"alt\":\"Revenue\",\"root\":{\"type\":\"sta"))
         assertEquals("Plain text", dev.botdot.app.data.plainText("**Plain** text"))
     }
+
+    // ---- wave 2: what a view sends (#1628, ADR 265), the same cases the web page runs (test/answer-view.test.js) ----
+
+    private fun viewOf(c: JsonObject) = assertIs<ViewResult.Drawn>(views.validate(c.getValue("view").toString())).root
+
+    @Test fun everySendOfTheSharedFixtureIsPostedAsTheWebPagePostsIt() {
+        val sends = fixture.getValue("sends").jsonArray.map { it.jsonObject }
+        assertTrue(sends.size >= 9)
+        for (c in sends) {
+            val name = c.getValue("name").jsonPrimitive.content
+            val root = viewOf(c)
+            c["posts"]?.let { posts ->
+                val values = c["values"]?.jsonObject.orEmpty().mapValues { it.value }
+                assertEquals(posts.jsonPrimitive.content, ViewForm.form(root, values), name)
+            }
+            c["presses"]?.jsonObject?.forEach { (path, says) ->
+                val button = assertNotNull(ViewForm.buttons(root).firstOrNull { it.path == path }, "$name: a button at $path")
+                assertEquals(says.jsonPrimitive.content, ViewForm.press(button.node), "$name: $path")
+            }
+        }
+    }
+
+    @Test fun theInputsOfAViewAreCountedByPathAsTheWebPageCountsThem() {
+        val root = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"card","title":"Who","children":[{"type":"text-input","label":"Name"},{"type":"button","label":"Go"}]},{"type":"toggle","label":"Alerts"}]}}""")).root
+        assertEquals(listOf("0.0.0", "0.1"), ViewForm.fields(root).map { it.path })
+        assertEquals(listOf("0.0.1"), ViewForm.buttons(root).map { it.path })
+    }
+
+    @Test fun aButtonSendsAtMostTwoHundredCharactersAndNeverHalfAPair() {
+        val long = "x".repeat(199) + "\ud83d\ude00"
+        val node = ViewNode("button", JsonObject(mapOf("label" to JsonPrimitive("Go"), "send" to JsonPrimitive(long))))
+        assertEquals("x".repeat(199), ViewForm.press(node))
+        assertEquals("Go", ViewForm.press(ViewNode("button", JsonObject(mapOf("label" to JsonPrimitive("Go"), "send" to JsonPrimitive("   "))))))
+    }
+
+    @Test fun whatTheOwnerTypedIsKeptToWhatTheInputAllows() {
+        fun node(json: String) = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":$json}""")).root
+        val number = node("""{"type":"number","label":"N","min":0,"max":10}""")
+        assertEquals(Held.Num(10.0), ViewForm.start(number, JsonPrimitive(99)))
+        assertEquals(Held.Num(null), ViewForm.start(number, JsonPrimitive("")))
+        assertEquals(Held.Num(1.5), ViewForm.start(number, JsonPrimitive(" 1.5 ")))
+        assertEquals(Held.Num(null), ViewForm.start(number, JsonPrimitive("1.5f")))
+        val range = node("""{"type":"range","label":"R","low":10,"high":90}""")
+        assertEquals(Held.Span(10.0, 90.0), ViewForm.start(range, null))
+        assertEquals(Held.Span(20.0, 80.0), ViewForm.start(range, JsonArray(listOf(JsonPrimitive(80), JsonPrimitive(20)))))
+        val select = node("""{"type":"select","label":"S","options":["A","B"],"value":"B"}""")
+        assertEquals(Held.Text("A"), ViewForm.start(select, JsonPrimitive("A")))
+        assertEquals(Held.Text("B"), ViewForm.start(select, JsonPrimitive("C")))
+        assertEquals(Held.Text(""), ViewForm.start(select, JsonPrimitive("")))
+        val date = node("""{"type":"date","label":"D","min":"2026-11-24","max":"2027-01-31"}""")
+        assertEquals(Held.Text("2026-11-24"), ViewForm.start(date, JsonPrimitive("2020-01-01")))
+        assertEquals(Held.Text(""), ViewForm.start(date, JsonPrimitive("tomorrow")))
+        assertEquals(Held.Grade(3), ViewForm.start(node("""{"type":"rating","label":"G","max":3}"""), JsonPrimitive(7)))
+        assertEquals(Held.Picks(listOf("A", "C")), ViewForm.start(node("""{"type":"multi-select","label":"M","options":["A","B","C"]}"""), JsonArray(listOf(JsonPrimitive("C"), JsonPrimitive("A"), JsonPrimitive("Z")))))
+    }
+
+    @Test fun aViewIsSentWhenTheOwnersNextMessageIsOneOfItsButtonsOrHasALineForEveryInput() {
+        val says = listOf("Yes, go ahead", "Option B")
+        assertEquals("Yes, go ahead", ViewForm.sentFrom("Yes, go ahead", says, emptyList()))
+        assertEquals("Option B", ViewForm.sentFrom("  Option B \r\n", says, emptyList()))
+        assertNull(ViewForm.sentFrom("Something else", says, emptyList()))
+        assertNull(ViewForm.sentFrom(null, says, emptyList()))
+        val labels = listOf("Name", "Budget")
+        assertEquals("Name: Ada\nBudget: 500", ViewForm.sentFrom("Name: Ada\nBudget: 500", emptyList(), labels))
+        assertNull(ViewForm.sentFrom("Name: Ada", emptyList(), labels))
+        assertEquals("Budget: 500\nName: –", ViewForm.sentFrom("Budget: 500\nName: –", emptyList(), labels))
+        assertNull(ViewForm.sentFrom("anything", emptyList(), emptyList()))
+    }
+
+    @Test fun onlyTheNewestWholeBotMessageCanSendAndTheStateSaysWhatWasSent() {
+        val bubbles = listOf(ViewBubble.bot("a"), ViewBubble.owner("hi"), ViewBubble.bot("b"), ViewBubble.bot("c", working = true), ViewBubble.bot("d", problem = true))
+        assertEquals("b", ViewForm.newest(bubbles))
+        assertNull(ViewForm.newest(listOf(ViewBubble.owner("hi"))))
+        assertNull(ViewForm.newest(listOf(ViewBubble.bot("x", folded = true))))
+        assertEquals(ViewState.Open, ViewForm.state(newest = true, sent = null))
+        assertEquals(ViewState.Sent("Yes"), ViewForm.state(newest = true, sent = "Yes"))
+        assertEquals(ViewState.Sent("Yes"), ViewForm.state(newest = false, sent = "Yes"))
+        assertEquals(ViewState.Closed, ViewForm.state(newest = false, sent = null))
+        // The owner's message after a bot message, whatever else stands between them.
+        assertEquals("hi", ViewForm.ownerAfter(bubbles, "a"))
+        assertNull(ViewForm.ownerAfter(bubbles, "b"))
+        assertNull(ViewForm.ownerAfter(bubbles, "missing"))
+    }
+
+    @Test fun whatTheOwnerTypedStaysUntilItIsSentAndTheKeyOfAMessageIsTheSameWhileItsTextIs() {
+        val drafts = ViewDrafts()
+        drafts.put("r1#0", "0.1", JsonPrimitive("Grace"))
+        assertEquals(JsonPrimitive("Grace"), drafts.of("r1#0")["0.1"])
+        assertTrue(drafts.of("r2#0").isEmpty())
+        val first = drafts.keyFor("r1#0", "Name: Grace")
+        assertEquals(first, drafts.keyFor("r1#0", "Name: Grace"))
+        assertNotEquals(first, drafts.keyFor("r1#0", "Name: Ada"))
+        drafts.sent("r1#0", "Name: Grace")
+        assertTrue(drafts.of("r1#0").isEmpty())
+        assertEquals("Name: Grace", drafts.sentOf("r1#0"))
+        for (i in 0 until 400) drafts.put("v$i", "0", JsonPrimitive(i))
+        assertTrue(drafts.size <= 300)
+    }
+
+    @Test fun aNumberIsRoundedHalfUpAsTheWebPageDoes() {
+        assertEquals("0.13", viewNumber(0.125))
+        assertEquals("-2.5", viewNumber(-2.5))
+    }
 }
