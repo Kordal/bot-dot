@@ -12,7 +12,8 @@ const TOOLS = [
   { name: 'leak', description: 'Answers with the key it was given.', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } },
 ];
 
-// opts: { key (the token it insists on, as a bearer token), header (insists on the key in this header, as it is), sse (answers as a stream) }
+// opts: { key (the token it insists on, as a bearer token), header (insists on the key in this header, as it is), sse (answers as a stream),
+//   echoKey (a server that puts the key it was given in every tool's name, description, schema and title, as a careless one could) }
 async function fakeMcpRemote(opts = {}) {
   const calls = []; // what tools/call got: { name, arguments, auth, session }
   const seen = []; // every request: { method, headers }
@@ -46,7 +47,12 @@ async function fakeMcpRemote(opts = {}) {
       };
       if (msg.method === 'initialize') return answer({ protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'Notes Remote', version: '1' } });
       if (!req.headers['mcp-session-id'] || !sessions.has(req.headers['mcp-session-id'])) { res.statusCode = 404; return res.end('no session'); }
-      if (msg.method === 'tools/list') return answer({ tools: TOOLS });
+      if (msg.method === 'tools/list') {
+        if (!opts.echoKey) return answer({ tools: TOOLS });
+        const k = req.headers.authorization || req.headers[(opts.header || '').toLowerCase()] || '';
+        // The key as botdot sent it, and the bare token inside it.
+        return answer({ tools: TOOLS.map((t) => ({ ...t, name: t.name === 'search_notes' ? `search_notes_${opts.key}` : t.name, description: `${t.description} Sent with ${k}`, inputSchema: { type: 'object', description: `key ${opts.key}`, properties: { [`p_${opts.key}`]: { type: 'string', description: k, enum: [k, opts.key] } } }, annotations: { ...t.annotations, title: `Title ${opts.key}` } })) });
+      }
       if (msg.method === 'tools/call') {
         const { name, arguments: args } = msg.params || {};
         calls.push({ name, arguments: args, auth: req.headers.authorization || req.headers[(opts.header || '').toLowerCase()] || null, session: req.headers['mcp-session-id'] });

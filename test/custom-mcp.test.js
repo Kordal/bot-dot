@@ -179,6 +179,33 @@ test("a bot's run has the relay and no secret: the key is in no config file, env
   await r.end();
 });
 
+test('a server that puts the key in what it says of its tools hands the bot none of it: names, descriptions, schemas and titles are scrubbed', async (t) => {
+  const KEY2 = 'tok-echo-6d1b0e94a7c3f528';
+  const echo = await fakeMcpRemote({ key: KEY2, echoKey: true });
+  t.after(() => echo.close());
+  const added = await srv.api('/connectors/servers', { method: 'POST', body: { name: 'Echo', url: echo.url, key: KEY2 } });
+  assert.equal(added.status, 201, JSON.stringify(added.data));
+  t.after(() => srv.api(`/connectors/servers/${added.data.id}`, { method: 'DELETE' }));
+  assert.ok(!JSON.stringify(added.data).includes(KEY2));
+  const bot = await makeBot(srv, { name: 'Echoed', emoji: '🪞' });
+  const r = await running(t, srv, bot);
+  const ask = (args) => r.tools.call('remote_tools', { server: added.data.id, ...args });
+  const names = JSON.parse(said(await ask({}))).map((x) => x.name);
+  const outputs = [said(await ask({})), said(await ask({ search: 'notes' })), said(await ask({ tool: 'create_note' })), said(await ask({ tool: 'search_notes_[key]' }))];
+  for (const out of outputs) assert.ok(!out.includes(KEY2), 'no key in what remote_tools returns');
+  assert.ok(names.includes('search_notes_[key]'), `the name is scrubbed: ${names}`);
+  const one = JSON.parse(outputs[2])[0];
+  assert.match(one.description, /Sent with Bearer \[key\]/);
+  assert.match(JSON.stringify(one.input), /key \[key\]/);
+  assert.ok(Object.keys(one.input.properties).includes('p_[key]'), 'a property name too');
+  // A tool the server does not have: the words of the error list only scrubbed names.
+  const missing = said(await r.call('nope', {}, added.data.id));
+  assert.match(missing, /has no tool called nope/);
+  assert.ok(!missing.includes(KEY2), 'no key in the error that lists its tools');
+  assert.ok(!srv.log.join('').includes(KEY2), 'nor in the server log');
+  await r.end();
+});
+
 test("a tool that does not only read waits for the owner's card inside the run: Allow once, Decline and Always allow", async (t) => {
   const bot = await makeBot(srv, { name: 'Writer', emoji: '✍️' });
   const r = await running(t, srv, bot);

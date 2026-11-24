@@ -96,3 +96,36 @@ test('in a replay a tool that reads runs, and any other is not done, with no car
   const gone = await srv.api('/connectors/session/custom-run', { method: 'POST', headers: { 'X-Run-Token': rec.remote.env.RUN_TOKEN }, body: { server: server.id, tool: 'search_notes', arguments: {} } });
   assert.equal(gone.status, 403, 'the key goes with the replay');
 });
+
+test("what a remote server answers is outside content, as a connected app's answer is: the run says so, and a save after it is held the same way (ADR 015, ADR 265)", async (t) => {
+  const events = new Map();
+  const asked = async (rec, runId, name) => {
+    const list = [...(events.get(rec.n) || []), { type: 'assistant', message: { content: [{ type: 'tool_use', id: `t${rec.n}-${name}`, name, input: {} }] } }];
+    events.set(rec.n, list);
+    fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify(list));
+    await waitFor(async () => (((await srv.api(`/runs/${runId}`)).data.events || []).filter((e) => e.type === 'assistant').length >= list.length ? true : null), { what: `the run to have asked for ${name}` });
+  };
+  const seen = {};
+  for (const tool of ['mcp__connectors__connector_run', 'mcp__remote__remote_call', 'mcp__remote__remote_tools']) {
+    const b = await makeBot(srv, { name: `Reader ${Object.keys(seen).length}`, emoji: '📖', description: 'Reads' });
+    srv.hold();
+    const started = await srv.api(`/bots/${b.id}/run`, { method: 'POST', body: { prompt: 'Note what I tell you.' } });
+    const rec = await srv.nextRun((x) => x.self?.env && x.args.includes(`${b.emoji} ${b.name}`), `a run of ${b.name}`);
+    const self = (what, body) => srv.api(`/self/session/${what}`, { method: 'POST', body, headers: { 'X-Run-Token': rec.self.env.RUN_TOKEN } }).then((r) => r.data);
+    const job = (name) => self('jobs', { action: 'add', kind: 'ai', name, cron: '0 3 * * *', prompt: 'Check the notes.', assessment: 'Needs AI' });
+    const first = await self('memory', { action: 'add', text: `Said before ${tool}` });
+    assert.equal(first.note.source, 'owner', `before ${tool}`);
+    const before = await job('Before');
+    await asked(rec, started.data.id, tool);
+    const second = await self('memory', { action: 'add', text: `Said after ${tool}` });
+    const after = await job('After');
+    seen[tool] = [second.note.source, before.needsApproval, after.needsApproval];
+    srv.release(rec);
+    const done = await srv.finished(started.data.id);
+    srv.unhold();
+    assert.deepEqual(done.outside, ['app'], `${tool}: the run's record says it read an app`);
+  }
+  assert.deepEqual(seen['mcp__connectors__connector_run'], ['outside', false, true], 'after a connected app: the note is outside and a job waits for the owner');
+  assert.deepEqual(seen['mcp__remote__remote_call'], seen['mcp__connectors__connector_run']);
+  assert.deepEqual(seen['mcp__remote__remote_tools'], seen['mcp__connectors__connector_run']);
+});
