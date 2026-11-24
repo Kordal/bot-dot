@@ -1,13 +1,13 @@
 // A changed bot of the Chief's and the cards of what every bot has now (ADR 009, OK-002, ADR 268). Every bot has the web,
 // files, commands and helpers, so a change that adds a tool holds nothing and no run is refused one: the join of a run
 // to a changed bot's card (one card per grant) has nothing left to join, and a card of such a grant that was waiting is
-// dropped when the asks are read. A proposal still binds the values it was made against
+// answered yes when botdot starts, and the work it held carries on once. A proposal still binds the values it was made against
 // (docs/archive/security-issue-90.md): a bot that changed since is not overwritten. Against the stand-in for Claude.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, restartServer, makeBot, writeData, withAlways } = require('./helpers');
+const { startServer, restartServer, makeBot, writeData, withAlways, sleep } = require('./helpers');
 const asksLib = require('../lib/asks');
 const { heldPermissions, grantWords, staleChange } = asksLib;
 const { kit } = require('./carry-on-helpers');
@@ -66,7 +66,7 @@ test('a Chief change that adds Bash, the web or helpers holds nothing: it is sav
   assert.deepEqual(await kinds(bot), []);
 });
 
-test('a card of what every bot has, waiting from before, is dropped when the asks are read', async () => {
+test('a card of what every bot has, waiting from before, is gone from the list of asks', async () => {
   const bot = await makeBot(srv, { name: 'Old Timer', allowedTools: ['Read'] });
   const at = new Date().toISOString();
   srv = await restartServer(srv, (data) => {
@@ -99,4 +99,51 @@ test('an old card of commands that held a run: the run carries on once at start,
   srv = await restartServer(srv);
   ({ asksOf, answer } = kit(srv));
   await kit(srv).startsNothing(bot, n);
+});
+
+test('an old card older than a week is removed at start and carries nothing on', async () => {
+  const bot = await makeBot(srv, { name: 'Stale Waiter', allowedTools: ['Read'] });
+  const first = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'List the files' } });
+  const stopped = await srv.finished(first.data.id);
+  const at = new Date(Date.now() - (asksLib.CARRY_HOURS + 1) * 3600e3).toISOString();
+  const card = { id: 'old-stale', kind: 'permission', botId: bot.id, permission: 'commands', reason: 'To list them', at, runs: [{ id: stopped.id, at }] };
+  srv = await restartServer(srv, (data) => writeData(path.join(data, 'asks.json'), [card]));
+  ({ asksOf, answer } = kit(srv));
+  const { runsOf, startsNothing } = kit(srv);
+  const n = (await runsOf(bot)).length;
+  assert.deepEqual(await asksOf(bot), [], 'the card is gone');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(srv.data, 'asks.json'), 'utf8')), [], 'and gone from the file');
+  await startsNothing(bot, n);
+});
+
+test("an old card from a Chief chat starts the Chief's turn once at start, and the card is gone", async () => {
+  const bot = await makeBot(srv, { name: 'Chief Waiter', emoji: '🧭', allowedTools: ['Read'] });
+  const run = (await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'List the files' } })).data;
+  const stopped = await srv.finished(run.id);
+  // The Chief chat whose reply started the run (as its run_bot action records).
+  const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  const file = path.join(srv.data, 'chief', `${chat.id}.json`);
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  saved.title = 'List the files';
+  const sent = new Date(Date.now() - 60e3).toISOString();
+  saved.messages.push({ role: 'user', text: 'List the files', at: sent },
+    { role: 'chief', text: 'Started it.', at: sent, actions: [{ kind: 'run', text: 'Started Chief Waiter', botId: bot.id, runId: stopped.id }] });
+  writeData(file, saved);
+  const at = new Date().toISOString();
+  const card = { id: 'old-chief', kind: 'permission', botId: bot.id, permission: 'commands', reason: 'To list them', at, chatId: chat.id, runs: [{ id: stopped.id, at }] };
+  srv = await restartServer(srv, (data) => writeData(path.join(data, 'asks.json'), [card]));
+  ({ asksOf, answer } = kit(srv));
+  const { runsOf } = kit(srv);
+  const turn = await srv.nextRun((x) => x.botdot && x.botdot.env.CHIEF_CHAT_ID === chat.id && x.stdin.includes('Chief Waiter can run commands now'), "the Chief's turn");
+  assert.match(turn.stdin, new RegExp(`Run ${stopped.id} of Chief Waiter, which you started, stopped without it`), 'it is told of the run that waited');
+  assert.deepEqual(await asksOf(bot), [], 'the card is gone');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(srv.data, 'asks.json'), 'utf8')), [], 'and gone from the file');
+  await sleep(60);
+  assert.equal(srv.runs().filter((x) => x.botdot && x.botdot.env.CHIEF_CHAT_ID === chat.id && x.stdin.includes('Chief Waiter can run commands now')).length, 1, "the Chief's turn started exactly once");
+  assert.equal((await runsOf(bot)).length, 1, 'and the bot is not started by botdot: the Chief starts it again');
+  // Another start does not run it a second time.
+  srv = await restartServer(srv);
+  ({ asksOf, answer } = kit(srv));
+  await sleep(100);
+  assert.equal(srv.runs().filter((x) => x.botdot && x.botdot.env.CHIEF_CHAT_ID === chat.id && x.stdin.includes('Chief Waiter can run commands now')).length, 1, 'the next start finds no card: still the one turn');
 });
