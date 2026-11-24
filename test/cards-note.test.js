@@ -18,15 +18,15 @@ test('a run is told that nothing of its bot waits in Needs you, then what waits,
   const bot = await makeBot(srv, { name: 'Video Maker', emoji: '🎬', allowedTools: ['Read'] });
   const first = await run(bot, 'Make the video');
   assert.match(first.rec.system, /Nothing of yours waits in Needs you right now\. Never say that a card of yours waits there/);
-  const r = await self(srv, first.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To render the video' });
+  const r = await self(srv, first.token, 'ask', { kind: 'override', rule: 'Never run commands', action: 'run the command', reason: 'To render the video' });
   assert.equal(r.data.ok, true, JSON.stringify(r.data));
   await first.done();
 
   const second = await run(bot, 'Write in English from now on');
-  assert.match(second.rec.system, /What of yours waits in Needs you right now: your OK to run commands \[card \w+\]\. Nothing else of yours waits there\. As soon as one of these is no longer needed/);
+  assert.match(second.rec.system, /What of yours waits in Needs you right now: your OK on “Asks to lift a rule: run the command” \[card \w+\]\. Nothing else of yours waits there\. As soon as one of these is no longer needed/);
   await second.done();
 
-  const [card] = (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
+  const [card] = (await srv.api('/asks?override=1')).data.filter((a) => a.botId === bot.id);
   const yes = (await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } })).data;
   assert.equal(yes.ok, true, JSON.stringify(yes));
   // The video carries on after the yes, told of the message written since (ADR 180): let it end first.
@@ -34,7 +34,7 @@ test('a run is told that nothing of its bot waits in Needs you, then what waits,
   await waitFor(async () => { const runs = (await srv.api(`/runs?botId=${bot.id}`)).data; return runs.some((r) => r.continues === first.run.id && r.status !== 'running' && r.status !== 'queued'); }, { what: 'the video carrying on' });
   const third = await run(bot, 'How is the video going?');
   assert.match(third.rec.system, /Nothing of yours waits in Needs you right now/);
-  assert.doesNotMatch(third.rec.system, /your OK to run commands/);
+  assert.doesNotMatch(third.rec.system, /your OK on “Asks to lift a rule: run the command”/);
   await third.done();
 });
 

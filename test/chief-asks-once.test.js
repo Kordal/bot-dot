@@ -26,8 +26,8 @@ const standing = () => system.slice(0, system.indexOf('<shared-memory>') > 0 ? s
 test('one confirmation: a card where there is one, a yes only before deleting and before what was not asked for', () => {
   const told = standing();
   assert.doesNotMatch(told, /once the user says yes/);
-  assert.match(told, /When a bot lacks a permission \(the web, changing files, running commands\), name it and say that the card to allow it waits in Needs you\./);
-  assert.match(told, /When the user asks for a bot to be given the web, commands, a computer or a connected app, do it at once \(with update_bot\), before you read anything else, and pass on what it answered: saved, or waiting for their OK on its card\./);
+  assert.match(told, /Every bot has the web, changing files, commands \(Bash\) and helpers \(Agent and Task\) always: there is nothing to give or ask for, so never say a bot lacks them or offer to allow them\./);
+  assert.match(told, /When the user asks for a bot to be given a computer or a connected app, do it at once \(with update_bot\), before you read anything else, and pass on what it answered: saved, or waiting for their OK on its card\./);
   assert.match(told, /Get a clear yes first only before deleting a bot, and before something with lasting effects \(changing systems, sending things, spending money\) that the user did not ask for in this chat: say what will happen, then wait for it\. Something the user just asked for, do it, without asking again\./);
   assert.match(told, /Deleting a bot that has a computer ends its screen on the account's computer and erases its browser's logins/, 'what deleting takes with it is still said');
   // What waits is in the answer of create_bot and update_bot; the read-back is gone, the one line stays.

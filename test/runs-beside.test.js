@@ -199,11 +199,11 @@ test('what the owner tells a bot to keep in one run reaches its other runs that 
 // The owner's case (Quotz): a run that carries on after their OK works on the video while they write to the bot again;
 // the run their message starts is told the video is being done now, not that it still waits for the card.
 test('a run beside one that carries on after the owner\'s OK is told it goes on now', async () => {
-  const { kit, BASH } = require('./carry-on-helpers');
+  const { kit, LIST } = require('./carry-on-helpers');
   const k = kit(srv);
   const bot = await makeBot(srv, { name: 'Renderer', emoji: '🎥', allowedTools: ['Read'] });
   srv.reply('I need to run commands.');
-  await k.refused(bot, [BASH], { prompt: 'Render the launch video' });
+  await k.refused(bot, [LIST], { prompt: 'Render the launch video' });
   const [card] = await k.asksOf(bot);
   srv.hold();
   const held = [];

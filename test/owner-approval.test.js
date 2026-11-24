@@ -28,16 +28,16 @@ test('after the run read a web page, a bot instruction edit waits for the owner 
   assert.equal((await srv.api(`/bots/${bot.id}`)).data.prompt, 'Owner task');
 });
 
-test('Chief proposals cannot grant tools, a computer or connectors, and stale proposals cannot overwrite owner edits', async (t) => {
+test('Chief proposals cannot grant connectors or a main assignment, and stale proposals cannot overwrite owner edits', async (t) => {
   const srv = await startServer();
   t.after(() => srv.stop());
   const bot = await makeBot(srv, { allowedTools: ['Read'], prompt: 'Owner task' });
   // The web, files and a computer are every bot's (ADR 192): nothing of them waits.
-  const change = { prompt: 'New task', allowedTools: withAlways('Read', 'Bash'), connectors: ['gmail'] };
+  const change = { prompt: 'New task', allowedTools: withAlways('Read'), connectors: ['gmail'] };
   const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { ...change, _by: 'you' } });
   assert.ok(proposed.data.pendingChange);
-  assert.deepEqual(proposed.data.waiting, ['commands', 'Gmail', 'new main assignment'], 'the answer says what was held back');
-  assert.equal((await srv.api('/asks')).data.find((a) => a.id === proposed.data.pendingChange).text, 'The Chief wants to change its main assignment, what it may do and its connected apps');
+  assert.deepEqual(proposed.data.waiting, ['Gmail', 'new main assignment'], 'the answer says what was held back');
+  assert.equal((await srv.api('/asks')).data.find((a) => a.id === proposed.data.pendingChange).text, 'The Chief wants to change its main assignment and its connected apps');
   const before = (await srv.api(`/bots/${bot.id}`)).data;
   assert.equal(before.prompt, 'Owner task');
   assert.deepEqual(before.allowedTools, withAlways('Read'));
@@ -55,26 +55,7 @@ test('Chief proposals cannot grant tools, a computer or connectors, and stale pr
   assert.deepEqual(removed.data.connectors, []);
 });
 
-test('a permission a run asked for and the Chief then proposes is one card, and its yes no longer conflicts', async (t) => {
-  const srv = await startServer();
-  t.after(() => srv.stop());
-  const bot = await makeBot(srv, { allowedTools: ['Read'] });
-  // The bot's run is refused the web: its permission card waits. Then the Chief proposes the same.
-  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'curl https://example.com' } }]));
-  await srv.finished((await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Read the page' } })).data.id);
-  fs.rmSync(path.join(srv.out, 'denials.json'));
-  const mine = async () => (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
-  assert.deepEqual((await mine()).map((a) => a.kind), ['permission']);
-  const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] } });
-  assert.deepEqual((await mine()).map((a) => [a.id, a.kind]), [[proposed.data.pendingChange, 'bot-change']], 'the permission card is gone: allowing it first made this proposal stale');
-  const yes = await srv.api(`/asks/${proposed.data.pendingChange}`, { method: 'POST', body: { yes: true } });
-  assert.equal(yes.status, 200, JSON.stringify(yes.data));
-  assert.deepEqual(yes.data.bot.allowedTools, withAlways('Read', 'Bash'));
-  assert.deepEqual(yes.data.carriesOn, { who: 'bot', text: 'it carries on' }, 'and the run that asked carries on');
-  await srv.finished((await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.find((r) => r.continues), { what: 'the run that carries on' })).id);
-});
-
-test('combined tool names cannot bypass Chief approval through create or update', async (t) => {
+test('combined tool names are refused in create and update, and a scoped rule is saved at once', async (t) => {
   const srv = await startServer();
   t.after(() => srv.stop());
   const bot = await makeBot(srv, { allowedTools: ['Read'] });
@@ -87,9 +68,8 @@ test('combined tool names cannot bypass Chief approval through create or update'
   }
   const scoped = ['Bash(git diff *)', 'Bash(echo a,b)'];
   const proposal = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', ...scoped] } });
-  assert.ok(proposal.data.pendingChange, 'a single scoped rule still waits for approval');
-  assert.deepEqual(proposal.data.allowedTools, withAlways('Read'));
-  await srv.api(`/asks/${proposal.data.pendingChange}`, { method: 'POST', body: { yes: true } });
+  assert.equal(proposal.data.pendingChange, undefined, 'a single scoped rule is saved at once: every bot has commands (ADR 268)');
+  assert.deepEqual(proposal.data.allowedTools, withAlways('Read', ...scoped));
   const { rec } = await heldRun(srv, bot);
   const start = rec.args.indexOf('--allowedTools') + 1;
   const end = rec.args.findIndex((arg, i) => i >= start && arg.startsWith('--'));

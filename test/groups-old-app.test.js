@@ -163,7 +163,7 @@ test('an app from before groups is sent no group and no turn of one: the bots, t
 // you under the bot's name and at the end of the bot's chat, where no run of that chat asked for it. The owner
 // can answer it there, and what the yes starts is a turn of the group, of which that app is sent nothing.
 test('a card asked in a group is sent to an app from before groups as the card of its bot, with the group in two fields it does not read; its yes carries on in the group', async (t) => {
-  const { kit, BASH } = require('./carry-on-helpers');
+  const { kit, LIST } = require('./carry-on-helpers');
   const { refuse } = kit(srv);
   const [coder, other] = [await makeBot(srv, { name: 'Card Old Coder', emoji: '🤖' }), await makeBot(srv, { name: 'Card Old Other', emoji: '🤖' })];
   const group = (await srv.api('/group-chats', { method: 'POST', body: { name: 'Old cards', members: [coder.id, other.id] } })).data;
@@ -171,19 +171,19 @@ test('a card asked in a group is sent to an app from before groups as the card o
   t.after(() => live.close());
   await live.hello();
   reply(srv, coder, 'I cannot list the pull requests without running commands.');
-  refuse([BASH]);
+  refuse([LIST]);
   const sent = await srv.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: '@CardOldCoder list the open pull requests' } });
   const chat = await settled(srv, group, sent.data.id);
   refuse([]);
   const stopped = chat.items.find((x) => x.type === 'reply').run;
 
   // GET /api/asks, as that app reads Needs you: the card with its bot, and the group in `groupId` and `groupName`.
-  const [card] = await waitFor(async () => { const a = (await srv.api('/asks')).data.filter((x) => x.botId === coder.id); return a.length ? a : null; }, { what: 'the card' });
-  assert.deepEqual([card.kind, card.botId, card.bot.name, card.permission, card.groupId, card.groupName], ['permission', coder.id, 'Card Old Coder', 'commands', group.id, 'Old cards']);
+  const [card] = await waitFor(async () => { const a = (await srv.api('/asks?override=1')).data.filter((x) => x.botId === coder.id); return a.length ? a : null; }, { what: 'the card' });
+  assert.deepEqual([card.kind, card.botId, card.bot.name, card.groupId, card.groupName], ['override', coder.id, 'Card Old Coder', group.id, 'Old cards']);
   assert.match(card.then.text, /^It carries on with “@CardOldCoder list the open pull requests” when you allow it\.$/);
   // The feed's `asks`, which it rings for and draws from: the same card in short, under the bot's name.
   const told = await waitFor(() => live.events.flatMap((e) => (e.type === 'asks' && e.data.list) || []).find((x) => x.id === card.id), { what: 'the feed to say the card' });
-  assert.deepEqual([told.kind, told.botId, told.botName, told.what, told.groupId, told.groupName], ['permission', coder.id, 'Card Old Coder', card.what.label, group.id, 'Old cards']);
+  assert.deepEqual([told.kind, told.botId, told.botName, told.groupId, told.groupName], ['override', coder.id, 'Card Old Coder', group.id, 'Old cards']);
   // Nothing else names the group: the bot's own chat has no run that asked, and the bot asks nothing of its own.
   assert.deepEqual((await srv.api(`/runs?botId=${coder.id}&limit=40`)).data, [], 'its chat holds the card and no run');
   const row = (await srv.api('/bots')).data.find((b) => b.id === coder.id);

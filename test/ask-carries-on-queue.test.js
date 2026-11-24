@@ -10,14 +10,14 @@ const fs = require('fs');
 const path = require('path');
 const { startServer, restartServer, readData, setQueue, makeBot, seedRuns, sleep, waitFor } = require('./helpers');
 
-const BASH = { tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'gh pr list' } };
+const { LIST, LIST_WORDS } = require('./carry-on-helpers');
 const isRunOf = (bot) => (x) => x.args.includes(`${bot.emoji} ${bot.name}`);
 const runsOf = async (srv, bot) => (await srv.api(`/runs?botId=${bot.id}`)).data;
-const asksOf = async (srv, bot) => (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
+const asksOf = async (srv, bot) => (await srv.api('/asks?override=1')).data.filter((a) => a.botId === bot.id);
 const answer = (srv, ask) => srv.api(`/asks/${ask.id}`, { method: 'POST', body: { yes: true } });
 // An ask as botdot keeps it, for a run that asked just now.
 // It asked after the runs seeded with it had started (a millisecond apart, seedRuns).
-const askFor = (bot, runId, id) => { const at = new Date(Date.now() + 20).toISOString(); return { id, kind: 'permission', botId: bot.id, permission: 'commands', reason: '', at, runs: [{ id: runId, at }] }; };
+const askFor = (bot, runId, id) => { const at = new Date(Date.now() + 20).toISOString(); return { id, kind: 'permission', botId: bot.id, permission: 'files', reason: '', at, runs: [{ id: runId, at }] }; };
 
 test('behind a busy bot the work waits in the queue, survives a restart and starts once; a full queue takes none; a one-time job that is gone runs again', async () => {
   let srv = await startServer();
@@ -28,7 +28,7 @@ test('behind a busy bot the work waits in the queue, survives a restart and star
     const sender = await makeBot(srv, { name: 'Sender', emoji: '📤' });
 
     // The owner's request is refused a tool; then the bot is busy with a task the Chief gave it.
-    fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([BASH]));
+    fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([LIST]));
     const first = await srv.finished((await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Check the PRs' } })).data.id);
     fs.writeFileSync(path.join(srv.out, 'denials.json'), '[]');
     srv.hold();
@@ -39,7 +39,7 @@ test('behind a busy bot the work waits in the queue, survives a restart and star
     const yes = await answer(srv, card);
     assert.deepEqual(yes.data.carriesOn, { who: 'bot', text: 'it carries on when it is free' });
     const item = readData(srv.data, 'queue.json').queues[bot.id];
-    assert.deepEqual(item.map((x) => [x.key, x.kind, x.runId, x.allowed, x.declined]), [[`carry:${first.id}`, 'carry-on', first.id, ['run commands'], []]], 'under a key of its own');
+    assert.deepEqual(item.map((x) => [x.key, x.kind, x.runId, x.allowed, x.declined]), [[`carry:${first.id}`, 'carry-on', first.id, [LIST_WORDS], []]], 'under a key of its own');
     assert.equal((await runsOf(srv, bot)).length, 2, 'nothing started yet');
 
     // botdot is stopped and started. While it is down, as it would have left them:
@@ -58,7 +58,7 @@ test('behind a busy bot the work waits in the queue, survives a restart and star
     // The work that waited starts by itself, once; the run the restart cut off is not repeated.
     const rec = await srv.nextRun((x) => isRunOf(bot)(x) && /botdot writes this, not the owner/.test(x.stdin), 'the run that carries on');
     assert.ok(rec.stdin.includes('<request>\nCheck the PRs\n</request>'));
-    assert.match(rec.stdin, /The owner allowed you to: run commands\./);
+    assert.ok(rec.stdin.includes(`The owner allowed you to: ${LIST_WORDS}.`));
     srv.release(rec);
     await waitFor(async () => { const r = await runsOf(srv, bot); return r.length === 3 && r.every((x) => x.status !== 'running'); }, { what: 'the three runs of Coder to have ended' });
     const runs = await runsOf(srv, bot);

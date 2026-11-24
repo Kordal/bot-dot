@@ -523,7 +523,7 @@ function boatShown(command) {
   return m ? `${m[1]}${m[2].replace(/'\\''/g, "'")}${m[3]}` : command;
 }
 // A bot's tools as the server saves them: every bot has the web and changing files (ADR 192), after the ones given.
-const ALWAYS_TOOLS = ['WebSearch', 'WebFetch', 'Edit', 'Write'];
+const ALWAYS_TOOLS = ['WebSearch', 'WebFetch', 'Edit', 'Write', 'Bash', 'Agent', 'Task'];
 const withAlways = (...tools) => [...tools, ...ALWAYS_TOOLS.filter((t) => !tools.includes(t))];
 // A project's teams are folded (ADR 196): unfolds every team on the page until `until` (a selector) is there, or
 // every team is unfolded when it is left out. A browser check calls it before it reads a team's keys.

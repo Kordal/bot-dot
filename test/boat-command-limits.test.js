@@ -53,7 +53,7 @@ test("a bot's command on the External Virtual PC ends as it did, under botdot-ru
   const r = await boat.runShell('coder', { command: "echo it\\'s here; exit 3", run });
   assert.equal(r.code, 3, r.stderr);
   assert.equal(r.stdout, "it's here\n");
-  assert.match(b.commands()[0], new RegExp(`^r=${run}; exec timeout -k 15 120 python3 -I -c '[\\s\\S]*' botdot-run --run "\\$r" --memory 2400000000 -- "\\$\\{BASH:-sh\\}" -c `), "60% of the small machine's 4 GB");
+  assert.match(b.commands()[0], new RegExp(`^r=${run}; exec timeout -k 15 120 python3 -I -c '[\\s\\S]*' botdot-run --run "\\$r" --memory 2400000000 -- "\\$\\{LIST:-sh\\}" -c `), "60% of the small machine's 4 GB");
   assert.ok(!b.commands()[0].includes(`--run ${run}`), "the shell around it never matches the end of its run");
 });
 

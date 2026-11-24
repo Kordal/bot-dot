@@ -8,7 +8,7 @@ const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 const { startServer, restartServer, makeBot, self, sharedByBot, waitFor, feed, serverDay } = require('./helpers');
 const { rpcClient, storedLearned } = require('./memory-helpers');
-const { kit, BASH } = require('./carry-on-helpers');
+const { kit, LIST } = require('./carry-on-helpers');
 const { MEMORY_RULE } = require('../lib/prompt-text');
 
 let srv;
@@ -148,7 +148,7 @@ test('a carry-on answers as the run it continues and keeps what that run had rea
   const web = await bot({ allowedTools: ['Read', 'WebFetch'] });
   const first = await held(t, web);
   await uses(first, 'WebFetch');
-  refuse([BASH]);
+  refuse([LIST]);
   srv.release(first.rec);
   const stopped = await srv.finished(first.run.id);
   refuse([]);
@@ -161,7 +161,7 @@ test('a carry-on answers as the run it continues and keeps what that run had rea
   // The owner's run read nothing: its carry-on is still the owner's run.
   const clean = await bot({ allowedTools: ['Read'] });
   srv.unhold();
-  refuse([BASH]);
+  refuse([LIST]);
   const r = await srv.api(`/bots/${clean.id}/run`, { method: 'POST', body: { prompt: 'Remember: use pnpm. Then check the PRs.' } });
   await srv.nextRun(isRunOf(clean));
   const quiet = await srv.finished(r.data.id);
@@ -173,7 +173,7 @@ test('a carry-on answers as the run it continues and keeps what that run had rea
   const worker = await bot({ allowedTools: ['Read'] });
   const job = await jobOf(worker);
   srv.unhold();
-  refuse([BASH]);
+  refuse([LIST]);
   const ran = await srv.finished((await srv.api(`/bots/${worker.id}/jobs/${job.id}/run`, { method: 'POST' })).data.run.id);
   await srv.nextRun(isRunOf(worker));
   refuse([]);

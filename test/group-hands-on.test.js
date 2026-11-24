@@ -13,7 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { startServer, makeBot, waitFor, sleep, feed, readData } = require('./helpers');
-const { kit, BASH } = require('./carry-on-helpers');
+const { kit, LIST } = require('./carry-on-helpers');
 const { shortName } = require('../public/mentions.js');
 const { LIMIT, STOPPED_LINE, GO_ON, isGoOn, RULES, PASS, turnNote, create } = require('../lib/group-chat');
 
@@ -441,7 +441,7 @@ test("the reply of a run that carried on after the owner's OK hands on, though i
   const { group, bots: [coder, reviewer] } = await team(srv, 'Carry', ['Carry Coder', 'Carry Reviewer']);
   reply(srv, coder, 'I cannot list the pull requests without running commands.');
   reply(srv, reviewer, 'Reviewed: nothing to add.');
-  refuse([BASH]);
+  refuse([LIST]);
   const sent = await send(srv, group, { text: '@CarryCoder list the open pull requests' });
   const c = await settled(srv, group, sent.data.id);
   refuse([]);
@@ -460,7 +460,7 @@ test("the reply of a run that carried on after the owner's OK hands on, though i
   reply(srv, reviewer, 'One more thing. @CarryCoder fix it.');
   reply(srv, coder, 'I cannot list them without running commands.');
   await srv.api(`/bots/${coder.id}`, { method: 'PUT', body: { allowedTools: [] } });
-  refuse([BASH]);
+  refuse([LIST]);
   const again = await send(srv, group, { text: '@CarryCoder and the drafts' });
   await settled(srv, group, again.data.id);
   refuse([]);

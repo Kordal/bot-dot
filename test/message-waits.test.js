@@ -285,12 +285,12 @@ test("a waiting message counts as sent from when it was sent: the earlier reques
   // The owner's request is refused the web and its card waits. The bot is busy with other work when the owner
   // sends it a new message, which waits. A yes on the card still carries the earlier request on, after that
   // message, and tells it what the owner wrote since.
-  const BASH = { tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'gh pr list' } };
+  const LIST = { tool_name: 'Override', tool_use_id: 't1', tool_input: { rule: 'Never list pull requests', action: 'list the open pull requests' } };
   const bot = await makeBot(srv, { name: 'Moved On', emoji: '🧭', allowedTools: ['Read'] });
-  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([BASH]));
+  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([LIST]));
   const request = await srv.finished((await send(srv, bot, { prompt: 'Check the PRs' })).data.id);
   fs.writeFileSync(path.join(srv.out, 'denials.json'), '[]');
-  const cardOf = async () => (await srv.api('/asks')).data.find((a) => a.botId === bot.id);
+  const cardOf = async () => (await srv.api('/asks?override=1')).data.find((a) => a.botId === bot.id);
   assert.equal((await cardOf()).then.text, 'It carries on with “Check the PRs” when you allow it.');
   srv.hold();
   const long = (await send(srv, bot, { prompt: 'Something long' }, srv.asChief)).data;

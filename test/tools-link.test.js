@@ -207,7 +207,6 @@ test('no card, and the reason, for a link that is not a program botdot can place
   await refused(files.put('/pool/tool-1.0.aarch64.rpm', elf()), 'tool', /is a system package/);
   await refused(`${files.origin}/x/tool?download=1`, 'tool', /"\?" or "#" part/);
   await refused(files.put('/x/tool', elf()), 'Tool Name', /Give the command's name with the link/);
-  await refused(`${files.origin}/x/tool`, 'tool', /Reader may not run commands/, reader);
   assert.match((await askLink(runner, `${files.origin}/x/tool`, 'tool', { version: '1; rm -rf' })).data.error, /isn't a version/);
   assert.equal(files.hits.length, hits, 'none of these was fetched');
   assert.deepEqual(files.plainHits, []);
