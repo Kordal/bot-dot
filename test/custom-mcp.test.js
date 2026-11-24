@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const dns = require('node:dns');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, waitFor, feed, fakeMcpRemote } = require('./helpers');
+const { startServer, makeBot, heldRun, waitFor, feed, fakeMcpRemote, fakeConnectedApp } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 const mcp = require('../lib/mcp-client');
 const { readKind } = require('../lib/chief-tools');
@@ -462,4 +462,79 @@ test("the Chief's write to a remote server that waits past the wait window carri
   assert.equal(remote.calls.length, before + 1);
   srv.release(rec);
   await waitFor(async () => { const c = (await srv.api(`/chief/chats/${turn.chat.id}`)).data; return c.busy ? null : c; }, { what: 'the Chief to finish' });
+});
+
+// ---------- a turn botdot started has only the server it carries on (ADR 047, ADR 265) ----------
+
+test("a turn botdot started has no remote servers but the one its late yes was for: no relay after a Composio yes or a connected app", async (t) => {
+  const app = await fakeConnectedApp({ connected: ['gmail'] });
+  const other = await fakeMcpRemote({ key: KEY });
+  const mixed = await startServer({ env: { ...app.env, BOT_DOT_MCP_ALLOW_LOCAL: '1', BOT_DOT_CONNECTOR_WAIT_MS: String(WAIT_MS) } });
+  t.after(async () => { mixed.unhold(); await mixed.stop(); fs.rmSync(mixed.dir, { recursive: true, force: true }); app.close(); other.close(); });
+  await app.connect(mixed);
+  const one = (await mixed.api('/connectors/servers', { method: 'POST', body: { name: 'Notes', url: remote.url, key: KEY } })).data;
+  const two = (await mixed.api('/connectors/servers', { method: 'POST', body: { name: 'Wiki', url: other.url, key: KEY } })).data;
+  assert.ok(one.id && two.id);
+  const servers = (rec) => (rec.remote ? JSON.parse(rec.remote.env.CUSTOM_MCP_SERVERS).map((x) => x.id).sort() : null);
+  const chiefCard = async (not = []) => waitFor(async () => (await mixed.api('/asks')).data.find((a) => a.kind === 'connector-action' && a.chief && !not.includes(a.id)), { what: "the Chief's card" });
+  const boundTurn = async (text) => mixed.nextRun((x) => isChief(x) && x.stdin.includes(text), "the Chief's turn started by botdot");
+
+  // An owner turn has every server.
+  const owner = await ownerTurn(t, mixed, 'What is in my notes and my wiki?');
+  assert.deepEqual(servers(owner.rec), [one.id, two.id].sort(), 'the owner turn has every server');
+  assert.ok(owner.rec.args.includes('mcp__remote'));
+  await owner.end();
+
+  // A late yes on a Composio card: the carry-on turn has the app and no remote relay.
+  const gmail = await ownerTurn(t, mixed, 'Tell Anna I am late.');
+  const mail = { recipient_email: 'anna@example.com', subject: 'Late', body: 'Hi' };
+  const apps = rpcClient(t, 'connectors-mcp.js', gmail.rec.connectors.env);
+  assert.match(said(await apps.call('connector_run', { app: 'gmail', action: 'GMAIL_SEND_EMAIL', arguments: mail })), /has not answered yet/);
+  const mailCard = await chiefCard();
+  await gmail.end();
+  mixed.hold();
+  assert.equal((await mixed.api(`/asks/${mailCard.id}`, { method: 'POST', body: { yes: true } })).data.carriesOn?.who, 'chief');
+  const carry = await boundTurn('The user said yes on the card of your action in a connected app');
+  assert.ok(carry.connectors, 'the app is there');
+  assert.ok(!carry.remote, 'and no remote relay');
+  assert.ok(!carry.args.includes('mcp__remote'), 'nor its tools allowed');
+  assert.ok(carry.args.includes('mcp__connectors'));
+  mixed.release(carry);
+  await waitFor(async () => { const c = (await mixed.api(`/chief/chats/${gmail.chat.id}`)).data; return c.busy ? null : c; }, { what: 'the Chief to finish' });
+
+  // A late yes on a server's own card: that server alone, and the other is not reachable in the turn.
+  const notes = await ownerTurn(t, mixed, 'Add milk to my notes.');
+  const args = { title: 'Late milk' };
+  assert.match(said(await notes.relay.call('remote_call', { server: one.id, tool: 'create_note', arguments: args })), /has not answered yet/);
+  const noteCard = await chiefCard([mailCard.id]);
+  await notes.end();
+  mixed.hold();
+  assert.equal((await mixed.api(`/asks/${noteCard.id}`, { method: 'POST', body: { yes: true } })).data.carriesOn?.who, 'chief');
+  const late = await boundTurn('Call remote_call with server');
+  assert.deepEqual(servers(late), [one.id], 'only the server of the card');
+  assert.ok(late.args.includes('mcp__remote'));
+  const relay = rpcClient(t, 'custom-mcp.js', late.remote.env);
+  const wiki = await relay.call('remote_tools', { server: two.id });
+  assert.match(said(wiki), /You don't have the server Wiki/);
+  assert.equal(said(await relay.call('remote_call', { server: one.id, tool: 'create_note', arguments: args })), 'create_note done: {"title":"Late milk"}');
+  // The session itself refuses the other server, whatever its relay is told.
+  const direct = await mixed.api('/connectors/session/custom-tools', { method: 'POST', headers: { 'X-Run-Token': late.remote.env.RUN_TOKEN }, body: { server: two.id } });
+  assert.equal(direct.data.ok, false);
+  mixed.release(late);
+  await waitFor(async () => { const c = (await mixed.api(`/chief/chats/${notes.chat.id}`)).data; return c.busy ? null : c; }, { what: 'the Chief to finish' });
+
+  // An app connected from the Chief's Connect card: the turn that carries on has the app and no remote relay.
+  const linear = await ownerTurn(t, mixed, 'What are my Linear issues?');
+  const lapps = rpcClient(t, 'connectors-mcp.js', linear.rec.connectors.env);
+  assert.match(said(await lapps.call('connector_run', { app: 'linear', action: 'LINEAR_LIST_ISSUES', arguments: {} })), /isn't connected/);
+  await linear.end();
+  app.connected.push('linear');
+  mixed.hold();
+  await mixed.api('/connectors');
+  const connected = await boundTurn('The user connected Linear from the card you offered in this chat.');
+  assert.ok(connected.connectors.env.CONNECTOR_APPS.split(',').includes('linear'));
+  assert.ok(!connected.remote, 'no remote relay in the connected-app turn');
+  assert.ok(!connected.args.includes('mcp__remote'));
+  mixed.release(connected);
+  await waitFor(async () => { const c = (await mixed.api(`/chief/chats/${linear.chat.id}`)).data; return c.busy ? null : c; }, { what: 'the Chief to finish' });
 });

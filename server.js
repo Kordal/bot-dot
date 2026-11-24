@@ -184,13 +184,15 @@ chief.connectorsWith({
   // asks Composio all the same.
   // A look's session (ADR 070) is for the apps it names that are connected, and only reads.
   // A turn after an app was connected from the Chief's card has that app, also before a list of Composio's shows it.
-  // The owner's own remote MCP servers (ADR 265) are every Chief turn's the owner started; a look has none.
-  open: ({ chatId, grants, connectedFor = [], apps: only = null, readOnly = false }) => {
+  // The owner's own remote MCP servers (ADR 265) are every Chief turn's the owner started (`owner`); a look has none,
+  // and a turn botdot started has only the server its late yes was for (a grant of its own), never the others.
+  open: ({ chatId, grants, connectedFor = [], apps: only = null, readOnly = false, owner = false }) => {
     const composio = grants.filter((g) => !isCustomApp(g.app));
     const known = [...new Set([...(B.connectors.knownApps() ?? composio.map((g) => g.app)), ...connectedFor])];
     const apps = only ? only.filter((a) => known.includes(a)) : known;
-    const servers = readOnly ? [] : B.customServers.list().map(({ id, name }) => ({ id, name }));
-    return apps.length || servers.length ? { ...connectorApprovals.openChief({ chatId, grants, ...(readOnly ? { apps, readOnly } : {}) }), apps, servers } : null;
+    const granted = new Set(grants.filter((g) => isCustomApp(g.app)).map((g) => g.app));
+    const servers = readOnly ? [] : B.customServers.list().filter(({ id }) => owner || granted.has(id)).map(({ id, name }) => ({ id, name }));
+    return apps.length || servers.length ? { ...connectorApprovals.openChief({ chatId, grants, ...(readOnly ? { apps, readOnly } : owner ? {} : { servers: servers.map((x) => x.id) }) }), apps, servers } : null;
   },
   connected: () => B.connectors.knownApps() || [],
   close: (session, ended) => connectorApprovals.closeChief(session.turnId, ended),
