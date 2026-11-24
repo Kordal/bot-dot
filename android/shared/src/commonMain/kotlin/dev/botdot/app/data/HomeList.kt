@@ -169,3 +169,15 @@ fun stripKpi(t: Tile): Block? {
     // A page without a number (#451): its age, as the web page's strip.
     return if (t.kind == "page" && t.at != null) Block(type = "kpi", label = t.title, text = Pages.age(t.at)) else null
 }
+
+/**
+ * A note's text on the strip over the keys (#1505), the web page's rule (list.js, stripKpi, #1502): the markdown text
+ * block of a tile that has no number ([stripKpi] is null), the title's text under it, folded to its block's `lines`
+ * ([NOTE_LINES] when it says none). Null for a tile with a number, for one with no text block with text (a note with
+ * empty text keeps its dot), and for any other kind of face.
+ */
+fun stripNote(t: Tile): Block? =
+    if (stripKpi(t) != null) null else t.look?.face.orEmpty().firstOrNull { it.type == "text" && it.markdown && !it.text.isNullOrEmpty() }
+
+/** How many lines a note's text is folded to on the strip when its block says none: the Board's fold. */
+const val NOTE_LINES = 3

@@ -6,6 +6,8 @@ import dev.botdot.app.data.tileColor
 import dev.botdot.app.data.without
 import dev.botdot.app.data.stripTiles
 import dev.botdot.app.data.stripKpi
+import dev.botdot.app.data.stripNote
+import dev.botdot.app.data.NOTE_LINES
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -37,13 +39,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -224,7 +232,7 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4).testTag(BOARD_CARDS)) {
         val cols = boardColumns(maxWidth.value)
         val narrow = maxWidth < PHONE_BOARD // a phone: the numbers alone
-        val spans = tiles.map { boardSpan(stripKpi(it)?.text, cols) }
+        val spans = tiles.map { if (stripNote(it) != null) boardNoteSpan(cols, maxWidth.value) else boardSpan(stripKpi(it)?.text, cols) }
         Column {
             for (row in boardRows(spans, cols)) Row(Modifier.fillMaxWidth()) {
                 for (n in row) {
@@ -232,7 +240,12 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
                     val c = parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint)
                     Box(Modifier.weight(spans[n].toFloat()).clip(Radius.card).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = Space.s8, vertical = Space.s8)) {
                         val kpi = stripKpi(t)
+                        val note = stripNote(t)
                         if (kpi != null) KitKpi(if (narrow) kpi.copy(points = emptyList(), ratio = null) else kpi, tint(kpi.color, c), compact = true, small = true)
+                        else if (note != null) Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                            Text(t.title, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            NoteText(note)
+                        }
                         else Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                             Text(t.title, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             val look = t.look?.dot
@@ -251,6 +264,23 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
     }
 }
 
+/** A note's text on the strip (#1505): plain, folded to its block's lines, fading at the bottom when there is more. */
+@Composable
+private fun NoteText(b: dev.botdot.app.data.Block) {
+    val p = LocalPaper.current
+    var more by remember(b.text, b.lines) { mutableStateOf(false) }
+    Text(BoardKit.plain(b.text.orEmpty()), color = p.text, fontSize = Type.s12, lineHeight = Type.s12 * 1.45f, maxLines = b.lines ?: NOTE_LINES, overflow = TextOverflow.Clip,
+        onTextLayout = { more = it.hasVisualOverflow },
+        modifier = Modifier.fillMaxWidth().testTag(if (more) NOTE_FADES else NOTE_TEXT).then(if (more) Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+            drawContent()
+            drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height * 0.5f, endY = size.height), blendMode = BlendMode.DstIn)
+        } else Modifier))
+}
+
+/** The tags of a note's text on the strip, and of one that fades (it has more). */
+internal const val NOTE_TEXT = "board-note"
+internal const val NOTE_FADES = "board-note-fades"
+
 /** Below this width the Board's numbers stand without their sparklines, three a row. */
 private val PHONE_BOARD = 480.dp
 
@@ -263,6 +293,12 @@ internal fun boardSpan(text: String?, cols: Int): Int = when {
     text.orEmpty().trim().length > 18 -> cols
     else -> 2
 }
+
+/** From this width a note's text takes two columns, else the whole row, as the web page's (list.js: side 520 px). */
+private const val NOTE_WIDE = 520f
+
+/** How many of [cols] columns a note's text takes in [width] dp: the whole row on a phone and a narrow keypad, two columns where wide (#1505). */
+internal fun boardNoteSpan(cols: Int, width: Float): Int = if (width >= NOTE_WIDE) minOf(2, cols) else cols
 
 /** The rows of a grid of [cols] columns, the tiles in their order taking [spans] columns each: a tile that no longer fits starts the next row. */
 internal fun boardRows(spans: List<Int>, cols: Int): List<List<Int>> {

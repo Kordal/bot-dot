@@ -30,4 +30,13 @@ class BoardGridTest {
         // A span wider than the grid takes the whole row.
         assertEquals(listOf(listOf(0), listOf(1)), boardRows(listOf(5, 1), 3))
     }
+
+    @Test fun aNoteTakesTheWholeRowOnAPhoneAndTwoColumnsWhereWide() {
+        assertEquals(3, boardNoteSpan(3, 387f))
+        assertEquals(3, boardNoteSpan(3, 519f))
+        assertEquals(2, boardNoteSpan(3, 520f))
+        assertEquals(2, boardNoteSpan(4, 800f))
+        // Beside a value, a note on a phone starts its own row.
+        assertEquals(listOf(listOf(0), listOf(1, 2)), boardRows(listOf(3, 1, 1), 3))
+    }
 }
