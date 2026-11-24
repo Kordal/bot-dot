@@ -1,7 +1,7 @@
 # ADR-233: A bot may belong to a project without a team
 
 - **Status:** Accepted (2026-11-13, the owner, of a project page with only New team and New card: "Should be possible to add a bot without a team to the project")
-- **Changes:** [#816](https://github.com/Kordal/bot-dot/issues/816) (a project's bots were those of its teams alone)
+- **Changes:** [#816](https://github.com/ladrok/bot-dot/issues/816) (a project's bots were those of its teams alone)
 
 ## Context
 

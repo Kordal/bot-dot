@@ -1,7 +1,7 @@
 # ADR-055: "Always allow" on more cards
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#280](https://github.com/Kordal/bot-dot/issues/280)
+- **Owning task:** [#280](https://github.com/ladrok/bot-dot/issues/280)
 - **Changed by:** [ADR 066](066-a-task-the-chief-gives-a-bot-after-the-web-needs-no-card.md): a task the Chief gives a bot is not held; the bot's run starts as one that read the web
 - **Changed by:** [ADR 249](249-reminders-need-no-card.md): the Chief's reminders, set or cancelled, are not held and "Always allow reminders" is gone
 - **Partly superseded by:** [ADR 059](059-a-note-is-saved-without-an-ok.md) (a bot's shared notes need no card at all, so "Always allow for this bot" is gone)

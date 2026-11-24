@@ -1,7 +1,7 @@
 # ADR-102: A replay reads in connected apps and with saved logins
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#594](https://github.com/Kordal/bot-dot/issues/594), part of [#592](https://github.com/Kordal/bot-dot/issues/592)
+- **Owning task:** [#594](https://github.com/ladrok/bot-dot/issues/594), part of [#592](https://github.com/ladrok/bot-dot/issues/592)
 - **Amends:** [ADR 101](101-a-change-is-tried-on-a-bots-past-tasks-before-the-owner-sees-it.md) ("A replay has no hands")
 
 ## Context

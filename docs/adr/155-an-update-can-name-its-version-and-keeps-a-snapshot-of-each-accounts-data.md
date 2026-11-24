@@ -1,7 +1,7 @@
 # ADR-155: An update can name its version, and keeps a snapshot of each account's data before its switch
 
 - **Status:** Accepted (2026-11-04)
-- **Owning task:** [#979](https://github.com/Kordal/bot-dot/issues/979), part of [#977](https://github.com/Kordal/bot-dot/issues/977)
+- **Owning task:** [#979](https://github.com/ladrok/bot-dot/issues/979), part of [#977](https://github.com/ladrok/bot-dot/issues/977)
 - **Amends:** [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md), whose way back now includes the account's data; its rejected alternative "Snapshot the account's data before the switch" is taken. Keeps [ADR 045](045-the-update-runs-in-phases-of-its-own-apart-from-the-install.md)'s phases and [ADR 036](036-the-admin-pages-update-runs-the-installer-of-the-version-it-installs.md)'s hand-over.
 
 ## Context

@@ -1,9 +1,9 @@
 # ADR-129: Create puts what it made on the board
 
 - **Status:** Accepted (2026-10-30)
-- **Owning task:** [#810](https://github.com/Kordal/bot-dot/issues/810)
+- **Owning task:** [#810](https://github.com/ladrok/bot-dot/issues/810)
 - **Builds on:** [ADR 123](123-a-card-on-a-projects-board-is-built-and-kept-fresh-by-a-run-of-the-chiefs.md) (cards built by a run of the Chief's), [ADR 127](127-the-chief-picks-a-new-projects-setup-questions-and-the-server-sends-its-screens.md) (setup that fits the ask), [ADR 128](128-create-grants-what-the-team-cards-show.md) (Create is the owner's one OK)
-- **Narrows:** [#780](https://github.com/Kordal/bot-dot/issues/780) (a new project starts with an empty board)
+- **Narrows:** [#780](https://github.com/ladrok/bot-dot/issues/780) (a new project starts with an empty board)
 
 ## Context
 

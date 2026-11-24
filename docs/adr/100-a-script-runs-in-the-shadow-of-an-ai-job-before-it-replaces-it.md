@@ -1,7 +1,7 @@
 # ADR-100: A script runs in the shadow of an AI job before it replaces it
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#588](https://github.com/Kordal/bot-dot/issues/588)
+- **Owning task:** [#588](https://github.com/ladrok/bot-dot/issues/588)
 
 ## Context
 

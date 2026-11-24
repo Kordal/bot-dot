@@ -1,7 +1,7 @@
 # ADR-142: The Mac app's code is removed
 
 - **Status:** Accepted (2026-11-03, the owner's decision)
-- **Owning task:** [#877](https://github.com/Kordal/bot-dot/issues/877)
+- **Owning task:** [#877](https://github.com/ladrok/bot-dot/issues/877)
 - **Supersedes:** [ADR 031](031-the-mac-app-is-stopped-again.md), [ADR 0002](0002-mac-hosting-in-docker.md)
 - **Amended by:** [ADR 242](242-the-ios-app-is-native-swiftui-on-the-android-apps-shared-kotlin-data-layer.md) (2026-11-14): the iOS app is native SwiftUI on the Android app's shared Kotlin data layer, so features go to the web page, Android and, once it has caught up, iOS. The Mac app stays removed.
 

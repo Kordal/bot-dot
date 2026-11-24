@@ -1,7 +1,7 @@
 # ADR-027: botdot trusts one owner, on a server of its own, reached through Tailscale
 
 - **Status:** Superseded by [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) (2026-10-16); proposed 2026-10-14
-- **Owning task:** the spec [#426](https://github.com/Kordal/bot-dot/issues/426)
+- **Owning task:** the spec [#426](https://github.com/ladrok/bot-dot/issues/426)
 
 ## Context
 

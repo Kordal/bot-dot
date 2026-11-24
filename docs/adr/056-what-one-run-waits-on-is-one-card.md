@@ -1,7 +1,7 @@
 # ADR-056: What one run waits on is one card
 
-- **Status:** Accepted (2026-10-22, the owner's request in [#277](https://github.com/Kordal/bot-dot/issues/277): "too many approvals").
-- **Owning task:** [#277](https://github.com/Kordal/bot-dot/issues/277).
+- **Status:** Accepted (2026-10-22, the owner's request in [#277](https://github.com/ladrok/bot-dot/issues/277): "too many approvals").
+- **Owning task:** [#277](https://github.com/ladrok/bot-dot/issues/277).
 
 ## Context
 

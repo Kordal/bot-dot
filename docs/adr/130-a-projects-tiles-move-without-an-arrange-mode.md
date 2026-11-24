@@ -1,7 +1,7 @@
 # ADR-130: A project's tiles move without an Arrange mode
 
 - **Status:** Accepted (2026-10-31)
-- **Owning task:** [#821](https://github.com/Kordal/bot-dot/issues/821)
+- **Owning task:** [#821](https://github.com/ladrok/bot-dot/issues/821)
 - **Supersedes:** "Arrange is a mode" and "the first Arrange measures where the tiles stand" in [ADR 124](124-a-projects-board-is-a-free-canvas-the-owner-arranges.md)
 
 ## Context

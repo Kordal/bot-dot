@@ -67,7 +67,7 @@ Resolved by GRP-004 (2026-10-08), which delivers the hand-on and the limit:
 - **Two bots told to keep correcting each other** were stopped by the limit at the twelfth reply, three of three, with the thirteenth turn waiting; the third member passed each time.
 - **Not shown:** "Go on" (tested on the stand-in), a member naming another in passing (none did in 67 turns), and a turn that uses its tools: none called one.
 
-Amended by [#124](https://github.com/Kordal/bot-dot/issues/124) (2026-10-19), "@all":
+Amended by [#124](https://github.com/ladrok/bot-dot/issues/124) (2026-10-19), "@all":
 
 - **Turns stay one after another by default.** A question every member answers on its own ("What's the status of all VMs?") took one turn after another, which the owner asked about; asked whether to send to all at once, the owner chose "@all" ("yes lets do @all").
 - **A message of the owner's that starts with `@all`** (any case, then a space, a line or its end) **is all-at-once:** it records `together: true` and keeps its text as written, and its turns are asked without `@all`. Mentions after it pick nobody: every member that is not paused, deleted or out of the group gets one turn, and the member whose question was open does not go first.

@@ -1,7 +1,7 @@
 # ADR-050: A bot saves a skill it wrote without an OK
 
 - **Status:** Accepted (by the owner, 2026-10-21)
-- **Owning task:** [#254](https://github.com/Kordal/bot-dot/issues/254)
+- **Owning task:** [#254](https://github.com/ladrok/bot-dot/issues/254)
 - **Supersedes:** the skill part of [ADR 015](015-the-server-records-who-said-a-note.md) ("Only content from others makes a new skill wait for the owner")
 - **Widens:** [ADR 025](025-what-a-run-did-is-no-row-under-a-reply.md) (a skill the bot saved is a row under the reply)
 

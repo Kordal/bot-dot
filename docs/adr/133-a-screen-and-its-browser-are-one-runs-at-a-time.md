@@ -1,7 +1,7 @@
 # ADR-133: A screen and its browser are one run's at a time
 
 - **Status:** Accepted
-- **Owning task:** [#847](https://github.com/Kordal/bot-dot/issues/847)
+- **Owning task:** [#847](https://github.com/ladrok/bot-dot/issues/847)
 
 ## Context
 

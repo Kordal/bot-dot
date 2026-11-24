@@ -1,7 +1,7 @@
 # ADR-058: Pinned bots and groups share one order
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#276](https://github.com/Kordal/bot-dot/issues/276)
+- **Owning task:** [#276](https://github.com/ladrok/bot-dot/issues/276)
 - **Changes:** [ADR 018](018-a-group-is-a-chat-of-its-own-and-a-turn-is-a-run-of-its-member.md) ("A group's place is counted among the groups": now only `order`, not `pinned`)
 
 ## Context

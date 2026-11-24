@@ -1,7 +1,7 @@
 # ADR-158: An account is backed up off-site and downloaded on request, never kept on the machine
 
 - **Status:** Accepted (2026-11-05)
-- **Owning task:** the owner's request in the project thread "Make Backups off-site only with user download" (follows [#1014](https://github.com/Kordal/bot-dot/issues/1014))
+- **Owning task:** the owner's request in the project thread "Make Backups off-site only with user download" (follows [#1014](https://github.com/ladrok/bot-dot/issues/1014))
 - **Builds on:** [ADR 157](157-the-machine-backs-itself-up-off-site-with-restic.md) (the machine's off-site backup), the `.bdb` format of `lib/backup.js` and its restore, and the move between machines planned in #1014 (M2 to M6).
 
 ## Context

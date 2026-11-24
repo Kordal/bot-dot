@@ -1,7 +1,7 @@
 # ADR-071: A page draws the block kit, bound to the Board's tiles
 
-- **Status:** Accepted (by the owner, 2026-10-22, with the plan of [#393](https://github.com/Kordal/bot-dot/issues/393))
-- **Owning task:** [#395](https://github.com/Kordal/bot-dot/issues/395)
+- **Status:** Accepted (by the owner, 2026-10-22, with the plan of [#393](https://github.com/ladrok/bot-dot/issues/393))
+- **Owning task:** [#395](https://github.com/ladrok/bot-dot/issues/395)
 - **Builds on:** [ADR 065](065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md) (a page is a bot's Markdown), [ADR 004](004-pieces-as-restricted-shape-lists.md) (nothing from Claude is markup)
 
 ## Context

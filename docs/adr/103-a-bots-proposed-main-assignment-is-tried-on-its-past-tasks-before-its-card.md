@@ -1,7 +1,7 @@
 # ADR-103: A bot's proposed main assignment is tried on its past tasks before its card
 
 - **Status:** Accepted (2026-10-27)
-- **Owning task:** [#596](https://github.com/Kordal/bot-dot/issues/596), part of [#592](https://github.com/Kordal/bot-dot/issues/592)
+- **Owning task:** [#596](https://github.com/ladrok/bot-dot/issues/596), part of [#592](https://github.com/ladrok/bot-dot/issues/592)
 - **Builds on:** [ADR 101](101-a-change-is-tried-on-a-bots-past-tasks-before-the-owner-sees-it.md) (the replay harness)
 
 ## Context

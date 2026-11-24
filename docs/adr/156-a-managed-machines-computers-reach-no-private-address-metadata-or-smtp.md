@@ -1,7 +1,7 @@
 # ADR-156: A managed machine's computers reach no private address, no metadata address and no SMTP
 
 - **Status:** Accepted (2026-11-05)
-- **Owning task:** [#984](https://github.com/Kordal/bot-dot/issues/984), part of [#977](https://github.com/Kordal/bot-dot/issues/977)
+- **Owning task:** [#984](https://github.com/ladrok/bot-dot/issues/984), part of [#977](https://github.com/ladrok/bot-dot/issues/977)
 - **Amends:** [ADR 034](034-a-bots-computer-reaches-the-local-network-and-its-own-loopback.md) on a managed machine ([ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md)): there, a computer doesn't reach the local network. Follows [ADR 136](136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)'s host-level chain.
 
 ## Context

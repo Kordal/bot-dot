@@ -1,7 +1,7 @@
 # ADR-052: The owner may lift a bot's rule on a card
 
 - **Status:** Accepted (by the owner, 2026-10-21)
-- **Owning task:** [#253](https://github.com/Kordal/bot-dot/issues/253)
+- **Owning task:** [#253](https://github.com/ladrok/bot-dot/issues/253)
 - **Changes:** a bot's own rules (its prompt and botdot's rules in it) were final: a bot refused when one of them stopped what the owner asked, and the owner could do nothing but do it by hand
 
 ## Context

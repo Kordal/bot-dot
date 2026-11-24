@@ -1,7 +1,7 @@
 # ADR-141: The admin page keeps an audit log
 
 - **Status:** Accepted (2026-11-03)
-- **Owning task:** [#911](https://github.com/Kordal/bot-dot/issues/911), part of [#909](https://github.com/Kordal/bot-dot/issues/909)
+- **Owning task:** [#911](https://github.com/ladrok/bot-dot/issues/911), part of [#909](https://github.com/ladrok/bot-dot/issues/909)
 - **Changes:** [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) (what the front door keeps)
 
 ## Context

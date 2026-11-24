@@ -1,7 +1,7 @@
 # ADR-085: A script job calls APIs with the logins its job lists
 
 - **Status:** Accepted (2026-10-24)
-- **Owning task:** [#523](https://github.com/Kordal/bot-dot/issues/523)
+- **Owning task:** [#523](https://github.com/ladrok/bot-dot/issues/523)
 
 ## Context
 

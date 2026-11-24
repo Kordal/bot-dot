@@ -1,7 +1,7 @@
 # ADR-104: A replay's commands run on a throwaway copy of the bot's computer
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#595](https://github.com/Kordal/bot-dot/issues/595), part of [#592](https://github.com/Kordal/bot-dot/issues/592)
+- **Owning task:** [#595](https://github.com/ladrok/bot-dot/issues/595), part of [#592](https://github.com/ladrok/bot-dot/issues/592)
 - **Amends:** [ADR 101](101-a-change-is-tried-on-a-bots-past-tasks-before-the-owner-sees-it.md)
 
 ## Context

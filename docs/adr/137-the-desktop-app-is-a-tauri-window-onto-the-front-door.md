@@ -1,7 +1,7 @@
 # ADR-137: The desktop app is a Tauri window onto the front door, on Windows and Mac
 
 - **Status:** Accepted
-- **Owning task:** [#881](https://github.com/Kordal/bot-dot/issues/881)
+- **Owning task:** [#881](https://github.com/ladrok/bot-dot/issues/881)
 - **Amends:** [ADR 0001](0001-native-apps-per-platform.md), [ADR 031](031-the-mac-app-is-stopped-again.md)
 - **Amended by:** [ADR 170](170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md) (the same app for Linux: an AppImage, a .deb and an .rpm)
 
