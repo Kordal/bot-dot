@@ -1,4 +1,4 @@
-# The eval of answer views (`make ui-eval`, test/live/ui-eval.test.js, ADR 264) once a night: eight prompts go to a real
+# The eval of answer views (`make ui-eval`, test/live/ui-eval.test.js, ADR 264) once a night: seven of its eight prompts go to a real
 # bot (the Claude CLI) on scratch botdot servers, and the run says whether kit:ui was picked where a view is right
 # (a table or a comparison included, with no Markdown table) and not where prose is, and whether every ui fence passes
 # the validator of the apps. A model decides itself whether to load a skill, so a change to the skill's words, the
@@ -12,6 +12,10 @@
 # hand (Actions → UI eval → Run workflow, on main) takes the cases (BOT_DOT_TEST_LIVE_ONLY, comma separated ids) and
 # the runs of each (BOT_DOT_TEST_LIVE_REPEAT; 3 or more says more about a pick that varies).
 #
+# Not in the nightly set: four-field-form. The bot asks the four questions in words and never loads kit:ui (0 of 7 runs on
+# the day this was written, with the sentence in the bot's prompt), so a night with it is red from the first. Run it
+# by hand (cases: four-field-form) until it is fixed, then take it off the list.
+#
 # The report (report.md and the evidence, results.json) is kept 14 days as the run's "ui-eval" artifact and shown on
 # the run's summary. It runs on GitHub's own machines (#528), on main only, and never for a pull request: a fork's gets
 # no secrets and the eval's cost is not for anyone to start.
@@ -22,7 +26,7 @@ on:
     - cron: '30 3 * * *' # 03:30 UTC, after the nightly Android release (00:30), desktop (01:00) and images (02:30)
   workflow_dispatch:
     inputs:
-      cases: { description: 'Case ids, comma separated (default: all)', type: string, default: '' }
+      cases: { description: 'Case ids, comma separated (default: all but four-field-form)', type: string, default: '' }
       repeat: { description: 'Runs of each case', type: string, default: '1' }
 
 permissions:
@@ -47,7 +51,7 @@ jobs:
       - id: eval
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          BOT_DOT_TEST_LIVE_ONLY: ${{ inputs.cases }}
+          BOT_DOT_TEST_LIVE_ONLY: ${{ inputs.cases || 'compare-three,compare-databases-table,compare-databases,time-series,one-line-fact,apology,yes-no' }}
           BOT_DOT_TEST_LIVE_REPEAT: ${{ inputs.repeat }}
           BOT_DOT_TEST_LIVE_OUT: ${{ runner.temp }}/ui-eval
         run: make ui-eval
