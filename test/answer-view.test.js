@@ -70,6 +70,19 @@ test('the catalog: every component says its group, its meaning and the version i
       assert.ok(keys.indexOf(c.props[k].indexes) >= 0 && keys.indexOf(c.props[k].indexes) < i && c.props[c.props[k].indexes].type === 'list', `${name}.${k}: names a list before it`);
     });
   }
+  // A list paired by position (`by`) names a list of its own node that the node says first; one that keeps a place (`inPlace`) has a blank to keep it with.
+  let paired = 0;
+  const walk = (spec, name, keys, top, where) => {
+    if (spec.by !== undefined) {
+      paired++;
+      assert.ok(keys.indexOf(spec.by) >= 0 && keys.indexOf(spec.by) < keys.indexOf(top) && catalog.components[name].props[spec.by].type === 'list', `${where}: names a list before it`);
+    }
+    if (spec.inPlace) assert.ok(spec.type === 'list' && (spec.of.nullable || ['string', 'list'].includes(spec.of.type)), `${where}: a list that keeps its place has a blank to keep it with`);
+    if (spec.type === 'list') walk(spec.of, name, keys, top, `${where}[]`);
+    if (spec.type === 'object') Object.entries(spec.props).forEach(([k, s]) => walk(s, name, keys, top, `${where}.${k}`));
+  };
+  for (const [name, c] of Object.entries(catalog.components)) Object.entries(c.props).forEach(([k, s]) => walk(s, name, Object.keys(c.props), k, `${name}.${k}`));
+  assert.ok(paired >= 2, 'the catalog pairs the cells of a table and a comparison with their columns and options');
   assert.ok(names.length >= 40);
   for (const [name, c] of Object.entries(catalog.components)) {
     assert.ok(['layout', 'text', 'data', 'charts', 'media', 'feedback', 'inputs', 'actions'].includes(c.group), `${name}: group`);

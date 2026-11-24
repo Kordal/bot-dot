@@ -95,6 +95,13 @@ function altFrom(source, limits) {
   return t === NO ? '' : t;
 }
 
+// What an item of a list that keeps its place (`inPlace`) is where it can't be read: a blank, as its kind has one (a text with
+// nothing in it, a number that is null, a list with nothing in it), or NO where it has none and the item is left out.
+function blank(spec) {
+  if (spec.nullable) return null;
+  return spec.type === 'string' ? '' : spec.type === 'list' ? [] : NO;
+}
+
 // A fence limit that was passed: the fence is drawn as code.
 function Refusal(why) { this.why = why; }
 
@@ -149,13 +156,26 @@ function of(catalog, options) {
         }
         const out = [];
         const kept = []; // where each kept item stood in the list the bot wrote, for a prop that names a place in it
+        const lost = new Set(); // where an item was left out
+        const paired = spec.by ? ctx.lost[`${at}|${spec.by}`] : null; // where the list this one is paired with (`by`) left an item out
+        let tried = 0;
+        let readable = 0;
         for (let i = 0; i < v.length && (spec.max == null || out.length < spec.max); i++) {
-          const item = read(v[i], spec.of, at, `${where}/${i}`, ctx);
-          if (item === NO || item === EMPTY) ctx.problems.push({ at, code: 'bad-item', prop: `${where}/${i}` });
+          if (paired && paired.has(i)) continue; // its partner is gone, so it goes too: the ones after it keep their places
+          tried++;
+          let item = read(v[i], spec.of, at, `${where}/${i}`, ctx);
+          if (item !== NO && item !== EMPTY) readable++;
+          else {
+            ctx.problems.push({ at, code: 'bad-item', prop: `${where}/${i}` });
+            if (spec.inPlace) item = blank(spec.of); // it keeps its place, as a blank, so that the ones after it keep theirs
+          }
+          if (item === NO || item === EMPTY) lost.add(i);
           else { out.push(item); kept.push(i); }
         }
+        if (spec.inPlace && tried && !readable) return NO; // nothing in it could be read: not a list of blanks
         if (spec.min && out.length < spec.min) return NO;
         ctx.kept[`${at}|${where}`] = kept;
+        ctx.lost[`${at}|${where}`] = lost;
         return out;
       }
       case 'object': {
@@ -228,7 +248,7 @@ function of(catalog, options) {
   // One fence's text: the view it draws, or why it is drawn as code.
   function validate(source) {
     const src = typeof source === 'string' ? source : '';
-    const ctx = { nodes: 0, points: 0, problems: [], kept: {} };
+    const ctx = { nodes: 0, points: 0, problems: [], kept: {}, lost: {} };
     const refuse = (refused, alt) => ({ ok: false, refused, alt, problems: ctx.problems });
     if (src.length > L.bytes || bytes(src) > L.bytes) return refuse('too-big', altFrom(src, L));
     let json;
