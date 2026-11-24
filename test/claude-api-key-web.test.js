@@ -24,7 +24,7 @@ function page() {
 test('web: Setup says which one bots run on, and names the other as not used when both are there', () => {
   const ctx = page();
   const onKey = ctx.claudeSetupItem(KEY_AND_SUB, false);
-  assert.match(onKey, /setup-item ok[\s\S]*Bots run on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\./);
+  assert.match(onKey, /setup-item ok[\s\S]*Claude runs on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\./);
   assert.match(onKey, /id="claude-use-sub">Use the subscription instead<\/button>[\s\S]*id="claude-key-remove">Remove the key<\/button>/);
   assert.doesNotMatch(onKey, /claude-logout|claude-use-key/);
 
@@ -33,7 +33,7 @@ test('web: Setup says which one bots run on, and names the other as not used whe
   assert.match(onSub, /id="claude-logout"[\s\S]*id="claude-use-key">Use the API key instead<\/button>/);
 
   const keyOnly = ctx.claudeSetupItem(KEY_ONLY, false);
-  assert.match(keyOnly, /Bots run on your Anthropic API key <b>…wxyz<\/b>\.<\/div>/, 'no word of a subscription that is not there');
+  assert.match(keyOnly, /Claude runs on your Anthropic API key <b>…wxyz<\/b>\.<\/div>/, 'no word of a subscription that is not there');
   assert.doesNotMatch(keyOnly, /claude-use-sub/);
   assert.match(keyOnly, /id="claude-key-remove"/);
 });
@@ -57,7 +57,7 @@ test('web: Settings → Claude says the same, and the key box opens there', asyn
     ${read('claude-card.js').slice(read('claude-card.js').indexOf('async function loadClaudeCard'))}
     this.loadClaudeCard = loadClaudeCard;`, ctx);
   const drawn = async (claude) => { ctx.claude = claude; await ctx.loadClaudeCard(); return card.innerHTML; };
-  assert.match(await drawn(KEY_AND_SUB), /Bots run on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\.[\s\S]*id="claude-use-sub"[\s\S]*id="claude-key-remove"/);
+  assert.match(await drawn(KEY_AND_SUB), /Claude runs on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\.[\s\S]*id="claude-use-sub"[\s\S]*id="claude-key-remove"/);
   assert.match(await drawn(SUB_AND_KEY), /An Anthropic API key \(<b>…wxyz<\/b>\) is saved too; bots don't use it\.[\s\S]*id="claude-use-key"/);
   assert.match(await drawn(NOTHING), /Not signed in, so bots can't run\.[\s\S]*id="claude-login"[\s\S]*id="claude-key-new"/);
   ctx.state.setupKey = true;

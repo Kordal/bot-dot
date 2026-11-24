@@ -10,7 +10,7 @@
     if (!updates || $('#claude-card')) return;
     const models = $('#settings-form');
     (models || updates).insertAdjacentHTML('beforebegin', models
-      ? `<details class="bs-body model-credentials" id="claude-card" data-in-model><summary>${tr('Provider')}</summary><p>${tr('Checking…')}</p></details>`
+      ? `<details class="bs-body model-credentials" id="claude-card" data-in-model><summary>${tr('Providers')}</summary><p>${tr('Checking…')}</p></details>`
       : `<div class="settings-card card" id="claude-card"><p>${tr('Checking…')}</p></div>`);
     loadClaudeCard();
   };
@@ -28,16 +28,17 @@ async function loadClaudeCard(fresh = true) {
   const keyOpen = !!state.setupKey && !signingIn; // the API key's box (#35)
   // A check that could not tell says its own sentence, never "Not signed in"; the way to sign in stays.
   const unknown = claudeUnknown(c);
+  const out = claudeOut(c); // the subscription is Claude's connection and is signed out
   const body = c.installed === false ? tr("Claude Code isn't installed on this machine, so bots can't run.")
     : unknown ? esc(unknown)
-    : claudeOnOwn(c) ? claudeOnOwn(c)
-    : (!c.loggedIn ? tr("Not signed in, so bots can't run.")
+    : claudeOnOwn(c) ? claudeOnOwn(c) + claudeProviderNote(c)
+    : (out ? (claudeProviders(c).length ? tr("Not signed in, so Claude's models can't run.") : tr("Not signed in, so bots can't run."))
       : c.fromEnv ? tr("Signed in with a token from the server's settings.")
       : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c) + claudeProviderNote(c);
   const keys = claudeKeyActions(c, signingIn || keyOpen).join(' · ');
   const action = signingIn || c.installed === false ? ''
     : claudeOnOwn(c) ? keys
-    : unknown || !c.loggedIn ? [`<button class="btn primary" id="claude-login">${tr('Sign in to Claude')}</button>`, keys].filter(Boolean).join(' ')
+    : unknown || out ? [`<button class="btn primary" id="claude-login">${tr('Sign in to Claude')}</button>`, keys].filter(Boolean).join(' ')
     : [...(c.fromEnv ? [] : [`<button class="link-btn" id="claude-switch">${tr('Use another account')}</button>`, `<button class="link-btn" id="claude-logout">${tr('Sign out')}</button>`]), ...(keys ? [keys] : [])].join(' · ');
   const steps = signingIn ? `<div class="setup-login" style="padding:0;margin:12px 0 0">
       <ol>
@@ -47,13 +48,13 @@ async function loadClaudeCard(fresh = true) {
       <button class="link-btn muted" id="claude-cancel">${tr('Cancel')}</button>
     </div>` : '';
   const inModel = card.dataset?.inModel !== undefined;
-  const provider = c.using === 'provider' ? c.provider?.name
-    : c.using === 'api-key' ? tr('Anthropic API key') : tr('Claude subscription');
+  // What the row says: Claude's connection, then each provider by name.
+  const provider = [claudeConnection(c) === 'api-key' ? tr('Anthropic API key') : tr('Claude subscription'), ...claudeProviders(c).map((p) => p.name)].join(', ');
   const controls = `<p class="muted settings-hint" style="margin:0">${body}</p>
     ${action ? `<div class="setup-actions">${action}</div>` : ''}
     ${steps}${keyOpen ? claudeKeyBox(true) : ''}${state.setupProvider && !signingIn ? claudeProviderBox(true) : ''}`;
   card.innerHTML = inModel
-    ? `<summary><span data-provider-label>${tr('Provider')}</span><span class="muted">${esc(provider || '')}</span>${CHEV}</summary><div class="model-provider-controls">${controls}</div>`
+    ? `<summary><span data-provider-label>${tr('Providers')}</span><span class="muted">${esc(provider || '')}</span>${CHEV}</summary><div class="model-provider-controls">${controls}</div>`
     : `<h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>${controls}`;
 
   const onClick = (sel, fn) => { const el = $(sel, card); if (el) el.onclick = fn; };

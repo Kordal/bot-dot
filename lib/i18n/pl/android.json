@@ -1511,5 +1511,13 @@
     "few": "{n} boty go mają",
     "many": "{n} botów go ma"
   },
-  "{label}, opens in the browser": "{label}, otwiera się w przeglądarce"
+  "{label}, opens in the browser": "{label}, otwiera się w przeglądarce",
+  "Providers": "Dostawcy",
+  "Not signed in, so Claude's models can't run.": "Brak logowania, więc modele Claude nie mogą działać.",
+  "Claude runs on your Anthropic API key {key}.": "Claude działa na twoim kluczu API Anthropic {key}.",
+  "Connected: {names}.": "Połączeni dostawcy: {names}.",
+  "Connect another provider": "Połącz innego dostawcę",
+  "Connect a provider": "Połącz dostawcę",
+  "Connected. Its models are in the Model list.": "Połączono. Jego modele są na liście modeli.",
+  "Bots on its models will run on the default model instead.": "Boty na jego modelach będą działać na modelu domyślnym."
 }

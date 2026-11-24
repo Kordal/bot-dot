@@ -30,31 +30,41 @@ const claudeUnknown = (c) => (c && c.error ? String(c.error) : '');
 // Claude on an Anthropic API key as well as the subscription (#35; docs/api.md, Setup and updates). `using` says
 // which one bots run on; a server that does not say has no key, and nothing of one is drawn.
 const claudeHasKeys = (c) => !!c && c.installed !== false && (c.using === 'api-key' || c.using === 'subscription' || c.using === 'provider');
-// On the key: the sentence that says so, and names a subscription that is signed in too as not used.
-const claudeOnKey = (c) => `${tr('Bots run on your Anthropic API key {key}.', { key: `<b>${esc(c.apiKey || '')}</b>` })}${c.subscription === true ? ` ${c.email ? tr("Your Claude subscription ({email}) is signed in too; bots don't use it.", { email: `<b>${esc(c.email)}</b>` }) : tr("Your Claude subscription is signed in too; bots don't use it.")}` : ''}`;
-// On the subscription: a saved key, named as not used.
-const claudeKeyNote = (c) => (claudeHasKeys(c) && c.apiKey ? ` ${tr("An Anthropic API key ({key}) is saved too; bots don't use it.", { key: `<b>${esc(c.apiKey)}</b>` })}` : '');
-// Another model provider (ADR 255). On it: the sentence that says so, and names a subscription that is signed in too as not used.
-const claudeOnProvider = (c) => `${c.provider.key ? tr('Bots run on {name} ({key}).', { name: esc(c.provider.name), key: `<b>${esc(c.provider.key)}</b>` }) : tr('Bots run on {name}.', { name: esc(c.provider.name) })}${c.subscription === true ? ` ${c.email ? tr("Your Claude subscription ({email}) is signed in too; bots don't use it.", { email: `<b>${esc(c.email)}</b>` }) : tr("Your Claude subscription is signed in too; bots don't use it.")}` : ''}`;
-// Not on it: a saved provider, named as not used.
-const claudeProviderNote = (c) => (c.using !== 'provider' && c.provider ? ` ${tr("{name} is saved too; bots don't use it.", { name: esc(c.provider.name) })}` : '');
-// What is said of how bots run, on a key or on a provider, or null for the subscription.
-const claudeOnOwn = (c) => (c.using === 'api-key' ? claudeOnKey(c) : c.using === 'provider' && c.provider ? claudeOnProvider(c) : null);
+// Which of the two Claude connections the Claude models run on, whatever the account default runs on (ADR 267); a
+// server from before it says it in `using`.
+const claudeConnection = (c) => c.connection || (c.using === 'api-key' ? 'api-key' : 'subscription');
+// The providers connected beside Claude (ADR 255, 267): all of them, or the one a server from before them says.
+const claudeProviders = (c) => c.providers || (c.provider ? [c.provider] : []);
+// Claude on the key: the sentence that says so, and names a subscription that is signed in too as not used.
+const claudeOnKey = (c) => `${tr('Claude runs on your Anthropic API key {key}.', { key: `<b>${esc(c.apiKey || '')}</b>` })}${c.subscription === true ? ` ${c.email ? tr("Your Claude subscription ({email}) is signed in too; bots don't use it.", { email: `<b>${esc(c.email)}</b>` }) : tr("Your Claude subscription is signed in too; bots don't use it.")}` : ''}`;
+// Claude on the subscription: a saved key, named as not used.
+const claudeKeyNote = (c) => (claudeHasKeys(c) && c.apiKey && claudeConnection(c) !== 'api-key' ? ` ${tr("An Anthropic API key ({key}) is saved too; bots don't use it.", { key: `<b>${esc(c.apiKey)}</b>` })}` : '');
+// The providers connected, named.
+const claudeProviderNote = (c) => (claudeProviders(c).length ? ` ${tr('Connected: {names}.', { names: claudeProviders(c).map((p) => `<b>${esc(p.name)}</b>`).join(', ') })}` : '');
+// What is said of Claude's own connection when it is the API key, or null for the subscription.
+const claudeOnOwn = (c) => (claudeConnection(c) === 'api-key' ? claudeOnKey(c) : null);
+// Whether the Claude models cannot run: the subscription is the connection, and the check says it is signed out (a server from before says only `loggedIn`).
+const claudeOut = (c) => claudeConnection(c) === 'subscription' && (c.subscription === false || (c.subscription == null && c.loggedIn === false));
 // The key's links, none while signing in or while the key box is open (busy).
 function claudeKeyActions(c, busy) {
   const here = typeof state === 'undefined' ? {} : state; // the page's state, where the page has one
   if (busy || here.setupProvider || !claudeHasKeys(c)) return [];
   const link = (id, text) => `<button class="link-btn" id="${id}">${text}</button>`;
+  const key = claudeConnection(c) === 'api-key';
   const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))]
-    : c.subscription === false && c.using !== 'subscription' ? [link('claude-login', tr('Sign in to Claude'))] : [];
-  const offered = !!(here.setup?.providers?.length || c.provider);
-  const other = !offered ? []
-    : c.using === 'provider' ? [link('claude-provider-new', tr('Change provider')), link('claude-provider-remove', tr('Remove the provider'))]
-    : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) })), link('claude-provider-new', tr('Change provider'))]
-    : [link('claude-provider-new', tr('Use another provider'))];
-  if (c.using === 'api-key') return [...sub, link('claude-key-remove', tr('Remove the key')), ...other];
-  if (c.using === 'provider') return [...sub, c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...other];
-  return [c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...other];
+    : c.subscription === false && key ? [link('claude-login', tr('Sign in to Claude'))] : [];
+  if (key) return [...sub, link('claude-key-remove', tr('Remove the key')), ...claudeProviderLinks(c)];
+  return [c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...claudeProviderLinks(c)];
+}
+// The providers connected, each with its way to remove it, and the way to connect another: nothing while the form is open.
+function claudeProviderLinks(c) {
+  const here = typeof state === 'undefined' ? {} : state;
+  if (here.setupProvider || !(here.setup?.providers?.length || claudeProviders(c).length)) return [];
+  const link = (id, text, attrs = '') => `<button class="link-btn" id="${id}"${attrs}>${text}</button>`;
+  return [
+    ...claudeProviders(c).map((p) => link(`claude-provider-remove-${esc(p.preset)}`, tr('Remove {name}', { name: esc(p.name) }), ` data-remove-provider="${esc(p.preset)}"`)),
+    link('claude-provider-new', claudeProviders(c).length ? tr('Connect another provider') : tr('Connect a provider')),
+  ];
 }
 // Where the key is pasted: a password field, so it is never shown. inCard: in Settings → Claude.
 const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="padding:0;margin:12px 0 0' : 'card setup-login'}">
@@ -65,7 +75,9 @@ const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="pa
 // The same provider form in Setup and Settings → Claude.
 const claudeProviderBox = (inCard) => {
   const presets = state.setup?.providers || [];
-  const saved = state.setup?.claude?.provider?.preset;
+  // The first one not connected yet; a connected one saved again replaces it.
+  const connected = claudeProviders(state.setup?.claude || {}).map((p) => p.preset);
+  const saved = (presets.find((p) => !connected.includes(p.id)) || presets[0])?.id;
   const id = inCard ? 'settings-provider' : 'setup-provider';
   return `<div class="${inCard ? 'setup-login' : 'card setup-login'}">
       <form id="claude-provider-form" class="setup-provider">
@@ -110,9 +122,10 @@ function wireProviderForm(form, claude, save) {
   $('.provider-chevron', form).innerHTML = ICON.back;
   const selectedPreset = () => presets.find((item) => item.id === form.preset.value);
   const supportsCatalog = state.features?.includes('provider-model-catalog');
-  const saved = claude.provider;
-  const reusesKey = () => supportsCatalog && !form.key.value.trim() && saved?.key && saved.preset === form.preset.value
-    && (!selectedPreset().askUrl || form.url.value.trim().replace(/\/+$/, '') === saved.url);
+  // The saved connection of the preset chosen, to replace: its key and models are reused only at the same address.
+  const savedOf = () => claudeProviders(claude).find((item) => item.preset === form.preset.value);
+  const reusesKey = () => { const saved = savedOf(); return supportsCatalog && !form.key.value.trim() && saved?.key
+    && (!selectedPreset().askUrl || form.url.value.trim().replace(/\/+$/, '') === saved.url); };
   let catalog = null;
   let models = { main: '', helper: '' };
   let role = '';
@@ -131,7 +144,7 @@ function wireProviderForm(form, claude, save) {
     $('[data-helper-name]', form).textContent = name(models.helper) || tr('Same as main model');
     const use = p.custom ? tr('Use this provider') : tr('Use {name}', { name: p.name });
     submit.textContent = saving ? tr('Checking…') : ready() ? use : tr('Load models');
-    form.key.placeholder = reusesKey() ? tr('Saved key {key}', { key: saved.key }) : '';
+    form.key.placeholder = reusesKey() ? tr('Saved key {key}', { key: savedOf().key }) : '';
     $('#claude-provider-cancel', form).disabled = saving;
     submit.disabled = pending || saving || (ready() ? !models.main
       : (!p.keyless && !form.key.value.trim() && !reusesKey()) || (p.askUrl && !form.url.value.trim()));
@@ -214,7 +227,7 @@ function wireProviderForm(form, claude, save) {
     form.url.placeholder = p.url || 'https://…';
     key.hidden = !!p.keyless;
     form.key.required = !p.keyless && !supportsCatalog;
-    if (p.askUrl && p.id === saved?.preset && saved.url) form.url.value = saved.url;
+    if (p.askUrl && savedOf()?.url) form.url.value = savedOf().url;
     reset();
   }
   form.preset.onchange = () => { form.url.value = ''; form.key.value = ''; fit(); };
@@ -245,7 +258,8 @@ function wireProviderForm(form, claude, save) {
       let result;
       if (supportsCatalog) result = await api('/setup/claude/provider/models', { method: 'POST', body });
       else {
-        const previous = saved?.preset === p.id && (!saved.url || saved.url === form.url.value.trim().replace(/\/+$/, '')) ? saved : null;
+        const was = savedOf();
+        const previous = was && (!was.url || was.url === form.url.value.trim().replace(/\/+$/, '')) ? was : null;
         result = { main: previous?.big || p.big, helper: previous?.small || p.small,
           models: [...new Set([previous?.big, previous?.small, p.big, p.small].filter(Boolean))].map((id) => ({ id, label: id })) };
       }
@@ -279,10 +293,10 @@ function wireClaudeKey(root, c, redraw) {
       state.setupKey = false;
       state.setupProvider = false;
       state.setup.claude = r.claude;
-      if (state.modelProvider || r.claude.using === 'provider' || state.features?.includes('provider-model-catalog')) {
+      if (state.features?.includes('llm-provider')) { // the models of a connected or removed provider come and go
         const cfg = await api('/settings').catch(() => null);
         if (cfg) {
-          Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, modelProvider: cfg.provider });
+          Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, providers: cfg.providers });
           const settings = $('#view-settings');
           if (settings) {
             const openModel = $('#settings-model', settings)?.open;
@@ -303,10 +317,14 @@ function wireClaudeKey(root, c, redraw) {
   on('#claude-key-cancel', () => { state.setupKey = false; redraw(); });
   on('#claude-provider-new', () => { state.setupProvider = true; state.setupKey = false; redraw(); });
   on('#claude-provider-cancel', () => { state.setupProvider = false; redraw(); });
-  on('#claude-use-provider', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'provider' } }), tr('Bots now run on {name}', { name: c.provider?.name || '' })));
-  on('#claude-provider-remove', async () => {
-    if (!(await askFirst(c.subscription === true ? tr('Remove the provider? Bots will run on your Claude subscription.') : tr("Remove the provider? Bots can't run until you sign in to Claude or save a key again."), tr('Remove')))) return;
-    ask(() => api('/setup/claude/provider', { method: 'DELETE' }), tr('Provider removed'));
+  // Each connected provider can be taken away: a model of it then runs as the default model does (ADR 267).
+  $$('[data-remove-provider]', root).forEach((button) => {
+    button.onclick = async () => {
+      const preset = button.dataset.removeProvider;
+      const name = claudeProviders(c).find((p) => p.preset === preset)?.name || preset;
+      if (!(await askFirst(tr('Remove {name}? Bots on its models will run on the default model instead.', { name }), tr('Remove')))) return;
+      ask(() => api(`/setup/claude/provider/${encodeURIComponent(preset)}`, { method: 'DELETE' }), tr('Provider removed'));
+    };
   });
   on('#claude-use-key', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'api-key' } }), tr('Bots now run on your API key')));
   on('#claude-use-sub', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } }), tr('Bots now run on your Claude subscription')));
@@ -315,9 +333,14 @@ function wireClaudeKey(root, c, redraw) {
     ask(() => api('/setup/claude/key', { method: 'DELETE' }), tr('API key removed'));
   });
   const pform = $('#claude-provider-form', root);
-  if (pform) wireProviderForm(pform, c, (body) => ask(
-    () => api('/setup/claude/provider', { method: 'PUT', body }), tr('Saved. Bots now run on it'), true,
-  ));
+  // Saving adds the provider and moves nothing (ADR 267). Only when nothing else could run (Claude is signed out and
+  // has no key) its main model becomes the account default, or setup would wait for a model nobody can pick.
+  if (pform) wireProviderForm(pform, c, (body) => ask(async () => {
+    const saved = await api('/setup/claude/provider', { method: 'PUT', body });
+    if (saved.claude.loggedIn || claudeUnknown(saved.claude)) return saved;
+    await api('/settings', { method: 'PUT', body: { defaultModel: `provider:${body.preset}:${body.big}` } });
+    return { claude: (await api('/setup')).claude };
+  }, tr('Connected. Its models are in the Model list.'), true));
   const form = $('#claude-key-form', root);
   if (form) {
     form.key.focus();
@@ -339,11 +362,11 @@ function claudeSetupItem(c, signingIn, keyOpen = false) {
   const keys = claudeKeyActions(c, signingIn || keyOpen);
   const links = (list) => list.join(' · ');
   if (claudeUnknown(c)) return setupItem({ state: 'todo', icon: '✳︎', title: 'Claude', body: esc(claudeUnknown(c)), action: [signIn, links(keys)].filter(Boolean).join(' ') });
-  if (claudeOnOwn(c)) return setupItem({ state: 'ok', icon: '✳︎', title: 'Claude', body: claudeOnOwn(c), action: links(keys) });
+  if (claudeOnOwn(c)) return setupItem({ state: 'ok', icon: '✳︎', title: 'Claude', body: claudeOnOwn(c) + claudeProviderNote(c), action: links(keys) });
   return c.loggedIn
     ? setupItem({
       state: 'ok', icon: '✳︎', title: 'Claude',
-      body: (c.fromEnv ? tr("Signed in with a token from the server's settings.") : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c) + claudeProviderNote(c),
+      body: (claudeOut(c) ? tr("Not signed in, so Claude's models can't run.") : c.fromEnv ? tr("Signed in with a token from the server's settings.") : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c) + claudeProviderNote(c),
       action: links([...(c.fromEnv ? [] : [`<button class="link-btn" id="claude-switch">${tr('Use another account')}</button>`, `<button class="link-btn" id="claude-logout">${tr('Sign out')}</button>`]), ...keys]),
     })
     : setupItem({

@@ -90,7 +90,8 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             // Advanced (ADR 205): without it, the Chief's model is left as it is and not shown.
             val adv by dev.botdot.app.data.Advanced.on.collectAsState()
             if (adv) Section(null) {
-                Choice(tr("Model"), st.model, st.models.map { it.id to it.label }) { desk?.setModel(it) }
+                if (st.grouped) ModelPick(tr("Model"), st.model, st.modelName.ifEmpty { st.models.firstOrNull()?.label.orEmpty() }, st.models) { desk?.setModel(it) }
+                else Choice(tr("Model"), st.model, st.models.map { it.id to it.label }) { desk?.setModel(it) }
                 if (st.thinks) Choice(tr("Reasoning"), st.effort, st.efforts.map { it.id to it.label }) { desk?.setEffort(it) }
             }
             Section(tr("Your rules for it")) {
