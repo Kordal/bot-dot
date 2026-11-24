@@ -1,7 +1,7 @@
 # ADR-123: A card on a project's board is built and kept fresh by a run of the Chief's
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#775](https://github.com/Kordal/bot-dot/issues/775), spec [#774](https://github.com/Kordal/bot-dot/issues/774)
+- **Owning task:** [#775](https://github.com/ladrok/bot-dot/issues/775), spec [#774](https://github.com/ladrok/bot-dot/issues/774)
 - **Builds on:** [ADR 073](073-the-chiefs-own-jobs-only-read.md) (a run of the Chief's own that only reads), [ADR 121](121-an-objectives-number-is-read-from-a-connected-app-by-a-read-only-run-of-the-chiefs.md) (an objective's number), [ADR 112](112-the-chief-helps-set-up-a-company-in-short-calls-and-botdot-reads-its-site.md) (short calls), [ADR 004](004-pieces-as-restricted-shape-lists.md) (nothing from Claude is markup)
 
 ## Context

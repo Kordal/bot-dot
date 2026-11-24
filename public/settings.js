@@ -26,50 +26,56 @@ function openLearned(el, botId) {
 
 // ---------- model & reasoning ----------
 
+// A model the list does not have: a provider's that is not connected any more is no choice (the run falls back to the
+// default), any other name (a saved Claude ID) stays selectable.
 function shownModel(id = '') {
   if (state.models?.some((model) => model.id === id)) return id;
-  if (id?.startsWith('provider:')) return '';
-  return state.modelProvider && id ? (/haiku/i.test(id) ? state.modelProvider.helper : state.modelProvider.main) : id;
+  return id?.startsWith('provider:') ? '' : id;
 }
+// A model's name, and its provider's when it is not Claude's: "DeepSeek V4 Pro · DeepSeek" (docs/api.md, models[].provider).
 const modelLabel = (id = '') => {
-  const shown = shownModel(id) || state.modelProvider?.main;
-  return state.models?.find((x) => x.id === shown)?.label || shown || tr("Claude Code's default");
+  const shown = shownModel(id);
+  const info = state.models?.find((x) => x.id === shown);
+  return info ? (info.provider ? `${info.label} · ${info.group}` : info.label) : shown || tr("Claude Code's default");
 };
 const effortLabel = (id) => (!id ? tr("Claude Code's default") : state.efforts?.find((x) => x.id === id)?.label || id);
-const modelInfo = (id) => state.models?.find((x) => x.id === (shownModel(id) || state.modelProvider?.main));
-// Whether a model takes a reasoning level (from Anthropic's model list; unknown names are assumed to).
+const modelInfo = (id) => state.models?.find((x) => x.id === shownModel(id));
+// Whether a model takes a reasoning level: a provider's model has levels of its own (`efforts`), a Claude one comes
+// from Anthropic's model list; unknown names are assumed to.
 const takesEffort = (id = '') => {
   const m = modelInfo(id);
-  return state.modelProvider ? !!m?.effort : m ? m.effort !== false : !/haiku/i.test(id);
+  return m ? m.effort !== false : !/haiku/i.test(id);
 };
 function llmSummary(model, effort) {
-  if (!model && !effort && !state.modelProvider) return tr("Claude Code's choice");
-  const chosenLevel = effort && takesEffort(model) && (!state.modelProvider || modelInfo(model)?.efforts?.includes(effort));
+  if (!model && !effort) return tr("Claude Code's choice");
+  const info = modelInfo(model);
+  const chosenLevel = effort && takesEffort(model) && (!info?.efforts || info.efforts.includes(effort));
   return chosenLevel ? `${modelLabel(model)} · ${effortLabel(effort)}` : modelLabel(model);
 }
 // The value of a Model row of the Chief or a bot, which nothing set follows the default.
 function llmValue(model, effort) {
   const shown = shownModel(model);
   if (!shown && !effort) return tr('Default');
-  return llmSummary(shown || (state.modelProvider ? state.settings?.defaultModel : ''), effort);
+  return llmSummary(shown, effort);
 }
 
-// Model + reasoning selects. inherit: label for the "use the default" choice ('' = Claude Code's default).
+// Model + reasoning selects, the models in a group each: Claude's, then each connected provider's by name. One list,
+// searched by the box above it. inherit: label for the "use the default" choice ('' = Claude Code's default).
 function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
   const savedModel = model;
   model = shownModel(model);
   const models = state.models || [];
   const known = models.some((x) => x.id === model);
   const groups = [...new Set(models.map((x) => x.group))];
-  const defaultModel = state.modelProvider ? tr('Default ({model})', { model: modelLabel() }) : modelLabel();
   const modelOpts = [
-    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || defaultModel)}</option>`,
+    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || modelLabel())}</option>`,
     ...groups.map((g) => `<optgroup label="${esc(g)}">${models.filter((x) => x.group === g).map((x) => `<option value="${esc(x.id)}" ${x.id === model ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`),
     model && !known ? `<option value="${esc(model)}" selected>${esc(model)}</option>` : '',
   ].join('');
-  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || (state.modelProvider ? tr('Default') : tr("Claude Code's default")))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
+  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || tr("Claude Code's default"))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
   return `
     <div class="llm-fields" data-llm="${prefix}">
+      <input class="pick-search" type="search" data-model-search placeholder="${esc(tr('Search models'))}" aria-label="${esc(tr('Search models'))}"${models.length < 12 ? ' hidden' : ''}>
       <div class="row">
         <label class="field">${tr('Model')}<select name="${prefix}Model" data-saved-model="${esc(savedModel)}" data-shown-model="${esc(model)}">${modelOpts}</select></label>
         <label class="field">${tr('Reasoning level')}<select name="${prefix}Effort">${effortOpts}</select></label>
@@ -83,20 +89,29 @@ function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
 function wireLlmFields(form, prefix) {
   const m = form[`${prefix}Model`];
   const e = form[`${prefix}Effort`];
+  const search = form.querySelector(`[data-llm="${prefix}"] [data-model-search]`);
   const describe = (el, text) => { el.title = text; el.setAttribute('aria-description', text); };
+  // Every word of the search is in an option's name, its ID or its provider's name.
+  const filter = () => {
+    const terms = (search?.value || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    for (const option of m.options) {
+      const words = `${option.textContent} ${option.value} ${option.parentElement?.label || ''}`.toLowerCase();
+      option.hidden = !option.selected && !!option.value && !terms.every((term) => words.includes(term));
+    }
+    for (const group of m.querySelectorAll('optgroup')) group.hidden = ![...group.children].some((option) => !option.hidden);
+  };
   const update = () => {
     const id = m.value;
     const info = state.models?.find((x) => x.id === id);
-    const effective = id || (state.modelProvider && prefix !== 'default' ? state.settings?.defaultModel : '');
-    const noEffort = (!!id || !!state.modelProvider) && !takesEffort(effective);
+    // The model whose levels apply: the chosen one, or the one a bot and the Chief follow, the account default.
+    const effective = id || (prefix !== 'default' ? state.settings?.defaultModel : '');
+    const noEffort = !!effective && !takesEffort(effective);
     e.disabled = noEffort;
-    if (state.modelProvider) {
-      e.closest('label').classList.toggle('hidden', noEffort);
-      const levels = modelInfo(effective)?.efforts;
-      if (levels) for (const option of e.options) {
-        option.disabled = option.hidden = !!option.value && !levels.includes(option.value);
-        if (option.disabled && option.selected) e.value = '';
-      }
+    const levels = modelInfo(effective)?.efforts; // a provider's model: its own levels only
+    e.closest('label').classList.toggle('hidden', noEffort && !!levels);
+    for (const option of e.options) {
+      option.disabled = option.hidden = !!levels && !!option.value && !levels.includes(option.value);
+      if (option.disabled && option.selected) e.value = '';
     }
     const effort = state.efforts?.find((x) => x.id === e.value);
     describe(m, info?.note || '');
@@ -107,7 +122,9 @@ function wireLlmFields(form, prefix) {
     update();
   };
   e.onchange = update;
+  if (search) search.oninput = filter;
   update();
+  filter();
 }
 
 function readLlmFields(form, prefix) {
@@ -386,12 +403,11 @@ function renderSettings() {
       ${advanced() ? `<details class="bs-row bs-more" id="settings-model">
         <summary${tipAttrs(tr('The model and reasoning level of every bot without a choice of its own.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmSummary(s.defaultModel, s.defaultEffort))}</span>${CHEV}</summary>
         <form class="bs-body" id="settings-form" autocomplete="off">
-          <input class="pick-search" type="search" id="settings-model-search" placeholder="${tr('Search models')}" aria-label="${tr('Search models')}" hidden>
           ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
-          ${!state.modelProvider || state.modelProvider.refreshable || state.features.includes('provider-model-catalog') ? `<div class="catalog-line">
-            <span data-model-status role="status">${state.modelProvider ? esc(state.catalog?.error || '') : catalogLine()}</span>
-            <button type="button" class="link-btn" id="refresh-models">${state.modelProvider && !state.features.includes('provider-model-catalog') ? tr('Refresh reasoning levels') : tr('Refresh models')}</button>
-          </div>` : ''}
+          <div class="catalog-line">
+            <span data-model-status role="status">${catalogLine()}</span>
+            <button type="button" class="link-btn" id="refresh-models">${tr('Refresh models')}</button>
+          </div>
         </form>
       </details>
       ${typeof Proxies !== 'undefined' ? Proxies.rowHTML() : ''}
@@ -434,25 +450,11 @@ function renderSettings() {
   const form = $('#settings-form', root);
   if (!form) return;
   const section = $('#settings-model', root);
-  const search = $('#settings-model-search', form);
   const refresh = $('#refresh-models', form);
   const status = $('[data-model-status]', form);
-  const filter = () => {
-    const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    for (const option of form.defaultModel.options) {
-      const words = (option.textContent + ' ' + option.value).toLowerCase();
-      option.hidden = !option.selected && !!option.value && !terms.every((term) => words.includes(term));
-    }
-  };
-  const wireModels = () => {
-    search.hidden = (state.models?.length || 0) < 12;
-    if (search.hidden) search.value = '';
-    wireLlmFields(form, 'default');
-    filter();
-  };
-  search.oninput = filter;
-  wireModels();
+  wireLlmFields(form, 'default');
   const discovers = state.features.includes('provider-model-catalog');
+  // The lists of Claude and of every connected provider, read again: the server asks each, and one that fails keeps its last.
   async function refreshModels() {
     if (refresh.disabled) return;
     refresh.disabled = true;
@@ -460,24 +462,24 @@ function renderSettings() {
     try {
       const r = await api(`/settings/refresh-models${discovers ? '?catalog' : ''}`, { method: 'POST' });
       if (!form.isConnected) return;
-      Object.assign(state, { models: r.models, efforts: r.efforts, catalog: r.catalog, modelProvider: r.provider });
+      Object.assign(state, { models: r.models, efforts: r.efforts, catalog: r.catalog, providers: r.providers });
       const { defaultModel: model, defaultEffort: effort } = state.settings;
       $('[data-llm="default"]', form).outerHTML = llmFieldsHTML('default', { model, effort });
       $('[data-llm-val]', root).textContent = llmSummary(model, effort);
-      wireModels();
+      wireLlmFields(form, 'default');
       status.textContent = r.catalog?.error || '';
     } catch (err) { status.textContent = err.message; }
     finally { refresh.disabled = false; }
   }
   if (refresh) refresh.onclick = refreshModels;
-  if (discovers && (state.modelProvider || state.catalog?.source === 'anthropic-key') && refresh) {
+  if (discovers && (state.providers?.length || state.catalog?.source === 'anthropic-key') && refresh) {
     section.addEventListener('toggle', () => { if (section.open) refreshModels(); });
   }
   $$('[data-edit-bot]', root).forEach((b) => (b.onclick = () => setView('botsettings', b.dataset.editBot)));
   // Saves by itself, like a bot's settings.
   form.onsubmit = (e) => e.preventDefault();
   form.onchange = async (event) => {
-    if (event.target === search) return;
+    if (event.target.matches?.('[data-model-search]')) return;
     const d = readLlmFields(form, 'default');
     try {
       const r = await api('/settings', { method: 'PUT', body: { defaultModel: d.model, defaultEffort: d.effort } });

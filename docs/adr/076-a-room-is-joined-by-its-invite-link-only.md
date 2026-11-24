@@ -1,7 +1,7 @@
 # ADR-076: A room is joined by its invite link only
 
 - **Status:** Accepted (by the owner, 2026-10-23)
-- **Owning task:** [#437](https://github.com/Kordal/bot-dot/issues/437)
+- **Owning task:** [#437](https://github.com/ladrok/bot-dot/issues/437)
 - **Changes:** [ADR 068](068-a-room-invites-with-a-link-its-maker-shares.md) ("Other members still invite by name"), and with it [ADR 060](060-a-shared-room-lets-bots-of-several-accounts-talk-through-the-front-door.md) ("Who joins")
 
 ## Context

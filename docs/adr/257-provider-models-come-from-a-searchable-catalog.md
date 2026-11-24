@@ -1,6 +1,6 @@
 # ADR-257: Provider models come from a searchable catalog
 
-- **Status:** Accepted (2026-11-18)
+- **Status:** Accepted (2026-11-18). Saving a provider no longer switches to it, and several can be saved, since [ADR 267](267-several-providers-at-once-and-the-model-decides-which-one-runs.md).
 - **Owning task:** #1539
 - **Updates:** ADR 256 for provider setup.
 

@@ -1,7 +1,7 @@
 # ADR-128: Create grants what the team cards show
 
 - **Status:** Accepted (2026-10-30)
-- **Owning task:** [#808](https://github.com/Kordal/bot-dot/issues/808)
+- **Owning task:** [#808](https://github.com/ladrok/bot-dot/issues/808)
 - **Supersedes:** the part of [ADR 111](111-the-chief-proposes-a-companys-team-and-create-makes-it-once.md) that makes the bots as the Chief's `create_bot` does
 - **Builds on:** [ADR 126](126-a-projects-cards-call-the-owners-own-services-with-the-projects-logins.md) (a project's logins), [ADR 127](127-the-chief-picks-a-new-projects-setup-questions-and-the-server-sends-its-screens.md) (setup that fits the ask)
 

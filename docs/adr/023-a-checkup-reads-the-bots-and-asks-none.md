@@ -1,7 +1,7 @@
 # ADR-023: A checkup is its own read-only Chief session that reads the bots and asks none
 
 - **Status:** Accepted (2026-10-12, the choices below are the owner's)
-- **Owning task:** [#387](https://github.com/Kordal/bot-dot/issues/387)
+- **Owning task:** [#387](https://github.com/ladrok/bot-dot/issues/387)
 
 ## Context
 

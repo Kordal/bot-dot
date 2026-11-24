@@ -24,7 +24,7 @@ function page() {
 test('web: Setup says which one bots run on, and names the other as not used when both are there', () => {
   const ctx = page();
   const onKey = ctx.claudeSetupItem(KEY_AND_SUB, false);
-  assert.match(onKey, /setup-item ok[\s\S]*Bots run on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\./);
+  assert.match(onKey, /setup-item ok[\s\S]*Claude runs on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\./);
   assert.match(onKey, /id="claude-use-sub">Use the subscription instead<\/button>[\s\S]*id="claude-key-remove">Remove the key<\/button>/);
   assert.doesNotMatch(onKey, /claude-logout|claude-use-key/);
 
@@ -33,7 +33,7 @@ test('web: Setup says which one bots run on, and names the other as not used whe
   assert.match(onSub, /id="claude-logout"[\s\S]*id="claude-use-key">Use the API key instead<\/button>/);
 
   const keyOnly = ctx.claudeSetupItem(KEY_ONLY, false);
-  assert.match(keyOnly, /Bots run on your Anthropic API key <b>…wxyz<\/b>\.<\/div>/, 'no word of a subscription that is not there');
+  assert.match(keyOnly, /Claude runs on your Anthropic API key <b>…wxyz<\/b>\.<\/div>/, 'no word of a subscription that is not there');
   assert.doesNotMatch(keyOnly, /claude-use-sub/);
   assert.match(keyOnly, /id="claude-key-remove"/);
 });
@@ -50,6 +50,20 @@ test('web: with neither, Setup offers the key beside the sign-in; one subscripti
   assert.match(box, /id="claude-key-cancel"/);
 });
 
+test('web: Setup with the subscription signed out and the default on a provider offers Sign in, not Sign out (ADR 267)', () => {
+  const ctx = page();
+  const OUT_ON_PROVIDER = { installed: true, loggedIn: true, using: 'provider', connection: 'subscription', subscription: false, apiKey: null, providers: [{ preset: 'deepseek', name: 'DeepSeek' }] };
+  const out = ctx.claudeSetupItem(OUT_ON_PROVIDER, false);
+  assert.match(out, /Not signed in, so Claude's models can't run\./);
+  assert.match(out, /id="claude-login">Sign in to Claude<\/button>/);
+  assert.doesNotMatch(out, /claude-logout|claude-switch/, 'no Sign out for a session that is not there');
+  assert.match(out, /Remove DeepSeek/, 'the provider links stay');
+  assert.doesNotMatch(ctx.claudeSetupItem(OUT_ON_PROVIDER, true), /claude-login/, 'not while signing in');
+  const signedIn = ctx.claudeSetupItem({ ...OUT_ON_PROVIDER, subscription: true, email: 'me@example.com' }, false);
+  assert.match(signedIn, /id="claude-logout"/);
+  assert.doesNotMatch(signedIn, /claude-login/);
+});
+
 test('web: Settings → Claude says the same, and the key box opens there', async () => {
   const card = element();
   const ctx = vm.createContext({ ...words, ...finders(element({ '#claude-card': card })), esc, state: {}, api: async () => ({ claude: ctx.claude }), toast() {} });
@@ -57,7 +71,7 @@ test('web: Settings → Claude says the same, and the key box opens there', asyn
     ${read('claude-card.js').slice(read('claude-card.js').indexOf('async function loadClaudeCard'))}
     this.loadClaudeCard = loadClaudeCard;`, ctx);
   const drawn = async (claude) => { ctx.claude = claude; await ctx.loadClaudeCard(); return card.innerHTML; };
-  assert.match(await drawn(KEY_AND_SUB), /Bots run on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\.[\s\S]*id="claude-use-sub"[\s\S]*id="claude-key-remove"/);
+  assert.match(await drawn(KEY_AND_SUB), /Claude runs on your Anthropic API key <b>…wxyz<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\.[\s\S]*id="claude-use-sub"[\s\S]*id="claude-key-remove"/);
   assert.match(await drawn(SUB_AND_KEY), /An Anthropic API key \(<b>…wxyz<\/b>\) is saved too; bots don't use it\.[\s\S]*id="claude-use-key"/);
   assert.match(await drawn(NOTHING), /Not signed in, so bots can't run\.[\s\S]*id="claude-login"[\s\S]*id="claude-key-new"/);
   ctx.state.setupKey = true;

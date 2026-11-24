@@ -1,7 +1,7 @@
 # ADR-061: The pinned set is not the owner's business
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#309](https://github.com/Kordal/bot-dot/issues/309)
+- **Owning task:** [#309](https://github.com/ladrok/bot-dot/issues/309)
 - **Changes:** [ADR 015](015-the-server-records-who-said-a-note.md) ("Every unpin is in the tool's answer") and [ADR 024](024-a-done-memory-change-is-no-row-under-a-reply.md) ("The bot's reply carries the signal"), for the pinned set only
 
 ## Context

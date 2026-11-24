@@ -1,7 +1,7 @@
 # ADR-239: New projects start in their Chief's conversation
 
 - **Status:** Accepted (2026-11-13, the owner approved the five-PR simplification and asked to implement PR 4)
-- **Owning task:** [#1331](https://github.com/Kordal/bot-dot/issues/1331), spec [#1327](https://github.com/Kordal/bot-dot/issues/1327)
+- **Owning task:** [#1331](https://github.com/ladrok/bot-dot/issues/1331), spec [#1327](https://github.com/ladrok/bot-dot/issues/1327)
 - **Changes:** Mandatory setup screens of ADR 226 for new projects on apps with `project-conversation`. Retains the proposal review and grants of ADR 128, the project chat of ADR 217 and the primary conversation of ADR 235. Legacy setup remains supported.
 
 ## Context

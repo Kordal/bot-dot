@@ -1,7 +1,7 @@
 # ADR-051: The owner may keep a Vault secret in a file
 
 - **Status:** Accepted (by the owner, 2026-10-21)
-- **Owning task:** [#253](https://github.com/Kordal/bot-dot/issues/253)
+- **Owning task:** [#253](https://github.com/ladrok/bot-dot/issues/253)
 - **Changes:** "botdot puts a secret in a file only for `run_with_file`, for one command" ([ADR 039](039-a-saved-file-is-in-the-computer-for-one-command.md), SECURITY.md) and the bots' rule "never print, store or encode a saved secret"
 
 ## Context

@@ -1,7 +1,7 @@
 # ADR-073: The Chief's own jobs only read
 
 - **Status:** Accepted (by the owner, 2026-10-23)
-- **Owning task:** [#408](https://github.com/Kordal/bot-dot/issues/408)
+- **Owning task:** [#408](https://github.com/ladrok/bot-dot/issues/408)
 - **Builds on:** [ADR 006](006-a-look-is-its-own-read-only-chief-session.md), [ADR 069](069-the-chief-keeps-pages-too-by-a-run-of-its-own.md), [ADR 070](070-a-look-reads-the-owners-mail-and-calendar-read-only.md)
 
 ## Context

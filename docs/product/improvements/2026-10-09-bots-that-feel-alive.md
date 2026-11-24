@@ -187,4 +187,4 @@ Chosen by the owner on 9 Oct 2026.
 | 7 | Not now |
 | 8 | Not now |
 
-For proposal 2 the owner said yes to changing the 2 Oct decision: the line stays one line with Stop and follows the work. It is the **working line** in `CONTEXT.md`. The five are specified in [Kordal/bot-dot#329](https://github.com/Kordal/bot-dot/issues/329) and split into the tickets ALV-001 to ALV-009.
+For proposal 2 the owner said yes to changing the 2 Oct decision: the line stays one line with Stop and follows the work. It is the **working line** in `CONTEXT.md`. The five are specified in [ladrok/bot-dot#329](https://github.com/ladrok/bot-dot/issues/329) and split into the tickets ALV-001 to ALV-009.

@@ -1,7 +1,7 @@
 # ADR-048: The admin page shows the Feedback an owner sends the admin
 
 - **Status:** Accepted (by the owner, 2026-10-21)
-- **Owning task:** [#216](https://github.com/Kordal/bot-dot/issues/216)
+- **Owning task:** [#216](https://github.com/ladrok/bot-dot/issues/216)
 - **Amended by:** [ADR 164](164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md): on a managed machine, Feedback goes to the fleet console; [ADR 259](259-feedback-goes-to-botdots-developers-through-a-relay-when-the-machine-says-yes.md): with Feedback to the developers on, it goes to botdot's developers and not to the admin page
 - **Changes:** [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md), the line "The admin page never shows what is inside an account"
 
@@ -32,7 +32,7 @@ The owner decided (2026-10-21) that a report goes to a list on the admin page of
 - A new control beside Settings goes against AGENTS.md rule 5 ("no new control for something the Chief can do by chat") on purpose (`docs/DECISIONS.md`, 2026-10-21).
 - An app older than this front door shows no Feedback; a front door older than the app leaves `feedback` out, and the app shows none.
 
-## Amendment: screenshots (2026-10-21, [#223](https://github.com/Kordal/bot-dot/issues/223))
+## Amendment: screenshots (2026-10-21, [#223](https://github.com/ladrok/bot-dot/issues/223))
 
 Accepted by the owner, 2026-10-21. A bug is often easier to show than to describe, so a report may now hold screenshots the owner added on purpose. This changes "Nothing else of the account goes with it" above: a screenshot can show anything on the owner's screen (other chats, other tabs), and the form says plainly that the admin sees each one whole.
 

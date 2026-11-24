@@ -1,7 +1,7 @@
 # ADR-080: A long turn in a group goes on in the background
 
 - **Status:** Accepted (asked for by the owner, 2026-10-23)
-- **Owning task:** [#509](https://github.com/Kordal/bot-dot/issues/509)
+- **Owning task:** [#509](https://github.com/ladrok/bot-dot/issues/509)
 - **Changes:** [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md) ("One turn of a message is at work at a time"), [ADR 079](079-a-later-message-in-a-group-waits-for-the-line-before-it.md) (a later message waits for the line before it)
 
 ## Context

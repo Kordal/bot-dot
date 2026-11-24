@@ -1,7 +1,8 @@
-// The web page's side of Claude on another model provider (ADR 255): Setup and Settings → Claude say which one bots
-// run on (the provider, with its key's last four), name a saved one or a signed-in subscription as not used, offer the
-// provider as one more way to run, and save, pick and remove it with the server's routes (docs/api.md, Setup and
-// updates). The key is typed in a password field and never drawn; the presets are the server's, not the page's.
+// The web page's side of several model providers beside Claude (ADR 255, 267): Setup and Settings → Providers name
+// Claude's connection and each provider connected (with its key's last four), offer "Connect another" and a way to
+// remove each, and save and remove them with the server's routes (docs/api.md, Setup and updates). The key is typed in a
+// password field and never drawn; the presets are the server's, not the page's. The Model picker lists every
+// connected provider's models in a group each, searchable, and names a provider's model with its provider.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
@@ -12,11 +13,14 @@ const PRESETS = [
   { id: 'ollama', name: 'Ollama', url: '', big: '', small: '', keyless: true, askUrl: true },
   { id: 'custom', name: 'Other', url: '', big: '', small: '', custom: true, askUrl: true },
 ];
-const SAVED = { preset: 'deepseek', name: 'DeepSeek', key: '…wxyz', big: 'deepseek-v4-pro', small: 'deepseek-flash' };
-const SUB = { installed: true, loggedIn: true, email: 'me@example.com', using: 'subscription', apiKey: null, subscription: true, provider: null };
-const ON_PROVIDER = { ...SUB, using: 'provider', provider: SAVED };
-const PROVIDER_ONLY = { installed: true, loggedIn: true, email: null, using: 'provider', apiKey: null, subscription: false, provider: SAVED };
-const SUB_AND_PROVIDER = { ...SUB, provider: SAVED };
+const DEEPSEEK = { preset: 'deepseek', name: 'DeepSeek', key: '…wxyz', big: 'deepseek-v4-pro', small: 'deepseek-flash' };
+const GLM = { preset: 'glm', name: 'Z.ai GLM', key: '…abcd', big: 'glm-5.3', small: 'glm-5.3-flash' };
+const SUB = { installed: true, loggedIn: true, email: 'me@example.com', using: 'subscription', connection: 'subscription', apiKey: null, subscription: true, provider: null, providers: [] };
+const SUB_AND_TWO = { ...SUB, providers: [DEEPSEEK, GLM] };
+// The account default is a DeepSeek model: `using` and `provider` say so for the apps that knew one provider.
+const DEFAULT_ON_PROVIDER = { ...SUB_AND_TWO, using: 'provider', provider: DEEPSEEK };
+const PROVIDER_ONLY = { installed: true, loggedIn: true, email: null, using: 'provider', connection: 'subscription', apiKey: null, subscription: false, provider: DEEPSEEK, providers: [DEEPSEEK] };
+const KEY_AND_ONE = { ...SUB, using: 'api-key', connection: 'api-key', apiKey: '…ghij', providers: [DEEPSEEK] };
 
 function page(state = { setup: { providers: PRESETS } }) {
   const ctx = vm.createContext({ ...words, esc, toast() {}, state });
@@ -25,34 +29,36 @@ function page(state = { setup: { providers: PRESETS } }) {
   return ctx;
 }
 
-test('web: on a provider Setup says so with its key, and names a signed-in subscription as not used', () => {
+test('web: Setup names Claude\'s connection and each provider connected, with a way to remove each and to connect another', () => {
   const ctx = page();
-  const on = ctx.claudeSetupItem(ON_PROVIDER, false);
-  assert.match(on, /setup-item ok[\s\S]*Bots run on DeepSeek \(<b>…wxyz<\/b>\)\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\./);
-  assert.match(on, /id="claude-use-sub">Use the subscription instead<\/button>[\s\S]*id="claude-provider-new">Change provider<\/button>[\s\S]*id="claude-provider-remove">Remove the provider<\/button>/);
-  assert.doesNotMatch(on, /claude-logout|claude-use-provider/);
-  assert.match(on, /id="claude-key-new">Use an API key instead/);
-  const only = ctx.claudeSetupItem(PROVIDER_ONLY, false);
-  assert.match(only, /Bots run on DeepSeek \(<b>…wxyz<\/b>\)\.<\/div>/, 'no word of a subscription that is not there');
-  assert.doesNotMatch(only, /claude-use-sub/);
-  assert.match(only, /id="claude-login">Sign in to Claude/);
-});
-
-test('web: on the subscription a saved provider is named as not used, and another can be chosen', () => {
-  const ctx = page();
-  const saved = ctx.claudeSetupItem(SUB_AND_PROVIDER, false);
-  assert.match(saved, /Signed in with <b>me@example\.com<\/b>\. DeepSeek is saved too; bots don't use it\./);
-  assert.match(saved, /id="claude-use-provider">Use DeepSeek instead<\/button>/);
+  const two = ctx.claudeSetupItem(SUB_AND_TWO, false);
+  assert.match(two, /setup-item ok[\s\S]*Signed in with <b>me@example\.com<\/b>\. Connected: <b>DeepSeek<\/b>, <b>Z\.ai GLM<\/b>\./);
+  assert.match(two, /id="claude-provider-remove-deepseek" data-remove-provider="deepseek">Remove DeepSeek<\/button>[\s\S]*data-remove-provider="glm">Remove Z\.ai GLM<\/button>[\s\S]*id="claude-provider-new">Connect another provider<\/button>/);
+  assert.match(two, /id="claude-key-new">Use an API key instead/);
+  assert.doesNotMatch(two, /claude-use-provider|Bots run on/, 'a provider is not "used": its models are picked');
+  // The account default being a provider's model changes none of it: the card is about the connections.
+  assert.equal(ctx.claudeSetupItem(DEFAULT_ON_PROVIDER, false), two);
   const none = ctx.claudeSetupItem(SUB, false);
-  assert.match(none, /id="claude-key-new">Use an API key instead<\/button>[\s\S]*id="claude-provider-new">Use another provider<\/button>/);
+  assert.match(none, /id="claude-provider-new">Connect a provider<\/button>/);
+  assert.doesNotMatch(none, /Connected:/);
   assert.doesNotMatch(ctx.claudeSetupItem(SUB, true), /claude-provider-new/, 'not while a box is open');
   const old = page({ setup: {} }).claudeSetupItem({ installed: true, loggedIn: true, email: 'me@example.com', using: 'subscription', apiKey: null, subscription: true }, false);
   assert.doesNotMatch(old, /provider/i, 'nothing of a provider from a server that offers none');
 });
 
+test('web: Claude on an API key and a provider are both named, and a signed-out subscription says its models cannot run', () => {
+  const ctx = page();
+  const key = ctx.claudeSetupItem(KEY_AND_ONE, false);
+  assert.match(key, /Claude runs on your Anthropic API key <b>…ghij<\/b>\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\. Connected: <b>DeepSeek<\/b>\./);
+  assert.match(key, /id="claude-use-sub">Use the subscription instead<\/button>[\s\S]*id="claude-key-remove">Remove the key<\/button>[\s\S]*Remove DeepSeek/);
+  const only = ctx.claudeSetupItem(PROVIDER_ONLY, false);
+  assert.match(only, /setup-item ok[\s\S]*Not signed in, so Claude's models can't run\. Connected: <b>DeepSeek<\/b>\./, 'the default is a provider\'s model: bots run, Claude\'s do not');
+  assert.match(only, /id="claude-switch"|id="claude-login"/);
+});
+
 test('web: the provider box lists the server\'s presets, hides what a preset does not need, and shows no key', () => {
   const box = page().claudeProviderBox(false);
-  assert.match(box, /<form id="claude-provider-form"[\s\S]*<select name="preset" id="setup-provider-preset"><option value="deepseek">DeepSeek<\/option><option value="ollama">Ollama<\/option><option value="custom">Other<\/option><\/select>/);
+  assert.match(box, /<form id="claude-provider-form"[\s\S]*<select name="preset" id="setup-provider-preset"><option value="deepseek" selected>DeepSeek<\/option><option value="ollama">Ollama<\/option><option value="custom">Other<\/option><\/select>/);
   assert.match(box, /<input type="password" name="key" autocomplete="off"/);
   assert.match(box, /data-provider-address hidden>/, 'the address only where the owner gives it');
   assert.match(box, /data-model-role="main"/);
@@ -61,31 +67,63 @@ test('web: the provider box lists the server\'s presets, hides what a preset doe
   assert.match(box, /role="listbox"/);
   assert.doesNotMatch(box, /name="(?:big|small)"|Another model/);
   assert.match(box, /id="claude-provider-cancel"/);
-  const again = page({ setup: { providers: PRESETS, claude: { provider: { ...SAVED, preset: 'custom' } } } }).claudeProviderBox(true);
-  assert.match(again, /<option value="custom" selected>Other<\/option>/, 'the saved provider is the one chosen');
+  const again = page({ setup: { providers: PRESETS, claude: { providers: [DEEPSEEK] } } }).claudeProviderBox(true);
+  assert.match(again, /<option value="ollama" selected>Ollama<\/option>/, 'the first one not connected yet is the one chosen');
 });
 
-test('web: model settings show the active provider and its reasoning levels', () => {
-  const main = 'provider:deepseek:deepseek-v4-pro';
-  const helper = 'provider:deepseek:deepseek-flash';
-  const state = {
-    models: [
-      { id: main, label: 'deepseek-v4-pro', group: 'DeepSeek', effort: true },
-      { id: helper, label: 'deepseek-flash', group: 'DeepSeek', effort: true },
-    ],
-    efforts: [{ id: 'max', label: 'Max' }],
-    modelProvider: { name: 'DeepSeek', main, helper },
-  };
+// The model picker, cut out of public/settings.js.
+function picker(state) {
   const ctx = vm.createContext({ ...words, esc, state });
   const source = read('settings.js');
-  vm.runInContext(source.slice(source.indexOf('function shownModel'), source.indexOf('// ---------- the rows of a settings screen')) + '\nthis.llmFieldsHTML = llmFieldsHTML;', ctx);
-  const form = ctx.llmFieldsHTML('bot', { model: 'haiku', effort: 'max' });
-  assert.match(form, /value="provider:deepseek:deepseek-flash" selected>deepseek-flash/);
-  assert.match(form, /value="max" selected>Max/);
-  assert.doesNotMatch(form, /Another model|Claude Code's default/);
+  vm.runInContext(source.slice(source.indexOf('function shownModel'), source.indexOf('// ---------- the rows of a settings screen')) + '\nObject.assign(this, { llmFieldsHTML, llmSummary, llmValue, modelLabel });', ctx);
+  return ctx;
+}
+const MODELS = [
+  { id: 'opus', label: 'Opus (latest)', group: 'Always the newest' },
+  { id: 'provider:deepseek:deepseek-v4-pro', label: 'DeepSeek V4 Pro', group: 'DeepSeek', provider: 'deepseek', effort: true, efforts: ['low', 'high', 'max'] },
+  { id: 'provider:deepseek:deepseek-flash', label: 'DeepSeek V4.1 Flash', group: 'DeepSeek', provider: 'deepseek', effort: true, efforts: ['low', 'high', 'max'] },
+  { id: 'provider:glm:glm-5.3', label: 'GLM 5.3', group: 'Z.ai GLM', provider: 'glm', effort: false, efforts: [] },
+];
+const EFFORTS = [{ id: 'low', label: 'Low' }, { id: 'high', label: 'High' }, { id: 'max', label: 'Max' }];
+
+test('web: the Model picker groups every connected provider\'s models beside Claude\'s, and names a provider\'s model with its provider', () => {
+  const ctx = picker({ models: MODELS, efforts: EFFORTS, settings: { defaultModel: 'opus' } });
+  const form = ctx.llmFieldsHTML('bot', { model: 'provider:glm:glm-5.3', effort: '' });
+  assert.match(form, /<optgroup label="Always the newest">[\s\S]*<optgroup label="DeepSeek">[\s\S]*<optgroup label="Z\.ai GLM"><option value="provider:glm:glm-5\.3" selected>GLM 5\.3<\/option>/);
+  assert.match(form, /data-model-search/, 'one searchable list');
+  assert.equal(ctx.llmSummary('provider:deepseek:deepseek-v4-pro', 'high'), 'DeepSeek V4 Pro · DeepSeek · High');
+  assert.equal(ctx.llmSummary('opus', ''), 'Opus (latest)', 'no provider named for Claude');
+  assert.equal(ctx.llmSummary('provider:glm:glm-5.3', 'high'), 'GLM 5.3 · Z.ai GLM', 'a model with no levels names none');
+  assert.equal(ctx.llmValue('', ''), 'Default');
+  // A model of a provider that is gone is no choice: the bot follows the default.
+  assert.equal(ctx.llmValue('provider:minimax:MiniMax-M3', ''), 'Default');
+  assert.match(ctx.llmFieldsHTML('bot', { model: 'provider:minimax:MiniMax-M3' }), /<option value="" selected>/);
+  const fields = ctx.llmFieldsHTML('default', { model: 'older-model' });
+  assert.match(fields, /<option value="older-model" selected>older-model/, 'a saved Claude ID stays selectable');
+  assert.doesNotMatch(fields, /__custom|ModelCustom|Full model name/);
 });
 
-test('web: opening Settings mounts the Claude card by the Updates row', () => {
+test('web: the search box appears with the long list and filters by name, ID and provider', () => {
+  const few = picker({ models: MODELS, efforts: EFFORTS });
+  assert.match(few.llmFieldsHTML('default', {}), /data-model-search[^>]* hidden>/, 'four models need no search');
+  const many = picker({ models: Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, label: `Model ${i}`, group: 'G' })), efforts: EFFORTS });
+  assert.doesNotMatch(many.llmFieldsHTML('default', {}), /data-model-search[^>]* hidden>/);
+  const source = read('settings.js');
+  const wire = source.slice(source.indexOf('function wireLlmFields'), source.indexOf('function readLlmFields'));
+  assert.match(wire, /option\.parentElement\?\.label/, 'the provider\'s name is searched too');
+  assert.match(wire, /search\.oninput = filter/);
+});
+
+test('web: a provider\'s model offers only its own reasoning levels, and none where it has none', () => {
+  const source = read('settings.js');
+  const wire = source.slice(source.indexOf('function wireLlmFields'), source.indexOf('function readLlmFields'));
+  assert.match(wire, /modelInfo\(effective\)\?\.efforts/);
+  assert.match(wire, /option\.disabled = option\.hidden = !!levels && !!option\.value && !levels\.includes\(option\.value\)/);
+  assert.match(wire, /prefix !== 'default' \? state\.settings\?\.defaultModel : ''/, 'a bot with no model of its own shows the levels of the default');
+  assert.doesNotMatch(source, /modelProvider/, 'the picker holds no single provider');
+});
+
+test('web: opening Settings mounts the Providers card by the Updates row', () => {
   const outputs = [];
   const widget = { insertAdjacentHTML(where, html) { outputs.push(where, html); } };
   const state = { setup: { providers: PRESETS } };
@@ -99,7 +137,7 @@ test('web: opening Settings mounts the Claude card by the Updates row', () => {
   assert.match(outputs[2], /id="claude-card"/);
 });
 
-test('web: provider controls are inside the Model row and saved Claude IDs remain selectable', () => {
+test('web: the providers card is inside the Model row', () => {
   const outputs = [];
   const form = { insertAdjacentHTML(where, html) { outputs.push(where, html); } };
   const state = { setup: { providers: PRESETS }, models: [] };
@@ -110,24 +148,21 @@ test('web: provider controls are inside the Model row and saved Claude IDs remai
   vm.runInContext(read('claude-card.js'), ctx);
   ctx.renderSettings();
   assert.equal(outputs[0], 'beforebegin');
-  assert.match(outputs[1], /id="claude-card" data-in-model/);
-  const source = read('settings.js');
-  vm.runInContext(source.slice(source.indexOf('function shownModel'), source.indexOf('// ---------- the rows of a settings screen')) + '\nthis.llmFieldsHTML = llmFieldsHTML;', ctx);
-  const fields = ctx.llmFieldsHTML('default', { model: 'older-model' });
-  assert.match(fields, /<option value="older-model" selected>older-model/);
-  assert.doesNotMatch(fields, /__custom|ModelCustom|Full model name/);
+  assert.match(outputs[1], /id="claude-card" data-in-model><summary>Providers<\/summary>/);
 });
 
-test('web: Settings → Claude says the same, and the provider box opens there', async () => {
+test('web: Settings → Providers names the connections, and the provider box opens there', async () => {
   const card = element();
+  card.dataset = { inModel: '' };
   const state = { setup: { providers: PRESETS } };
-  const ctx = vm.createContext({ ...words, ...finders(element({ '#claude-card': card })), esc, state, api: async () => ({ claude: ctx.claude }), toast() {} });
+  const ctx = vm.createContext({ ...words, ...finders(element({ '#claude-card': card })), esc, state, CHEV: '›', api: async () => ({ claude: ctx.claude }), toast() {} });
   vm.runInContext(`${cut('const claudeUnknown', '// First start, or Claude is known')}
     ${read('claude-card.js').slice(read('claude-card.js').indexOf('async function loadClaudeCard'))}
     this.loadClaudeCard = loadClaudeCard;`, ctx);
-  ctx.claude = ON_PROVIDER;
+  ctx.claude = DEFAULT_ON_PROVIDER;
   await ctx.loadClaudeCard();
-  assert.match(card.innerHTML, /Bots run on DeepSeek \(<b>…wxyz<\/b>\)\.[\s\S]*id="claude-provider-new"/);
+  assert.match(card.innerHTML, /<span data-provider-label>Providers<\/span><span class="muted">Claude subscription, DeepSeek, Z\.ai GLM<\/span>/);
+  assert.match(card.innerHTML, /Connected: <b>DeepSeek<\/b>, <b>Z\.ai GLM<\/b>[\s\S]*data-remove-provider="deepseek"[\s\S]*id="claude-provider-new">Connect another provider/);
   ctx.claude = SUB;
   state.setupProvider = true;
   await ctx.loadClaudeCard(false);
@@ -135,33 +170,22 @@ test('web: Settings → Claude says the same, and the provider box opens there',
   assert.doesNotMatch(card.innerHTML, /id="claude-provider-new"/, 'the box is open');
 });
 
-test('web: the provider is saved, picked and removed with the server\'s routes, and the answer is drawn', () => {
+test('web: a provider is saved and removed with the server\'s routes, moving nothing, and the answer is drawn', () => {
   const wire = cut('function wireClaudeKey(', '// First start, or Claude is known');
   assert.match(wire, /api\('\/setup\/claude\/provider', \{ method: 'PUT', body \}\)/);
-  const picker = cut('function wireProviderForm(', "// The key's links");
-  assert.match(picker, /api\('\/setup\/claude\/provider\/models', \{ method: 'POST', body \}\)/);
-  assert.match(picker, /big: models\.main, small: models\.helper \|\| models\.main/);
-  assert.match(wire, /api\('\/setup\/claude\/use', \{ method: 'PUT', body: \{ use: 'provider' \} \}\)/);
-  assert.match(wire, /api\('\/setup\/claude\/provider', \{ method: 'DELETE' \}\)/);
+  const picked = cut('function wireProviderForm(', "// The key's links");
+  assert.match(picked, /api\('\/setup\/claude\/provider\/models', \{ method: 'POST', body \}\)/);
+  assert.match(picked, /big: models\.main, small: models\.helper \|\| models\.main/);
+  assert.match(wire, /api\(`\/setup\/claude\/provider\/\$\{encodeURIComponent\(preset\)\}`, \{ method: 'DELETE' \}\)/);
+  assert.doesNotMatch(wire, /use: 'provider'/, 'a provider is never "used": its models are picked');
   assert.match(wire, /state\.setup\.claude = r\.claude;/);
   assert.doesNotMatch(app + read('claude-card.js'), /console\.\w+\([^)]*key/i, 'the key is never logged');
 });
 
-test('web: switching a provider from Settings rebuilds the Settings panel immediately', async () => {
-  const use = {};
-  const settings = element({ '#claude-use-provider': use });
-  const state = { view: 'settings', setup: { claude: SUB_AND_PROVIDER } };
-  const calls = [];
-  const ctx = vm.createContext({
-    ...words, ...finders(element({ '#view-settings': settings })),
-    state, toastClaude() {}, toast() {},
-    api: async (path) => path === '/settings' ? { provider: { name: 'DeepSeek' } } : { claude: ON_PROVIDER },
-    panelPage: () => '',
-    renderSettings: () => calls.push('settings'),
-  });
-  vm.runInContext(cut('function wireClaudeKey(', '// First start, or Claude is known') + '\nthis.wireClaudeKey = wireClaudeKey;', ctx);
-  ctx.wireClaudeKey(settings, SUB_AND_PROVIDER, () => calls.push('card'));
-  await use.onclick();
-  assert.deepEqual(calls, ['settings', 'card']);
-  assert.equal(state.modelProvider.name, 'DeepSeek');
+test('web: saving a provider only redraws from the answer: the server decides whether it becomes the account default', () => {
+  const wire = cut('function wireClaudeKey(', '// First start, or Claude is known');
+  const grab = /const pform[\s\S]*?tr\('Connected\. Its models are in the Model list\.'\), true\)\);/.exec(wire);
+  assert.ok(grab, 'the provider form saves through this');
+  assert.match(grab[0], /api\('\/setup\/claude\/provider', \{ method: 'PUT', body \}\)/);
+  assert.doesNotMatch(grab[0], /defaultModel|\/settings/, 'the page sets no default model of its own (docs/api.md, PUT /api/setup/claude/provider)');
 });

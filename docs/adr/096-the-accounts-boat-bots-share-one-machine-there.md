@@ -1,7 +1,7 @@
 # ADR-096: The account's boat.dev bots share one machine there
 
 - **Status:** Accepted (2026-10-26, the owner's decision)
-- **Owning task:** [#568](https://github.com/Kordal/bot-dot/issues/568)
+- **Owning task:** [#568](https://github.com/ladrok/bot-dot/issues/568)
 - **Amends:** [ADR 095](095-a-bots-browser-logins-move-with-its-files.md), [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md), [ADR 091](091-a-bots-files-are-copied-when-its-computer-moves.md), [ADR 094](094-a-bots-machine-on-boat-dev-has-a-screen-and-a-browser.md)
 - **Amended by:** [ADR 263](263-an-account-may-use-its-own-boat-dev-key-with-one-machine-for-all-or-one-per-bot.md) (a bot may have a machine of its own again, with the account's own key; the migration leaves it)
 

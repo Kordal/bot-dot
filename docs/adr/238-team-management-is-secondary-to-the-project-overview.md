@@ -1,7 +1,7 @@
 # ADR-238: Team management is secondary to the project overview
 
 - **Status:** Accepted (2026-11-13, the owner asked to implement the next approved slice)
-- **Owning task:** [#1330](https://github.com/Kordal/bot-dot/issues/1330), spec [#1327](https://github.com/Kordal/bot-dot/issues/1327)
+- **Owning task:** [#1330](https://github.com/ladrok/bot-dot/issues/1330), spec [#1327](https://github.com/ladrok/bot-dot/issues/1327)
 - **Changes:** The team rows in the default project view of ADR 236 and the placement of Add bot in ADR 233. Keeps the manager and Chief roles of ADR 230 and the primary conversation of ADR 235.
 
 ## Context

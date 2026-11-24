@@ -1,7 +1,7 @@
 # ADR-063: A "/btw" question is answered without tools, beside the run
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#335](https://github.com/Kordal/bot-dot/issues/335)
+- **Owning task:** [#335](https://github.com/ladrok/bot-dot/issues/335)
 - **Builds on:** [ADR 062](062-a-message-to-a-busy-bot-starts-beside-the-run-that-is-going.md) ("A message to a busy bot starts beside the run that is going")
 
 ## Context
@@ -30,7 +30,7 @@ Claude Code has `/btw`, a side question answered from the current conversation w
 - The answer knows only what the running runs say of themselves: it can't look at files or the computer. It says so, and the owner can send the question without `/btw`.
 - A restart while it is answered leaves it `interrupted`, as any run.
 
-## Addendum (2026-10-22, [#386](https://github.com/Kordal/bot-dot/issues/386))
+## Addendum (2026-10-22, [#386](https://github.com/ladrok/bot-dot/issues/386))
 
 The Chief of Staff gets the same: the owner's `/btw` in a Chief chat whose reply is going is answered by a talk-only turn run as the Chief, told that reply's request, working line, plan and draft. The question and the answer are messages of the chat (`btw`, the pair's id) placed before the reply still coming, not a run, and nothing waits in the chat's queue. The Chief's session never saw them, so its next turn the owner starts is told the exchange, with the kinds of text that reply had read (ADR 017), as an unasked message is.
 

@@ -1,7 +1,7 @@
 # ADR-087: A script job signs with SSH keys through botdot's own agent
 
 - **Status:** Accepted (2026-10-24)
-- **Owning task:** [#525](https://github.com/Kordal/bot-dot/issues/525)
+- **Owning task:** [#525](https://github.com/ladrok/bot-dot/issues/525)
 
 ## Context
 

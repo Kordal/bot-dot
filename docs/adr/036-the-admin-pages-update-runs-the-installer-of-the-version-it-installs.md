@@ -1,6 +1,6 @@
 # ADR-036: The admin page's update runs the installer of the version it installs
 
-- **Status:** Accepted (2026-10-19, the owner's decision); its "A failed update is still not rolled back" superseded by [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md). Supersedes the line of 2026-10-16 in [DECISIONS.md](../DECISIONS.md) that root's copy of the installer is changed only by the admin running the installer from the source again ([#473](https://github.com/Kordal/bot-dot/issues/473)).
+- **Status:** Accepted (2026-10-19, the owner's decision); its "A failed update is still not rolled back" superseded by [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md). Supersedes the line of 2026-10-16 in [DECISIONS.md](../DECISIONS.md) that root's copy of the installer is changed only by the admin running the installer from the source again ([#473](https://github.com/ladrok/bot-dot/issues/473)).
 - **Owning task:** the owner's request of 19 October 2026 ("How to fix it structurally. So it'll never happen again.")
 
 ## Context

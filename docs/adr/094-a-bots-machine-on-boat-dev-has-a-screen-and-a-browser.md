@@ -1,7 +1,7 @@
 # ADR-094: A bot's machine on boat.dev has a screen and a browser
 
 - **Status:** Accepted (2026-10-26)
-- **Owning task:** [#563](https://github.com/Kordal/bot-dot/issues/563)
+- **Owning task:** [#563](https://github.com/ladrok/bot-dot/issues/563)
 - **Amended by:** [ADR 096](096-the-accounts-boat-bots-share-one-machine-there.md) (one machine per account)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md), [ADR 092](092-a-bots-machine-on-boat-dev-takes-a-vault-secret-for-one-command.md)
 

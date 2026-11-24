@@ -1,7 +1,7 @@
 # ADR-024: A done memory change is no row under a reply
 
 - **Status:** Accepted (2026-10-13, the owner's decision)
-- **Owning task:** [#391](https://github.com/Kordal/bot-dot/issues/391)
+- **Owning task:** [#391](https://github.com/ladrok/bot-dot/issues/391)
 
 ## Context
 

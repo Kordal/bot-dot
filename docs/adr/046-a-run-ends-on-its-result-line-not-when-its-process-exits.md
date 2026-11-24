@@ -1,7 +1,7 @@
 # ADR-046: A run ends on its result line, not when its process exits
 
 - **Status:** Accepted
-- **Owning task:** [#207](https://github.com/Kordal/bot-dot/issues/207), part of [#203](https://github.com/Kordal/bot-dot/issues/203)
+- **Owning task:** [#207](https://github.com/ladrok/bot-dot/issues/207), part of [#203](https://github.com/ladrok/bot-dot/issues/203)
 - **Supersedes:** in [ADR 012](012-a-run-keeps-who-ended-it-and-a-stop-ends-what-its-turn-started.md), a Stop that comes between a run's result line and its exit
 
 ## Context

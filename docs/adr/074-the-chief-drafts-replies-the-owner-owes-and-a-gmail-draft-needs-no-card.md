@@ -1,7 +1,7 @@
 # ADR-074: The Chief drafts replies the owner owes, and a Gmail draft needs no card
 
 - **Status:** Accepted (2026-10-23)
-- **Owning task:** [#417](https://github.com/Kordal/bot-dot/issues/417)
+- **Owning task:** [#417](https://github.com/ladrok/bot-dot/issues/417)
 - **Changes:** [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md) (every write of the Chief waits for an OK)
 
 ## Context
@@ -28,7 +28,7 @@ A look reads the owner's mail, read-only ([ADR 070](070-a-look-reads-the-owners-
 - The style note may be unpinned first when the shared memory is full (ADR 015); it stays searchable, and "learn how I write" makes it again.
 - `SECURITY.md` says that a Gmail draft needs no card.
 
-## Amendment: the look's draft is the mail draft's card (2026-10-23, [#422](https://github.com/Kordal/bot-dot/issues/422))
+## Amendment: the look's draft is the mail draft's card (2026-10-23, [#422](https://github.com/ladrok/bot-dot/issues/422))
 
 A look's draft of a reply owed was text in quotes with `[[choices]]` Send / Change, while a Chief reply's draft was the card of #415: one draft, two looks and two answer paths. Now:
 

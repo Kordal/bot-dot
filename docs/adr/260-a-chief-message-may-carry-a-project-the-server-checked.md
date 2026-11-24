@@ -1,6 +1,6 @@
 # ADR-260: A Chief message may carry a project the server checked
 
-- **Status:** Accepted (2026-11-23, the owner: do both the label and the name in the text, [#1587](https://github.com/Kordal/bot-dot/issues/1587))
+- **Status:** Accepted (2026-11-23, the owner: do both the label and the name in the text, [#1587](https://github.com/ladrok/bot-dot/issues/1587))
 - **Builds on:** [ADR 223](223-a-chief-message-names-the-team-it-is-about.md) (the label above a Chief message), [ADR 006](006-a-look-is-its-own-read-only-chief-session.md) (the Chief's looks)
 - **Changes:** ADR 223's rejected alternative "The model names the topic itself"
 
@@ -27,4 +27,4 @@ In the Chief's main chat the owner could not tell which project a message was ab
 
 - A project renamed or recoloured later keeps its old name on messages already written.
 - A look that names a project wrongly but exactly as one of the owner's gets a wrong label; the text it comes with is the model's as before.
-- Android draws the label with this change; iOS has it noted on its catch-up issue ([#1355](https://github.com/Kordal/bot-dot/issues/1355)).
+- Android draws the label with this change; iOS has it noted on its catch-up issue ([#1355](https://github.com/ladrok/bot-dot/issues/1355)).

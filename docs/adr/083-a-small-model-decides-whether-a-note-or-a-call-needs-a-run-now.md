@@ -1,7 +1,7 @@
 # ADR-083: A small model decides whether a note or a call needs a run now
 
 - **Status:** Accepted (asked for by the owner, 2026-10-23), off until the owner switches it on
-- **Owning task:** [#515](https://github.com/Kordal/bot-dot/issues/515)
+- **Owning task:** [#515](https://github.com/ladrok/bot-dot/issues/515)
 - **Builds on:** [ADR 082](082-the-admin-chooses-haiku-or-jev-to-pick-who-answers-in-a-group.md) (the admin's choice of Haiku or Jev)
 - **Changes:** [ADR 049](049-a-note-to-a-bot-wakes-it-as-soon-as-it-is-free.md) ("every note wakes its bot"), [ADR 026](026-a-call-is-let-in-on-the-jobs-key-alone.md) ("a call runs its job now")
 

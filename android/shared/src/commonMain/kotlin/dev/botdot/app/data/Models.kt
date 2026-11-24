@@ -1301,7 +1301,13 @@ data class AppSettings(val defaultModel: String = "", val defaultEffort: String 
 data class ModelChoice(
     val id: String, val label: String = "", val group: String? = null, val note: String? = null,
     val effort: Boolean = true, val efforts: List<String>? = null,
+    /** The saved provider's preset a model runs on (ADR 267); null for Claude's models. */
+    val provider: String? = null,
 )
+
+/** A connected model provider as the model list names it (`providers` of the settings answer, ADR 267). */
+@Serializable
+data class ListedProvider(val preset: String = "", val name: String = "", val refreshable: Boolean = false)
 
 @Serializable
 data class EffortChoice(val id: String, val label: String = "", val note: String? = null)
@@ -1372,30 +1378,53 @@ data class SettingsInfo(
     val settings: AppSettings = AppSettings(),
     val models: List<ModelChoice> = emptyList(),
     val efforts: List<EffortChoice> = emptyList(),
+    /** The account default's provider (the older single-provider shape, still sent). */
     val provider: ProviderModelChoices? = null,
     val catalog: ModelCatalogStatus? = null,
+    /** Every connected provider (ADR 267, `provider-mix`); null from a server that runs on one at a time. */
+    val providers: List<ListedProvider>? = null,
 ) {
+    /** The server lists every connected provider's models at once: a model decides its provider. */
+    val mixed: Boolean get() = providers != null
+
     fun shownModel(id: String): String = when {
         id.isEmpty() || models.any { it.id == id } -> id
         id.startsWith("provider:") -> ""
-        provider != null -> if (id.contains("haiku", ignoreCase = true)) provider.helper else provider.main
+        provider != null && !mixed -> if (id.contains("haiku", ignoreCase = true)) provider.helper else provider.main
         else -> id
     }
 
+    /** The model whose levels and reasoning apply: [id], or the account default's when it is blank (a bot and the Chief follow it). */
+    private fun effectiveModel(id: String): String = shownModel(id).ifEmpty { if (mixed) shownModel(settings.defaultModel) else provider?.main.orEmpty() }
+
     fun canThink(id: String): Boolean {
         val model = shownModel(id)
-        return if (provider == null) BotSettings.canThink(models, model)
+        return if (mixed) models.firstOrNull { it.id == effectiveModel(model) }?.effort ?: true
+        else if (provider == null) BotSettings.canThink(models, model)
         else models.firstOrNull { it.id == model.ifEmpty { provider.main } }?.effort == true
     }
 
     fun availableEfforts(model: String): List<EffortChoice> {
-        val effective = shownModel(model).ifEmpty { provider?.main.orEmpty() }
-        val levels = models.firstOrNull { it.id == effective }?.efforts
+        val levels = models.firstOrNull { it.id == effectiveModel(model) }?.efforts
         return if (levels == null) efforts else efforts.filter { it.id in levels }
     }
-    fun shownEffort(id: String, model: String = ""): String = if (provider == null || availableEfforts(model).any { it.id == id }) id else ""
-    fun defaultModelLabel(): String = models.firstOrNull { it.id == provider?.main }?.let { tr("Default ({model})", "model" to it.label) }
-        ?: tr("Claude Code's default")
+    fun shownEffort(id: String, model: String = ""): String = if ((provider == null && !mixed) || availableEfforts(model).any { it.id == id }) id else ""
+    fun defaultModelLabel(): String = if (mixed) tr("Claude Code's default")
+        else models.firstOrNull { it.id == provider?.main }?.let { tr("Default ({model})", "model" to it.label) } ?: tr("Claude Code's default")
+
+    /** A model's name, with its provider's when it is not Claude's: "DeepSeek V4 Pro · DeepSeek". */
+    fun modelLabel(id: String): String {
+        val shown = shownModel(id)
+        val choice = models.firstOrNull { it.id == shown } ?: return shown.ifEmpty { defaultModelLabel() }
+        val name = choice.label.ifBlank { choice.id }
+        return if (choice.provider != null && !choice.group.isNullOrBlank()) "$name · ${choice.group}" else name
+    }
+
+    /** The one line a model and its reasoning level make: "DeepSeek V4 Pro · DeepSeek · High". */
+    fun summary(model: String, effort: String): String {
+        val level = shownEffort(effort, model).takeIf { it.isNotEmpty() && canThink(model) }?.let { id -> efforts.firstOrNull { it.id == id }?.label ?: id }
+        return modelLabel(model) + (level?.let { " · $it" } ?: "")
+    }
 }
 
 @Serializable
@@ -1471,7 +1500,19 @@ data class ClaudeProvider(val preset: String = "", val name: String = "", val ke
 data class ClaudeStatus(
     val installed: Boolean = true, val loggedIn: Boolean = false, val email: String? = null, val method: String? = null, val fromEnv: Boolean = false, val error: String? = null,
     val using: String? = null, val apiKey: String? = null, val subscription: Boolean? = null, val provider: ClaudeProvider? = null,
+    /** The Claude connection, "api-key" or "subscription" (ADR 267); null from a server that runs on one connection at a time. */
+    val connection: String? = null,
+    /** Every saved provider, none one by one switched to: the model picks which runs. null from an older server. */
+    val providers: List<ClaudeProvider>? = null,
 ) {
+    /** The server keeps several connections at once (ADR 267): Claude's, and any number of providers. */
+    val mixed get() = providers != null
+    /** The Claude connection is the Anthropic API key. */
+    val claudeOnKey get() = if (mixed) connection == "api-key" else onApiKey
+    /** The Claude connection is the subscription and it is not signed in: Claude's own models can't run. */
+    val claudeOut get() = mixed && connection != "api-key" && subscription == false
+    /** The saved providers, from either shape of the server's answer. */
+    val savedProviders: List<ClaudeProvider> get() = providers ?: listOfNotNull(provider)
     /** Bots run on the owner's Anthropic API key. */
     val onApiKey get() = using == "api-key"
     /** Bots run on another model provider. */
@@ -1482,6 +1523,7 @@ data class ClaudeStatus(
 
 /** What Settings → Claude says of a sign-in that is known: which one bots run on, and the other, when it is there too, as not used. */
 fun claudeSays(c: ClaudeStatus): String {
+    if (c.mixed) return claudeSaysMixed(c)
     val other = if (c.knowsKeys && c.provider != null && !c.onProvider) " " + tr("{name} is saved too; bots don't use it.", "name" to c.provider.name) else ""
     if (c.onProvider) {
         val p = c.provider!!
@@ -1498,6 +1540,20 @@ fun claudeSays(c: ClaudeStatus): String {
     } + key + other
 }
 
+/** The same on a server that keeps several connections at once (ADR 267): the Claude connection, and the providers connected beside it. */
+private fun claudeSaysMixed(c: ClaudeStatus): String {
+    val subscriptionToo = if (c.subscription == true) " " + tr("Your Claude subscription{email} is signed in too; bots don't use it.", "email" to c.email?.let { " ($it)" }.orEmpty()) else ""
+    val connected = c.providers.orEmpty().map { it.name }.takeIf { it.isNotEmpty() }?.let { " " + tr("Connected: {names}.", "names" to it.joinToString(", ")) }.orEmpty()
+    if (c.claudeOnKey) return tr("Claude runs on your Anthropic API key {key}.", "key" to c.apiKey.orEmpty()) + subscriptionToo + connected
+    val key = if (c.apiKey != null) " " + tr("An Anthropic API key ({key}) is saved too; bots don't use it.", "key" to c.apiKey) else ""
+    val base = when {
+        c.claudeOut -> tr("Not signed in, so Claude's models can't run.")
+        c.fromEnv -> tr("Signed in with a token from the server's settings.")
+        else -> c.email?.let { tr("Signed in with {email}.", "email" to it) } ?: tr("Signed in.")
+    }
+    return base + key + connected
+}
+
 /** What a sign-in answers (docs/api.md, `POST /api/setup/claude/code`): `claude`, the status after it. */
 @Serializable
 data class ClaudeAnswer(val claude: ClaudeStatus? = null)
@@ -1509,7 +1565,7 @@ fun claudeOfAnswer(body: String): ClaudeStatus? = runCatching { Api.JSON.decodeF
 fun claudeCouldNotTell(claude: ClaudeStatus?): String? = claude?.error?.takeIf { it.isNotBlank() }
 
 @Serializable
-data class ProviderModel(val id: String, val label: String)
+data class ProviderModel(val id: String, val label: String, val group: String? = null)
 
 @Serializable
 data class ProviderModelCatalog(val models: List<ProviderModel> = emptyList(), val main: String = "", val helper: String = "", val limited: Boolean = false)
