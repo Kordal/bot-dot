@@ -1913,6 +1913,8 @@
   "Range": "Zakres",
   "Count": "Liczba",
   "Min": "Min",
+  "Max": "Maksymalny",
+  "Value": "Wartość",
   "Source: {source}": "Źródło: {source}",
   "Video: {alt}": "Wideo: {alt}",
   "Audio: {title}": "Dźwięk: {title}",
