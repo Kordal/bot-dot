@@ -55,7 +55,7 @@ What a member does when it names another member in its reply: that member gets t
 _Avoid_: hand off (a bot hands off work with `message_bot`, outside a group), delegate, forward
 
 **Job**:
-A run of a bot (AI or script) on a schedule, repeating or run once, or when called.
+A run of a bot (AI or script) on a schedule, repeating or run once, or when called. A job the owner named no clock time for ("in the morning") runs *around* its time: a random minute within 15 minutes of it, a different one each day; one they gave a time for runs exactly then.
 _Avoid_: cron, task, schedule
 
 **Watch**:
