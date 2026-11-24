@@ -15,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -170,7 +171,7 @@ class AnswerViewTest {
     @Test fun aCopyOfAReplyWritesTheAltOfAViewAndItsTablesAsMarkdownTables() {
         val reply = "Here you go.\n\n```ui\n" + """{"alt":"Options compared","root":{"type":"stack","children":[{"type":"chart","series":[{"points":[1,2]}],"source":"s"},{"type":"table","title":"Options","columns":[{"label":"Option"},{"label":"Price"}],"rows":[["A","10"],["B | C","12"]],"source":"Pricing"}]}}""" + "\n```\n\nThe second one is cheaper."
         assertEquals(
-            "Here you go.\n\nOptions compared\n\nOptions\n\n| Option | Price |\n| --- | --- |\n| A | 10 |\n| B \\| C | 12 |\n\nThe second one is cheaper.",
+            "Here you go.\n\nOptions compared\n\n|  | Value |\n| --- | --- |\n| 1 | 1 |\n| 2 | 2 |\n\n**Options**\n\n| Option | Price |\n| --- | --- |\n| A | 10 |\n| B \\| C | 12 |\n\nThe second one is cheaper.",
             views.copyText(reply),
         )
         // A fence that can't be drawn is its alt and its code; one still being written is nothing.
@@ -180,10 +181,29 @@ class AnswerViewTest {
 
     @Test fun theNumbersOfAChartAreReadAsATable() {
         val r = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"chart","labels":["Q1","Q2"],"series":[{"label":"EU","points":[1,null]},{"label":"US","points":[3.14159,4]}],"unit":"k","source":"s"}}"""))
-        assertEquals(ViewTable(null, listOf("", "EU (k)", "US (k)"), listOf(listOf("Q1", "1", "3.14"), listOf("Q2", "", "4"))), r.root.dataTable())
+        assertEquals(ViewTable(null, listOf("", "EU", "US"), listOf(listOf("Q1", "1 k", "3.14 k"), listOf("Q2", "", "4 k"))), r.root.dataTable())
         val h = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"histogram","values":[1,2,2,3],"bins":2,"source":"s"}}"""))
-        assertEquals(listOf(listOf("1 – 2", "1"), listOf("2 – 3", "3")), h.root.dataTable()!!.rows)
+        assertEquals(listOf(listOf("1 to 2", "1"), listOf("2 to 3", "3")), h.root.dataTable()!!.rows)
+        val same = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"histogram","values":[4,4,4],"source":"s"}}"""))
+        assertEquals(listOf(listOf("4 to 4", "3")), same.root.dataTable()!!.rows)
+        val pie = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"pie","slices":[{"label":"A","value":1},{"label":"B","value":3}],"source":"s"}}"""))
+        assertEquals(listOf(listOf("A", "1", "25%"), listOf("B", "3", "75%")), pie.root.dataTable()!!.rows)
+        val gauge = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"gauge","label":"Load","value":7,"min":2,"source":"s"}}"""))
+        assertEquals(ViewTable("Load", listOf("Load", "Minimum", "Maximum"), listOf(listOf("7", "2", "100"))), gauge.root.dataTable())
         assertNull(assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"divider"}}""")).root.dataTable())
+    }
+
+    @Test fun aNodeThatDrawsTheSameIsEqual() {
+        val a = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"text","text":"x"}]}}""")).root
+        val b = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"text","text":"x"}]}}""")).root
+        val c = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"text","text":"y"}]}}""")).root
+        assertEquals(a, b)
+        assertEquals(a.hashCode(), b.hashCode())
+        assertNotEquals(a, c)
+    }
+
+    @Test fun aMessageThatStartsWithAViewShowsItsAltOnItsFirstLine() {
+        assertEquals("Sales by quarter", dev.botdot.app.data.RunSteps.firstLine("```ui\n{\"alt\":\"Sales by quarter\",\"root\":{\"type\":\"divider\"}}\n```"))
     }
 
     @Test fun aNotificationReadsAViewAsItsAltAndNothingElseOfIt() {

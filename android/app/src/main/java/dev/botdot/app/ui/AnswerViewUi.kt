@@ -111,7 +111,14 @@ fun rememberAnswerViews(features: List<String>?): AnswerViews? {
     val a = api
     val revision = server?.revision ?: server?.version
     var views by remember(a?.baseUrl, revision, on) { mutableStateOf(if (on) AnswerViewShelf.cached(a?.baseUrl, revision) else null) }
-    LaunchedEffect(a?.baseUrl, revision, on) { if (on && views == null && a != null) views = AnswerViewShelf.load(a, revision) }
+    LaunchedEffect(a?.baseUrl, revision, on) {
+        // A catalog that can't be read now is asked again a few times, slower each time, before the fence stays code.
+        if (on && views == null && a != null) for (attempt in 0 until 4) {
+            views = AnswerViewShelf.load(a, revision)
+            if (views != null) break
+            kotlinx.coroutines.delay(2_000L * (attempt + 1))
+        }
+    }
     return if (on) views else null
 }
 
@@ -129,6 +136,9 @@ internal fun toneColors(tone: String?): ToneColors {
         else -> ToneColors(p.text, p.sunk, p.muted)
     }
 }
+
+/** A tone a bot did not name, or "neutral": drawn in the Paper's plain colours. */
+internal fun String?.isNeutralTone() = this == null || this == "neutral"
 
 private fun gap(g: String?) = when (g) { "s" -> Space.s8; "l" -> Space.s24; else -> Space.s12 }
 
@@ -163,8 +173,8 @@ private fun ViewBlock(n: ViewNode, alt: String, top: Boolean = false) {
         "row" -> ViewRow(n, alt)
         "grid" -> ViewGrid(n.children.orEmpty(), (n.number("columns") ?: 2.0).toInt(), gap(n.text("gap")), alt)
         "card" -> {
-            val c = toneColors(n.text("tone")?.takeIf { it != "neutral" })
-            val tinted = n.text("tone").let { it != null && it != "neutral" }
+            val c = toneColors(n.text("tone"))
+            val tinted = !n.text("tone").isNeutralTone()
             Column(Modifier.fillMaxWidth().let { if (tinted) it.clip(Radius.card).background(c.soft) else it.raised(Radius.card) }.padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 n.text("title")?.let { Text(it, color = if (tinted) c.text else LocalPaper.current.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() }) }
                 n.children.orEmpty().forEach { ViewBlock(it, alt) }
@@ -187,7 +197,7 @@ private fun ViewBlock(n: ViewNode, alt: String, top: Boolean = false) {
             Text(n.text("text").orEmpty(), color = LocalPaper.current.text, fontWeight = FontWeight.SemiBold, fontSize = if (level == 1) Type.s20 else if (level == 2) Type.s16 else Type.s14,
                 modifier = Modifier.widthIn(max = Space.answer).semantics { heading() })
         }
-        "text" -> Text(n.text("text").orEmpty(), style = MaterialTheme.typography.bodyLarge, color = toneColors(n.text("tone")).text.takeIf { n.text("tone").let { t -> t != null && t != "neutral" } } ?: LocalPaper.current.text, modifier = Modifier.widthIn(max = Space.answer))
+        "text" -> Text(n.text("text").orEmpty(), style = MaterialTheme.typography.bodyLarge, color = toneColors(n.text("tone")).text.takeIf { !n.text("tone").isNeutralTone() } ?: LocalPaper.current.text, modifier = Modifier.widthIn(max = Space.answer))
         "list" -> ViewList(n)
         "quote" -> Column(Modifier.padding(start = Space.s12).widthIn(max = Space.answer), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Text(n.text("text").orEmpty(), style = MaterialTheme.typography.bodyLarge, color = LocalPaper.current.muted)
@@ -338,7 +348,7 @@ private fun TonePill(text: String, tone: String?, dot: Boolean) {
     val c = toneColors(tone)
     Row(Modifier.clip(Radius.pill).background(c.soft).padding(horizontal = Space.s12, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
         if (dot) { Box(Modifier.size(6.dp).clip(CircleShape).background(c.accent)); Spacer(Modifier.width(6.dp)) }
-        Text(text, color = if (tone == null || tone == "neutral") LocalPaper.current.text else c.text, fontSize = Type.s12, maxLines = 1)
+        Text(text, color = if (tone.isNeutralTone()) LocalPaper.current.text else c.text, fontSize = Type.s12, maxLines = 1)
     }
 }
 
@@ -406,7 +416,8 @@ private fun ViewKpi(n: ViewNode) {
     val of = n.text("of")
     val change = if (points.size >= 2) points.last() - points.first() else null
     val dir = change?.let { if (it > 0) "up" else if (it < 0) "down" else "flat" }
-    val spoken = listOfNotNull(label, value + (unit?.let { " $it" } ?: ""), of?.let { tr("of {total}", "total" to it) }, n.text("sub"), n.text("source")?.let { tr("Source: {source}", "source" to it) } ?: if (n.noSource) tr("No source") else null).joinToString(", ")
+    val moved = change?.takeIf { it != 0.0 }?.let { if (it > 0) tr("Up {amount}", "amount" to viewNumber(it)) else tr("Down {amount}", "amount" to viewNumber(kotlin.math.abs(it))) }
+    val spoken = listOfNotNull(label, value + (unit?.let { " $it" } ?: ""), moved, of?.let { tr("of {total}", "total" to it) }, n.text("sub"), n.text("source")?.let { tr("Source: {source}", "source" to it) } ?: if (n.noSource) tr("No source") else null).joinToString(", ")
     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = spoken }, verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         Text(label, color = p.muted, fontSize = Type.s12)
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
@@ -414,8 +425,8 @@ private fun ViewKpi(n: ViewNode) {
                 append(value)
                 unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Normal, color = p.faint)) { append(" $it") } }
                 of?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Normal, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
-            }, color = if (n.text("tone").let { it == null || it == "neutral" }) p.text else c.text, fontSize = Type.s32, lineHeight = Type.s32, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            if (points.size >= 2) KitSpark(points, if (n.text("tone").let { it == null || it == "neutral" }) p.muted else c.accent, Modifier.width(64.dp).height(28.dp).padding(bottom = Space.s4))
+            }, color = if (n.text("tone").isNeutralTone()) p.text else c.text, fontSize = Type.s32, lineHeight = Type.s32, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (points.size >= 2) KitSpark(points, if (n.text("tone").isNeutralTone()) p.muted else c.accent, Modifier.width(64.dp).height(28.dp).padding(bottom = Space.s4))
         }
         if (dir != null && dir != "flat") {
             val good = n.text("good")
@@ -464,7 +475,7 @@ private fun ViewTableList(n: ViewNode) {
             Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = spoken }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 cells.forEachIndexed { i, cell ->
                     val title = head.getOrNull(i)?.text("label").orEmpty()
-                    if (i == 0) Text(cell.ifEmpty { "·" }, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
+                    if (i == 0) Text(cell, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
                     else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                         Text(title, color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(0.4f))
                         Text(cell, color = p.text, fontSize = Type.s14, textAlign = if (head.getOrNull(i)?.text("align") == "right") TextAlign.End else TextAlign.Start, modifier = Modifier.weight(0.6f))
@@ -490,7 +501,7 @@ private fun ViewTimeline(n: ViewNode) {
             val spoken = listOfNotNull(when_, e.text("title"), e.text("text")).joinToString(", ")
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics(mergeDescendants = true) { contentDescription = spoken }, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Column(Modifier.width(12.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.padding(top = Space.s4).size(8.dp).clip(CircleShape).background(if (e.text("tone").let { it == null || it == "neutral" }) p.muted else c.accent))
+                    Box(Modifier.padding(top = Space.s4).size(8.dp).clip(CircleShape).background(if (e.text("tone").isNeutralTone()) p.muted else c.accent))
                     if (i < items.lastIndex) Box(Modifier.weight(1f).width(1.dp).background(p.line2))
                 }
                 Column(Modifier.weight(1f).padding(bottom = if (i < items.lastIndex) Space.s12 else 0.dp), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
@@ -526,7 +537,7 @@ private fun ViewComparison(n: ViewNode) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(p.line2))
                 Text(label, color = p.muted, fontSize = Type.s12)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                    options.indices.forEach { i -> Text(values.getOrNull(i).orEmpty().ifEmpty { "·" }, color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f)) }
+                    options.indices.forEach { i -> Text(values.getOrNull(i).orEmpty(), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f)) }
                 }
             }
         }
@@ -554,7 +565,7 @@ private fun ViewCallout(n: ViewNode) {
     val tone = n.text("tone")
     val c = toneColors(tone)
     val icon = when (tone) { "good" -> Icons.Outlined.CheckCircle; "warn" -> Icons.Outlined.Warning; "bad" -> Icons.Outlined.ErrorOutline; else -> Icons.Outlined.Info }
-    val plain = tone == null || tone == "neutral"
+    val plain = tone.isNeutralTone()
     Row(Modifier.fillMaxWidth().clip(Radius.card).background(c.soft).padding(Space.s12), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         Icon(icon, contentDescription = null, tint = if (plain) p.muted else c.text, modifier = Modifier.size(20.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
@@ -579,10 +590,11 @@ internal fun ViewPicture(media: dev.botdot.app.answerview.ViewMedia?, alt: Strin
         else -> a.url("/product-image?url=" + Api.enc(media.value))
     }
     var failed by remember(src) { mutableStateOf(false) }
-    Box(modifier.clip(Radius.small).background(p.sunk), contentAlignment = Alignment.Center) {
+    // The alt is the box's own words, so it is read whether the picture came, failed or was never asked for.
+    Box(modifier.clip(Radius.small).background(p.sunk).clearAndSetSemantics { contentDescription = alt }, contentAlignment = Alignment.Center) {
         Icon(Icons.Outlined.Image, contentDescription = null, tint = p.faint, modifier = Modifier.size(24.dp))
         if (src != null && !failed) coil3.compose.AsyncImage(
-            model = src, contentDescription = alt, contentScale = scale,
+            model = src, contentDescription = null, contentScale = scale,
             onState = { if (it is coil3.compose.AsyncImagePainter.State.Error) failed = true },
             modifier = Modifier.fillMaxSize(),
         )

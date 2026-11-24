@@ -45,6 +45,12 @@ class ViewNode(val type: String, val props: JsonObject = JsonObject(emptyMap()),
         if (noSource) put("noSource", JsonPrimitive(true))
     })
 
+    // Two nodes that draw the same are equal, so what a screen remembers of one (a tab, a panel, a Data toggle) survives
+    // the reply being read again while it streams.
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is ViewNode && type == other.type && props == other.props && children == other.children && noSource == other.noSource)
+    override fun hashCode(): Int = ((type.hashCode() * 31 + props.hashCode()) * 31 + (children?.hashCode() ?: 0)) * 31 + noSource.hashCode()
+
     companion object { const val UNKNOWN = "unknown" }
 }
 

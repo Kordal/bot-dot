@@ -1,5 +1,6 @@
 package dev.botdot.app.answerview
 
+import dev.botdot.app.data.tr
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -24,43 +25,54 @@ private fun JsonElement.str(): String? = (this as? JsonPrimitive)?.takeIf { it.i
 /** The numbers of a table, a chart, a pie, a scatter, a histogram, a sparkline or a gauge as a table; null for any other component. */
 fun ViewNode.dataTable(): ViewTable? {
     val title = text("title") ?: text("label")
+    val unit = text("unit")?.let { " $it" }.orEmpty()
+    fun n(e: JsonElement?, suffix: String = ""): String = e?.num()?.let { viewNumber(it) + suffix }.orEmpty()
     return when (type) {
         "table" -> ViewTable(title, items("columns").map { it.obj()?.text("label").orEmpty() }, items("rows").map { r -> (r as? JsonArray).orEmpty().map { it.str().orEmpty() } })
         "chart" -> {
             val series = items("series").mapNotNull { it.obj() }
             val labels = items("labels").map { it.str().orEmpty() }
-            val n = series.maxOfOrNull { (it["points"] as? JsonArray)?.size ?: 0 } ?: 0
-            val unit = text("unit")?.let { " ($it)" }.orEmpty()
-            ViewTable(title, listOf("") + series.mapIndexed { i, s -> (s.text("label") ?: "${i + 1}") + unit },
-                (0 until n).map { i -> listOf(labels.getOrNull(i) ?: "${i + 1}") + series.map { s -> (s["points"] as? JsonArray)?.getOrNull(i)?.num()?.let(::viewNumber).orEmpty() } })
+            val len = series.maxOfOrNull { (it["points"] as? JsonArray)?.size ?: 0 } ?: 0
+            ViewTable(title, listOf("") + series.mapIndexed { i, s -> s.text("label")?.takeIf { it.isNotEmpty() } ?: if (series.size > 1) tr("Series {n}", "n" to i + 1) else tr("Value") },
+                (0 until len).map { i -> listOf(labels.getOrNull(i) ?: "${i + 1}") + series.map { s -> n((s["points"] as? JsonArray)?.getOrNull(i), unit) } })
         }
-        "pie" -> ViewTable(title, emptyList(), items("slices").mapNotNull { it.obj() }.map { listOf(it.text("label").orEmpty(), it["value"]?.num()?.let(::viewNumber).orEmpty()) })
-        "scatter" -> ViewTable(title, listOf("", text("xLabel") ?: "x", text("yLabel") ?: "y"), items("series").mapNotNull { it.obj() }.flatMapIndexed { i, s ->
-            (s["points"] as? JsonArray).orEmpty().mapNotNull { it.obj() }.map { listOf(s.text("label") ?: "${i + 1}", it["x"]?.num()?.let(::viewNumber).orEmpty(), it["y"]?.num()?.let(::viewNumber).orEmpty()) }
-        })
-        "histogram" -> histogram(title)
-        "sparkline" -> ViewTable(title, emptyList(), items("points").mapIndexed { i, v -> listOf("${i + 1}", v.num()?.let(::viewNumber).orEmpty()) })
-        "gauge" -> ViewTable(title, emptyList(), listOf(listOf(number("value")?.let(::viewNumber).orEmpty() + (text("unit")?.let { " $it" }.orEmpty()), "${viewNumber(number("min") ?: 0.0)} – ${number("max")?.let(::viewNumber) ?: "100"}")))
+        "pie" -> {
+            val slices = items("slices").mapNotNull { it.obj() }
+            val total = slices.sumOf { it["value"]?.num() ?: 0.0 }
+            ViewTable(title, listOf("", tr("Value"), "%"), slices.map { listOf(it.text("label").orEmpty(), n(it["value"], unit), if (total != 0.0) viewNumber((it["value"]?.num() ?: 0.0) / total * 100) + "%" else "") })
+        }
+        "scatter" -> {
+            val series = items("series").mapNotNull { it.obj() }
+            val many = series.size > 1
+            ViewTable(title, listOf(if (many) tr("Series") else "", text("xLabel") ?: "x", text("yLabel") ?: "y"), series.flatMapIndexed { i, s ->
+                (s["points"] as? JsonArray).orEmpty().mapNotNull { it.obj() }.map { listOf(if (many) s.text("label")?.takeIf { l -> l.isNotEmpty() } ?: tr("Series {n}", "n" to i + 1) else "", n(it["x"]), n(it["y"])) }
+            })
+        }
+        "histogram" -> ViewTable(title, listOf(tr("Range"), tr("Count")), histogramBins().map { (a, b, c) -> listOf(tr("{lo} to {hi}", "lo" to viewNumber(a), "hi" to viewNumber(b)) + unit, "$c") })
+        "sparkline" -> ViewTable(title, listOf("", text("label") ?: tr("Value")), items("points").mapIndexed { i, v -> listOf("${i + 1}", n(v)) })
+        "gauge" -> ViewTable(title, listOf(text("label") ?: tr("Value"), tr("Minimum"), tr("Maximum")), listOf(listOf(n(props["value"]) + (text("unit")?.let { " $it" }.orEmpty()), viewNumber(number("min") ?: 0.0), viewNumber(number("max") ?: 100.0))))
         else -> null
     }
 }
 
 private fun JsonArray?.orEmpty(): List<JsonElement> = this ?: emptyList()
 
-/** A histogram's bins: how many values fall in each, `bins` of them (10 unless it says). */
+/**
+ * A histogram's bins: how many values fall in each, `bins` of them (10 unless it says), the last closed at the top; all
+ * values equal make one bin, from that value to itself.
+ */
 fun ViewNode.histogramBins(): List<Triple<Double, Double, Int>> {
     val values = items("values").mapNotNull { it.num() }
     if (values.isEmpty()) return emptyList()
-    val bins = (number("bins") ?: 10.0).toInt().coerceIn(1, 40)
     val lo = values.min()
     val hi = values.max()
-    val width = if (hi > lo) (hi - lo) / bins else 1.0
+    if (hi == lo) return listOf(Triple(lo, hi, values.size))
+    val bins = (number("bins") ?: 10.0).toInt().coerceIn(1, 40)
+    val width = (hi - lo) / bins
     val counts = IntArray(bins)
-    for (v in values) counts[if (hi > lo) minOf(bins - 1, floor((v - lo) / width).toInt()) else 0]++
-    return counts.mapIndexed { i, c -> Triple(lo + i * width, lo + (i + 1) * width, c) }
+    for (v in values) counts[minOf(bins - 1, floor((v - lo) / width).toInt())]++
+    return counts.mapIndexed { i, c -> Triple(lo + i * width, if (i == bins - 1) hi else lo + (i + 1) * width, c) }
 }
-
-private fun ViewNode.histogram(title: String?) = ViewTable(title, emptyList(), histogramBins().map { (a, b, c) -> listOf("${viewNumber(a)} – ${viewNumber(b)}", "$c") })
 
 /** A table as Markdown, its cells kept to one line each. */
 fun ViewTable.markdown(): String {
@@ -68,16 +80,15 @@ fun ViewTable.markdown(): String {
     val head = head.ifEmpty { List(rows.maxOfOrNull { it.size } ?: 0) { "" } }
     val cols = head.size
     val out = StringBuilder()
-    title?.let { out.append(it).append("\n\n") }
+    title?.let { out.append("**").append(it).append("**\n\n") }
     out.append("| ").append(head.joinToString(" | ") { cell(it) }).append(" |\n")
     out.append("|").append(" --- |".repeat(cols))
     for (r in rows) out.append("\n| ").append((0 until cols).joinToString(" | ") { cell(r.getOrNull(it).orEmpty()) }).append(" |")
     return out.toString()
 }
 
-/** Every table of a view, in the order it is drawn. */
-fun ViewNode.tables(): List<ViewTable> =
-    (if (type == "table") listOfNotNull(dataTable()) else emptyList()) + children.orEmpty().flatMap { it.tables() }
+/** Every table of a view, and the numbers of its charts, in the order they are drawn. */
+fun ViewNode.tables(): List<ViewTable> = listOfNotNull(dataTable()?.takeIf { it.rows.isNotEmpty() }) + children.orEmpty().flatMap { it.tables() }
 
 /**
  * A reply as the plain text a Copy writes (and an export): the text as it is, each view as its `alt` with its tables as

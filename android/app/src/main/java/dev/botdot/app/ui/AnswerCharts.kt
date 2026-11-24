@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -102,7 +103,7 @@ internal fun ViewChart(n: ViewNode) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { SourceLine(n) }
             if (table != null) Box(
-                Modifier.heightIn(min = 48.dp).clip(Radius.small)
+                Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clip(Radius.small)
                     .clickable(role = Role.Button) { data = !data }
                     .semantics { contentDescription = if (data) tr("Show the chart") else tr("Show the numbers as a table"); stateDescription = if (data) tr("Showing the numbers") else tr("Showing the chart") }
                     .padding(horizontal = Space.s12),
@@ -128,13 +129,13 @@ private fun ChartBody(n: ViewNode) {
         }
         "histogram" -> {
             val bins = n.histogramBins()
-            val b = Block(type = "chart", text = n.text("title"), unit = n.text("unit"), style = "bar", series = listOf(ChartSeries(bins.map { it.third.toDouble() })), labels = bins.map { "${viewNumber(it.first)} – ${viewNumber(it.second)}" })
+            val b = Block(type = "chart", text = n.text("title"), unit = n.text("unit"), style = "bar", series = listOf(ChartSeries(bins.map { it.third.toDouble() })), labels = bins.map { tr("{lo} to {hi}", "lo" to viewNumber(it.first), "hi" to viewNumber(it.second)) })
             KitChart(b, p.mention, axes = true)
         }
         "sparkline" -> Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             n.text("label")?.let { Text(it, color = p.muted, fontSize = Type.s12) }
             val tone = toneColors(n.text("tone"))
-            KitSpark(n.numbers("points").filterNotNull(), if (n.text("tone").let { it == null || it == "neutral" }) p.mention else tone.accent, Modifier.fillMaxWidth().height(40.dp))
+            KitSpark(n.numbers("points").filterNotNull(), if (n.text("tone").isNeutralTone()) p.mention else tone.accent, Modifier.fillMaxWidth().height(40.dp))
         }
         "gauge" -> Gauge(n)
         "pie" -> Pie(n)
@@ -156,7 +157,7 @@ private fun Gauge(n: ViewNode) {
     val value = n.number("value") ?: lo
     val share = ((value - lo) / (hi - lo)).coerceIn(0.0, 1.0).toFloat()
     val tone = toneColors(n.text("tone"))
-    val arc = if (n.text("tone").let { it == null || it == "neutral" }) p.mention else tone.accent
+    val arc = if (n.text("tone").isNeutralTone()) p.mention else tone.accent
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         Text(n.text("label").orEmpty(), color = p.muted, fontSize = Type.s12)
         Box(Modifier.width(160.dp).height(88.dp), contentAlignment = Alignment.BottomCenter) {
@@ -207,7 +208,7 @@ private fun Pie(n: ViewNode) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                         Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(colors[i]))
                         Text(s.first, color = p.text, fontSize = Type.s14, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                        Text(viewNumber(s.second) + unit + if (total > 0) " · ${viewNumber(s.second / total * 100)}%" else "", color = p.muted, fontSize = Type.s12, maxLines = 1)
+                        Text(viewNumber(s.second) + unit + if (total > 0) ", ${viewNumber(s.second / total * 100)}%" else "", color = p.muted, fontSize = Type.s12, maxLines = 1)
                     }
                 }
             }
@@ -228,7 +229,7 @@ private fun Scatter(n: ViewNode) {
         }
     }
     val all = series.flatMap { it.second }
-    if (all.isEmpty()) { Text("·", color = p.faint); return }
+    if (all.isEmpty()) return
     val x0 = all.minOf { it.first }; val x1 = all.maxOf { it.first }.let { if (it > x0) it else x0 + 1 }
     val y0 = all.minOf { it.second }; val y1 = all.maxOf { it.second }.let { if (it > y0) it else y0 + 1 }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
@@ -252,7 +253,7 @@ private fun Scatter(n: ViewNode) {
             Text(listOfNotNull(n.text("xLabel"), viewNumber(x0)).joinToString(" "), color = p.faint, fontSize = Type.s12, modifier = Modifier.weight(1f))
             Text(listOfNotNull(viewNumber(x1)).joinToString(" "), color = p.faint, fontSize = Type.s12)
         }
-        Text(listOfNotNull(n.text("yLabel"), "${viewNumber(y0)} – ${viewNumber(y1)}").joinToString(": "), color = p.faint, fontSize = Type.s12)
+        Text(listOfNotNull(n.text("yLabel"), tr("{lo} to {hi}", "lo" to viewNumber(y0), "hi" to viewNumber(y1))).joinToString(": "), color = p.faint, fontSize = Type.s12)
     }
 }
 

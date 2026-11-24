@@ -1487,5 +1487,14 @@
   "Source: {source}": "Źródło: {source}",
   "No source": "Brak źródła",
   "Recommended": "Polecane",
-  "Open link: {title}, {site}": "Otwórz link: {title}, {site}"
+  "Open link: {title}, {site}": "Otwórz link: {title}, {site}",
+  "{lo} to {hi}": "{lo} do {hi}",
+  "Series": "Seria",
+  "Series {n}": "Seria {n}",
+  "Range": "Zakres",
+  "Count": "Liczba",
+  "Minimum": "Minimum",
+  "Maximum": "Maksimum",
+  "Up {amount}": "W górę o {amount}",
+  "Down {amount}": "W dół o {amount}"
 }
