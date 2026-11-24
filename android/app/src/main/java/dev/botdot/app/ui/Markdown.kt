@@ -162,28 +162,30 @@ internal fun sitesShown(features: List<String>?) = features?.contains("site-icon
 /** Enough Markdown for bots' replies: headings, lists, quotes, code, tables, bold, links. [onWeb]: where this chat
  *  opens on the web page, for the link under a diagram's code ([webLinkUnder]). [paths]: what a file path does.
  *  [copy]: a Copy button on each code block (#285); none in a reply still being written (its code may be cut short)
- *  or on a tile (a tap runs the tile), as on the web page. */
+ *  or on a tile (a tap runs the tile), as on the web page. [tables]: a bot's reply whose tables are drawn as answer views'
+ *  tables (ADR 264, amendment: [tableView]); a document, a file, a tile or the owner's own message keeps the table it had, and so
+ *  does a reply still being written until it ends. */
 @Composable
-fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true, bots: BotLinks? = LocalBotLinks.current, draft: Boolean = false) {
+fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true, bots: BotLinks? = LocalBotLinks.current, draft: Boolean = false, tables: Boolean = false) {
     // An answer view (a ```ui fence, ADR 264) is drawn from the catalog the server hands out: a reply with one is split into
     // its text, its views and the code of what can't be drawn. [draft]: the reply is still being written, so a fence not
     // closed yet waits as "Drawing a view…". Without the catalog (an older botdot), a fence is code like any other.
     val views = LocalAnswerViews.current
     val parts = remember(text, views, draft) { if (views != null && text.contains("```ui")) views.split(text, done = !draft) else null }
-    if (parts == null) return MarkdownProse(text, color, modifier, onWeb, paths, copy, bots, draft)
+    if (parts == null) return MarkdownProse(text, color, modifier, onWeb, paths, copy, bots, tables && !draft)
     Column(modifier) {
         parts.forEachIndexed { i, part ->
             key(i) {
                 val above = Modifier.padding(top = if (i == 0) 0.dp else 6.dp)
                 // The text before a view is whole; only the last text of a reply being written is a draft.
-                if (part is ReplyPart.Text) MarkdownProse(part.text, color, above, onWeb, paths, copy, bots, draft && i == parts.lastIndex) else AnswerPart(part, color, copy, above, i)
+                if (part is ReplyPart.Text) MarkdownProse(part.text, color, above, onWeb, paths, copy, bots, tables && !(draft && i == parts.lastIndex)) else AnswerPart(part, color, copy, above, i)
             }
         }
     }
 }
 
 @Composable
-private fun MarkdownProse(text: String, color: Color, modifier: Modifier, onWeb: String?, paths: PathActions?, copy: Boolean, bots: BotLinks?, draft: Boolean) {
+private fun MarkdownProse(text: String, color: Color, modifier: Modifier, onWeb: String?, paths: PathActions?, copy: Boolean, bots: BotLinks?, tables: Boolean) {
     val p = LocalPaper.current
     val sites = LocalSiteIcons.current
     val cards = LocalProductCards.current
@@ -191,9 +193,9 @@ private fun MarkdownProse(text: String, color: Color, modifier: Modifier, onWeb:
     // Each block styled once (and again only when the searched words or the colours change), not on every redraw of
     // the chat: a reply draft that grows with each draft the server sends restyles only its last block, and the blocks
     // before it, the same objects as before, are skipped when the chat draws again.
-    val made = remember(terms, color, p, paths, sites, cards, bots, draft) { HashMap<Block, StyledBlock>() }
+    val made = remember(terms, color, p, paths, sites, cards, bots, tables) { HashMap<Block, StyledBlock>() }
     val blocks = remember(text, made) {
-        parseBlocks(text).map { b -> made.getOrPut(b) { styledBlock(b, color, p, paths, sites, cards, bots, draft) } }
+        parseBlocks(text).map { b -> made.getOrPut(b) { styledBlock(b, color, p, paths, sites, cards, bots, tables) } }
             .also { shown -> made.keys.retainAll(shown.mapTo(HashSet()) { it.block }) }
     }
     QuotableSelection(modifier) { // selectable, with Quote in its menu inside a chat (QuoteUi.kt)
@@ -216,8 +218,8 @@ internal class StyledBlock(val block: Block, val text: List<AnnotatedString>, va
     }
 }
 
-/** [draft]: the reply is still being written, so a table is drawn as it always was and becomes a view when the reply ends. */
-private fun styledBlock(b: Block, color: Color, p: Paper, paths: PathActions?, sites: Boolean, cards: Boolean, bots: BotLinks?, draft: Boolean): StyledBlock {
+/** [tables]: see [MarkdownText]. */
+private fun styledBlock(b: Block, color: Color, p: Paper, paths: PathActions?, sites: Boolean, cards: Boolean, bots: BotLinks?, tables: Boolean): StyledBlock {
     val text = when (b) {
         is Block.Heading -> listOf(inline(b.text, color, p, paths, sites, bots))
         is Block.Para -> listOf(inline(b.text, color, p, paths, sites, bots))
@@ -228,7 +230,7 @@ private fun styledBlock(b: Block, color: Color, p: Paper, paths: PathActions?, s
     }
     // Shopping results as product cards (Products.kt, #685), from a server that has them; else their code.
     val products = if (cards && b is Block.Code && b.lang == "products") Products.parse(b.text) else null
-    return StyledBlock(b, text, siteIconsIn(text), products, view = if (!draft && b is Block.Table) tableView(b) else null)
+    return StyledBlock(b, text, siteIconsIn(text), products, view = if (tables && b is Block.Table) tableView(b) else null)
 }
 
 @Composable

@@ -45,8 +45,8 @@ class AnswerViewUiTest {
 
     private val views = AnswerViews.of(File(System.getProperty("uiCatalog") ?: "../../lib/ui-catalog.json").readText())!!
     private fun fence(json: String) = "```ui\n$json\n```"
-    private fun show(reply: String, draft: Boolean = false, catalog: AnswerViews? = views) =
-        rule.setContent { CompositionLocalProvider(LocalAnswerViews provides catalog) { Column { MarkdownText(reply, draft = draft) } } }
+    private fun show(reply: String, draft: Boolean = false, catalog: AnswerViews? = views, tables: Boolean = false) =
+        rule.setContent { CompositionLocalProvider(LocalAnswerViews provides catalog) { Column { MarkdownText(reply, draft = draft, tables = tables) } } }
 
     @Test fun aKpiAndATableAreDrawnWithWhereTheirNumbersCameFrom() {
         show("Here it is.\n\n" + fence("""{"alt":"Users and plans","root":{"type":"stack","children":[
@@ -61,12 +61,13 @@ class AnswerViewUiTest {
         rule.onAllNodesWithText("Source: analytics.csv").assertCountEquals(1)
     }
 
-    // A table in a reply's Markdown is drawn as an answer view's table (ADR 264, amendment): a list on a phone, its cells drawn
-    // as the reply draws a line, with no source line; a draft keeps the table it always was until the reply ends.
+    // A table in a bot's reply is drawn as an answer view's table (ADR 264, amendment): a list on a phone, its cells drawn as the
+    // reply draws a line, with no source line. A draft, a table over the limits and what is not a bot's reply (a document, a tile,
+    // the owner's message: no `tables`) keep the table they always were.
     private val markdownTable = "Compare:\n\n| Engine | Size | Link |\n|---|--:|---|\n| **Postgres** | 12 | [docs](https://pg.example.com/docs) |\n| SQLite | 1 | |"
 
     @Test fun aMarkdownTableIsAListOnAPhoneWithItsCellsDrawnAsMarkdownAndNoSource() {
-        show(markdownTable)
+        show(markdownTable, tables = true)
         rule.onNodeWithText("Compare:").assertIsDisplayed()
         rule.onNodeWithContentDescription("Engine: Postgres, Size: 12, Link: docs").assertIsDisplayed() // a row is read as a list, its bold and its link as their words
         rule.onNodeWithContentDescription("Engine: SQLite, Size: 1", substring = true).assertExists()
@@ -77,14 +78,20 @@ class AnswerViewUiTest {
     }
 
     @Test fun aMarkdownTableStillBeingWrittenIsDrawnAsItAlwaysWas() {
-        show(markdownTable, draft = true)
+        show(markdownTable, draft = true, tables = true)
+        rule.onNodeWithText("Postgres").assertIsDisplayed()
+        rule.onAllNodesWithContentDescription("Engine: Postgres", substring = true).assertCountEquals(0)
+    }
+
+    @Test fun aMarkdownTableThatIsNoBotsReplyIsDrawnAsItAlwaysWas() {
+        show(markdownTable)
         rule.onNodeWithText("Postgres").assertIsDisplayed()
         rule.onAllNodesWithContentDescription("Engine: Postgres", substring = true).assertCountEquals(0)
     }
 
     @Test fun aMarkdownTableOverTheLimitsIsDrawnAsItAlwaysWas() {
         val wide = (1..13).joinToString(" | ", "| ", " |") { "c$it" } + "\n" + "|---".repeat(13) + "|\n" + (1..13).joinToString(" | ", "| ", " |") { "v$it" }
-        show(wide)
+        show(wide, tables = true)
         rule.onNodeWithText("c13").assertIsDisplayed()
         rule.onAllNodesWithContentDescription("c1: v1", substring = true).assertCountEquals(0)
     }

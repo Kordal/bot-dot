@@ -405,7 +405,7 @@ const chiefPage = vm.createContext({ ...words,
 });
 vm.runInContext(read('unread.js'), chiefPage);
 vm.runInContext(read('ratings.js'), chiefPage);
-vm.runInContext(`${cut('function md(src, botId, draft = false)', '// Link bare web addresses after rendering')}\n${cut('function actionBot(a)', '// What Approve sends to answer')}\n${cut('function wireActions(root) {', '// Open the Chief on this chat')}
+vm.runInContext(`${cut('function md(src, botId, tables = false)', '// Link bare web addresses after rendering')}\n${cut('function actionBot(a)', '// What Approve sends to answer')}\n${cut('function wireActions(root) {', '// Open the Chief on this chat')}
   Object.assign(this, { chiefBubble, actionChip, wireActions });`, chiefPage);
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 

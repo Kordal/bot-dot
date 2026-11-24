@@ -486,14 +486,14 @@ const AnswerViews = (() => {
 
   // A reply's top-level elements as HTML, in order, its fences drawn: { botId, done }. done false: the reply is still being
   // written, so a fence not closed yet waits whole ("Drawing a view…") and the last text is a draft (draftSource).
-  function parts(src, { botId = '', done = true } = {}) {
+  function parts(src, { botId = '', done = true, tables = false } = {}) {
     const all = view.split(src, { done });
     return all.flatMap((p, i) => {
       if (p.view) return [html(p.view, botId)];
       if (p.code != null) return [codeHTML(p)];
       if (p.drawing) return [drawingHTML()];
       const draft = !done && i === all.length - 1;
-      const text = mdParts(mdBlocks(draft ? draftSource(p.text) : p.text), botId, draft);
+      const text = mdParts(mdBlocks(draft ? draftSource(p.text) : p.text), botId, tables && !draft);
       return botId ? text.map((h) => linkPaths(h, botId)) : text; // the paths of a bot's text open in the viewer, as in any reply
     });
   }

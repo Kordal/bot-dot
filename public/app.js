@@ -784,10 +784,12 @@ const MODE_INFO = {
 // Tiny markdown renderer. Input is escaped first, so output is safe: mdBlocks reads the escaped text into blocks
 // by the rules both apps share (test/fixtures/markdown-cases.json), and mdHTML writes them with its own tags.
 // [botId]: a bot's reply, whose file paths open in the viewer (linkPaths, #251).
-function md(src, botId, draft = false) {
+// [tables]: a bot's reply, whose tables are drawn as answer views' tables (tableView, ADR 264 amendment); a document, a file, a tile
+// or the owner's own message keeps the table it always had.
+function md(src, botId, tables = false) {
   // A reply with answer views (answer-view-draw.js): its ```ui fences drawn, the rest as ever.
-  if (typeof AnswerViews === 'object' && AnswerViews.has(src)) return AnswerViews.parts(src, { botId, done: !draft }).join('\n'); // the paths of its text are links, the views' own words are not
-  const html = mdHTML(mdBlocks(src), botId, draft);
+  if (typeof AnswerViews === 'object' && AnswerViews.has(src)) return AnswerViews.parts(src, { botId, tables }).join('\n'); // the paths of its text are links, the views' own words are not
+  const html = mdHTML(mdBlocks(src), botId, tables);
   return botId ? linkPaths(html, botId) : html;
 }
 
@@ -971,8 +973,8 @@ const isWebAddress = (t) => /^https?:\/\/\S+$/i.test(t);
 const COPY_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>';
 const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="${tr('Copy code')}" aria-label="${tr('Copy code')}">${COPY_ICON}</button>`;
 
-// [botId]: a bot's reply, whose product cards can be saved (products.js). [draft]: the reply is still being written.
-function mdHTML(blocks, botId, draft = false) { return mdParts(blocks, botId, draft).join('\n'); }
+// [botId]: a bot's reply, whose product cards can be saved (products.js). [tables]: as for md().
+function mdHTML(blocks, botId, tables = false) { return mdParts(blocks, botId, tables).join('\n'); }
 // A line of a block, its text escaped: code, struck, bold, italic and [words](address) links.
 function mdInline(t) {
   return t
@@ -1002,9 +1004,10 @@ function previewLines(src) {
 }
 // Its HTML, links shortened as in a chat.
 function mdPreview(src) { return previewLines(src).map(mdInline).join('<br>'); }
-// The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists. [draft]: the reply is still
-// being written, so a table is drawn as it always was and becomes an answer view when the reply ends (tableView).
-function mdParts(blocks, botId, draft = false) {
+// The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists. [tables]: a bot's reply that is
+// whole, whose tables are drawn as answer views' tables (tableView); a reply still being written draws them as they always were,
+// and they become views when it ends.
+function mdParts(blocks, botId, tables = false) {
   const text = (t) => t.split('\n').map(mdInline).join('<br>');
   const isItem = (i) => i < blocks.length && blocks[i].type === 'item';
   // The list that starts at blocks[i], its sub-lists inside their items: its HTML and the block after it.
@@ -1036,8 +1039,8 @@ function mdParts(blocks, botId, draft = false) {
     // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
     // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
     else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);
-    // A table is drawn as an answer view's `table` (ADR 264, amendment), by the same code, once the reply is whole.
-    else if (b.type === 'table') out.push((!draft && typeof AnswerViews === 'object' && (table = tableView(b))) ? AnswerViews.tableHTML(table, mdInline) : tableHTML(b.rows, mdInline));
+    // A table of a bot's whole reply is drawn as an answer view's `table` (ADR 264, amendment), by the same code.
+    else if (b.type === 'table') out.push((tables && typeof AnswerViews === 'object' && (table = tableView(b))) ? AnswerViews.tableHTML(table, mdInline) : tableHTML(b.rows, mdInline));
     else out.push(`<p>${text(b.text)}</p>`);
   }
   return out;
@@ -1268,7 +1271,7 @@ const showsDrafts = () => state.features.includes('reply-draft');
 // The draft's bubble, or '' for none. alone: in a stack of its own, as a reply's bubble stands, for a row that has none.
 // The top-level elements of a draft: an answer view's fence that is not closed yet waits whole, as "Drawing a view…".
 const draftViews = (text) => typeof AnswerViews === 'object' && AnswerViews.has(text);
-const draftMd = (text) => `<div class="md">${draftViews(text) ? AnswerViews.parts(text, { done: false }).join('\n') : md(draftSource(text), undefined, true)}</div>`;
+const draftMd = (text) => `<div class="md">${draftViews(text) ? AnswerViews.parts(text, { done: false }).join('\n') : md(draftSource(text))}</div>`;
 const draftHTML = (text, alone = false) => {
   const bubble = text ? `<div class="bubble from-bot draft">${draftMd(text)}</div>` : '';
   return bubble && alone ? `<div class="stack draft-stack">${bubble}</div>` : bubble;
@@ -1277,7 +1280,7 @@ const draftHTML = (text, alone = false) => {
 // selection in them is kept); those from the first one that changed on are drawn again. A box drawn from HTML
 // (draftHTML, a chat drawn again) is drawn whole once.
 function drawDraftMd(box, text) {
-  const parts = draftViews(text) ? AnswerViews.parts(text, { done: false }) : mdParts(mdBlocks(draftSource(text)), undefined, true);
+  const parts = draftViews(text) ? AnswerViews.parts(text, { done: false }) : mdParts(mdBlocks(draftSource(text)));
   if (!box._parts) { box.innerHTML = ''; box._parts = []; box._sizes = []; }
   let same = 0;
   while (same < box._parts.length && same < parts.length && box._parts[same] === parts[same]) same++;

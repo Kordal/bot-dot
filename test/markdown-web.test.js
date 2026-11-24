@@ -11,7 +11,7 @@ const { read, cut, esc, words } = require('./web-page');
 const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'markdown-cases.json'), 'utf8'));
 const css = read('style.css');
 const page = vm.createContext({ ...words, esc });
-vm.runInContext(`${cut('function md(src, botId, draft = false)', '// Link bare web addresses after rendering')}
+vm.runInContext(`${cut('function md(src, botId, tables = false)', '// Link bare web addresses after rendering')}
   this.md = md; this.mdBlocks = mdBlocks; this.previewLines = previewLines; this.mdPreview = mdPreview; this.tableView = tableView;`, page);
 const { md, mdBlocks, previewLines, mdPreview, tableView } = page;
 // A reply's HTML without the Copy buttons of its code blocks and their boxes (#285, test/code-copy-web.test.js).

@@ -15,7 +15,7 @@ const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mar
 const app = webSource();
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const mdPage = vm.createContext({ ...words, esc });
-vm.runInContext(`${cut('function md(src, botId, draft = false)', '// Link bare web addresses after rendering')} this.md = md; this.mdBlocks = mdBlocks; this.mdParts = mdParts; this.draftSource = draftSource;`, mdPage);
+vm.runInContext(`${cut('function md(src, botId, tables = false)', '// Link bare web addresses after rendering')} this.md = md; this.mdBlocks = mdBlocks; this.mdParts = mdParts; this.draftSource = draftSource;`, mdPage);
 const { md, mdBlocks, draftSource } = mdPage;
 
 // ---------- Markdown that is still being written ----------

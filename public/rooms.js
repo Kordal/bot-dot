@@ -388,7 +388,7 @@ function roomMessageHTML(r, m, key) {
     ${head}
     <div class="stack">
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(roomAuthor(m))}</div>
-      <div class="bubble from-bot"><div class="md">${md(text)}</div></div>
+      <div class="bubble from-bot"><div class="md">${md(text, undefined, !!bot)}</div></div>
       <div class="bubble-meta">${mentions}<span>${esc(time)}</span>${text ? copyBtn(text) : ''}</div>
     </div></div>`;
 }

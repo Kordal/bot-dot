@@ -10,7 +10,7 @@ const { cut, read, esc, words } = require('./web-page');
 
 const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'document-cases.json'), 'utf8'));
 const page = vm.createContext({ ...words, esc });
-vm.runInContext(`${cut('function md(src, botId, draft = false)', '// Link bare web addresses after rendering')}
+vm.runInContext(`${cut('function md(src, botId, tables = false)', '// Link bare web addresses after rendering')}
   this.mdBlocks = mdBlocks;`, page);
 vm.runInContext(read('document.js'), page);
 const { DocPage, mdBlocks } = page;

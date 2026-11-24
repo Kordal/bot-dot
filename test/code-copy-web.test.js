@@ -8,7 +8,7 @@ const vm = require('vm');
 const { read, cut, esc, words } = require('./web-page');
 
 const page = vm.createContext({ ...words, esc });
-vm.runInContext(`${cut('function md(src, botId, draft = false)', '// Link bare web addresses after rendering')} this.md = md;`, page);
+vm.runInContext(`${cut('function md(src, botId, tables = false)', '// Link bare web addresses after rendering')} this.md = md;`, page);
 const { md } = page;
 
 // What a browser gives as an element's text: the five escapes the page writes, as their characters.

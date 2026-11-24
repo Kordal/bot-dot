@@ -351,7 +351,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                 }
                 else -> TheirBubble(shortTime(m.endedAt ?: m.at), copyText = drawn.text, chips = chips, footerEnd = thumbs) {
                     Column {
-                        MarkdownText(drawn.text)
+                        MarkdownText(drawn.text, tables = true)
                         if (error == null) OpenAsDocument(drawn.text, LocalChiefName.current)
                         BotFilesRow(files)
                         PageChips(dev.botdot.app.data.Pages.CHIEF, m.pages, LocalChiefName.current) // the pages it saved (#384)
@@ -444,7 +444,7 @@ private fun Suggestion(m: ChiefMessage, onBuild: () -> Unit, onDismiss: () -> Un
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FromLine(tr("Suggestion from"), m.from)
         Column(Modifier.padding(start = Space.s32).raised(shape).holdToCopy(m.text).padding(horizontal = Space.s16, vertical = Space.s12)) {
-            MarkdownText(m.text)
+            MarkdownText(m.text, tables = true)
         }
         when (m.status) {
             "pending" -> Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
@@ -465,7 +465,7 @@ private fun Report(m: ChiefMessage) {
         FromLine(tr("Message from"), m.from)
         // A task it didn't finish (`error: true`) is drawn like a failed reply; its text says why.
         Column(Modifier.padding(start = Space.s32).then(if (m.failed) Modifier.clip(shape).background(p.errSoft) else Modifier.raised(shape)).holdToCopy(m.text).padding(horizontal = Space.s16, vertical = Space.s12)) {
-            if (m.text.isNotBlank()) MarkdownText(m.text) // a file it sent while working has no text
+            if (m.text.isNotBlank()) MarkdownText(m.text, tables = !m.failed) // a file it sent while working has no text
             if (!m.failed) OpenAsDocument(m.text, m.from?.name.orEmpty())
             BotFilesRow(m.files, top = if (m.text.isNotBlank()) 8.dp else 0.dp)
         }
