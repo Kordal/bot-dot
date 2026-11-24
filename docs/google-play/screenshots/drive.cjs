@@ -47,12 +47,13 @@ async function find(test, what, timeout = 30000) {
 }
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
+const NETWORK = '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4';
 /** The status bar as on a phone at rest: 09:30, full battery and signal, no notifications. (On API 35 a network
  * command with "-e fully true" or "-e mobile hide" leaves the status bar out of demo mode altogether.)
  * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
-function calm() {
+function calm(network = NETWORK) {
   for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
-    '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4', '-e command notifications -e visible false']) {
+    network, '-e command notifications -e visible false']) {
     sh(`am broadcast -a com.android.systemui.demo ${extra}`);
   }
 }
@@ -113,6 +114,20 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   const ui = sh('pidof com.android.systemui').trim();
   calm();
   await sleep(1500);
+  // TRYING: which network command leaves the status bar with a wifi and a signal and no "3G".
+  for (const [name, net] of Object.entries({
+    base: NETWORK,
+    nodatatype: '-e command network -e wifi show -e level 4 -e mobile show -e level 4',
+    dis: '-e command network -e wifi show -e level 4 -e mobile show -e datatype dis -e level 4',
+    not: '-e command network -e wifi show -e level 4 -e mobile show -e datatype not -e level 4',
+    nulltype: '-e command network -e wifi show -e level 4 -e mobile show -e datatype null -e level 4',
+    nosim: '-e command network -e wifi show -e level 4 -e sims 1 -e nosim hide -e mobile show -e datatype none -e level 4',
+  })) {
+    calm(net);
+    await sleep(1500);
+    fs.writeFileSync(path.join(OUT, `debug-bar-${name}.png`), execFileSync('adb', ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20 }));
+  }
+  calm();
   // Said in the log: whether the system UI took the commands, or restarted on one of them.
   console.log('system UI', ui, '->', sh('pidof com.android.systemui').trim(), sh('logcat -d -b crash').split('\n').slice(-6).join(' / '));
   sh(`am start -W -n ${PKG}/.MainActivity`);
@@ -131,7 +146,7 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // The Board, from its values on Home.
   tap(await find(byText('Unread mail'), 'the Board on Home'));
   await find(byText('Living room'), 'the Board');
-  await bring(byText('Disk'), 'the Server tiles on the Board', 560);
+  await bring(byText('Disk'), 'the Server tiles on the Board', 400);
   await shot('8-board.png');
   // The Chief's chat: from where the owner asks for a bot, the Chief's plan under it; then at the end, its two cards that wait for an OK.
   open(`chief:${scene.chief}`);
@@ -158,6 +173,6 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // The project's team chat: Quote Chaser's comparison of the quotes.
   open(`group:${scene.team}`);
   await find((n) => /Quote Chaser/.test(n.text), 'the team chat');
-  await bring(has(/^Quote Chaser$/), 'Quote Chaser\'s name over its reply', 330);
+  await bring(has(/^Where do the quotes stand/), 'the owner\'s question in the team chat', 330);
   await shot('7-quotes.png');
 })().catch((e) => { console.error(e.message); process.exit(1); });

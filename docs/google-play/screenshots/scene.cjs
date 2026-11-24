@@ -91,7 +91,6 @@ Want me to remind you when the installer sends the quote?`;
     };
     // Yesterday's, all read.
     run(recipe, -760, -759, { prompt: 'What can I cook tonight? We have leeks, potatoes and some cheese.', result: 'Three ideas from what you have:\n\n1. **Leek and potato soup** with toasted cheese bread, 35 minutes.\n2. **Potato gratin** with leeks and Gruyère, 50 minutes.\n3. **Leek tart** with a green salad, 45 minutes.\n\nThe soup is the quickest. Want the recipe?' });
-    run(watch, -1500, -1499, { prompt: 'How are the disks?', result: 'All four disks are healthy. The media disk is at 62%.' });
     // This morning's.
     run(news, 50, 51, { prompt: 'What is in the news this morning?', result: NEWS_1 });
     run(news, 56, 57, { prompt: 'Anything new on the heat pump grants? Do we qualify?', result: NEWS_2 });
@@ -160,10 +159,10 @@ Want me to remind you when the installer sends the quote?`;
     const group = (await srv.api('/group-chats')).data.groups?.find?.((g) => g.team) || (await srv.api('/group-chats')).data.find?.((g) => g.team);
     if (group) ok(await srv.api(`/group-chats/${group.id}`, { method: 'PUT', body: { category: 'Kitchen' } }), 'team category');
     if (!group) throw new Error(`no team chat: ${JSON.stringify((await srv.api('/group-chats')).data).slice(0, 300)}`);
-    fs.writeFileSync(path.join(srv.out, `result-${shortName('Reno Planner')}.txt`), 'Two of three quotes are in, and the site visit is tomorrow at 10:00. @QuoteChaser can you sum up the quotes?');
-    fs.writeFileSync(path.join(srv.out, `result-${shortName('Quote Chaser')}.txt`), `Two quotes are in, and Brightwood is the faster and the cheaper one so far.\n\n${ui(VIEWS.QUOTES)}\n\nI wrote to Northside again this morning; they promised an answer by Monday.`);
-    ok(await srv.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'Where are we with the quotes?' } }), 'team message');
-    await waitFor(async () => { const r = (await srv.api(`/group-chats/${group.id}/chat`)).data; return JSON.stringify(r).includes('Northside again') && !(r.working || []).length; }, { timeout: 30000, what: 'the team\'s replies' }).catch(async (e) => { console.log(JSON.stringify((await srv.api(`/group-chats/${group.id}/chat`)).data).slice(0, 3000)); throw e; });
+    fs.writeFileSync(path.join(srv.out, `result-${shortName('Reno Planner')}.txt`), 'PASS');
+    fs.writeFileSync(path.join(srv.out, `result-${shortName('Quote Chaser')}.txt`), `Two quotes are in, and Brightwood is the faster and the cheaper one so far.\n\n${ui(VIEWS.QUOTES)}\n\nNorthside promised an answer by Monday.`);
+    ok(await srv.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'Where do the quotes stand, @QuoteChaser?' } }), 'team message');
+    await waitFor(async () => { const r = (await srv.api(`/group-chats/${group.id}/chat`)).data; return JSON.stringify(r).includes('Northside promised') && !(r.working || []).length; }, { timeout: 30000, what: 'the team\'s replies' }).catch(async (e) => { console.log(JSON.stringify((await srv.api(`/group-chats/${group.id}/chat`)).data).slice(0, 3000)); throw e; });
     await sleep(500);
     for (const f of fs.readdirSync(srv.out).filter((f) => /^result-/.test(f))) fs.rmSync(path.join(srv.out, f));
     void c0;
