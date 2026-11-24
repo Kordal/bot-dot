@@ -103,3 +103,19 @@ test('png.cjs check names what Play would refuse, by the kind of picture', () =>
   assert.match(png.problems('screenshots/en/1-home.png', at(2250, 4000, 2)).join(), /320 to 3840/);
   assert.match(png.problems('screenshots/raw/1-home.png', at(1080, 1920, 6)).join(), /no alpha/);
 });
+
+test('the foreground service video is made by a workflow Play Console\'s answers and the README name', () => {
+  const root = path.join(__dirname, '..');
+  const workflow = fs.readFileSync(path.join(root, '.github/workflows/play-video.yml'), 'utf8');
+  const record = fs.readFileSync(path.join(DIR, 'video/record.cjs'), 'utf8');
+  assert.match(workflow, /name: play-fgs-video/);
+  assert.match(workflow, /scene\.cjs "\$RUNNER_TEMP\/scene" video/); // the scene's scripted reply
+  assert.match(workflow, /video\/record\.cjs/);
+  assert.match(record, /fgs-video\.mp4/);
+  assert.match(fs.readFileSync(path.join(DIR, 'screenshots/scene.cjs'), 'utf8'), /process\.argv\[3\] === 'video'/);
+  assert.match(read('console-answers.md'), /Play video.*README\.md#making-the-foreground-service-video/);
+  assert.match(read('README.md'), /### Making the foreground service video/);
+  // Play takes a video of at most 60 seconds from YouTube.
+  assert.match(record, /seconds > 60/);
+  assert.match(read('README.md'), /YouTube as \*\*Unlisted\*\*/);
+});

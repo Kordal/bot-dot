@@ -10,6 +10,7 @@ How the app gets from this repository to Google Play ([ADR 173](../adr/173-the-a
 | [delete-account.md](delete-account.md) | How an account is deleted (Play asks for this URL) |
 | [graphics/](graphics/) | The 512 × 512 icon and the 1024 × 500 feature graphic, English and Polish (`make.cjs` draws them) |
 | [screenshots/](screenshots/) | The phone screenshots: `raw/` as the app shows them, `en/` and `pl/` with a caption (`drive.cjs`, `caption.cjs`) |
+| [video/](video/) | The foreground service video for Play Console: `record.cjs` records it on an emulator |
 | [png.cjs](png.cjs) | Checks each picture's size and alpha the way Play does: `node docs/google-play/png.cjs check <files>` |
 
 ## The build
@@ -69,6 +70,16 @@ In the order Play Console shows the fields. `node docs/google-play/png.cjs check
 2. **Captions:** `node docs/google-play/screenshots/caption.cjs` writes `en/` and `pl/` from `raw/`; the captions are in that file.
 3. **Icon and feature graphics:** `node docs/google-play/graphics/make.cjs` (the feature graphics use `raw/1-home.png`).
 4. Check them with `png.cjs check` (it fails on a picture Play would refuse), and look at each one.
+
+### Making the foreground service video
+
+Play Console → App content → Foreground service permissions asks for a short video of what the service does ([console-answers.md](console-answers.md)). It is made the way the screenshots are, with nothing filmed by hand:
+
+1. GitHub → Actions → **Play video** → Run workflow, on the branch with the change. The run stages the same botdot with demo data (`scene.cjs` with `video`: made-up bots, no real person; Weekly Planner's next reply is scripted and held until the video asks for it), starts the app on an emulator and records it with `adb shell screenrecord` (`video/record.cjs`): the app connects to the botdot server and starts its foreground service, its ongoing notification shows in the notification shade, a message goes to Weekly Planner, the phone is locked, the reply arrives as a notification on the lock screen, and a tap on it opens the chat with the reply.
+2. Download the run's **play-fgs-video** artifact: `fgs-video.mp4` (H.264, 720 × 1280, under 60 s). A caption for each step (English, in a bar above the phone, which is shown at 90 %) and a short black slate for the seconds the screen is off are added by ffmpeg, which also cuts out the moments the script waited for the screen; everything on the phone is Android's and the app's own. The log of the run shows the service as Android reports it (`isForeground=true`, type special use).
+3. Upload it to YouTube as **Unlisted**, and paste the link in Play Console, in the foreground service form's video field. Play accepts a YouTube link, not a file.
+
+The segments and a screenshot of any step that failed are in the same artifact. Make it again after a change to what the app shows in the notification, the lock screen or the chat.
 
 ## Reviewers
 

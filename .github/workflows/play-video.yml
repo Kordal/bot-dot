@@ -1,0 +1,60 @@
+# The video Play Console asks for with the foreground service declaration (docs/google-play/README.md): the Android
+# app on an emulator, connected to a real botdot server with staged data and the tests' stand-in Claude
+# (docs/google-play/screenshots/scene.cjs, started with "video"), recorded by record.cjs with `adb shell screenrecord`.
+# Run by hand (Actions → Play video → Run workflow); the video is the run's "play-fgs-video" artifact. Holds no secret.
+name: Play video
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: ffmpeg and a font, for the captions
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+      - name: Build the app
+        working-directory: android
+        run: ./gradlew :app:assembleDebug --console=plain
+      - name: Stage the scene
+        run: |
+          mkdir -p "$RUNNER_TEMP/scene"
+          nohup node docs/google-play/screenshots/scene.cjs "$RUNNER_TEMP/scene" video > "$RUNNER_TEMP/scene/log.txt" 2>&1 &
+          for i in $(seq 1 90); do [ -f "$RUNNER_TEMP/scene/scene.json" ] && break; sleep 2; done
+          cat "$RUNNER_TEMP/scene/log.txt"
+          cat "$RUNNER_TEMP/scene/scene.json"
+      - name: Record the video
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: node docs/google-play/video/record.cjs "$RUNNER_TEMP/scene" android/app/build/outputs/apk/debug/app-debug.apk play-video
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: play-fgs-video
+          path: play-video
+          retention-days: 30
+      - name: Stop the scene
+        if: always()
+        run: touch "$RUNNER_TEMP/scene/stop"
