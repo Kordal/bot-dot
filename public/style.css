@@ -1795,7 +1795,9 @@ details.bs-row { display: block; }
 .set-name input[type=text]:first-child { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.02em; border-bottom: 1px solid var(--line-2); padding: var(--sp-4) 0; }
 .set-name input[type=text] + input { color: var(--muted); font-size: var(--fs-14); }
 .set-name input[type=text]:focus-visible { outline: none; border-bottom-color: var(--muted); }
-.bot-settings, #chief-form { display: grid; gap: var(--sp-24); }
+/* One column that may shrink to the panel: an implicit `auto` column grows to the widest nowrap value (the first line of
+   the rules, a long summary), and every row, the cards and the textarea run past the panel's edge. */
+.bot-settings, #chief-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-24); }
 .bot-settings > .set-head, #chief-form > .set-head { margin: var(--sp-4) 0 0; }
 .bot-settings > .set-list, #chief-form > .set-list { margin-top: var(--sp-8); }
 .set-title { align-items: center; justify-content: flex-start; gap: var(--sp-8); margin-bottom: var(--sp-16); }
