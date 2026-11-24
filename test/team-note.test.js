@@ -62,7 +62,7 @@ test('a member is told who leads it and to ask the lead, not the owner, for what
   assert.match(note, /Also on it: Lead Finder \(id l1\) \(lead\): Finds people who may buy; Support \(id m2\)\./);
   assert.match(note, /When you need something from the owner \(a decision, an answer, a file, a login\), ask the lead with message_bot \(priority: true\), not the owner/);
   assert.match(note, /Ask the owner directly only when they wrote to you themselves or the lead can't be messaged/);
-  assert.match(note, /A card only the owner can answer \(ask_permission, ask_override, ask_skill\) is still yours to ask for: then tell the lead/);
+  assert.match(note, /A card only the owner can answer \(ask_override, ask_skill\) is still yours to ask for: then tell the lead/);
   assert.doesNotMatch(note, /ask the owner directly, not the lead/);
   assert.doesNotMatch(note, /As the lead/);
   assert.equal(s.botNote('x9', of), '');

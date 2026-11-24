@@ -44,20 +44,20 @@ test("an ask card goes unanswered, and another bot's card is not one to withdraw
   const bot = await makeBot(srv, { name: 'Video Maker', emoji: '🎬', allowedTools: ['Read'] });
   const other = await makeBot(srv, { name: 'Stranger', emoji: '🕵️', allowedTools: ['Read'] });
   const first = await run(bot, 'Make the video');
-  assert.equal((await self(srv, first.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To render' })).data.ok, true);
-  const [card] = (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
+  assert.equal((await self(srv, first.token, 'ask', { kind: 'override', rule: 'Never run commands', action: 'run the command', reason: 'To render' })).data.ok, true);
+  const [card] = (await srv.api('/asks?override=1')).data.filter((a) => a.botId === bot.id);
   await first.done();
 
   const theirs = await run(other, 'Tidy up');
   const no = await withdraw(theirs.token, card.id);
   assert.equal(no.data.ok, false, 'not its card, nor a teammate\'s');
   await theirs.done();
-  assert.equal((await srv.api('/asks')).data.filter((a) => a.botId === bot.id).length, 1);
+  assert.equal((await srv.api('/asks?override=1')).data.filter((a) => a.botId === bot.id).length, 1);
 
   const second = await run(bot, 'Forget the video');
-  assert.match(second.rec.system, new RegExp(`your OK to run commands \\[card ${card.id}\\]`));
+  assert.match(second.rec.system, new RegExp(`your OK on “Asks to lift a rule: run the command” \\[card ${card.id}\\]`));
   assert.equal((await withdraw(second.token, card.id)).data.ok, true);
-  assert.equal((await srv.api('/asks')).data.filter((a) => a.botId === bot.id).length, 0);
+  assert.equal((await srv.api('/asks?override=1')).data.filter((a) => a.botId === bot.id).length, 0);
   await second.done();
 });
 

@@ -20,8 +20,8 @@ test('each held field has its words; what was given at once has none', () => {
   const before = { prompt: 'Task', systemPrompt: 'Rules', allowedTools: ['Read', 'WebSearch'], computer: 'none', connectors: ['slack'] };
   const held = (next, appName) => { const { safe, changes } = pendingChanges(before, { ...before, ...next }); return waitingWords(changes, safe, appName); };
   assert.deepEqual(held({}), []);
-  assert.deepEqual(held({ allowedTools: ['Read', 'WebSearch', 'WebFetch'] }), ['web access']);
-  assert.deepEqual(held({ allowedTools: ['Read', 'WebSearch', 'Bash(git log:*)'] }), ['commands']);
+  assert.deepEqual(held({ allowedTools: ['Read', 'WebSearch', 'WebFetch'] }), [], 'the web is given at once');
+  assert.deepEqual(held({ allowedTools: ['Read', 'WebSearch', 'Bash(git log:*)'] }), [], 'commands are given at once (ADR 268)');
   assert.deepEqual(held({ allowedTools: ['Read', 'WebSearch', 'Edit', 'Write'] }), [], 'files are given at once');
   assert.deepEqual(held({ allowedTools: ['Read'] }), [], 'taking a tool away waits for nothing');
   assert.deepEqual(held({ computer: 'linux' }), ['the computer']);
@@ -29,7 +29,7 @@ test('each held field has its words; what was given at once has none', () => {
   assert.deepEqual(held({ prompt: 'Another task' }), ['new main assignment']);
   assert.deepEqual(held({ systemPrompt: 'Other rules' }), ['new rules']);
   assert.deepEqual(held({ prompt: 'x', systemPrompt: 'y', allowedTools: ['Bash', 'WebFetch'], computer: 'linux', connectors: ['gmail'] }, () => 'Gmail'),
-    ['web access', 'commands', 'the computer', 'Gmail', 'new main assignment', 'new rules']);
+    ['the computer', 'Gmail', 'new main assignment', 'new rules']);
 });
 
 // ---------- the routes ----------
@@ -82,15 +82,18 @@ test('create_bot and update_bot return `waiting` and the saved main assignment, 
   assert.ok(!('waiting' in made) && !('applied' in made), 'a new bot gets what it is made with (ADR 176)');
   assert.equal(made.prompt, 'Watch the price of one thing.');
   assert.deepEqual(made.allowedTools, withAlways('Read', 'WebFetch'));
-  // A tool given later, outside a turn of the owner's, waits on a card that keeps the chat.
-  const web = await call('update_bot', { id: made.id, allowedTools: ['Read', 'WebFetch', 'Bash'] });
-  assert.deepEqual(web.waiting, ['commands']);
+  // A change of its rules, outside a turn of the owner's, waits on a card that keeps the chat.
+  const rules = await call('update_bot', { id: made.id, systemPrompt: 'Never buy.' });
+  assert.deepEqual(rules.waiting, ['new rules']);
   const card = (await srv.api('/asks')).data.find((a) => a.botId === made.id);
-  assert.deepEqual([card.by, card.chatId, card.title], ['chief', chat.id, 'Let Price Watcher run commands?']);
+  assert.deepEqual([card.by, card.chatId, card.title], ['chief', chat.id, 'Change Price Watcher: new rules?']);
+  // A tool given later, Bash or any other, is saved at once (ADR 268).
+  const tools = await call('update_bot', { id: made.id, allowedTools: ['Read', 'WebFetch', 'Bash'] });
+  assert.ok(!('waiting' in tools) && !('applied' in tools), JSON.stringify(tools));
 
   // Everything of the call waits: said so.
-  const all = await call('update_bot', { id: made.id, prompt: 'Watch two prices.', allowedTools: ['Read', 'WebFetch', 'Bash'] });
-  assert.deepEqual(all.waiting, ['commands', 'new main assignment']);
+  const all = await call('update_bot', { id: made.id, prompt: 'Watch two prices.', connectors: ['gmail'] });
+  assert.deepEqual(all.waiting, ['Gmail', 'new main assignment']);
   assert.equal(all.prompt, 'Watch the price of one thing.', 'the main assignment as it is saved');
   assert.equal(all.applied, false);
   // Part of it was saved.

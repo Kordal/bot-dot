@@ -155,7 +155,6 @@ test('no card, and the reason, when a tool cannot be asked for', async () => {
   assert.equal(none.status, 400);
   assert.match(none.data.error, /nosuchtool isn't in botdot's registry \(conda-forge\)/);
   assert.match((await askTool(coder, 'jq-we')).data.error, /Close names: jq-web\. Ask the owner which one/, 'a close name is the owner\'s to pick');
-  assert.match((await askTool(reader, 'jq')).data.error, /Reader may not run commands/);
   assert.match((await askTool(coder, 'jq-web')).data.error, /not for this botdot server's processor/);
   assert.match((await askTool(coder, '../etc')).data.error, /isn't the name of a tool/);
   assert.match((await askTool({ id: 'nobody' }, 'jq')).data.error, /No such bot/);
@@ -207,7 +206,7 @@ test('Install installs exactly the approved list, with no secret in the installe
   assert.match(turn.stdin, /botdot writes this, not the user: nobody typed it/);
   assert.match(turn.stdin, new RegExp(`for 🧪 Coder \\(bot id ${coder.id}\\)\\. Its commands: gh\\.`));
   assert.match(turn.stdin, /No bot asked for it in a run\./);
-  assert.match(turn.system, /Installed tools:\n- A bot that may run commands/);
+  assert.match(turn.system, /Installed tools:\n- A bot can get a command-line program/);
   assert.match(turn.system, /You install nothing yourself/);
   assert.match(turn.system, /put them to the user as a question and wait for the answer; never pick one yourself/);
   assert.match(turn.system, /Report it in one line[^\n]*When the result says installed and that a bot asked for the tool in a run, start that bot again on the work that stopped[^\n]*After an install that failed, and when no bot's work stopped, start nothing\./);
@@ -239,8 +238,8 @@ test("the bot's runs, script jobs and tile scripts find the tool; another bot ha
   assert.match(other.system, /You have no installed tools/);
   await srv.api(`/bots/${reader.id}/run`, { method: 'POST', body: { prompt: 'And the reader?' } });
   const none = await srv.nextRun((r) => r.self && r.stdin.includes('And the reader?'));
-  assert.ok(!/installed tools/i.test(none.system), 'a bot that may not run commands is told nothing about tools');
-  assert.equal(none.self.env.SELF_TOOLS, '0');
+  assert.match(none.system, /You have no installed tools/, 'every bot runs commands (ADR 268), so every bot is told about tools');
+  assert.equal(none.self.env.SELF_TOOLS, '1');
 
   // A script job of each bot.
   const scriptRun = async (bot) => {

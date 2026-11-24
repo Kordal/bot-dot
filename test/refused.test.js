@@ -1,7 +1,6 @@
-// A tool a run was refused because the bot's settings don't allow it asks nobody by itself (#279): a permission card
-// appears only when the bot asks for it with ask_permission, once, and not again for a week after a no. The stand-in
-// Claude asks for what it was refused, as a bot that follows its prompt does, unless $FAKE_OUT/no-ask exists. The ask
-// keeps the run that asked, and its card says what a yes starts (test/ask-carries-on.test.js has what follows).
+// A tool a run was refused asks nobody by itself (#279), and since ADR 268 no bot has a permission to ask for: every
+// bot has the web, files, commands and helpers, so a refused Bash or Agent makes no card. The stand-in Claude asks
+// for what it was refused, as a bot that follows its prompt does, unless $FAKE_OUT/no-ask exists.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -30,47 +29,21 @@ test('a refused tool alone makes no card', async () => {
   } finally { fs.rmSync(path.join(srv.out, 'no-ask'), { force: true }); refuse([]); }
 });
 
-test('the bot asking for a command it was refused makes one permission card, with what it tried', async () => {
+test('a command it was refused makes no card, whoever asks: every bot has commands and helpers (ADR 268)', async () => {
   const bot = await makeBot(srv, { name: 'Coder', emoji: '💻', allowedTools: ['Read'] });
-  refuse([bash, { ...bash, tool_use_id: 't2' }, { tool_name: 'mcp__claude_ai_AgentMail__list_inboxes', tool_use_id: 't3', tool_input: {} }]);
+  refuse([bash, { ...bash, tool_use_id: 't2' }, { tool_name: 'Agent', tool_use_id: 't3', tool_input: {} }, { tool_name: 'mcp__claude_ai_AgentMail__list_inboxes', tool_use_id: 't4', tool_input: {} }]);
   await run(bot);
-  let list = await asksOf(bot);
-  assert.equal(list.length, 1, 'one card for the commands; apps are left to the Apps page');
-  assert.equal(list[0].permission, 'commands');
-  assert.match(list[0].reason, /List open pull requests/);
-  assert.deepEqual(Object.keys(list[0]).sort(), ['at', 'bot', 'botId', 'forBots', 'id', 'kind', 'permission', 'reason', 'text', 'then', 'what'], 'what a card of a refused tool has');
-  assert.deepEqual(list[0].then, { who: 'bot', text: 'It carries on with “Check the PRs” when you allow it.' });
-  await run(bot);
-  list = await asksOf(bot);
-  assert.equal(list.length, 1, "it doesn't ask twice");
-  assert.deepEqual(list[0].then, { who: 'bot', text: 'It carries on with “Check the PRs” when you allow it.' }, 'the owner asked again and was refused the same: the later request carries on');
-  // Yes gives it the permission, and the bot carries on with the later request.
-  const yes = (await srv.api(`/asks/${list[0].id}`, { method: 'POST', body: { yes: true } })).data;
-  assert.deepEqual([yes.ok, yes.carriesOn], [true, { who: 'bot', text: 'it carries on' }]);
+  refuse([]);
+  assert.deepEqual(await asksOf(bot), [], 'a stand-in that asks for what it was refused finds nothing to ask for');
   assert.ok((await srv.api(`/bots/${bot.id}`)).data.allowedTools.includes('Bash'));
-  const runs = (await srv.api(`/runs?botId=${bot.id}`)).data;
-  assert.equal(runs.filter((r) => r.continues).length, 1, 'one run, for one of the two requests');
-  await srv.finished(runs.find((r) => r.continues).id);
-  await run(bot);
-  assert.equal((await asksOf(bot)).length, 0, 'nothing to ask once it has it');
-  refuse([]);
-});
-
-test('after a no, nobody asks for it again for a week', async () => {
-  const bot = await makeBot(srv, { name: 'Surfer', emoji: '🏄', allowedTools: ['Read'] });
-  refuse([{ tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'gh pr list', description: 'List open pull requests' } }]);
-  await run(bot);
-  const [card] = await asksOf(bot);
-  assert.equal(card.permission, 'commands');
-  await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: false } });
-  await run(bot);
-  assert.equal((await asksOf(bot)).length, 0, 'not asked again');
-  refuse([]);
-  // The bot asking itself is refused too, and told why.
-  for (let i = 0; i < 2; i++) await srv.nextRun((x) => x.args.includes('🏄 Surfer'), 'the earlier runs'); // not the run to use below
+  // The bot asking itself is told it has them already, and no card is made.
+  await srv.nextRun((x) => x.args.includes('💻 Coder'), 'the earlier run'); // not the run to use below
   const h = await heldRun(srv, bot);
-  const r = await self(srv, h.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To list them' });
-  assert.match(r.data.error, /said no to this recently/);
+  for (const permission of ['commands', 'helpers']) {
+    const r = await self(srv, h.token, 'ask', { kind: 'permission', permission, reason: 'To list them' });
+    assert.match(r.data.error, /already have/);
+  }
+  assert.deepEqual(await asksOf(bot), []);
   srv.release(h.rec);
   await srv.finished(h.run.id);
   srv.unhold();

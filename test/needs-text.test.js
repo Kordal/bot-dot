@@ -383,7 +383,10 @@ before(async () => {
     { id: 'a-change', kind: 'bot-change', botId: bot.id, by: 'chief', changes: { systemPrompt: 'Never delete mail.', allowedTools: ['Read', 'Bash'] }, before: { systemPrompt: '', allowedTools: ['Read'] }, reason: '', at },
     { id: 'a-own', kind: 'bot-change', botId: bot.id, by: 'bot', runId: 'run-1', changes: { prompt: 'Sort the mail twice a day.' }, before: { prompt: 'Do the test task.' }, reason: 'It works better.', at },
     { id: 'a-act', kind: 'connector-action', botId: bot.id, runId: asked, app: 'gmail', action: 'GMAIL_SEND_EMAIL', arguments: { to: 'friend@example.com', body: 'The secret plan' }, fingerprint: 'f1', reason: '', at },
+    { id: 'a-app', kind: 'bot-change', botId: bot.id, by: 'bot', asked: 'app', app: 'gmail', name: 'Gmail', changes: { connectors: ['gmail'] }, before: { connectors: [] }, reason: '', at },
+    // Asked for before ADR 268, which gave every bot the web: nobody has anything to answer, so it is not listed.
     { id: 'a-web', kind: 'bot-change', botId: bot.id, by: 'chief', changes: { allowedTools: ['Read', 'WebSearch', 'WebFetch'] }, before: { allowedTools: ['Read'] }, reason: '', at },
+    { id: 'a-commands', kind: 'permission', botId: bot.id, permission: 'commands', reason: '', at },
     { id: 'a-long', kind: 'connector-action', botId: bot.id, runId: asked, app: 'gmail', action: 'GMAIL_SEND_EMAIL', arguments: LONG_MAIL, fingerprint: 'f2', reason: '', at },
     { id: 'a-huge', kind: 'connector-action', botId: bot.id, runId: asked, app: 'gmail', action: 'GMAIL_SEND_EMAIL', arguments: HUGE, fingerprint: 'f3', reason: '', at },
   ]));
@@ -396,15 +399,15 @@ const TEXTS = {
   'a-skill': 'Asks to install the skill “tidy-desk”',
   'a-tool': 'Asks to install gh',
   'a-link': 'Asks to install stripe from a link',
-  'a-change': 'The Chief wants to change its rules and what it may do',
+  'a-change': 'The Chief wants to change its rules',
   'a-own': 'Wants to change its main assignment',
   'a-act': 'Wants to send email with Gmail',
-  'a-web': 'The Chief wants to change what it may do',
+  'a-app': 'Asks to use Gmail',
   'a-long': 'Wants to send email with Gmail',
   'a-huge': 'Wants to send email with Gmail',
 };
 // Where the yes is given on the card only: a tool from a link, as before, and now a changed bot and a connected-app action.
-const ON_CARD = ['a-link', 'a-change', 'a-own', 'a-act', 'a-web', 'a-long', 'a-huge'];
+const ON_CARD = ['a-link', 'a-change', 'a-own', 'a-act', 'a-app', 'a-long', 'a-huge'];
 
 test('every ask of the feed has its line, and yesOn "card" for a changed bot and a connected-app action', async () => {
   const f = await feed(srv);
@@ -427,15 +430,15 @@ test('every ask of the feed has its line, and yesOn "card" for a changed bot and
   assert.match(asks[6].batch.title, /^Mail Sorter wants \d things for /);
   assert.ok(Date.parse(asks[6].stoppedAt) >= Date.parse(asks[6].at));
   // A changed bot has its card's own fields beside its line, so an app can draw it where it was asked for.
-  assert.deepEqual({ ...asks[4], at: null }, { id: 'a-change', kind: 'bot-change', ...who, what: null, skill: null, by: 'chief', title: 'Change Mail Sorter: commands and new rules?',
-    parts: [{ label: 'Rules', was: '', now: 'Never delete mail.' }, { label: 'What it may do', now: 'run commands' }], text: TEXTS['a-change'], yesOn: 'card', at: null, waitsForBrief: true });
+  assert.deepEqual({ ...asks[4], at: null }, { id: 'a-change', kind: 'bot-change', ...who, what: null, skill: null, by: 'chief', title: 'Change Mail Sorter: new rules?',
+    parts: [{ label: 'Rules', was: '', now: 'Never delete mail.' }], text: TEXTS['a-change'], yesOn: 'card', at: null, waitsForBrief: true });
   assert.deepEqual([asks[5].by, asks[5].title, 'chatId' in asks[5]], ['bot', 'Change Mail Sorter: new main assignment?', false]);
   // Nothing of what a card shows in full reaches a line. An action's arguments are in its rows and nowhere else.
   assert.doesNotMatch(JSON.stringify(asks.map((a) => a.text)), /friend@example\.com|secret plan|Never delete mail|Sort the mail twice/);
   assert.doesNotMatch(JSON.stringify(asks.map((a) => ({ ...a, rows: undefined }))), /friend@example\.com|secret plan/);
   // A changed bot whose parts only give permissions says what its yes button reads; any other says nothing.
-  assert.deepEqual(asks.map((a) => [a.id, a.yes]).filter(([, yes]) => yes !== undefined), [['a-web', 'Allow']]);
-  assert.deepEqual([asks[7].title, asks[7].parts], ['Let Mail Sorter browse the web?', [{ label: 'What it may do', now: 'browse the web' }]]);
+  assert.deepEqual(asks.map((a) => [a.id, a.yes]).filter(([, yes]) => yes !== undefined), [['a-app', 'Allow']]);
+  assert.deepEqual([asks[7].title, asks[7].parts], ['Let Mail Sorter use Gmail?', [{ label: 'Connected apps', now: 'Gmail' }]]);
   // An action too long for the short form: its entry says where it was cut, on the row and on the entry.
   const long = asks[8];
   assert.deepEqual([long.rows.length, long.more, long.rows[0], long.rows[30]], [31, true, { label: 'To', value: 'friend@example.com' }, { label: 'More', value: '7 more that this card does not show' }]);
@@ -454,9 +457,9 @@ test('GET /api/asks says the same on each card, with what the card had before', 
   const byId = Object.fromEntries(cards.map((a) => [a.id, a]));
   assert.deepEqual(byId['a-perm'].what, { label: 'browse the web', hint: 'search, and read web pages', tools: ['WebSearch', 'WebFetch'] });
   // A changed bot: who proposed it, a title that names what changes, and its parts (docs/api.md).
-  assert.deepEqual([byId['a-change'].by, byId['a-change'].title], ['chief', 'Change Mail Sorter: commands and new rules?']);
-  assert.deepEqual(byId['a-change'].parts, [{ label: 'Rules', was: '', now: 'Never delete mail.' }, { label: 'What it may do', now: 'run commands' }]);
-  assert.match(byId['a-change'].details, /^Rules\nNow: \nProposed: Never delete mail\.\n\nTools\nNow: Read\nProposed: Read, Bash$/, '`details` stays for an app from before');
+  assert.deepEqual([byId['a-change'].by, byId['a-change'].title], ['chief', 'Change Mail Sorter: new rules?']);
+  assert.deepEqual(byId['a-change'].parts, [{ label: 'Rules', was: '', now: 'Never delete mail.' }]);
+  assert.match(byId['a-change'].details, /^Rules\nNow: \nProposed: Never delete mail\.$/, '`details` stays for an app from before');
   assert.deepEqual([byId['a-own'].by, byId['a-own'].title, byId['a-own'].parts], ['bot', 'Change Mail Sorter: new main assignment?', [{ label: 'Main assignment', was: 'Do the test task.', now: 'Sort the mail twice a day.' }]]);
   // Asked for before the Chief's tools said which chat asks: no chat, and a yes starts nothing.
   for (const id of ['a-change', 'a-own', 'a-skill']) assert.deepEqual([byId[id].chatId, byId[id].then], [undefined, undefined], id);
@@ -479,18 +482,18 @@ test('GET /api/asks says the same on each card, with what the card had before', 
   assert.deepEqual([huge.title, huge.held, huge.then], ['Send email with Gmail?', false, { who: 'bot', text: 'It carries on when you allow it.' }], 'the rest of its card is as any other');
   assert.ok(JSON.stringify(huge.rows).length < 10_000, 'its rows are a few kilobytes');
   // What the yes button of a changed bot reads.
-  assert.deepEqual(cards.map((a) => [a.id, a.yes]).filter(([, yes]) => yes !== undefined), [['a-web', 'Allow']]);
+  assert.deepEqual(cards.map((a) => [a.id, a.yes]).filter(([, yes]) => yes !== undefined), [['a-app', 'Allow']]);
 });
 
 test('a new ask is announced with its line', async () => {
   const other = await makeBot(srv, { name: 'News Watcher', allowedTools: ['Read'] });
   const f = await feed(srv);
   await f.wait('hello');
-  const proposed = await srv.asChief(`/bots/${other.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] } });
+  const proposed = await srv.asChief(`/bots/${other.id}`, { method: 'PUT', body: { systemPrompt: 'Never delete mail.' } });
   const ev = await f.wait('asks', (d) => d.list.some((a) => a.id === proposed.data.pendingChange));
   f.close();
   const mine = ev.data.list.find((a) => a.id === proposed.data.pendingChange);
-  assert.deepEqual([mine.botName, mine.text, mine.yesOn], ['News Watcher', 'The Chief wants to change what it may do', 'card']);
+  assert.deepEqual([mine.botName, mine.text, mine.yesOn], ['News Watcher', 'The Chief wants to change its rules', 'card']);
   await srv.api(`/asks/${mine.id}`, { method: 'POST', body: { yes: false } });
 });
 

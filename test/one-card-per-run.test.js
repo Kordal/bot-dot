@@ -20,7 +20,7 @@ after(async () => { srv.unhold(); await srv.stop(); });
 test('what one run waits on shares one card, and an ask that comes later joins it', async () => {
   assert.ok((await srv.api('/version')).data.features.includes('ask-batches'));
   const { token, rec } = await heldRun(srv, bot, 'Tidy the server');
-  await self(srv, token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To check the disk.' });
+  await override(token, 'Check the disk');
   let list = await cards();
   assert.equal(list.length, 1);
   assert.equal(list[0].batch, undefined, 'an ask alone is drawn as before');
@@ -45,10 +45,8 @@ test('what one run waits on shares one card, and an ask that comes later joins i
   assert.ok(list.every((a) => a.batch.id === first.batch.id && a.batch.count === 3), 'the late ask joins the card');
   assert.ok(list.every((a) => !a.batch.own), 'Allow all covers each of them');
 
-  // An app that does not ask for every kind gets the card of what it is sent: here the permission alone.
-  const older = (await srv.api('/asks')).data;
-  assert.equal(older.length, 1);
-  assert.equal(older[0].batch, undefined);
+  // An app that does not ask for every kind is sent none of these: they are all rules lifted.
+  assert.deepEqual((await srv.api('/asks')).data, []);
 
   // Only the owner answers it.
   assert.equal((await srv.asChief(`/asks/batch/${first.batch.id}`, { method: 'POST', body: { yes: true } })).status, 403);
@@ -70,10 +68,8 @@ test('what one run waits on shares one card, and an ask that comes later joins i
   assert.deepEqual(all.data.left, []);
   assert.equal(all.data.answers.filter((x) => x.carriesOn).length, 1, 'the run carries on after the last answer, once');
   assert.deepEqual(await cards(), []);
-  const now = (await srv.api(`/bots/${bot.id}`)).data;
-  assert.ok(now.allowedTools.includes('Bash'), 'the permission is given');
   const next = await srv.nextRun((x) => x.args.includes('🛠 Infra Admin') && /The owner allowed you to/.test(x.stdin), 'the run that carries on');
-  assert.match(next.stdin, /run commands/);
+  assert.match(next.stdin, /Check the disk, once/);
   assert.match(next.stdin, /Edit \/etc\/app\.conf, once/);
   assert.match(next.stdin, /declined[\s\S]*Restart the app|Restart the app[\s\S]*declined/i);
   await idle();

@@ -92,7 +92,7 @@ test('web: the form opens inside its card, as a dialog would, and goes when it c
     Event: class { constructor(type) { this.type = type; } },
     document: { createElement: () => { const p = element(); p.dispatchEvent = (e) => (p.listeners[e.type] || []).forEach((fn) => fn(e)); made.push(p); return p; } },
   });
-  vm.runInContext(`${cut('function openInline(host, html) {', '// The question before a bot gets the permission mode')}\nthis.openInline = openInline;`, ctx);
+  vm.runInContext(`${cut('function openInline(host, html) {', "// A bot's computer moves between this machine")}\nthis.openInline = openInline;`, ctx);
   const p = ctx.openInline(host, '<form id="login-request"></form>');
   assert.equal(p.className, 'need-inline');
   assert.equal(p.dataset.need, 'req:r1', 'which card it is in, for the redraw');

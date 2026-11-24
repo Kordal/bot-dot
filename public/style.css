@@ -1754,9 +1754,8 @@ details.bs-row { display: block; }
 .bs-body { display: grid; gap: var(--sp-12); padding: var(--sp-8) 0 var(--sp-12); font-size: var(--fs-14); line-height: 1.5; }
 .bs-body p { margin: 0; }
 .bs-body .toggle { font-size: var(--fs-14); color: var(--text); }
-.bs-exact { display: grid; gap: var(--sp-12); }
-.bs-exact > summary, .job-more > summary, .bs-history > summary { cursor: pointer; font-size: var(--fs-12); font-weight: 400; }
-.bs-exact[open] > summary, .bs-history[open] > summary { margin-bottom: var(--sp-4); }
+.job-more > summary, .bs-history > summary { cursor: pointer; font-size: var(--fs-12); font-weight: 400; }
+.bs-history[open] > summary { margin-bottom: var(--sp-4); }
 .danger-text { color: var(--err); font-size: var(--fs-14); }
 .pick-list { display: grid; gap: var(--sp-4); max-height: 320px; overflow: auto; line-height: 1.45; }
 .bs-fold { cursor: pointer; }

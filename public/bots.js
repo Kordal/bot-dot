@@ -31,23 +31,6 @@ function openInline(host, html) {
   return p;
 }
 
-// The question before a bot gets the permission mode "Everything allowed" (bypassPermissions): whether the
-// owner said yes. Closing it any other way is a no.
-function askEverythingAllowed(name) {
-  return new Promise((resolve) => {
-    const m = openModal(`
-      <div class="modal-head"><h2>${tr('Let {name} do everything without checks?', { name: esc(name) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
-      <div class="modal-body"><p style="margin:0">${tr('It will run any command and change any file without asking you. You can change this back here at any time.')}</p></div>
-      <div class="modal-foot">
-        <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
-        <button type="button" class="btn primary" id="allow-everything">${tr('Allow everything')}</button>
-      </div>`);
-    let yes = false;
-    $('#allow-everything', m).onclick = () => { yes = true; m.close(); };
-    m.addEventListener('close', () => resolve(yes), { once: true });
-  });
-}
-
 // A bot's computer moves between this machine and boat.dev (#556): its files copied along, or not. true, false, or
 // null for neither (the switch is taken back).
 const COMPUTER_PLACE = {
@@ -144,13 +127,6 @@ function openRunDialog(botId) {
 
 // ---------- a bot's settings (its own page; every change saves by itself) ----------
 
-// What a bot may do, as plain switches. Each adds or removes Claude Code tools; the exact list is under Advanced.
-// The web and changing files are every bot's (ADR 192): no switch for them.
-const PERMS = [
-  { key: 'bash', label: tr('Can run commands'), hint: tr('any shell command in its folder'), tools: ['Bash'], advanced: true },
-  { key: 'helpers', label: tr('Can use helpers'), hint: tr('start helpers that work in parallel within one run'), tools: ['Agent', 'Task'], advanced: true },
-];
-
 // A bot's Who may mention it row (#316, ADR 060): on a botdot with `room-settings` that sends the bot's `rooms`, while the
 // front door has shared rooms on (rooms.js): only its owner, or anyone in the room. Every bot may be in rooms (ADR 269).
 const ROOM_WHO = [['owner', tr('Only you')], ['anyone', tr('Anyone in the room')]];
@@ -176,8 +152,6 @@ function readBotForm(form, sel) {
     ...(form.roomsWho ? { rooms: { whoMayMention: form.roomsWho.value } } : {}),
     ...(hotkeyChanged(form) ? { hotkey: Number(form.hotkey.value) } : {}),
     ...(form.icon && form.icon.value ? { outfit: { icon: form.icon.value } } : {}), // its icon, once one is picked; its hat stays
-    allowedTools: form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean),
-    permissionMode: form.permissionMode.value,
     ...readLlmFields(form, 'bot'),
   };
 }
@@ -315,8 +289,6 @@ function renderBotSettings(force = false) {
   // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here only whether.
   const accountComputer = state.features.includes('account-computer');
   const boatChoice = !accountComputer && state.features.includes('boat-computer') && (state.status?.boat || b.computer === 'boat');
-  const knownTools = new Set(PERMS.flatMap((p) => p.tools));
-  const has = (p) => p.tools.every((t) => b.allowedTools.includes(t));
   // Its head (figure, name, what it does), colour, category and main assignment, then its rows in three lists: how it runs, what it uses, who and what it may (#728).
   root.innerHTML = `
     <form id="bot-form" class="bot-settings" autocomplete="off">
@@ -384,18 +356,6 @@ function renderBotSettings(force = false) {
         <div class="bs-row" id="bs-overrides"${tipAttrs(tr('It may do these though its rules say no. Revoke one and it asks you again.'))}>
           <div class="grow"><b>${tr('Rules you lifted')}</b><div id="override-picks"></div></div>${CHEV}
         </div>
-        <details class="bs-row bs-more" id="bs-advanced">
-          <summary><b>${tr('What it may do')}</b>${CHEV}</summary>
-          <div class="bs-body">
-            ${PERMS.map((p) => `<label class="toggle"${tipAttrs(p.hint)}${p.advanced && !advanced() ? ' hidden' : ''}><input type="checkbox" data-perm="${p.key}" ${has(p) ? 'checked' : ''}> ${p.label}</label>`).join('')}
-            <details class="bs-exact"${advanced() ? '' : ' hidden'} ${b.allowedTools.some((t) => !knownTools.has(t) && !['Read', 'Grep', 'Glob'].includes(t)) || !['dontAsk', 'acceptEdits'].includes(b.permissionMode) ? 'open' : ''}>
-              <summary class="faint">${tr('Exact tools and permission mode')}</summary>
-              <label class="field">${tr('Allowed tools')}
-                <textarea class="mono" name="tools" rows="4" placeholder="${esc(tr('One per line, e.g. Bash(pytest:*) or mcp__github'))}">${esc(b.allowedTools.join('\n'))}</textarea></label>
-              <label class="field">${tr('Permission mode')}<select name="permissionMode">${Object.entries(MODE_INFO).map(([k, v]) => `<option value="${k}" ${k === b.permissionMode ? 'selected' : ''}>${k}: ${v}</option>`).join('')}</select></label>
-            </details>
-          </div>
-        </details>
       </div>
 
       <div class="set-list">
@@ -445,19 +405,7 @@ function renderBotSettings(force = false) {
     });
   };
   const saveSoon = () => { clearTimeout(timer); timer = setTimeout(save, 300); };
-  form.addEventListener('change', (e) => { if (!e.target.matches('[data-perm]')) saveSoon(); });
-  // "Everything allowed" asks first. Until the answer the select is back at its earlier mode, so that no
-  // save, this one or another field's, carries the new one; Cancel leaves it there and saves nothing.
-  let mode = form.permissionMode.value;
-  form.permissionMode.addEventListener('change', async (e) => {
-    const select = e.target;
-    if (select.value !== 'bypassPermissions') { mode = select.value; return; }
-    e.stopPropagation(); // not the form's listener above: nothing is saved before the answer
-    select.value = mode;
-    if (!(await askEverythingAllowed(form.name.value.trim() || b.name))) return;
-    select.value = mode = 'bypassPermissions';
-    saveSoon();
-  });
+  form.addEventListener('change', saveSoon);
   form.onsubmit = (e) => { e.preventDefault(); save(); };
   // A switch between this machine and boat.dev asks first whether its files go along (#556). Until the answer the
   // select is back at the saved computer, so no other field's save carries the new one; ✕ leaves it there.
@@ -525,20 +473,6 @@ function renderBotSettings(force = false) {
     flashSaved(root);
   };
   wireLlmFields(form, 'bot');
-
-  // The switches under "What it may do" add or remove their tools in the exact list (and the mode for files).
-  const syncPerms = () => {
-    const tools = new Set(form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean));
-    $$('[data-perm]', form).forEach((c) => { c.checked = PERMS.find((p) => p.key === c.dataset.perm).tools.every((t) => tools.has(t)); });
-  };
-  $$('[data-perm]', form).forEach((c) => (c.onchange = () => {
-    const p = PERMS.find((x) => x.key === c.dataset.perm);
-    const tools = form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean).filter((t) => !p.tools.includes(t));
-    if (c.checked) tools.push(...p.tools);
-    form.tools.value = tools.join('\n');
-    saveSoon();
-  }));
-  form.tools.addEventListener('input', syncPerms);
 
   const on = $('[data-skills-on]', root);
   if (on) on.onclick = async () => {

@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { startServer, restartServer, makeBot, waitFor, feed, self } = require('./helpers');
-const { kit, BASH } = require('./carry-on-helpers');
+const { kit, LIST, LIST_WORDS } = require('./carry-on-helpers');
 const { shortName } = require('../public/mentions.js');
 const H = require('../lib/chat-history');
 const asksLib = require('../lib/asks');
@@ -434,12 +434,12 @@ test('a card asked in a turn belongs to the group; no member\'s reply answers it
   const heard = await feed(srv);
   t.after(() => heard.close());
   reply(srv, coder, 'I cannot list the pull requests without running commands.');
-  refuse([BASH]);
+  refuse([LIST]);
   const first = await said(srv, group, '@CardCoder list the open pull requests');
   refuse([]);
   const stopped = repliesIn(first.chat)[0].run;
   const [ask] = await waitFor(async () => { const a = await asksOf(coder); return a.length ? a : null; }, { what: 'the card' });
-  assert.deepEqual([ask.kind, ask.groupId, ask.groupName, ask.bot.name], ['permission', group.id, 'Cards', 'Card Coder']);
+  assert.deepEqual([ask.kind, ask.groupId, ask.groupName, ask.bot.name], ['override', group.id, 'Cards', 'Card Coder']);
   assert.match(ask.then.text, /^It carries on with “@CardCoder list the open pull requests” when you allow it\.$/);
   // At the end of the group's chat, in Needs you and on the feed.
   assert.deepEqual((await chatOf(srv, group)).cards.map((c) => [c.kind, c.id, c.botId, c.runId]), [['ask', ask.id, coder.id, stopped.id]]);
@@ -447,7 +447,7 @@ test('a card asked in a turn belongs to the group; no member\'s reply answers it
   assert.deepEqual([told.groupId, told.groupName, told.botName], [group.id, 'Cards', 'Card Coder'], 'what a notification is made from names the group');
   // A card of its own chat has no group.
   const other = await makeBot(srv, { name: 'Card Loner', emoji: '🤖', prompt: 'Alone.' });
-  refuse([BASH]);
+  refuse([LIST]);
   await srv.finished((await srv.api(`/bots/${other.id}/run`, { method: 'POST', body: { prompt: 'Check the PRs' } })).data.id);
   refuse([]);
   const [lone] = await waitFor(async () => { const a = await asksOf(other); return a.length ? a : null; }, { what: "the loner's card" });
@@ -460,7 +460,6 @@ test('a card asked in a turn belongs to the group; no member\'s reply answers it
   await srv.finished((await srv.api(`/bots/${coder.id}/run`, { method: 'POST', body: { prompt: 'Hello there' } })).data.id);
   assert.deepEqual((await asksOf(coder)).map((a) => a.id), [ask.id], 'no reply is an OK');
   assert.equal((await srv.api(`/runs?group=${group.id}`)).data.filter((r) => r.botId === coder.id).length, 1);
-  assert.equal((await srv.api(`/bots/${coder.id}`)).data.allowedTools.includes('Bash'), false);
   assert.match((await asksOf(coder))[0].then.text, /^It carries on with/, "what the owner wrote in the bot's own chat took up nothing in the group");
 
   // The owner's yes: the member carries on in the group, told the group and its chat.
@@ -478,7 +477,7 @@ test('a card asked in a turn belongs to the group; no member\'s reply answers it
   assert.match(rec.system, /botdot has started you again on your turn/);
   assert.ok(between(rec.system, 'group-chat').includes('Yes, go ahead. Approved.'), 'with the chat as it stands now');
   assert.ok(!rec.system.includes('<conversation>') && !rec.system.includes('Hello there'));
-  assert.match(rec.stdin, /The owner allowed you to: run commands\./);
+  assert.ok(rec.stdin.includes(`The owner allowed you to: ${LIST_WORDS}.`));
 });
 
 test("a member's question to the owner is the group's open question, and notifies; the owner's next message without a mention gives that member the first turn", async (t) => {

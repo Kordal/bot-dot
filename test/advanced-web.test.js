@@ -40,11 +40,8 @@ test('web: without Advanced, Settings leaves out the model, the proxy and the bo
   assert.match(settings, /id="chief-model"\$\{advanced\(\) \? '' : ' hidden'\}/, "the Chief's model too");
 });
 
-test('web: without Advanced, its commands, helpers, exact tools and its model are hidden, not dropped', () => {
-  assert.match(bots, /key: 'bash'[^\n]*advanced: true/);
-  assert.match(bots, /key: 'helpers'[^\n]*advanced: true/);
-  assert.match(bots, /\$\{p\.advanced && !advanced\(\) \? ' hidden' : ''\}><input type="checkbox" data-perm=/, 'still in the form: what is saved stays');
-  assert.match(bots, /<details class="bs-exact"\$\{advanced\(\) \? '' : ' hidden'\}/);
+test('web: a bot has no "What it may do" (ADR 268), and without Advanced its model is hidden, not dropped', () => {
+  for (const gone of ['PERMS', 'data-perm', 'bs-advanced', 'bs-exact', 'What it may do', 'Exact tools and permission mode', 'name="tools"', 'name="permissionMode"', 'Can run commands', 'Can use helpers']) assert.ok(!bots.includes(gone), gone);
   assert.match(bots, /id="bs-model"\$\{advanced\(\) \? '' : ' hidden'\}/);
   assert.match(read('style.css'), /\.set-list \[hidden\] \{ display: none !important; \}/);
 });

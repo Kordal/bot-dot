@@ -1237,6 +1237,7 @@ server.listen(PORT, HOST, () => {
   if (extraHosts.length) console.log(`Also reachable as: ${extraHosts.join(', ')}`);
   console.log(B.CLAUDE_BIN ? `Claude CLI: ${B.CLAUDE_BIN} (${B.claudeVersion() || 'unknown version'})` : 'Claude CLI not found. Set CLAUDE_BIN to enable bot runs.');
   B.startScheduler();
+  asks.settleGiven(shared.carryOnAfter); // a card of what every bot has, waiting from before ADR 268, is answered yes: what waited for it carries on
   claudeStatus().catch(() => null); // the scheduler starts with what was last seen of Claude's sign-in, and is told what it is now
   require('./lib/dresser').start(); // bots without an outfit get one in the background
   // Each bot's tools folder is made to match tools.json: after an update, a restore or an interrupted install.

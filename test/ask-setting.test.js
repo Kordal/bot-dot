@@ -35,8 +35,9 @@ test('a bot made with no teammates and no computer has both, and its instruction
 
 test('asking for messaging or a computer is answered at once, with no card', async () => {
   const bot = await makeBot(srv, { name: 'Builder', emoji: '🧱' });
-  assert.match((await ask(bot, { kind: 'permission', permission: 'message', bots: ['Proton Triage'], reason: 'To ask' })).r.data.error, /already message every bot/);
-  assert.match((await ask(bot, { kind: 'permission', permission: 'computer', reason: 'To open the site in a browser' })).r.data.error, /already have a computer/);
+  assert.match((await ask(bot, { kind: 'permission', permission: 'message', bots: ['Proton Triage'], reason: 'To ask' })).r.data.error, /already have the web[^\n]*Nothing is left to ask for/);
+  assert.match((await ask(bot, { kind: 'permission', permission: 'computer', reason: 'To open the site in a browser' })).r.data.error, /already have the web[^\n]*Nothing is left to ask for/);
+  assert.match((await ask(bot, { kind: 'permission', permission: 'app', app: 'gmail', reason: 'To read mail' })).r.data.error, /Nothing is left to ask for/);
   assert.match((await ask(bot, { kind: 'permission', permission: 'web', reason: 'To read the page' })).r.data.error, /already have/);
   assert.match((await ask(bot, { kind: 'permission', permission: 'files', reason: 'To write it down' })).r.data.error, /already have/);
   assert.deepEqual(await asksOf(bot), []);

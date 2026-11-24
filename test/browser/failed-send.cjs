@@ -1,11 +1,9 @@
-// Optional browser check of a send that fails and of the question before "Everything allowed" (QW-001), at
-// desktop and at phone width:
+// Optional browser check of a send that fails (QW-001), at desktop and at phone width:
 //   NODE_PATH=<directory containing playwright> node test/browser/failed-send.cjs
 // With botdot unreachable (every request of the page refused, as when the server is stopped), a message with
 // a file comes back into the box with its file and one line, nothing is added to the chat and no toast shows;
 // "Can't reach botdot" stands beside the logo on a wide screen and above the message box on a phone; once
-// botdot answers again Send delivers the message once and the lines go. Then, in a bot's settings, choosing
-// "bypassPermissions" asks first: Cancel puts the select back and saves nothing, Allow everything saves.
+// botdot answers again Send delivers the message once and the lines go.
 // Scratch data and fake Claude only.
 //   FAILED_SEND_SHOTS=<folder>  save screenshots there
 const assert = require('node:assert/strict');
@@ -115,38 +113,10 @@ const NOTE = "Not sent: can't reach botdot. Your message is still here.";
       await page.waitForTimeout(1500);
       assert.equal((await mine(id)).length, 1, 'once');
 
-      // The question before "Everything allowed", in the bot's settings.
-      await page.goto(`${srv.base}/#bot/${bot.id}`);
-      await page.locator('#bot-settings').click();
-      const select = page.locator('#bot-form select[name=permissionMode]');
-      await page.locator('#bot-form details.bs-exact').evaluate((d) => { d.open = true; });
-      const earlier = await select.inputValue();
-      const saved = async () => (await srv.api(`/bots/${bot.id}`)).data.permissionMode;
-      assert.notEqual(earlier, 'bypassPermissions');
-      await select.selectOption('bypassPermissions');
-      const modal = page.locator('#modal');
-      await modal.locator('#allow-everything').waitFor();
-      assert.equal(await modal.locator('h2').innerText(), 'Let Coder do everything without checks?');
-      assert.match(await modal.locator('.modal-body').innerText(), /^It will run any command and change any file without asking you\. You can change this back here at any time\.$/);
-      await shot('everything-allowed');
-      await modal.getByRole('button', { name: 'Cancel' }).click();
-      assert.equal(await select.inputValue(), earlier, 'Cancel: the select is back');
-      await page.waitForTimeout(800); // longer than the form waits before it saves
-      assert.equal(await saved(), earlier, 'and nothing was saved');
-      // Another mode asks nothing.
-      const other = earlier === 'acceptEdits' ? 'dontAsk' : 'acceptEdits';
-      await select.selectOption(other);
-      await waitFor(async () => (await saved()) === other, { what: 'the other mode to be saved' });
-      assert.equal(await modal.evaluate((m) => m.open), false);
-      await select.selectOption('bypassPermissions');
-      await modal.locator('#allow-everything').click();
-      await waitFor(async () => (await saved()) === 'bypassPermissions', { what: '"Everything allowed" to be saved' });
-      assert.equal(await select.inputValue(), 'bypassPermissions');
-      await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { permissionMode: earlier } }); // as it was, for the next width
       await context.close();
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: a failed send is back in the box with its file and one line, at desktop and phone width; "Can\'t reach botdot" beside the logo and above the box, with no toast; sent once when botdot is back; and the question before "Everything allowed".');
+    console.log('PASS: a failed send is back in the box with its file and one line, at desktop and phone width; "Can\'t reach botdot" beside the logo and above the box, with no toast; and sent once when botdot is back.');
   } finally {
     await browser?.close();
     await srv.stop();

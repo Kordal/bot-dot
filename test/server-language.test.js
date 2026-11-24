@@ -22,16 +22,16 @@ test('a card is drawn in the language asked for, and keeps what the bot wrote as
   assert.deepEqual(pl.parts.map((p) => p.now), ['Never email anyone', 'Email the landlord'], "the bot's own words stay");
   assert.match(pl.warning, /^Tylko ty możesz znieść zasadę\. Przy „Zezwalaj zawsze temu botowi” Scout/);
 
-  const change = { kind: 'bot-change', botId: 'b1', by: 'bot', changes: { allowedTools: ['Read', 'WebSearch', 'WebFetch'] }, before: { allowedTools: ['Read'] } };
-  assert.equal(asksLib.proposalView(change, 'Scout').title, 'Let Scout browse the web?');
-  assert.equal(asksLib.proposalView(change, 'Scout', { lang: 'pl' }).title, 'Czy Scout może przeglądać internet?');
-  assert.equal(asksLib.askText(change, { lang: 'pl' }), 'Chce zmienić co może robić');
+  const change = { kind: 'bot-change', botId: 'b1', by: 'bot', changes: { systemPrompt: 'Never email.' }, before: { systemPrompt: '' } };
+  assert.equal(asksLib.proposalView(change, 'Scout').title, 'Change Scout: new rules?');
+  assert.equal(asksLib.proposalView(change, 'Scout', { lang: 'pl' }).title, 'Zmienić Scout: nowe zasady?');
+  assert.equal(asksLib.askText(change, { lang: 'pl' }), 'Chce zmienić jego zasady');
   assert.equal(asksLib.askText({ kind: 'permission', permission: 'web' }, { lang: 'pl' }), 'Prosi, by móc przeglądać internet');
   assert.equal(asksLib.batchTitle('Scout', 3, 'Reply to the landlord', 'pl'), 'Scout chce rzeczy (3) do „Reply to the landlord”');
   assert.equal(asksLib.listed(['A', 'B', 'C'], 'pl'), 'A, B i C');
   assert.equal(asksLib.listed(['A', 'B', 'C']), 'A, B and C');
   // What a bot reads of the owner's yes stays English whatever the account's language.
-  assert.deepEqual(asksLib.grantWords({ ...change, by: 'chief' }), ['browse the web']);
+  assert.deepEqual(asksLib.grantWords({ ...change, by: 'chief' }), []);
 });
 
 test('the checkup, a memory card and a notification say their words in Polish', () => {

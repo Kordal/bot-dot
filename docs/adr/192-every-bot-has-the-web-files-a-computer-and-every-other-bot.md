@@ -1,6 +1,6 @@
 # ADR-192: Every bot has the web, files, a computer and every other bot
 
-- **Status:** Accepted (2026-11-10, the owner asked for it)
+- **Status:** Accepted (2026-11-10, the owner asked for it). "`Bash` and helpers stay the owner's to give" is superseded by [ADR 268](268-every-bot-runs-commands-and-uses-helpers.md): every bot has them too.
 - **Owning task:** the owner's request: every bot may ask any other without the owner, has the internet and Files, may use the computer and its browser, uses a login after the owner's yes with no list of bots on the card, and token usage only under Advanced
 - **Supersedes:** "May message" and "Other bots may ask it" (#136, #137), the switches "Can browse the web", "Can change files" and "Uses the computer" of a bot, and `ask_permission`'s `web`, `files`, `message` and `computer`
 - **Builds on:** [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md) (one computer, every bot on it with sudo), [ADR 176](176-what-the-owner-asks-the-chief-for-in-their-own-turn-needs-no-card.md), [ADR 177](177-every-saved-login-accepts-a-self-signed-certificate-and-is-usable-in-its-computer.md)
@@ -11,8 +11,8 @@ Nearly every bot the owner made was given the web, files and a computer, and kep
 
 ## Decision
 
-- **Every bot has them, always.** `normalizeBot` and reading `bots.json` give every bot `WebSearch`, `WebFetch`, `Edit` and `Write`, `acceptEdits` where its mode was unset or `dontAsk`, a computer at the account's place (`"none"` is gone), `mayMessageAll: true`, `mayMessage: []` and `othersMayAsk: true`. Nothing sent can take them away. `Bash` and helpers stay the owner's to give, and a mode of `default` or `bypassPermissions` stays as set.
-- **No switch, no ask.** The web page and the Android app draw neither the switches nor the "May message" row nor "Other bots may ask it" (an app on an older server still does, gated by the `everything-allowed` feature). `ask_permission` offers only `commands` and `helpers`; the Chief's `update_bot` has no messaging fields and no `"none"` computer. A Chief change that only adds these makes no card, as the bot already has them.
+- **Every bot has them, always.** `normalizeBot` and reading `bots.json` give every bot `WebSearch`, `WebFetch`, `Edit` and `Write`, `acceptEdits` where its mode was unset or `dontAsk`, a computer at the account's place (`"none"` is gone), `mayMessageAll: true`, `mayMessage: []` and `othersMayAsk: true`. Nothing sent can take them away. `Bash` and helpers stay the owner's to give (superseded by [ADR 268](268-every-bot-runs-commands-and-uses-helpers.md)), and a mode of `default` or `bypassPermissions` stays as set.
+- **No switch, no ask.** The web page and the Android app draw neither the switches nor the "May message" row nor "Other bots may ask it" (an app on an older server still does, gated by the `everything-allowed` feature). `ask_permission` offers only `commands` and `helpers` (gone with ADR 268); the Chief's `update_bot` has no messaging fields and no `"none"` computer. A Chief change that only adds these makes no card, as the bot already has them.
 - **Logins after the owner's yes.** A login's line in the Vault no longer warns that no bot may use it: a bot gets it when the owner answers its `request_login`. Cards, identities, SSH keys and files keep their list of bots.
 - **Usage under Advanced.** Settings has an "Advanced" switch (`settings.advanced`, off); the Usage section shows only while it is on.
 
@@ -21,7 +21,7 @@ Nearly every bot the owner made was given the web, files and a computer, and kep
 - **Every bot reaches the web and the account's computer.** A bot that reads a hostile page, mail or message (prompt injection) can now act on the web and on the computer, where every bot has sudo (ADR 035) and can read what other bots leave there, on the owner's home network. Before, only bots the owner chose had that reach.
 - **Every bot can ask every other.** A bot that is talked into something can pass it on to a bot that has mail or logins; the asked bot's own rules and cards are what is left between them.
 - **A job's call card always names the web, files and the computer** in its warning, as every bot has them.
-- Logins, connected apps, `Bash` and helpers still need the owner's yes, per bot.
+- Logins and connected apps still need the owner's yes, per bot (`Bash` and helpers no longer: ADR 268).
 
 ## Alternatives
 

@@ -1,6 +1,5 @@
-// A bot may use helpers (#226): Claude Code's Agent tool (Task in older versions) is the permission "use helpers",
-// off by default. Its card turns both on, the next run is given them, and only a bot that has them is told how to
-// use helpers. A bot refused the Agent tool asks the owner for helpers with ask_permission, as for any refused tool (ADR 054).
+// A bot may use helpers (#226): Claude Code's Agent tool (Task in older versions). Every bot has both, and is told how to
+// use helpers, from its first run: nothing to switch on, nothing to ask for (ADR 268, which took over from ADR 178).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -21,42 +20,29 @@ const allowedOf = (rec) => {
 };
 const HELPERS = /Helpers: the Agent tool starts a helper/;
 
-test('a bot without the permission has no Agent tool and no word of helpers', async () => {
-  const bot = await makeBot(srv, { name: 'Plain Coder', emoji: '🧑‍💻', allowedTools: ['Read', 'Edit', 'Write', 'Bash'] });
-  const h = await heldRun(srv, bot);
-  assert.ok(!allowedOf(h.rec).includes('Agent'));
-  assert.doesNotMatch(h.rec.system, HELPERS);
-  srv.release(h.rec);
-  await srv.finished(h.run.id);
-  srv.unhold();
-});
-
-test('ask_permission "helpers" gives them at once, with no card, and the next run has Agent and Task and the guidance (ADR 178)', async () => {
+test('every bot has the Agent and Task tools and the guidance on helpers from its first run, with no card (ADR 268)', async () => {
   const bot = await makeBot(srv, { name: 'Coder', emoji: '💻', allowedTools: ['Read', 'Edit', 'Write', 'Bash'] });
   const h = await heldRun(srv, bot, 'Port the three services');
+  assert.ok(allowedOf(h.rec).includes('Agent') && allowedOf(h.rec).includes('Task'), allowedOf(h.rec).join(' '));
+  assert.match(h.rec.system, HELPERS);
+  assert.match(h.rec.system, /its own git worktree and branch beside it/);
+  assert.match(h.rec.system, /Helpers keep no notes/);
+  // It has no permission to ask for.
   const r = await self(srv, h.token, 'ask', { kind: 'permission', permission: 'helpers', reason: 'To port the three services in parallel' });
-  assert.deepEqual([r.data.ok, r.data.given], [true, true], JSON.stringify(r.data));
-  assert.match(r.data.say, /from your next run/);
+  assert.match(r.data.error, /already have/);
   srv.release(h.rec);
   await srv.finished(h.run.id);
   srv.unhold();
   assert.deepEqual(await asksOf(bot), [], 'no card');
-  const tools = (await srv.api(`/bots/${bot.id}`)).data.allowedTools;
-  assert.ok(tools.includes('Agent') && tools.includes('Task'), tools.join(', '));
-  const next = await heldRun(srv, bot, 'Port them now');
-  assert.ok(allowedOf(next.rec).includes('Agent') && allowedOf(next.rec).includes('Task'), allowedOf(next.rec).join(' '));
-  assert.match(next.rec.system, HELPERS);
-  assert.match(next.rec.system, /its own git worktree and branch beside it/);
-  assert.match(next.rec.system, /Helpers keep no notes/);
-  // Asked again, it already has it.
-  const r2 = await self(srv, next.token, 'ask', { kind: 'permission', permission: 'helpers', reason: 'Again' });
-  assert.match(r2.data.error, /already have that permission/);
-  srv.release(next.rec);
-  await srv.finished(next.run.id);
-  srv.unhold();
+  // One made with the Read tool alone has them too, and keeps them when a save drops them.
+  const reader = await makeBot(srv, { name: 'Reader', emoji: '📖', allowedTools: ['Read'] });
+  const tools = (await srv.api(`/bots/${reader.id}`)).data.allowedTools;
+  assert.ok(['Agent', 'Task', 'Bash'].every((t) => tools.includes(t)), tools.join(', '));
+  const dropped = (await srv.api(`/bots/${reader.id}`, { method: 'PUT', body: { allowedTools: ['Read'] } })).data.allowedTools;
+  assert.ok(['Agent', 'Task', 'Bash'].every((t) => dropped.includes(t)), dropped.join(', '));
 });
 
-test('a refused Agent call gives the bot helpers, with no card', async () => {
+test('a refused Agent call makes no card: the bot has helpers already', async () => {
   const bot = await makeBot(srv, { name: 'Researcher', emoji: '🔎', allowedTools: ['Read'] });
   refuse([{ tool_name: 'Agent', tool_use_id: 't1', tool_input: { description: 'Read the three reports', prompt: 'Summarise them' } }]);
   const r = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Compare the reports' } });
@@ -66,4 +52,3 @@ test('a refused Agent call gives the bot helpers, with no card', async () => {
   const tools = (await srv.api(`/bots/${bot.id}`)).data.allowedTools;
   assert.ok(tools.includes('Agent'), tools.join(', '));
 });
-

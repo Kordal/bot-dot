@@ -52,12 +52,6 @@ test('a narrow Bash rule is all a bot has, even when its settings name Monitor',
   assert.ok(!denied.includes('Monitor'), denied.join(' '));
 });
 
-test('a bot without commands has no Monitor at all', async () => {
-  const { allowed, denied } = await toolsOf(['Read', 'Monitor'], 'Reader');
-  assert.ok(!allowed.some((t) => /^Monitor/.test(t)), allowed.join(' '));
-  assert.ok(denied.includes('Monitor'), denied.join(' '));
-});
-
 test('work left running keeps the run going to the reply after it, not its first result', async () => {
   const bot = await makeBot(srv, { name: 'Deployer', allowedTools: ['Read', 'Bash'] });
   fs.writeFileSync(path.join(srv.out, 'background'), '');

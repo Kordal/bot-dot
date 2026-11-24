@@ -155,7 +155,7 @@ test('server: every job carries `when`, from each route that returns a job', asy
   assert.equal(never.data.when, 'Never runs');
   assert.equal(never.data.nextRunAt, null);
   // A change of the bot the owner approves answers with the bot: its jobs carry their words there too.
-  const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash', 'WebFetch'] } });
+  const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { systemPrompt: 'Never delete mail.' } });
   assert.ok(proposed.data.pendingChange, JSON.stringify(proposed.data));
   const granted = await srv.api(`/asks/${proposed.data.pendingChange}`, { method: 'POST', body: { yes: true } });
   assert.equal(granted.data.bot.jobs.find((j) => j.id === id).when, 'Never runs');

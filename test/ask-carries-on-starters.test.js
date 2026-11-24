@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { startServer, makeBot, heldRun, self, waitFor, writeData } = require('./helpers');
-const { kit, BASH, OVERRIDE, isRunOf } = require('./carry-on-helpers');
+const { kit, LIST, LIST_WORDS, OVERRIDE, isRunOf } = require('./carry-on-helpers');
 
 let srv, refuse, asksOf, runsOf, answer, lastRun, refused, carriedOn, startsNothing;
 before(async () => {
@@ -28,7 +28,7 @@ test('a run the Chief started is handed back to the Chief, in the chat that star
   saved.messages.push({ role: 'user', text: 'Make a news bot and start it', at: new Date().toISOString() },
     { role: 'chief', text: 'Started it.', at: new Date().toISOString(), actions: [{ kind: 'run', text: 'Started News Watcher', botId: bot.id, runId: run.id }] });
   writeData(file, saved);
-  refuse([BASH]);
+  refuse([LIST]);
   srv.unhold();
   srv.release(rec);
   await srv.finished(run.id);
@@ -40,19 +40,19 @@ test('a run the Chief started is handed back to the Chief, in the chat that star
   fs.writeFileSync(path.join(srv.out, 'fail.txt'), 'Not logged in');
   const yes = await answer(card, true);
   assert.deepEqual(yes.data.carriesOn, { who: 'chief', text: 'the Chief carries on' });
-  const turn = await srv.nextRun((x) => x.botdot && /may now run commands/.test(x.stdin), "the Chief's turn");
+  const turn = await srv.nextRun((x) => x.botdot && x.stdin.includes(`may now ${LIST_WORDS}`), "the Chief's turn");
   const notice = await waitFor(async () => (await srv.api(`/chief/chats/${chat.id}`)).data.messages.find((m) => m.notice), { what: "botdot's own line" }).finally(() => fs.rmSync(path.join(srv.out, 'fail.txt')));
   assert.equal(turn.botdot.env.CHIEF_CHAT_ID, chat.id);
   assert.match(turn.stdin, /botdot writes this, not the user: nobody typed it\. The user said yes on a card in Needs you\./);
-  assert.ok(turn.stdin.includes(`📰 News Watcher (bot id ${bot.id}) may now run commands.`));
-  assert.ok(turn.stdin.includes(`Its run ${run.id}, which you started in this chat, stopped without being able to run commands.`));
+  assert.ok(turn.stdin.includes(`📰 News Watcher (bot id ${bot.id}) may now ${LIST_WORDS}.`));
+  assert.ok(turn.stdin.includes(`Its run ${run.id}, which you started in this chat, stopped without being able to ${LIST_WORDS}.`));
   assert.match(turn.stdin, /Start News Watcher again on that work with run_bot/);
-  assert.equal(notice.text, 'News Watcher may now run commands.');
+  assert.equal(notice.text, `News Watcher may now ${LIST_WORDS}.`);
   await startsNothing(bot, 1);
 
   // The chat that started it is gone: the OK only changes the setting.
   const lost = await makeBot(srv, { name: 'Lost', emoji: '🧭', allowedTools: ['Read'] });
-  await refused(lost, [BASH], { prompt: 'Read the headlines' }, srv.asChief);
+  await refused(lost, [LIST], { prompt: 'Read the headlines' }, srv.asChief);
   const [alone] = await asksOf(lost);
   assert.equal(alone.then, undefined);
   assert.equal((await answer(alone, true)).data.carriesOn, undefined);
@@ -102,7 +102,7 @@ test("a teammate's request carries on, and its answer goes back as a message fro
   const again = await srv.nextRun((x) => isRunOf(asker)(x) && /And the uptime\?/.test(x.stdin), 'Fleet Doctor to start again');
   assert.equal((await self(srv, again.self.env.RUN_TOKEN, 'message', { to: worker.id, message: 'Count the uptime', priority: true })).data.delivered, 'started');
   const counting = await srv.nextRun((x) => isRunOf(worker)(x) && /Count the uptime/.test(x.stdin), 'Page Reader to start again');
-  refuse([BASH]);
+  refuse([LIST]);
   srv.release(counting);
   const refusedRun = await waitFor(async () => (await runsOf(worker)).find((r) => r.prompt === 'Count the uptime' && r.status !== 'running'), { what: 'the second refused run to end' });
   refuse([]);
@@ -123,7 +123,7 @@ test("a teammate's request carries on, and its answer goes back as a message fro
 test("a job's run is repeated once, with the job's own task", async () => {
   const bot = await makeBot(srv, { name: 'Watcher', emoji: '🔭', allowedTools: ['Read'] });
   const job = (await srv.asChief(`/bots/${bot.id}/jobs`, { method: 'POST', body: { kind: 'ai', name: 'Watch the feed', cron: '0 3 * * *', prompt: 'Check the feed for news.', notify: 'always', assessment: 'Needs AI' } })).data;
-  refuse([BASH]);
+  refuse([LIST]);
   const started = await srv.api(`/bots/${bot.id}/jobs/${job.id}/run`, { method: 'POST' });
   const stopped = await srv.finished(started.data.run.id);
   refuse([]);
@@ -142,7 +142,7 @@ test("a bot whose jobs are all switched off: its job is not repeated, and the ow
   const bot = await makeBot(srv, { name: 'Dozer', emoji: '💤', allowedTools: ['Read'] });
   const job = (await srv.asChief(`/bots/${bot.id}/jobs`, { method: 'POST', body: { kind: 'ai', name: 'Morning check', cron: '0 3 * * *', prompt: 'Check the mail.', assessment: 'Needs AI' } })).data;
   // The job's run is refused a command. Then the owner switches the job, the bot's only one, off: it is paused.
-  refuse([BASH]);
+  refuse([LIST]);
   await srv.finished((await srv.api(`/bots/${bot.id}/jobs/${job.id}/run`, { method: 'POST' })).data.run.id);
   refuse([]);
   assert.equal((await asksOf(bot))[0].then.text, 'It runs “Morning check” again when you allow it.');
@@ -151,7 +151,6 @@ test("a bot whose jobs are all switched off: its job is not repeated, and the ow
   assert.equal(card.then, undefined, "a paused bot's job is not repeated, and its card promises nothing");
   const yes = await answer(card, true);
   assert.equal(yes.data.carriesOn, undefined);
-  assert.ok(yes.data.bot.allowedTools.includes('Bash'), 'the setting changes');
   await startsNothing(bot, 1);
   // Paused stops a job's run from being repeated, not a request the owner sent the bot.
   const mine = await refused(bot, [OVERRIDE], { prompt: 'What does the status page say?' });
