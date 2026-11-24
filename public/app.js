@@ -774,7 +774,7 @@ const MODE_INFO = {
 // [botId]: a bot's reply, whose file paths open in the viewer (linkPaths, #251).
 function md(src, botId) {
   // A reply with answer views (answer-view-draw.js): its ```ui fences drawn, the rest as ever.
-  if (typeof AnswerViews === 'object' && AnswerViews.has(src)) { const html = AnswerViews.parts(src, { botId }).join('\n'); return botId ? linkPaths(html, botId) : html; }
+  if (typeof AnswerViews === 'object' && AnswerViews.has(src)) return AnswerViews.parts(src, { botId }).join('\n'); // the paths of its text are links, the views' own words are not
   const html = mdHTML(mdBlocks(src), botId);
   return botId ? linkPaths(html, botId) : html;
 }

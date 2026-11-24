@@ -81,7 +81,7 @@ const AnswerViews = (() => {
   }
   const chartLabel = (n) => n.title || n.label || tr('Chart');
   // A chart: its drawing (named for a screen reader), its Data and where its numbers came from.
-  const figure = (n, ctx, path, drawing, cls = '') => `<figure class="av-chart ${cls}"><div class="av-plot" role="img" aria-label="${esc(chartLabel(n))}">${drawing}</div>${dataOf(n, ctx, path)}<figcaption>${source(n)}</figcaption></figure>`;
+  const figure = (n, ctx, path, drawing, cls = '', role = 'img') => `<figure class="av-chart ${cls}"><div class="av-plot" role="${role}" aria-label="${esc(chartLabel(n))}">${drawing}</div>${dataOf(n, ctx, path)}<figcaption>${source(n)}</figcaption></figure>`;
 
   // The series of a chart as the block kit draws them: a colour by its number, a theme token.
   const seriesTint = (name) => `var(--av-${name})`;
@@ -117,7 +117,7 @@ const AnswerViews = (() => {
     const unit = n.unit ? ` ${n.unit}` : '';
     const legend = n.slices.map((s, i) => `<li><i class="av-bg-s${i % 6}"></i><span>${esc(s.label)}</span><b>${esc(num(s.value) + unit)}</b>${total > 0 ? `<small>${Math.round((s.value / total) * 100)}%</small>` : ''}</li>`).join('');
     const drawing = `${n.title ? title(n.title, 'kit-chart-title') : ''}<div class="av-pie"><svg viewBox="0 0 42 42" class="${n.donut ? 'ring' : 'disc'}" aria-hidden="true">${slices}</svg><ul class="av-legend">${legend}</ul></div>`;
-    return figure(n, ctx, path, drawing, 'pb-card');
+    return figure(n, ctx, path, drawing, 'pb-card', 'group'); // its legend is text a reader reads
   }
 
   function scatter(n, ctx, path) {
@@ -144,7 +144,7 @@ const AnswerViews = (() => {
 
   function sparkline(n, ctx, path) {
     const drawing = `${n.label ? `<div class="kit-label">${esc(n.label)}</div>` : ''}${kitSpark(n.points, TINT[tone(n)]) || `<div class="faint">·</div>`}`;
-    return figure(n, ctx, path, drawing, 'pb-card');
+    return figure(n, ctx, path, drawing, 'pb-card', 'group');
   }
 
   // A dial: a half circle, filled to the value's place between min and max.
@@ -156,7 +156,7 @@ const AnswerViews = (() => {
     const drawing = `<div class="av-gauge" role="meter" aria-label="${esc(n.label)}" aria-valuenow="${num(n.value)}" aria-valuemin="${num(lo)}" aria-valuemax="${num(hi)}" aria-valuetext="${esc(value)}" style="--c:${TINT[tone(n)]}">
       <svg viewBox="0 0 100 56" aria-hidden="true"><path class="track" d="M10 50 A40 40 0 0 1 90 50" pathLength="100"></path><path class="fill" d="M10 50 A40 40 0 0 1 90 50" pathLength="100" stroke-dasharray="${share.toFixed(2)} 100"></path></svg>
       <div class="av-gauge-n kit-num">${esc(value)}</div><div class="kit-label">${esc(n.label)}</div><div class="av-gauge-r"><span>${esc(num(lo))}</span><span>${esc(num(hi))}</span></div></div>`;
-    return figure(n, ctx, path, drawing, 'pb-card');
+    return figure(n, ctx, path, drawing, 'pb-card', 'group'); // the dial is a meter of its own
   }
 
   function tabs(n, ctx, path) {
@@ -281,7 +281,8 @@ const AnswerViews = (() => {
       if (p.view) return [html(p.view, botId)];
       if (p.code != null) return [codeHTML(p)];
       if (p.drawing) return [drawingHTML()];
-      return mdParts(mdBlocks(!done && i === all.length - 1 ? draftSource(p.text) : p.text), botId);
+      const text = mdParts(mdBlocks(!done && i === all.length - 1 ? draftSource(p.text) : p.text), botId);
+      return botId ? text.map((h) => linkPaths(h, botId)) : text; // the paths of a bot's text open in the viewer, as in any reply
     });
   }
 
