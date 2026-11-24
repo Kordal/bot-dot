@@ -95,7 +95,9 @@ internal fun ViewChart(n: ViewNode) {
         "sparkline" -> tr("Sparkline")
         else -> tr("Gauge")
     }
-    val spoken = listOfNotNull(kind, title, table?.rows?.size?.let { trn(it, "{n} point", "{n} points") }).joinToString(", ") + ". " + tr("Data shows the numbers as a table.")
+    // A heatmap's points are its cells that hold a number (the catalog's counts: "points"), not its rows.
+    val points = if (n.type == "heatmap") table?.rows?.sumOf { r -> r.drop(1).count { it.isNotEmpty() } } else table?.rows?.size
+    val spoken = listOfNotNull(kind, title, points?.let { trn(it, "{n} point", "{n} points") }).joinToString(", ") + ". " + tr("Data shows the numbers as a table.")
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         if (data && table != null) {
             title?.let { Text(it, color = p.muted, fontSize = Type.s12) }

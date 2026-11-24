@@ -343,7 +343,7 @@ class AnswerViewUiTest {
 
     @Test fun aHeatmapHasItsDataToggleAndItsSource() {
         show(fence("""{"alt":"Visits","root":{"type":"heatmap","title":"Visits","rows":["Mon","Tue"],"columns":["9","12"],"values":[[1,4],[8,null]],"unit":"v","source":"analytics.csv"}}"""))
-        rule.onNodeWithContentDescription("Heatmap, Visits, 2 points. Data shows the numbers as a table.", substring = true).assertExists()
+        rule.onNodeWithContentDescription("Heatmap, Visits, 3 points. Data shows the numbers as a table.", substring = true).assertExists()
         rule.onNodeWithText("Source: analytics.csv").assertIsDisplayed()
         rule.onNodeWithText("Data").performClick()
         rule.onNodeWithText("4 v").assertIsDisplayed()
