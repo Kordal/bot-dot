@@ -242,7 +242,8 @@ function runParts(bot, r, last, newest, canReply = false, quote = '') {
     stop = `<button type="button" class="block-stop" data-stop-run="${esc(r.id)}">${tr('Stop')}</button>`;
   } else {
     const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
-    // Its question is open while the owner can still answer it here: its card stands under it, else it is text.
+    // Its question is open while the owner can still answer it here: its card stands under it, else it is text. Answers
+    // put away end the question, yet "Answers hidden · Undo" stands where they were (choicesHTML), open or not.
     const open = ((Array.isArray(bot.asks?.open) ? bot.asks.open.some((x) => x.runId === r.id) : r.id === bot.asks?.runId) || (last && !r.asks)) && !failed;
     const body = failed ? r.problem || friendlyProblem(r, r.result) : !open && r.questions?.length ? replyText(r, false) : r.result || tr('Done. (No written reply.)'); // a closed card's questions stand at its end
     const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
@@ -265,7 +266,7 @@ function runParts(bot, r, last, newest, canReply = false, quote = '') {
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
         ${failed ? '' : globalThis.goToCardHTML?.(r) || ''}
-        ${open ? choicesHTML(r.choices, r.yes, bot.color, r.id, { url: `/runs/${encodeURIComponent(r.id)}/choices-dismissed`, dismissed: r.choicesDismissed }) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
+        ${open || r.choicesDismissed ? choicesHTML(r.choices, r.yes, bot.color, r.id, { url: `/runs/${encodeURIComponent(r.id)}/choices-dismissed`, dismissed: r.choicesDismissed }) : ''}${open ? questionsHTML(r.questions, r.questionChoices, r.id) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }

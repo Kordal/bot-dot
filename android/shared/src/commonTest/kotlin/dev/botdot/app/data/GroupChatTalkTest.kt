@@ -192,6 +192,18 @@ class GroupChatTalkTest {
         chat.stop()
     }
 
+    @Test fun aMembersAnswersPutAwayEndTheGroupsQuestionYetTheirRowStaysForUndo() = runTest {
+        val away = reply("r1", "b1", "Ship it now or wait?", "2026-11-14T09:01:00Z", ""","choices":["Now","Wait"],"yes":0,"choicesDismissed":true""")
+        val fake = FakeBotdot { a -> if (a.path == "/group-chats/g1/chat") 200 to page(listOf(away)) else 404 to "{}" } // asks: null
+        val (_, chat) = chat(fake, features = listOf("choices-dismiss"))
+        chat.start()
+        until("the reply is read") { chat.state.value.rows.firstOrNull()?.reply != null }
+        val shown = chat.state.value.rows.first().reply!!
+        assertEquals(listOf("Now", "Wait"), shown.choices)
+        assertTrue(shown.dismissed && shown.canDismiss)
+        chat.stop()
+    }
+
     @Test fun aBotdotWithoutTheFeatureOffersNoCross() = runTest {
         val asking = reply("r1", "b1", "Ship it now or wait?", "2026-11-14T09:01:00Z", ""","choices":["Now","Wait"],"yes":0,"choicesDismissed":true""")
         val fake = FakeBotdot { a -> if (a.path == "/group-chats/g1/chat") 200 to page(listOf(asking), asks = """{"botId":"b1","botName":"Coder","text":"?","runId":"r1"}""") else 404 to "{}" }
