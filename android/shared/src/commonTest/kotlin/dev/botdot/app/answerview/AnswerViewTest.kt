@@ -29,6 +29,12 @@ class AnswerViewTest {
     private val catalogText = fixture("uiCatalog")
     private val views = assertNotNull(AnswerViews.of(catalogText))
 
+    @Test fun theAppDrawsEveryComponentOfTheCatalogItShipsWith() {
+        // A catalog version the app knows and draws: bumping the catalog without this leaves the new components as "Can't show this here".
+        val version = Json.parseToJsonElement(catalogText).jsonObject.getValue("version").jsonPrimitive.content.toInt()
+        assertEquals(version, dev.botdot.app.data.AnswerViewShelf.KNOWN)
+    }
+
     /** A tree as plain Kotlin values, a number as its value (a 2 and a 2.0 are one), so that it can be compared. */
     private fun plain(e: JsonElement?): Any? = when (e) {
         null, is JsonNull -> null
