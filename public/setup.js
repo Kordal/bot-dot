@@ -361,7 +361,9 @@ function claudeSetupItem(c, signingIn, keyOpen = false) {
     ? setupItem({
       state: 'ok', icon: '✳︎', title: 'Claude',
       body: (claudeOut(c) ? tr("Not signed in, so Claude's models can't run.") : c.fromEnv ? tr("Signed in with a token from the server's settings.") : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c) + claudeProviderNote(c),
-      action: links([...(c.fromEnv ? [] : [`<button class="link-btn" id="claude-switch">${tr('Use another account')}</button>`, `<button class="link-btn" id="claude-logout">${tr('Sign out')}</button>`]), ...keys]),
+      // The subscription is signed out and bots run on a provider: Sign in, as in Settings → Claude, never a Sign out of a session that isn't there.
+      action: claudeOut(c) ? [signIn, links(keys)].filter(Boolean).join(' ')
+        : links([...(c.fromEnv ? [] : [`<button class="link-btn" id="claude-switch">${tr('Use another account')}</button>`, `<button class="link-btn" id="claude-logout">${tr('Sign out')}</button>`]), ...keys]),
     })
     : setupItem({
       state: 'todo', icon: '✳︎', title: tr('Sign in to Claude'),
