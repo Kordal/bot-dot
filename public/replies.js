@@ -180,9 +180,44 @@ const chatHeights = typeof ResizeObserver === 'function' ? new ResizeObserver((e
 // It also gets the button to its newest message (to-latest.js); `head` draws the head of the chat's one writer.
 function holdChatEnd(thread, head = null) {
   if (thread && typeof ToLatest !== 'undefined') ToLatest.watch(thread, head);
+  if (thread && !grownChats.has(thread)) followGrowth(thread);
   if (!thread || !chatHeights || heldChats.has(thread)) return;
   heldChats.set(thread, thread.clientHeight);
   chatHeights.observe(thread);
+}
+// What a chat holds grows after it was drawn: a picture of a reply loads and takes its height (#1647). A chat that was
+// at its end stays at its end; one the owner scrolled up to read is left where it is. Where the chat was is read when
+// the picture loads, from where it is now less the height the picture just took (scroll events do not come for growth,
+// and a chat drawn after it was watched has no last scroll), as the chats' other rules read the end (160 px). A chat
+// opened on its "New" line keeps the line in sight, the way keepFold keeps a clicked line: it follows no further.
+// The height is taken off only where the chat did not already make up for it: a picture above the view, in a browser
+// with scroll anchoring (Chrome, Firefox), has raised scrollTop by its height, so the distance from the end is the one
+// from before. A picture in or below the view, or any picture in a browser without anchoring (WebKit), has not.
+const grownChats = new WeakSet();
+const anchors = (thread) => {
+  try {
+    return typeof CSS !== 'undefined' && CSS.supports?.('overflow-anchor', 'auto') === true
+      && (typeof getComputedStyle !== 'function' || getComputedStyle(thread).overflowAnchor !== 'none');
+  } catch { return false; }
+};
+const loadedAbove = (thread, img) => {
+  const r = img?.getBoundingClientRect?.();
+  return !!r && r.bottom <= thread.getBoundingClientRect().top;
+};
+function followGrowth(thread) {
+  grownChats.add(thread);
+  // `load` and `error` do not bubble: caught on the way down, from every picture put into the chat later too.
+  const grew = (e) => {
+    const took = loadedAbove(thread, e.target) && anchors(thread) ? 0 : e.target?.offsetHeight || 0;
+    if (thread.scrollHeight - took - thread.scrollTop - thread.clientHeight >= 160) return;
+    const toEnd = thread.scrollHeight - thread.clientHeight - thread.scrollTop;
+    const line = thread.querySelector('.new-line');
+    const lineTop = line ? line.getBoundingClientRect().top - thread.getBoundingClientRect().top : -1;
+    const room = lineTop >= 0 ? Math.max(0, lineTop - 28) : toEnd; // how far the New line can go up and stay in sight
+    if (toEnd > 0) thread.scrollTop += Math.min(toEnd, room);
+  };
+  thread.addEventListener('load', grew, true);
+  thread.addEventListener('error', grew, true);
 }
 // A chat's new replies changed (the live feed's `unread`, or this page's own report).
 function setUnread(chat, now) {

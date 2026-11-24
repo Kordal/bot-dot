@@ -26,7 +26,7 @@ const at = '2026-10-06T09:12:00Z';
 const from = { kind: 'from', text: 'From Web Surfer', botId: 'surf', runId: 'r5' };
 const files = [{ name: 'table.png', file: 'r5/table.png', size: 2048 }, { name: 'menu.pdf', file: 'r5/menu.pdf', size: 4096 }, { name: 'prices 2026.xlsx', file: 'r5/prices 2026.xlsx', size: 512 }];
 const FILES = '<div class="bubble-files">'
-  + '<a class="file-image" href="/api/files/r5/table.png" target="_blank" rel="noopener" title="table.png"><img src="/api/files/r5/table.png" alt="table.png" loading="lazy"></a>'
+  + '<a class="file-image" href="/api/files/r5/table.png" target="_blank" rel="noopener" title="table.png"><img src="/api/files/r5/table.png" alt="table.png"></a>'
   + '<a class="file-chip link" href="/api/files/r5/menu.pdf" target="_blank" rel="noopener" title="menu.pdf · 4 KB">📕 <span class="fname">menu.pdf</span></a>'
   + '<a class="file-chip link" href="/api/files/r5/prices%202026.xlsx" download="prices 2026.xlsx" title="prices 2026.xlsx · 512 B">📊 <span class="fname">prices 2026.xlsx</span></a>'
   + '</div>';
@@ -72,7 +72,7 @@ test('web: a report bubble is drawn as before', () => {
   assert.equal((src.match(/botFilesHTML\(m\.files\)/g) || []).length, 2);
   assert.equal(reportBubble({ role: 'report', from: { id: 'surf', name: 'Web Surfer' }, text: '', files: [files[0]] }).replace(/\s*\n\s*/g, ''),
     '<div class="bubble-row from-me"><div class="stack from-bot-msg"><div class="bot-msg-label">Message from <bot:Web Surfer></div>'
-    + '<div class="bubble from-other-bot report-msg"><div class="bubble-files"><a class="file-image" href="/api/files/r5/table.png" target="_blank" rel="noopener" title="table.png"><img src="/api/files/r5/table.png" alt="table.png" loading="lazy"></a></div></div></div></div>');
+    + '<div class="bubble from-other-bot report-msg"><div class="bubble-files"><a class="file-image" href="/api/files/r5/table.png" target="_blank" rel="noopener" title="table.png"><img src="/api/files/r5/table.png" alt="table.png"></a></div></div></div></div>');
 });
 
 test('web: a file\'s name and path are text, never markup', () => {
@@ -81,5 +81,5 @@ test('web: a file\'s name and path are text, never markup', () => {
   assert.doesNotMatch(html, /<script|<b>|<img src=x|onerror=1>|" onload="/);
   assert.match(html, /<span class="fname">&quot;&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt;\.txt<\/span>/);
   assert.match(html, /href="\/api\/files\/r5\/%22%3E%3Cimg%20src%3Dx%20onerror%3D1%3E\.txt"/);
-  assert.match(html, /<img src="\/api\/files\/r5\/a%20b%26c\.png" alt="&lt;b&gt;x&lt;\/b&gt;&quot; onload=&quot;y\.png" loading="lazy">/);
+  assert.match(html, /<img src="\/api\/files\/r5\/a%20b%26c\.png" alt="&lt;b&gt;x&lt;\/b&gt;&quot; onload=&quot;y\.png">/);
 });
