@@ -109,12 +109,18 @@ test("a write to an app that isn't connected makes no card for the write; an exp
   assert.equal(scopes.data.error, CONNECT('Gmail', 'reconnect'));
   const cards = await cardsOf(bot);
   assert.deepEqual(cards.map((a) => [a.app, a.mode]).sort(), [['gmail', 'reconnect'], ['slack', 'reconnect']], 'the Gmail card says what is true now');
-  // The old connection that lacks the permission settles nothing; a new one does.
+  // The old connection that lacks the permission settles nothing, nor does another one made since (#1322): only the
+  // connection the card's own Connect made does.
   await srv.api('/connectors');
   assert.ok((await cardsOf(bot)).some((a) => a.app === 'gmail'));
-  account('gmail', 'ACTIVE', new Date(Date.now() + 1000).toISOString());
+  const elsewhere = account('gmail', 'ACTIVE', new Date(Date.now() + 1000).toISOString());
+  await srv.api('/connectors');
+  assert.ok((await cardsOf(bot)).some((a) => a.app === 'gmail'), 'a newer connection that is not the card\'s settles nothing');
+  const mine = account('gmail', 'ACTIVE', new Date(Date.now() + 2000).toISOString());
+  writeData(path.join(srv.data, 'asks.json'), stored().map((x) => (x.botId === bot.id && x.app === 'gmail' ? { ...x, connectionId: mine.id } : x)));
   await srv.api('/connectors');
   assert.deepEqual((await cardsOf(bot)).map((a) => a.app), ['slack']);
+  assert.notEqual(elsewhere.id, mine.id);
   srv.release(held.rec);
   srv.unhold();
   await srv.finished(held.run.id);
