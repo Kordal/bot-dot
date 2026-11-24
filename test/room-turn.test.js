@@ -126,12 +126,10 @@ test('only the front door asks for a room turn: not a person without its header,
     assert.equal(chief.status, 403, "the Chief's tools can't");
     const port = await fetch(`http://127.0.0.1:${srv.botdotPort}/api/room-turn`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1', 'X-Botdot-Room': '1' }, body: JSON.stringify(asked) });
     assert.equal(port.status, 403, 'nothing on the port');
-    // From the front door, with its header: the bot's room settings decide (#316), and Claude is not asked otherwise.
-    const before = srv.runs().length;
+    // From the front door, with its header: every bot may be in rooms (ADR 269), so the owner's own mention starts the bot's run (ADR 067).
     const door = await srv.api('/room-turn', { method: 'POST', body: asked, headers: { 'X-Botdot-Room': '1' } });
-    if (door.status === 403) assert.match(door.data.error, /doesn't answer in rooms/);
-    else assert.equal(door.status, 200, JSON.stringify(door.data));
-    if (door.status === 403) assert.equal(srv.runs().length, before, 'no Claude Code for a refused turn');
+    assert.equal(door.status, 202, JSON.stringify(door.data));
+    assert.deepEqual(door.data, { started: true });
     assert.equal((await srv.api('/room-turn', { method: 'POST', body: { bot: bot.id }, headers: { 'X-Botdot-Room': '1' } })).status, 400);
     assert.equal((await srv.api('/room-turn', { method: 'POST', body: body({ bot: 'nope' }), headers: { 'X-Botdot-Room': '1' } })).status, 404);
   } finally { await srv.stop(); }

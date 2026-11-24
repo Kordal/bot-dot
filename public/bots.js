@@ -151,8 +151,8 @@ const PERMS = [
   { key: 'helpers', label: tr('Can use helpers'), hint: tr('start helpers that work in parallel within one run'), tools: ['Agent', 'Task'], advanced: true },
 ];
 
-// A bot's Shared rooms row (#316, ADR 060): on a botdot with `room-settings` that sends the bot's `rooms`, while the
-// front door has shared rooms on (rooms.js). Who may mention it: only its owner, or anyone in the room.
+// A bot's Who may mention it row (#316, ADR 060): on a botdot with `room-settings` that sends the bot's `rooms`, while the
+// front door has shared rooms on (rooms.js): only its owner, or anyone in the room. Every bot may be in rooms (ADR 269).
 const ROOM_WHO = [['owner', tr('Only you')], ['anyone', tr('Anyone in the room')]];
 const showsRoomSettings = (b) => state.features.includes('room-settings') && !!b.rooms && typeof b.rooms === 'object' && typeof rooms !== 'undefined' && rooms.on;
 
@@ -173,7 +173,7 @@ function readBotForm(form, sel) {
     connectors: [...sel.connectors],
     accounts: sel.accounts, // its account of an app with two or more (ADR 174)
     ...(form.proxy ? { proxy: form.proxy.value } : {}), // its proxy (ADR 171), where the row is drawn
-    ...(form.allowRooms ? { rooms: { allowRooms: form.allowRooms.checked, whoMayMention: form.roomsWho.value } } : {}),
+    ...(form.roomsWho ? { rooms: { whoMayMention: form.roomsWho.value } } : {}),
     ...(hotkeyChanged(form) ? { hotkey: Number(form.hotkey.value) } : {}),
     ...(form.icon && form.icon.value ? { outfit: { icon: form.icon.value } } : {}), // its icon, once one is picked; its hat stays
     allowedTools: form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -376,9 +376,7 @@ function renderBotSettings(force = false) {
       </div>
 
       <div class="set-list">
-        ${showsRoomSettings(b) ? `<label class="bs-row" id="bs-rooms"${tipAttrs(tr('It may join rooms with other people on this botdot. There it only talks: no tools, no notes, nothing of yours.'))}><b>${tr('Shared rooms')}</b>
-          <span class="switch"><input type="checkbox" name="allowRooms" ${b.rooms.allowRooms ? 'checked' : ''} aria-label="${esc(tr('Shared rooms'))}"><span></span></span></label>
-        <label class="bs-row bs-rooms-who ${b.rooms.allowRooms ? '' : 'hidden'}"><b>${tr('Who may mention it')}</b>
+        ${showsRoomSettings(b) ? `<label class="bs-row" id="bs-rooms"><b>${tr('Who may mention it')}</b>
           <select name="roomsWho" aria-label="${esc(tr('Who may mention it'))}">${ROOM_WHO.map(([v, label]) => `<option value="${v}" ${b.rooms.whoMayMention === v ? 'selected' : ''}>${label}</option>`).join('')}</select>${CHEV}</label>` : ''}
         <div class="bs-row" id="bs-always">
           <div class="grow"><b>${tr('Always approved')}</b><div id="always-picks"></div></div>${CHEV}
@@ -448,7 +446,6 @@ function renderBotSettings(force = false) {
   };
   const saveSoon = () => { clearTimeout(timer); timer = setTimeout(save, 300); };
   form.addEventListener('change', (e) => { if (!e.target.matches('[data-perm]')) saveSoon(); });
-  if (form.allowRooms) form.allowRooms.addEventListener('change', () => $('.bs-rooms-who', root).classList.toggle('hidden', !form.allowRooms.checked));
   // "Everything allowed" asks first. Until the answer the select is back at its earlier mode, so that no
   // save, this one or another field's, carries the new one; Cancel leaves it there and saves nothing.
   let mode = form.permissionMode.value;

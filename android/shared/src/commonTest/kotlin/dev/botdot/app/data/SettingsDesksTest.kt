@@ -108,6 +108,16 @@ class SettingsDesksTest {
         assertFalse(BotSettings.draft(b, emptyList()).withUseSkills(on = false).useSkills)
     }
 
+    @Test fun everyBotInRoomsOnlyWhenTheServerSaysSo() {
+        assertTrue(BotSettings.everyBotInRooms(listOf(BotRooms.FEATURE, "rooms-every-bot")))
+        assertFalse(BotSettings.everyBotInRooms(listOf(BotRooms.FEATURE)), "an older server keeps the switch per bot")
+        assertFalse(BotSettings.everyBotInRooms(emptyList()))
+        assertFalse(BotSettings.everyBotInRooms(null), "features not known yet: the switch as before")
+        val b = bot("""{"id":"a","name":"A","rooms":{"allowRooms":false}}""")
+        assertTrue(BotSettingsState(bot = b, features = listOf(BotRooms.FEATURE, "rooms-every-bot")).everyBotInRooms)
+        assertFalse(BotSettingsState(bot = b, features = listOf(BotRooms.FEATURE)).everyBotInRooms)
+    }
+
     @Test fun whatShowsDependsOnWhatTheServerKeeps() {
         val mate = listOf(bot("""{"id":"b","name":"B"}"""))
         val old = BotSettingsState(bot = bot("""{"id":"a","name":"A","othersMayAsk":true,"rooms":{"allowRooms":true}}"""), others = mate, features = listOf(BotRooms.FEATURE))
