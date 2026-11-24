@@ -527,7 +527,7 @@ function groupMessageHTML(m, chat, prev = null) {
     </div></div>`;
   return `<div class="bubble-row from-me" data-gmsg="${esc(m.id)}"><div class="stack mine">
     ${groupQuestionHTML(m.question, prev)}
-    <div class="bubble from-me" data-expand><div class="clamp">${escMentions(text, chat)}</div>${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
+    <div class="bubble from-me" data-expand data-text="${esc(text)}"><div class="clamp">${escMentions(text, chat)}</div>${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
     <div class="bubble-meta${waits ? '' : ' on-hover'}">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
   </div></div>`;
 }
@@ -545,7 +545,7 @@ function groupWaitingHTML(m, chat) {
   const line = waits || (steeringIn(m) ? tr('Steering…') : tr('Waits until Claude is signed in'));
   const steer = waits && canSteerGroup() ? `<button type="button" data-steer="${esc(m.id)}">${tr('Steer')}</button>` : '';
   return `<div class="bubble-row from-me"><div class="stack mine">
-    <div class="bubble from-me waits">${escMentions(text, chat)}${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
+    <div class="bubble from-me waits" data-text="${esc(text)}">${escMentions(text, chat)}${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
     <div class="bubble-meta"><span>${esc(line)}</span>${steer}<button type="button" data-take-back="${esc(m.id)}">${tr('Take back')}</button></div>
   </div></div>`;
 }

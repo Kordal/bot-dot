@@ -482,3 +482,51 @@ test('a view is open again when the owner takes a waiting send back: the chat is
   // a form's message is read by its labels
   assert.deepEqual(plain(AnswerViews.sendOf({ mine: ['Name: Ada'], labels: ['Name'], pending: 'Name: Ada' })), { sent: 'Name: Ada', pending: null });
 });
+
+// The owner's bubble is drawn with its mentions and its /command as chips, so its text is not the message: a view reads what
+// was sent from the bubble's data-text (the message as written), and only without one from what is drawn.
+const bubbleOf = (text, shown) => ({ dataset: { text }, textContent: shown, querySelector: () => null });
+page.$ = (sel, el) => (sel === '.clamp' && el.clamp ? el.clamp : null);
+
+test('a button whose send holds a @mention stays sent: the bubble\'s own text is read, not the chip drawn for it', () => {
+  const html = draw({ type: 'button', label: 'Hand it on', send: '@Writer, take it' });
+  assert.match(html, /data-say="@Writer, take it"/);
+  const says = ['@Writer, take it'];
+  // drawn, the mention is a chip with no "@": that text is no send of the button
+  assert.equal(AnswerViews.sentFrom('Writer, take it', { says }), null);
+  const bubble = bubbleOf('@Writer, take it', 'Writer, take it');
+  assert.equal(AnswerViews.textOf(bubble), '@Writer, take it');
+  assert.deepEqual(plain(AnswerViews.sendOf({ mine: [bubble].map(AnswerViews.textOf), says, pending: null })), { sent: '@Writer, take it', pending: null });
+});
+
+test('a form whose label holds a @mention stays sent', () => {
+  const html = draw({ type: 'text-input', label: '@Writer note' });
+  assert.match(html, /data-label="@Writer note"/);
+  const labels = ['@Writer note'];
+  assert.equal(AnswerViews.sentFrom('Writer note: ok', { labels }), null);
+  const bubble = bubbleOf('@Writer note: ok', 'Writer note: ok');
+  assert.deepEqual(plain(AnswerViews.sendOf({ mine: [bubble].map(AnswerViews.textOf), labels, pending: null })), { sent: '@Writer note: ok', pending: null });
+});
+
+test('a send that starts like a /command stays sent', () => {
+  const says = ['/btw check the build'];
+  const bubble = bubbleOf('/btw check the build', 'btw check the build');
+  assert.equal(AnswerViews.sendOf({ mine: [AnswerViews.textOf(bubble)], says, pending: null }).sent, '/btw check the build');
+});
+
+test('a bubble without data-text is read from its drawn text, its .clamp first', () => {
+  const clamp = { textContent: 'Yes' };
+  assert.equal(AnswerViews.textOf({ dataset: {}, textContent: 'Yes, extra', clamp }), 'Yes');
+  assert.equal(AnswerViews.textOf({ dataset: {}, textContent: 'Plain' }), 'Plain');
+  assert.equal(AnswerViews.textOf({ dataset: { text: '' }, textContent: 'drawn' }), '', 'an empty message is its own text');
+});
+
+test('every owner bubble the page draws carries its message as data-text, escaped', () => {
+  const sites = { 'bot-chat.js': 2, 'chief.js': 2, 'groups.js': 2, 'rooms.js': 1, 'replies.js': 2 };
+  for (const [file, n] of Object.entries(sites)) {
+    const src = read(file);
+    const owner = src.match(/<div class="bubble from-me[^"]*"[^>]*>/g) || [];
+    assert.equal(owner.length, n, `${file} draws ${n} owner bubbles`);
+    for (const b of owner) assert.match(b, / data-text="\$\{esc\([^"]+\)\}"/, `${file}: ${b}`);
+  }
+});

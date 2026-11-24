@@ -126,7 +126,7 @@ function threadHTML(runs, newFirst = null) {
   vm.runInContext(`${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// The notes other bots left for a bot')}\nthis.botThreadHTML = botThreadHTML;`, ctx);
   return ctx.botThreadHTML(MAIL, runs, newFirst);
 }
-const mine = (html) => [...html.matchAll(/<div class="bubble from-me" data-expand><div class="clamp">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
+const mine = (html) => [...html.matchAll(/<div class="bubble from-me" data-expand[^>]*><div class="clamp">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
 const replies = (html) => [...html.matchAll(/<div class="bubble from-bot (?:problem)?"><div class="md">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
 const chips = (html) => [...html.matchAll(/<span class="chip">([\s\S]*?)<\/span>/g)].map((m) => m[1]);
 const REQUEST = 'Check why the backup failed last night.';

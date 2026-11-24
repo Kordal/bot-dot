@@ -377,7 +377,7 @@ function roomMessageHTML(r, m, key) {
   const mentions = roomMentionsHTML(m);
   if (!m.bot && m.account === rooms.me) {
     return `<div class="bubble-row from-me" data-rmsg="${esc(m.id)}"><div class="stack mine">
-      <div class="bubble from-me" data-expand><div class="clamp">${escMentions(text, key)}</div></div>
+      <div class="bubble from-me" data-expand data-text="${esc(text)}"><div class="clamp">${escMentions(text, key)}</div></div>
       <div class="bubble-meta">${mentions}<span>${esc(time)}</span>${text ? copyBtn(text) : ''}</div>
     </div></div>`;
   }

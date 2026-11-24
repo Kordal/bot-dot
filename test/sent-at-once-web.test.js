@@ -113,7 +113,7 @@ test('web: on Send the bubble and "Working" are in a bot\'s chat before the requ
   // Nothing has answered: the owner's words and files stand in the chat, faded, and "Working" under them.
   assert.equal(h.asked(), 1, 'the request is under way');
   assert.deepEqual(p.bot.names(), ['run-row', 'chat-sent', 'status-line'], 'above the working line, where its run will draw it');
-  assert.match(p.local(p.bot), /^<div class="bubble-row from-me" data-sent><div class="stack mine"><div class="bubble from-me waits">Check the backup<div class="bubble-files">/, 'drawn as a waiting message is');
+  assert.match(p.local(p.bot), /^<div class="bubble-row from-me" data-sent><div class="stack mine"><div class="bubble from-me waits"[^>]*>Check the backup<div class="bubble-files">/, 'drawn as a waiting message is');
   assert.match(p.local(p.bot), /<span class="fname">backup\.log<\/span>/, 'its file shows on it');
   assert.doesNotMatch(p.local(p.bot), /data-take-back|Waits until|data-unattach|data-copy/, 'the owner\'s own words and files, and nothing else');
   assert.match(p.lineOf(p.bot), /^<div class="status-line" style="--c:#c2473d"><i><\/i><span>Working<\/span><\/div>$/, '"Working" under it, in the bot\'s colour, with nothing to stop yet');
@@ -171,7 +171,7 @@ test('web: a message sent to a working bot stands under those that wait, and bec
   assert.deepEqual(p.bot.names(), ['run-row', 'chat-queued'], 'at the end, under the messages that already wait');
   const waits = p.one(p.bot, 'chat-queued').innerHTML;
   assert.ok(waits.indexOf('data-take-back="q1"') < waits.indexOf('data-sent'), 'after them');
-  assert.match(p.local(p.bot), /<div class="bubble from-me waits">And the disk<div class="bubble-files">/);
+  assert.match(p.local(p.bot), /<div class="bubble from-me waits"[^>]*>And the disk<div class="bubble-files">/);
   assert.doesNotMatch(p.local(p.bot), /data-take-back|Waits until/, 'nothing says yet that it waits');
   assert.equal(p.lineOf(p.bot), null, 'the working run says it in its block (#625)');
   // The answer is a run that waits: its id is what "Take back" names.
@@ -264,7 +264,7 @@ test('web: a quick answer is there at once like a typed message, and one that fa
   const tap = () => p.ctx.sendFrom(p.boxes.bot.form, () => p.ctx.runBot('doctor', 'A', [], KEY));
   let sending = tap();
   assert.deepEqual(p.bot.names(), ['run-row', 'chat-sent', 'status-line']);
-  assert.match(p.local(p.bot), /<div class="bubble from-me waits">A<\/div>/);
+  assert.match(p.local(p.bot), /<div class="bubble from-me waits"[^>]*>A<\/div>/);
   assert.match(p.lineOf(p.bot), /<span>Working<\/span><\/div>$/);
   h.fail(unreached());
   assert.equal(await sending, false);
@@ -289,7 +289,7 @@ test('web: nothing in the local bubble is markup, and a message of files alone i
   assert.match(p.local(p.bot), /&lt;img src=x onerror=alert\(1\)&gt;/);
   const f = page({ reply: () => new Promise(() => {}) });
   f.ctx.runBot('doctor', '', [FILE], KEY);
-  assert.match(f.local(f.bot), /<div class="bubble from-me waits"><div class="bubble-files">/);
+  assert.match(f.local(f.bot), /<div class="bubble from-me waits"[^>]*><div class="bubble-files">/);
 });
 
 test('web: the local bubble belongs to its chat: another bot\'s chat does not show it, and it is there on the way back', () => {
@@ -338,7 +338,7 @@ test('web: in a Chief chat the bubble and "Working" are there before the request
   p.boxes.chief.attach(FILE);
   const sending = p.boxes.chief.submit();
   assert.deepEqual(p.chief.names(), ['bubble-row', 'chat-sent', 'status-line']);
-  assert.match(p.local(p.chief), /<div class="bubble from-me waits">Find a flight<div class="bubble-files">[\s\S]*backup\.log/);
+  assert.match(p.local(p.chief), /<div class="bubble from-me waits"[^>]*>Find a flight<div class="bubble-files">[\s\S]*backup\.log/);
   assert.match(p.lineOf(p.chief), /^<div class="status-line" style="--c:#d85a30"><i><\/i><span>Working<\/span><\/div>$/, '"Working" until the server answers, with nothing to stop');
   assert.equal(p.boxes.chief.ta.value, '');
   h.answer({ id: 'c1', busy: true, messages: [], queued: [] });
@@ -396,7 +396,7 @@ test('web: a message to a replying Chief stands under those that wait, then is t
   assert.deepEqual(p.chief.names(), ['bubble-row', 'status-line', 'chat-queued']);
   const waits = p.one(p.chief, 'chat-queued').innerHTML;
   assert.ok(waits.indexOf('data-take-back="q1"') < waits.indexOf('data-sent'));
-  assert.match(p.local(p.chief), /<div class="bubble from-me waits">And a car<\/div>/);
+  assert.match(p.local(p.chief), /<div class="bubble from-me waits"[^>]*>And a car<\/div>/);
   assert.match(p.lineOf(p.chief), /<span>Waiting for Web Surfer<\/span><button type="button" data-stop-chief="c1">Stop<\/button>/, 'the Chief\'s own line stays');
   h.answer({ id: 'c1', busy: true, messages: [], queued: [queued('q1', 'And a hotel'), queued('q2', 'And a car')] });
   await sending;
