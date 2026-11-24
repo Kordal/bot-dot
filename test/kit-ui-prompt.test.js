@@ -5,6 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, makeBot, waitFor } = require('./helpers');
 const { kitSkills, kitUiNote } = require('../lib/skills');
+const replay = require('../lib/replay');
 
 const SENTENCE = /When the answer is a chart, KPIs, a comparison or a table, load kit:ui and draw a view instead of a Markdown table or a list of numbers\./;
 
@@ -42,6 +43,14 @@ test("a bot's run is told it; one with kit:ui switched off, or with skills off, 
   await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { disabledSkills: [], useSkills: false } });
   const none = await runOf(3);
   assert.doesNotMatch(none.system, /load kit:ui/);
+});
+
+test("a replay of a bot's task is told it as the real run is, and without it when kit:ui is off", () => {
+  const bot = { name: 'R', prompt: 'p' };
+  const had = (off) => kitSkills(off).filter((k) => !k.alwaysOn).map((k) => ({ ...k, plugin: 'kit' }));
+  assert.match(replay.instructions({ bot, skills: had([]), uiNote: kitUiNote(kitSkills()) }), SENTENCE);
+  assert.doesNotMatch(replay.instructions({ bot, skills: had(['ui']), uiNote: kitUiNote(kitSkills(['ui'])) }), /load kit:ui/);
+  assert.doesNotMatch(replay.instructions({ bot }), /load kit:ui/);
 });
 
 test('the Chief is told it too', async () => {
