@@ -1,9 +1,9 @@
-// An eval of answer views (#1625, ADR 264): six prompts (test/live/ui-eval-cases.js) go to a real bot (the Claude CLI,
-// signed in as you) on a scratch botdot server each: three where a view is right (compare three options, a time
-// series, and the four-field form, which wants a view with inputs) and three where prose
-// is right (a one-line fact, an apology, a yes or no). Each is scored from the run's tool calls and the reply
-// (test/live/ui-scoring.js): whether the bot loaded kit:ui, and whether every ```ui fence it wrote passes the
-// validator of the apps (public/answer-view.js). No model judges; a short report says pass or fail per case.
+// An eval of answer views (#1625, ADR 264): eight prompts (test/live/ui-eval-cases.js) go to a real bot (the Claude CLI,
+// signed in as you) on a scratch botdot server each: five where a view is right (compare three options, compare three
+// databases with and without "in a table", a time series, and the four-field form, which wants a view with inputs)
+// and three where prose is right (a one-line fact, an apology, a yes or no). Each is scored from the run's tool calls
+// and the reply (test/live/ui-scoring.js): whether the bot loaded kit:ui, whether it wrote a Markdown table where a
+// view was asked for, and whether every ```ui fence it wrote passes the validator of the apps (public/answer-view.js). No model judges; a short report says pass or fail per case.
 //
 // Not part of npm test (it needs a Claude login and spends real model usage: a case is one bot turn, a minute or
 // two):

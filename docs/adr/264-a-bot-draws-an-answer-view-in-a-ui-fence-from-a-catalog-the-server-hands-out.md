@@ -42,7 +42,7 @@ A bot answers in Markdown and, at best, a `products` fence or a mermaid diagram.
 - A component is a catalog entry and a drawing. Adding one raises `version` and gives it that `since`; it is written in `lib/ui-catalog.json`, its drawing in each app, and its cases in the shared fixture.
 - Three validators (web, Kotlin for Android and iOS, and the server's own when it checks a view for a bot) must agree; the fixture is what makes them, as for `products`. The Kotlin one is a ticket of its own.
 - The validator is generic, so a prop kind it doesn't have (a new media kind, say) is a change to the three of them and an ADR note, not a catalog entry.
-- A bot is told of the fence only by the skill `kit:ui` ([#1625](https://github.com/Kordal/bot-dot/issues/1625)). It is merged after the web page ([#1624](https://github.com/Kordal/bot-dot/issues/1624)) and the Android app ([#1626](https://github.com/Kordal/bot-dot/issues/1626)) draw wave 1, so no owner sees a view as code; an app older than that shows it as code.
+- A bot is told of the fence by the skill `kit:ui` ([#1625](https://github.com/Kordal/bot-dot/issues/1625)) and, so that it loads it for a chart, KPIs, a comparison or a table, by one sentence in its prompt ([decision](../decisions/2026-11-24-a-bot-is-told-in-one-sentence-to-draw-a-view-for-a-chart-or-a-table.md)). It is merged after the web page ([#1624](https://github.com/Kordal/bot-dot/issues/1624)) and the Android app ([#1626](https://github.com/Kordal/bot-dot/issues/1626)) draw wave 1, so no owner sees a view as code; an app older than that shows it as code.
 
 ## Amendment: a component binds to a Board tile for live numbers ([#1630](https://github.com/Kordal/bot-dot/issues/1630), 2026-11-24, catalog version 4)
 

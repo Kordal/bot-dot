@@ -1,12 +1,13 @@
 // The prompts the eval of answer views (ui-eval.test.js) puts to a bot, and what each is scored on (ui-scoring.js,
-// score()). Each is one message to a plain bot with every figure it needs inside it, so that the run is one turn with
-// no lookup and no tool but the Skill tool. The data is made up.
+// score()). Each is one message to a plain bot with every figure it needs inside it (but the two on databases, which
+// ask for what the model knows), so that the run is one turn with no lookup and no tool but the Skill tool. The data is made up.
 //
 // A case: { id, says (what the owner types), view: true (a view is right: the skill should be picked and a valid view
 // drawn), false (prose is right: no skill, no fence) or 'either' (a view or a written answer is fine, and a fence
 // written must still be valid; for a wave whose components are not drawn yet: none now), fits?: components one of which
-// a view that answers it uses, wave? }. The form of four fields was 'either' until wave 2 (#1627) had inputs; it is
-// scored now, and a view with an input in it is what fits.
+// a view that answers it uses, noMarkdownTable?: true (the words beside the view hold no Markdown table), wave? }.
+// The form of four fields was 'either' until wave 2 (#1627) had inputs; it is scored now, and a view with an input
+// in it is what fits.
 
 const CASES = [
   {
@@ -14,6 +15,22 @@ const CASES = [
     view: true,
     fits: ['comparison', 'table'],
     says: 'Compare these three standing desks for me and tell me which to buy. Lift Pro 140: €379, 2 motors, 10-year frame warranty, 4.6 stars. Ergo Frame S2: €339, 1 motor, 5-year warranty, 4.4 stars. Flex Desk 120: €299, 1 motor, 2-year warranty, 4.1 stars.',
+  },
+  // What the owner typed on a live server: a bot asked for a table of three databases wrote a Markdown one and never
+  // loaded kit:ui. No figures in the message: the bot answers from what it knows, and the view says so in its source.
+  {
+    id: 'compare-databases-table',
+    view: true,
+    noMarkdownTable: true,
+    fits: ['comparison', 'table'],
+    says: 'compare Postgres, MySQL and SQLite in a table',
+  },
+  {
+    id: 'compare-databases',
+    view: true,
+    noMarkdownTable: true,
+    fits: ['comparison'],
+    says: 'compare Postgres, MySQL and SQLite',
   },
   {
     id: 'time-series',
