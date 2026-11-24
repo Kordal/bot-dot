@@ -1,7 +1,7 @@
 // Takes the Play phone screenshots of the Android app on an emulator (docs/google-play/README.md), from the scene
 // scene.cjs serves. Every pixel is the app's own: nothing is drawn on the pictures (caption.cjs adds the captions).
 // node docs/google-play/screenshots/drive.cjs <scene dir> <app.apk> <out dir>
-// Needs adb with one emulator. The screen is set to 1080 x 1920 (9:16, as Play wants), dark, at 09:30, and each
+// Needs adb with one emulator. The screen is set to 1080 x 1920 (9:16, as Play wants), dark, its clock showing the phone's own time (the chats are stamped with it), and each
 // picture is saved as a 24-bit PNG: Play refuses a screenshot with an alpha channel.
 // Needs you is not pictured: it keeps itself out of screenshots (FLAG_SECURE, passwords are typed there), so its
 // cards are shown where the Chief asked for them, in its chat.
@@ -48,11 +48,11 @@ async function find(test, what, timeout = 30000) {
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
 const NETWORK = '-e command network -e wifi hide -e mobile show -e datatype none -e level 4';
-/** The status bar as on a phone at rest: 09:30, full battery and signal, no notifications. (On API 35 a network
+/** The status bar as on a phone at rest: the time, full battery and signal, no notifications. (On API 35 a network
  * command with "-e fully true" or "-e mobile hide" leaves the status bar out of demo mode altogether.)
  * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
 function calm(network = NETWORK) {
-  for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
+  for (const extra of ['-e command enter', `-e command clock -e hhmm ${sh('date +%H%M').trim()}`, '-e command battery -e level 100 -e plugged false',
     network, '-e command notifications -e visible false']) {
     sh(`am broadcast -a com.android.systemui.demo ${extra}`);
   }
