@@ -162,17 +162,20 @@ test('a room: made, an account invited by name accepts, a stranger sees nothing,
   } finally { catLive.close(); }
 });
 
-test('an owner adds only their own bot; a mention gives it a turn through its own account', async () => {
+test('an owner adds only their own bot that its settings let in (an older account server); a mention gives it a turn through its own account', async () => {
   const a = await admin();
   const eve = await owner('eve');
-  accounts.ann.bots = [bot('scout', 'Scout')];
+  accounts.ann.bots = [bot('scout', 'Scout'), bot('shy', 'Shy', { allowRooms: false, whoMayMention: 'owner' })];
   accounts.eve.bots = [bot('helper', 'Helper Bee', { allowRooms: true, whoMayMention: 'anyone' })];
   const room = (await a.post('/front-door/rooms', { name: 'Mixed' })).data.room;
   await a.post(`/front-door/rooms/${room.id}/invite`, { account: 'eve' });
   await eve.post(`/front-door/rooms/${room.id}/accept`, {});
 
   assert.equal((await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'helper' })).status, 404, "eve's bot is not ann's to add");
-  assert.equal((await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'shy' })).status, 404, 'no such bot: no hint to switch rooms on');
+  assert.equal((await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'shy' })).status, 403);
+  const absent = await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'ghost' });
+  assert.equal(absent.status, 404);
+  assert.match(absent.data.error, /Turn "Rooms" on in its settings first/);
   const added = await a.post(`/front-door/rooms/${room.id}/bots`, { bot: 'scout' });
   assert.equal(added.status, 200, added.text);
   assert.deepEqual(added.data.room.bots, [{ account: 'ann', id: 'scout', name: 'Scout', emoji: '🤖', color: '#336699' }]);
