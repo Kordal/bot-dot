@@ -850,6 +850,7 @@ ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
 // Upload from phone (ADR 165): its phone's requests reach phoneDrop alone, its file through api below.
 ctx.api = (req, res, url) => api(req, res, url);
 const drops = require('./lib/routes/drops').create(ctx);
+const mcpRoute = require('./lib/routes/mcp').create(ctx); // the run's tool servers, over MCP's Streamable HTTP (ADR 267)
 const ROUTES = [
   drops.routes,
   require('./lib/routes/system').create(ctx),
@@ -938,6 +939,7 @@ const SCRIPT_PATH = '/api/vault/script/';
 const GIT_PATH = '/api/vault/git/'; // git's credential helper in a bot's AI run (ADR 090)
 // What a replay's tools use (ADR 102): its connected apps and saved logins, in a dry run.
 const REPLAY_PATHS = ['/api/connectors/session', '/api/vault/session/logins', '/api/vault/session/http'];
+const mcpSessions = require('./lib/mcp-sessions'); // the run's tool servers, which botdot answers itself (ADR 267)
 const COPY_PATH = '/api/replay/session/'; // a replay's computer tools, on its copy of the bot's computer (ADR 104)
 const replayOf = (req, p) => (REPLAY_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) ? B.replaySession(req.headers['x-run-token'] || req.headers['x-vault-token']) : null);
 
@@ -972,6 +974,7 @@ function gate(req) {
     if (p.startsWith(GIT_PATH)) return B.gitSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     // A replay's computer tools (ADR 104): the key of a copy made for one of this bot's replays.
     if (p.startsWith(COPY_PATH)) return B.replayComputers.byKey(req.headers['x-replay-key'])?.botId === who.bot ? null : "That replay key isn't this bot's.";
+    if (p.startsWith(mcpSessions.PATH)) return null; // the run's tools served by botdot (ADR 267): its route checks the token, and that it is this bot's
     if (!BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`))) return "Bots can only use their own run's tools.";
     const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']) || replayOf(req, p);
     if (!session || session.botId !== who.bot) return "That run key isn't this bot's.";
@@ -986,6 +989,7 @@ function gate(req) {
   if (p.startsWith(GIT_PATH) && B.gitSession(req.headers['x-run-token'])) return null;
   if (p.startsWith(COPY_PATH) && B.replayComputers.byKey(req.headers['x-replay-key'])) return null;
   if (replayOf(req, p)) return null;
+  if (p.startsWith(mcpSessions.PATH)) return null; // the run's tools served by botdot (ADR 267): its route checks the token
   // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
   if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;
@@ -1084,6 +1088,8 @@ async function handle(req, res) {
   // from what a person sends: one with x-botdot-room is the front door's own.
   if (req.socket[FROM_FRONT_DOOR] && req.headers['x-botdot-room'] !== '1') activity.saw(req.method, url.pathname, req.headers['user-agent']);
   req.lang = readerLanguage(req);
+  // A run's tool servers (ADR 267): apart from the API's routes, whatever user asks, since its token is its key.
+  if (url.pathname.startsWith(mcpSessions.PATH)) return mcpRoute(req, res, url);
   try {
     await api(req, res, url);
   } catch (e) {
