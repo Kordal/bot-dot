@@ -28,6 +28,7 @@ const AnswerViews = (() => {
   }
   // Asked once, from a server whose features name `ui-catalog`; without it a fence stays its code.
   async function load(api, features) {
+    if (features.includes('ui-live')) ask = api; // a view's numbers can be live (#1630)
     if (view || !features.includes('ui-catalog')) return;
     try { use(await api('/ui-catalog')); } catch { /* the fences stay code */ }
   }
@@ -379,8 +380,14 @@ const AnswerViews = (() => {
     return src ? inner(src) : `<span class="av-missing">${esc(fallback)}</span>`;
   }
 
-  // One node as HTML. path: where it stands in the tree, to tell the same kind of part apart (what the owner opened).
+  // One node as HTML. path: where it stands in the tree, to tell the same kind of part apart (what the owner opened). A component bound
+  // to a tile of the Board (#1630) is drawn from the tile's live values once the chat has them, from what the bot wrote before and
+  // when it can't have them; its own box, `display: contents`, is what a live update swaps.
   function draw(n, ctx, path = '0') {
+    if (!bound(n)) return drawNode(n, ctx, path);
+    return `<div class="av-live" data-av-at="${path}">${drawNode(liveOf(ctx.key, path) || n, ctx, path)}</div>`;
+  }
+  function drawNode(n, ctx, path) {
     switch (n.type) {
       case 'stack': return `<div class="av-stack${gap(n)}">${kids(n, ctx, path)}</div>`;
       case 'row': return `<div class="av-row${gap(n)}">${kids(n, ctx, path)}</div>`;
@@ -454,7 +461,9 @@ const AnswerViews = (() => {
     if (act) { trees.delete(key); trees.set(key, v.root); if (trees.size > 300) trees.delete(trees.keys().next().value); }
     // A form has one Send; the line under it says what was sent, once something was.
     const tail = act ? `${act === 'form' ? `<div class="av-actions"><button type="button" class="btn primary av-send" data-av-send disabled>${tr('Send')}</button></div>` : ''}<p class="av-sent" role="status" hidden></p>` : '';
-    return `<div class="av" role="group" aria-label="${esc(v.alt)}" data-av="${key}"${act ? ` data-av-act="${act}"` : ''}>${draw(v.root, { botId, key })}${tail}</div>`;
+    const live = boundIn(v.root).length > 0;
+    if (live) { written.delete(key); written.set(key, { root: v.root, botId }); if (written.size > 300) written.delete(written.keys().next().value); }
+    return `<div class="av" role="group" aria-label="${esc(v.alt)}" data-av="${key}"${act ? ` data-av-act="${act}"` : ''}${live ? ' data-av-live' : ''}>${draw(v.root, { botId, key })}${tail}</div>`;
   }
   const trees = new Map(); // a view's key -> its tree, for the views that can be sent (what the page needs to read a form)
   const altLine = (alt) => (alt ? `<p class="av-alt">${esc(alt)}</p>` : '');
@@ -474,6 +483,83 @@ const AnswerViews = (() => {
       const text = mdParts(mdBlocks(!done && i === all.length - 1 ? draftSource(p.text) : p.text), botId);
       return botId ? text.map((h) => linkPaths(h, botId)) : text; // the paths of a bot's text open in the viewer, as in any reply
     });
+  }
+
+  // ---------- live numbers from the Board (#1630, ADR 264 amendment, ADR 071) ----------
+
+  // A kpi, gauge, sparkline, chart or table may name a tile (`tile`, with `bind`): the tile is its source, its logins, its scripts, the
+  // owner's OK on a script and its refresh. The view keeps the values it was written with, which show first and which Copy, a room and
+  // every other reader see; an open chat then asks botdot for the tile's values (POST /dashboard/live, as a page's blocks are filled
+  // in) and draws them over the written ones, again when the live feed says a tile changed. No polling of its own. A tile that is
+  // gone, waits for the owner or can't be read leaves the written values, with no error.
+  const BOUND = ['kpi', 'gauge', 'sparkline', 'chart', 'table'];
+  const bound = (n) => BOUND.includes(n.type) && typeof n.tile === 'string' && n.tile !== '';
+  // The nodes of a tree that bind, with their paths (the paths draw() gives them).
+  function boundIn(n, path = '0', out = []) {
+    if (bound(n)) out.push({ path, node: n });
+    (n.children || []).forEach((c, i) => boundIn(c, `${path}.${i}`, out));
+    return out;
+  }
+  let ask = null; // the page's api(), once the server says `ui-live`
+  const written = new Map(); // a view's key -> { root, botId }: the tree as it was written, for the views that bind
+  const filled = new Map(); // a view's key -> { at, nodes: { path: the node with the tile's values }, tiles: [ids] }
+  const asking = new Set();
+  const STALE = 20000; // a chat drawn again within this long of an answer asks nothing new
+  const liveOf = (key, path) => (filled.get(key) ? filled.get(key).nodes[path] || null : null);
+
+  async function fetchLive(key) {
+    const w = written.get(key);
+    if (!ask || !w || asking.has(key)) return;
+    asking.add(key);
+    try {
+      const list = boundIn(w.root);
+      const r = await ask('/dashboard/live', { method: 'POST', body: { ...(w.botId ? { bot: w.botId } : {}), nodes: list.map((x) => x.node) } });
+      if (!r || !Array.isArray(r.nodes)) return;
+      const nodes = {};
+      list.forEach((x, i) => { if (r.nodes[i] && r.nodes[i].type === x.node.type) nodes[x.path] = r.nodes[i]; });
+      filled.delete(key);
+      filled.set(key, { at: Date.now(), nodes, tiles: Array.isArray(r.tiles) ? r.tiles : [] });
+      if (filled.size > 300) filled.delete(filled.keys().next().value);
+      repaintLive(key);
+    } catch { /* the written values stay */ } finally { asking.delete(key); }
+  }
+  // Each place a view is drawn: only the boxes of its bound components are drawn again, so what the owner typed and opened stays.
+  function repaintLive(key) {
+    const w = written.get(key);
+    if (!w || typeof document === 'undefined') return;
+    const ctx = { botId: w.botId, key };
+    const nodes = boundIn(w.root);
+    for (const av of $$(`.av[data-av="${key}"]`)) {
+      for (const box of $$('.av-live', av)) {
+        const at = nodes.find((x) => x.path === box.dataset.avAt);
+        if (!at) continue;
+        const html = drawNode(liveOf(key, at.path) || at.node, ctx, at.path);
+        if (box.innerHTML !== html) box.innerHTML = html;
+      }
+      wire(av);
+    }
+  }
+  // The views of a chat that are due: those never asked, or asked longer ago than STALE.
+  function liveScan(root) {
+    if (!ask || !root || typeof document === 'undefined') return;
+    const views = [...(root.matches && root.matches('.av[data-av-live]') ? [root] : []), ...$$('.av[data-av-live]', root)];
+    for (const av of views) {
+      if (!chatOf(av)) continue; // a chat of the owner's only: a room and a document show the written values
+      const key = av.dataset.av;
+      const got = filled.get(key);
+      if (got) repaintLive(key); // what the chat has already: at once, before the answer
+      if (!got || Date.now() - got.at > STALE) fetchLive(key);
+    }
+  }
+  // The live feed says a tile changed (no id: the Board did): the views in the open chat that read it ask again.
+  function tileChanged(id) {
+    if (!ask || typeof document === 'undefined') return;
+    const keys = new Set($$('.av[data-av-live]').filter((av) => chatOf(av)).map((av) => av.dataset.av));
+    for (const key of keys) {
+      const got = filled.get(key);
+      if (got && id && !got.tiles.includes(id)) continue;
+      fetchLive(key);
+    }
   }
 
   // ---------- sending from a view (wave 2, ADR 265) ----------
@@ -592,6 +678,7 @@ const AnswerViews = (() => {
     if (!view || !root) return;
     chats.set(root, send);
     settle(root);
+    liveScan(root);
     if (typeof MutationObserver === 'undefined') return;
     const has = !!root.querySelector('.av[data-av-act]');
     let w = watchers.get(root);
@@ -626,6 +713,7 @@ const AnswerViews = (() => {
       el.dataset.wired = '1';
       wireCharts(el.parentElement);
     });
+    liveScan(root); // the numbers of a view that binds to a tile
   }
 
   if (typeof document !== 'undefined') {
@@ -719,7 +807,7 @@ const AnswerViews = (() => {
   }
 
   return {
-    use, load, ready, has, parts, html, wire, wireChat, sentFrom, sendOf, textOf, newest, stateOf, verdict, mark,
+    use, load, ready, has, parts, html, wire, wireChat, tileChanged, sentFrom, sendOf, textOf, newest, stateOf, verdict, mark,
     alt: (src, opts) => (words ? words.alt(src, opts) : String(src ?? '')),
     text: (src, opts) => (words ? words.text(src, opts) : String(src ?? '')),
   };

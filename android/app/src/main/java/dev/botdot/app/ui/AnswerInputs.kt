@@ -94,14 +94,17 @@ import kotlin.math.roundToInt
  * One chat's messages as its views read them, and its own send: `(text, key) -> whether it went`, the function a quick answer
  * and a card of questions use, so a busy bot shows the send as waiting.
  */
-class ViewChat(private val bubbles: List<ViewBubble>, private val send: suspend (String, String) -> Boolean) {
+class ViewChat(private val bubbles: List<ViewBubble>, private val bot: String? = null, private val send: suspend (String, String) -> Boolean) {
     private val newest = ViewForm.newest(bubbles)
     /** What the views of the bot message [id] may do. */
-    fun reply(id: String) = ViewReply(id, id == newest, ViewForm.ownersAfter(bubbles, id), send)
+    fun reply(id: String) = ViewReply(id, id == newest, ViewForm.ownersAfter(bubbles, id), send, bot)
 }
 
-/** One bot message as its views read it: [newest] says it may be answered, [mine] are the owner's messages after it, up to the next bot message. */
-class ViewReply(val id: String, val newest: Boolean, val mine: List<String>, val send: suspend (String, String) -> Boolean)
+/**
+ * One bot message as its views read it: [newest] says it may be answered, [mine] are the owner's messages after it, up to the next bot
+ * message. [bot] is the bot whose chat it is (null in the Chief's and a group's): of tiles of one title, a live number reads that bot's first.
+ */
+class ViewReply(val id: String, val newest: Boolean, val mine: List<String>, val send: suspend (String, String) -> Boolean, val bot: String? = null)
 
 /** The chat a view is in; null where a view only shows (a room, a tile, a document). */
 val LocalViewChat = compositionLocalOf<ViewChat?> { null }

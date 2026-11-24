@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.answerview.AnswerViews
 import dev.botdot.app.answerview.ReplyPart
+import dev.botdot.app.answerview.AnswerViewLive
 import dev.botdot.app.answerview.ViewNode
 import dev.botdot.app.answerview.flag
 import dev.botdot.app.answerview.media
@@ -217,9 +218,17 @@ fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: I
 
 private val INLINE = setOf("badge", "status")
 
-/** One component, by the tree's own name for it: no code of a component's own is the validator's, only the drawing is here. */
+/**
+ * One component, by the tree's own name for it: no code of a component's own is the validator's, only the drawing is here. A
+ * component that names a tile of the Board (#1630) is drawn from the tile's live values once the chat has them.
+ */
 @Composable
 internal fun ViewBlock(n: ViewNode, alt: String, path: String, top: Boolean = false) {
+    if (AnswerViewLive.isBound(n)) ViewBlockOf(rememberLive(n), alt, path, top) else ViewBlockOf(n, alt, path, top)
+}
+
+@Composable
+private fun ViewBlockOf(n: ViewNode, alt: String, path: String, top: Boolean) {
     when (n.type) {
         "stack" -> Column(verticalArrangement = Arrangement.spacedBy(gap(n.text("gap")))) { n.children.orEmpty().forEachIndexed { i, c -> ViewBlock(c, alt, "$path.$i") } }
         "row" -> ViewRow(n, alt, path)

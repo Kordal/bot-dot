@@ -150,6 +150,7 @@ function listenFeed(es) {
     if (d.tile && state.dash) { state.dash.tiles = state.dash.tiles.map((t) => (t.id === d.tile.id ? d.tile : t)); if (state.view === 'dashboard') renderDashboard(); }
     else loadDash(state.view !== 'dashboard');
     if (typeof DocViewer !== 'undefined') DocViewer.tileChanged(d.tile?.id); // a page whose blocks read it (#395)
+    if (typeof AnswerViews === 'object') AnswerViews.tileChanged(d.tile?.id); // an answer view bound to it, in the open chat (#1630)
   });
   // A working bot's plan changed (#629): on its run as the page holds it, and its chat drawn again when it is open.
   // The run's own stream says it too, but one that dropped says nothing more, and the feed reconnects.
