@@ -198,13 +198,24 @@ test('the data components: kpis and stat rows, progress, status, timeline, compa
     { type: 'callout', title: 'Note', text: 'l1\nl2', tone: 'warn' },
   ] });
   assert.match(html, /<header class="pb-hero"><div class="pb-eyebrow">Report<\/div><div class="pb-title">Q3<\/div>/);
-  assert.match(html, /<div class="av-statrow"><div class="pb-card av-kpi"><div class="kit-kpi ">[\s\S]*Users[\s\S]*1200<small>k<\/small>[\s\S]*<p class="av-source">Source: GA<\/p><\/div><div class="pb-card av-kpi">[\s\S]*<p class="av-source none">No source<\/p>/);
+  assert.match(html, /<div class="av-statrow" style="--n:2"><div class="pb-card av-kpi"><div class="kit-kpi ">[\s\S]*Users[\s\S]*1200<small>k<\/small>[\s\S]*<p class="av-source">Source: GA<\/p><\/div><div class="pb-card av-kpi">[\s\S]*<p class="av-source none">No source<\/p>/);
   assert.match(html, /role="progressbar" aria-label="Done" aria-valuemin="0" aria-valuemax="100" aria-valuenow="40" aria-valuetext="4 of 10"/);
   assert.match(html, /<span class="kit-pill err">Late<\/span>/);
   assert.match(html, /<ol class="av-timeline"><li class="t-good"><span class="mark" aria-hidden="true"><\/span><small>Mon<\/small><b>Kickoff<\/b>/);
   assert.match(html, /<th scope="col" class="pick">B<small>Recommended<\/small><\/th>.*<th scope="row">Price<\/th><td>1<\/td><td class="pick">2<\/td>/);
   assert.match(html, /<li class="task"><input type="checkbox" disabled checked aria-label="Write"> Write<\/li><li class="task"><input type="checkbox" disabled aria-label="Send"> Send<\/li>/);
   assert.match(html, /<div class="kit-callout warn"><b>Note<\/b><div>l1 l2<\/div><\/div>/);
+});
+
+test('KPIs wrap evenly: all in one row when they fit, else one to a line, never two and an orphan', () => {
+  const kpi = (label) => ({ type: 'kpi', label, value: '1', source: 's' });
+  assert.match(draw({ type: 'stat-row', children: [kpi('A'), kpi('B'), kpi('C')] }), /<div class="av-statrow" style="--n:3">/);
+  assert.match(draw({ type: 'stat-row', children: [kpi('A')] }), /<div class="av-statrow" style="--n:1">/);
+  // the rule is in the page's style: the basis is 0 when the KPIs all fit in the row and a full line when they don't, with --n of them
+  const css = read('style.css');
+  assert.match(css, /\.av-statrow \{[^}]*--need: calc\(var\(--n, 1\) \* 150px \+ \(var\(--n, 1\) - 1\) \* var\(--sp-12\)\);[^}]*display: flex; flex-wrap: wrap;/);
+  assert.match(css, /\.av-statrow > \* \{ flex: 1 1 calc\(\(var\(--need\) - 100%\) \* 999\);[^}]*max-width: 100%/);
+  assert.doesNotMatch(css, /av-statrow \{[^}]*auto-fit/);
 });
 
 test('every chart has a Data toggle with its numbers as a table, and its source or "No source"', () => {
@@ -219,6 +230,7 @@ test('every chart has a Data toggle with its numbers as a table, and its source 
   const toggles = html.match(/<details class="av-data"[^>]*><summary>Data<\/summary>.*?<\/details>/g);
   assert.equal(toggles.length, 6);
   assert.match(toggles[0], /<th scope="col"><span class="sr-only">Label<\/span><\/th><th scope="col" class="num">EU<\/th><th scope="col" class="num">US<\/th>.*<td>Jan<\/td><td class="num">10 k<\/td><td class="num">5 k<\/td>.*<td>Feb<\/td><td class="num">20.5 k<\/td><td class="num"><\/td>/);
+  assert.match(toggles[1], /<th scope="col">Label<\/th><th scope="col" class="num">Value<\/th><th scope="col" class="num">%<\/th>/, 'the first column of a pie\'s numbers has its heading');
   assert.match(toggles[1], /<td>B<\/td><td class="num">3<\/td><td class="num">75%<\/td>/);
   assert.match(toggles[2], /<th scope="col" class="num">Age<\/th>|<th scope="col">Age<\/th>/);
   assert.match(toggles[3], /1 to 5.*3.*5 to 9.*1/);
@@ -596,9 +608,9 @@ test('an alert says its tone in a word as well as a colour, an empty state holds
 test('a poll and a quiz are buttons that post their own words, and a view with only them is one to press', () => {
   const poll = draw({ type: 'poll', question: 'Which day?', options: ['Monday', 'Tuesday'] });
   assert.match(poll, /data-av-act="press"/);
-  assert.match(poll, /<div class="av-poll" role="group" aria-label="Which day\?"><b class="av-q">Which day\?<\/b><div class="av-btns"><button type="button" class="btn av-btn av-choice t-neutral" disabled data-av-press="0\.0" data-say="Monday">Monday<\/button><button[^>]*data-av-press="0\.1" data-say="Tuesday">Tuesday<\/button><\/div><\/div>/);
+  assert.match(poll, /<div class="av-poll" role="group" aria-label="Which day\?" data-av-poll="0" data-q="Which day\?"><b class="av-q">Which day\?<\/b><div class="av-btns"><button type="button" class="btn av-btn av-choice t-neutral" disabled data-av-press="0\.0" data-say="Monday">Monday<\/button><button[^>]*data-av-press="0\.1" data-say="Tuesday">Tuesday<\/button><\/div><\/div>/);
   const quiz = draw({ type: 'quiz', question: 'Capital?', options: ['Kraków', 'Warsaw'], answer: 1, explain: 'Since 1596.' });
-  assert.match(quiz, /<div class="av-poll av-quiz" role="group" aria-label="Capital\?" data-correct="Warsaw" data-explain="Since 1596\.">/);
+  assert.match(quiz, /<div class="av-poll av-quiz" role="group" aria-label="Capital\?" data-av-poll="0" data-q="Capital\?" data-correct="Warsaw" data-explain="Since 1596\.">/);
   assert.match(quiz, /<p class="av-reveal" role="status" hidden><\/p>/);
   assert.doesNotMatch(poll, /av-reveal|data-correct/);
   // a poll's choice that is not a quiz's answer index in range reveals no right or wrong

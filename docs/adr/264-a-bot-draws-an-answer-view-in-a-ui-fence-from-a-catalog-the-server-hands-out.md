@@ -57,3 +57,8 @@ The owner approved following [ADR 071](071-a-page-draws-the-block-kit-bound-to-t
 
 Not decided here: a chart of one number shows the recent values the tile keeps, which are those of a value tile, of the tile's own kpis and charts, and of the pages that bind it; a view does not ask a tile to keep more (a bot that wants a series binds to a list the tile reads).
 
+## Amendment: three small rules found by a QA run (2026-11-24)
+
+- **A source that says there is none is no source.** A `source` that only says so (`none`, `n/a`, `unknown`, `no source`, `no source available`, empty once its marks are gone, and in Polish `brak`, `brak źródła`, `nie dotyczy`, `nieznane`) is dropped by the validator, so the quiet "No source" shows. A source is read clause by clause (a colon, comma, semicolon, bracket, full stop or dash ends one) and says there is none when its last clause is one of those, so "the bot's estimate: none, no source available" is no source either, and "Analytics export, 24 November" or "Unknown Bureau of Statistics" is one. The phrases are in the three validators and the cases in `cases` of the shared fixture; they are not in the catalog.
+- **A pie's Data table has a heading over its labels** ("Label"), as the first column of the other charts' tables has for a screen reader.
+- **A `stat-row` wraps evenly:** all its KPIs in one row when each can have 150 px (140 dp on Android), else one to a line, never two and an orphan.

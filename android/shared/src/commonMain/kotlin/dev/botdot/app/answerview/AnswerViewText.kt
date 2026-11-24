@@ -38,7 +38,7 @@ fun ViewNode.dataTable(): ViewTable? {
         "pie" -> {
             val slices = items("slices").mapNotNull { it.obj() }
             val total = slices.sumOf { it["value"]?.num() ?: 0.0 }
-            ViewTable(title, listOf("", tr("Value"), "%"), slices.map { listOf(it.text("label").orEmpty(), n(it["value"], unit), if (total != 0.0) viewNumber((it["value"]?.num() ?: 0.0) / total * 100) + "%" else "") })
+            ViewTable(title, listOf(tr("Label"), tr("Value"), "%"), slices.map { listOf(it.text("label").orEmpty(), n(it["value"], unit), if (total != 0.0) viewNumber((it["value"]?.num() ?: 0.0) / total * 100) + "%" else "") })
         }
         "scatter" -> {
             val series = items("series").mapNotNull { it.obj() }

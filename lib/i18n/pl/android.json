@@ -1493,6 +1493,7 @@
   "{lo} to {hi}": "{lo} do {hi}",
   "Series": "Seria",
   "Series {n}": "Seria {n}",
+  "Label": "Etykieta",
   "Range": "Zakres",
   "Count": "Liczba",
   "Minimum": "Minimum",

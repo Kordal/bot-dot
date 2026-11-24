@@ -13,6 +13,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNotEquals
@@ -237,11 +238,58 @@ class AnswerViewTest {
                 val values = c["values"]?.jsonObject.orEmpty().mapValues { it.value }
                 assertEquals(posts.jsonPrimitive.content, ViewForm.form(root, values), name)
             }
+            // Several quizzes and polls with no form are picked in and sent together (ADR 265, amendment): one line a question, which reads back as its pick.
+            c["picking"]?.let { assertEquals(it.jsonPrimitive.boolean, ViewForm.picking(root), name) }
+            c["pickPosts"]?.let { posts ->
+                val chosen = c.getValue("chosen").jsonObject.mapValues { it.value.jsonPrimitive.content }
+                assertEquals(posts.jsonPrimitive.content, ViewForm.picks(root, chosen), name)
+                for ((path, node) in ViewForm.questions(root)) {
+                    val options = node.strings("options")
+                    assertEquals(chosen[path]?.takeIf { it in options }, ViewForm.pickOf(posts.jsonPrimitive.content, node.text("question").orEmpty(), options), "$name: $path")
+                }
+            }
             c["presses"]?.jsonObject?.forEach { (path, says) ->
                 val button = assertNotNull(ViewForm.buttons(root).firstOrNull { it.path == path }, "$name: a button at $path")
                 assertEquals(says.jsonPrimitive.content, ViewForm.press(button.node), "$name: $path")
             }
         }
+    }
+
+    @Test fun aLabelThatEndsInAMarkTakesASpaceBeforeItsValueAndASendInTheOlderWayStillReadsAsSent() {
+        assertEquals("Budget: 500", ViewForm.said("Budget", "500"))
+        for (mark in listOf("?", ":", ".", "!")) assertEquals("Label$mark x", ViewForm.said("Label$mark", "x"))
+        val labels = listOf("How was your energy this week?")
+        assertEquals("How was your energy this week? 8", ViewForm.sentFrom("How was your energy this week? 8", emptyList(), labels))
+        assertEquals("How was your energy this week?: 8", ViewForm.sentFrom("How was your energy this week?: 8", emptyList(), labels))
+        assertNull(ViewForm.sentFrom("Budget 500", emptyList(), listOf("Budget")))
+        assertNull(ViewForm.sentFrom("Name? Ada", emptyList(), listOf("Name")))
+        val read = ViewForm.sendOf(listOf("How was your energy this week? 8"), emptyList(), labels, null)
+        assertEquals("How was your energy this week? 8", read.sent)
+        assertNull(read.pending)
+    }
+
+    @Test fun severalPicksAreOneLineToAQuestionAndEachQuizReadsItsOwnLine() {
+        val root = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"stack","children":[{"type":"quiz","question":"Capital of Poland?","options":["Kraków","Warsaw"],"answer":1},{"type":"poll","question":"Pick a day:","options":["Monday","Tuesday"]}]}}""")).root
+        assertTrue(ViewForm.picking(root))
+        assertEquals(listOf("0.0", "0.1"), ViewForm.questions(root).map { it.path })
+        // a pick's choices are no button's words, so only a line for every question is the send
+        assertEquals(emptyList(), ViewForm.buttons(root, choices = false))
+        val said = ViewForm.picks(root, mapOf("0.0" to "Kraków", "0.1" to "Tuesday"))
+        assertEquals("Capital of Poland? Kraków\nPick a day: Tuesday", said)
+        val labels = listOf("Capital of Poland?", "Pick a day:")
+        assertEquals(said, ViewForm.sentFrom(said, emptyList(), labels))
+        assertNull(ViewForm.sentFrom("Capital of Poland? Kraków", emptyList(), labels))
+        assertEquals("Kraków", ViewForm.pickOf(said, "Capital of Poland?", listOf("Kraków", "Warsaw")))
+        assertEquals("Tuesday", ViewForm.pickOf(said, "Pick a day:", listOf("Monday", "Tuesday")))
+        assertNull(ViewForm.pickOf("Capital of Poland? Madrid", "Capital of Poland?", listOf("Kraków", "Warsaw")))
+        // one quiz alone sends its choice at once
+        val one = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"quiz","question":"Q?","options":["A","B"],"answer":0}}""")).root
+        assertFalse(ViewForm.picking(one))
+    }
+
+    @Test fun aPiesDataTableHasAHeadingOverItsLabels() {
+        val root = assertIs<ViewResult.Drawn>(views.validate("""{"alt":"A","root":{"type":"pie","slices":[{"label":"A","value":1},{"label":"B","value":3}]}}""")).root
+        assertEquals("Label", root.dataTable()?.head?.first())
     }
 
     @Test fun theInputsOfAViewAreCountedByPathAsTheWebPageCountsThem() {

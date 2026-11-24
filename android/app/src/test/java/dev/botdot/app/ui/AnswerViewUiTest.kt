@@ -393,4 +393,37 @@ class AnswerViewUiTest {
         rule.onNodeWithText("Monday").assertIsNotEnabled()
         rule.onNodeWithText("Not sent").assertIsDisplayed()
     }
+
+    private val picks = fence("""{"alt":"Questions","root":{"type":"stack","children":[
+        {"type":"quiz","question":"Capital of Poland?","options":["Kraków","Warsaw"],"answer":1,"explain":"Since 1596."},
+        {"type":"poll","question":"Pick a day:","options":["Monday","Tuesday"]},
+        {"type":"quiz","question":"Largest planet?","options":["Mars","Jupiter"],"answer":1}]}}""")
+
+    @Test fun severalQuizzesAreAFormATapPicksAndOneSendPostsALineToEach() {
+        val sent = mutableListOf<String>()
+        showIn(ViewChat(listOf(ViewBubble.bot("picks-1"))) { t, _ -> sent += t; true }, "picks-1", picks)
+        rule.onNodeWithText("Send").assertIsNotEnabled()
+        rule.onNodeWithText("Kraków").performClick()
+        rule.onNodeWithText("Warsaw").performClick() // a pick can be changed
+        rule.onNodeWithText("Tuesday").performClick()
+        rule.waitForIdle()
+        assertEquals(emptyList<String>(), sent) // a tap sends nothing
+        rule.onNodeWithText("Send").assertIsNotEnabled() // the last question has none
+        rule.onNodeWithText("Jupiter").performClick()
+        rule.onNodeWithText("Send").assertIsEnabled()
+        rule.onNodeWithText("Send").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("Capital of Poland? Warsaw\nPick a day: Tuesday\nLargest planet? Jupiter"), sent)
+        rule.onNodeWithText("Correct. Since 1596.").assertIsDisplayed() // each quiz says whether its own pick was right
+        rule.onNodeWithText("Correct.").assertIsDisplayed()
+        rule.onNodeWithText("Mars").assertIsNotEnabled()
+    }
+
+    @Test fun severalQuizzesTheOwnerAnsweredSayWhetherEachPickWasRightWhenTheChatIsOpenedAgain() {
+        val chat = ViewChat(listOf(ViewBubble.bot("picks-2"), ViewBubble.owner("Capital of Poland? Kraków\nPick a day: Monday\nLargest planet? Jupiter"), ViewBubble.bot("picks-3"))) { _, _ -> true }
+        showIn(chat, "picks-2", picks)
+        rule.onNodeWithText("Not quite. The answer is Warsaw. Since 1596.").assertIsDisplayed()
+        rule.onNodeWithText("Correct.").assertIsDisplayed()
+        rule.onNodeWithText("Send").assertIsNotEnabled()
+    }
 }

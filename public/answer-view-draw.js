@@ -359,11 +359,13 @@ const AnswerViews = (() => {
   }
 
   // A poll's and a quiz's choices are buttons that post their own words (ADR 265), counted by the form's own rule (AnswerText.buttons).
-  function poll(n, path) {
+  // A view of several of them and no form (ctx.picks) takes a tap as a pick, pressed and changeable, and has one Send for them all.
+  function poll(n, ctx, path) {
     const quiz = n.type === 'quiz';
     const correct = quiz && Number.isInteger(n.answer) && n.answer >= 0 && n.answer < n.options.length ? n.options[n.answer] : null;
-    const choice = (o, i) => `<button type="button" class="btn av-btn av-choice t-neutral" disabled data-av-press="${path}.${i}" data-say="${esc(o)}">${esc(o)}</button>`;
-    return `<div class="av-poll${quiz ? ' av-quiz' : ''}" role="group" aria-label="${esc(n.question)}"${correct !== null ? ` data-correct="${esc(correct)}"${n.explain ? ` data-explain="${esc(n.explain)}"` : ''}` : ''}><b class="av-q">${esc(n.question)}</b><div class="av-btns">${n.options.map(choice).join('')}</div>${correct !== null ? '<p class="av-reveal" role="status" hidden></p>' : ''}</div>`;
+    const chosen = ctx.picks ? typed.get(`${ctx.key}.${path}`) : undefined;
+    const choice = (o, i) => `<button type="button" class="btn av-btn av-choice t-neutral" disabled data-av-press="${path}.${i}" data-say="${esc(o)}"${ctx.picks ? ` aria-pressed="${chosen === o}"` : ''}>${esc(o)}</button>`;
+    return `<div class="av-poll${quiz ? ' av-quiz' : ''}" role="group" aria-label="${esc(n.question)}" data-av-poll="${path}" data-q="${esc(n.question)}"${correct !== null ? ` data-correct="${esc(correct)}"${n.explain ? ` data-explain="${esc(n.explain)}"` : ''}` : ''}><b class="av-q">${esc(n.question)}</b><div class="av-btns">${n.options.map(choice).join('')}</div>${correct !== null ? '<p class="av-reveal" role="status" hidden></p>' : ''}</div>`;
   }
   // What a quiz says of the choice that was sent: whether it was the right one and the answer's words; null while nothing was sent
   // that is one of its choices, and for a quiz that names no answer.
@@ -411,7 +413,7 @@ const AnswerViews = (() => {
 
       case 'hero': return pageBlockHTML({ type: 'hero', title: n.title, eyebrow: n.eyebrow, lead: n.lead, tags: n.tags });
       case 'kpi': return `<div class="pb-card av-kpi">${kitKpi({ label: n.label, text: n.value, unit: n.unit, of: n.of, sub: n.sub, points: n.points }, TINT[tone(n)])}${source(n)}</div>`;
-      case 'stat-row': return `<div class="av-statrow">${kids(n, ctx, path)}</div>`;
+      case 'stat-row': return `<div class="av-statrow" style="--n:${Math.max((n.children || []).length, 1)}">${kids(n, ctx, path)}</div>`;
       case 'progress': return `<div class="av-progress" role="progressbar" aria-label="${esc(n.label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${num(n.value)}" aria-valuetext="${esc(n.text || `${num(n.value)}%`)}" style="--c:${TINT[tone(n)]}"><div class="av-progress-l"><span>${esc(n.label)}</span><span class="n">${esc(n.text || `${num(n.value)}%`)}</span></div><div class="kit-bar"><i style="width:${num(n.value)}%"></i></div></div>`;
       case 'status': return kitStatus({ text: n.text, level: LEVEL[tone(n)] });
       case 'table': return table(n, ctx, path);
@@ -424,7 +426,7 @@ const AnswerViews = (() => {
       case 'alert': return alert(n);
       case 'empty-state': return `<div class="av-empty"><b>${esc(n.title)}</b>${n.text ? `<span>${esc(n.text)}</span>` : ''}${(n.children || []).length ? `<div class="av-btns" role="group">${kids(n, ctx, path)}</div>` : ''}</div>`;
       case 'countdown': return countdown(n);
-      case 'poll': case 'quiz': return poll(n, path);
+      case 'poll': case 'quiz': return poll(n, ctx, path);
       case 'callout': return `<div class="kit-callout ${LEVEL[tone(n)]}">${n.title ? `<b>${esc(n.title)}</b>` : ''}<div>${lines(n.text)}</div></div>`;
 
       case 'chart': return chart(n, ctx, path);
@@ -457,13 +459,15 @@ const AnswerViews = (() => {
   function html(v, botId = '') {
     const key = hash(JSON.stringify(v));
     if (v.root.type === 'unknown') return `${altLine(v.alt)}${unknown()}`;
-    const act = words.fields(v.root).length ? 'form' : words.buttons(v.root).length ? 'press' : '';
+    // Several quizzes or polls and no form are picked in and sent together, as a form is: 'picks' (ADR 265, amendment).
+    const picks = !words.fields(v.root).length && words.questions(v.root).length > 1;
+    const act = words.fields(v.root).length ? 'form' : picks ? 'picks' : words.buttons(v.root).length ? 'press' : '';
     if (act) { trees.delete(key); trees.set(key, v.root); if (trees.size > 300) trees.delete(trees.keys().next().value); }
     // A form has one Send; the line under it says what was sent, once something was.
-    const tail = act ? `${act === 'form' ? `<div class="av-actions"><button type="button" class="btn primary av-send" data-av-send disabled>${tr('Send')}</button></div>` : ''}<p class="av-sent" role="status" hidden></p>` : '';
+    const tail = act ? `${act === 'form' || act === 'picks' ? `<div class="av-actions"><button type="button" class="btn primary av-send" data-av-send disabled>${tr('Send')}</button></div>` : ''}<p class="av-sent" role="status" hidden></p>` : '';
     const live = boundIn(v.root).length > 0;
     if (live) { written.delete(key); written.set(key, { root: v.root, botId }); if (written.size > 300) written.delete(written.keys().next().value); }
-    return `<div class="av" role="group" aria-label="${esc(v.alt)}" data-av="${key}"${act ? ` data-av-act="${act}"` : ''}${live ? ' data-av-live' : ''}>${draw(v.root, { botId, key })}${tail}</div>`;
+    return `<div class="av" role="group" aria-label="${esc(v.alt)}" data-av="${key}"${act ? ` data-av-act="${act}"` : ''}${live ? ' data-av-live' : ''}>${draw(v.root, { botId, key, picks })}${tail}</div>`;
   }
   const trees = new Map(); // a view's key -> its tree, for the views that can be sent (what the page needs to read a form)
   const altLine = (alt) => (alt ? `<p class="av-alt">${esc(alt)}</p>` : '');
@@ -575,7 +579,7 @@ const AnswerViews = (() => {
     if (!t) return null;
     if (says.some((x) => lineOf(x) === t)) return t;
     const lines = t.split('\n');
-    return labels.length && labels.every((l) => lines.some((x) => x.startsWith(`${l}: `))) ? t : null;
+    return labels.length && labels.every((l) => lines.some((x) => AnswerText.opens(x, l))) ? t : null;
   }
   // What a view has sent, from the chat first: `mine` are the texts of the owner's messages after the view (up to the next bot message,
   // a waiting one included), `pending` what this page posted that the chat may not show yet. The chat is the truth: once it shows the
@@ -637,8 +641,10 @@ const AnswerViews = (() => {
       const after = at < 0 ? [] : all.slice(at + 1);
       const upTo = after.findIndex((b) => b.classList.contains('from-bot'));
       const mine = (upTo < 0 ? after : after.slice(0, upTo)).filter((b) => b.classList.contains('from-me'));
-      const says = $$('[data-av-press]', av).map((b) => b.dataset.say);
-      const labels = $$('[data-av-in][data-label]', av).map((f) => f.dataset.label);
+      // Several picks are sent as lines of their questions, so their choices are no button's words.
+      const picks = av.dataset.avAct === 'picks';
+      const says = $$('[data-av-press]', av).filter((b) => !(picks && b.closest('.av-poll'))).map((b) => b.dataset.say);
+      const labels = picks ? $$('.av-poll', av).map((b) => b.dataset.q) : $$('[data-av-in][data-label]', av).map((f) => f.dataset.label);
       const { sent, pending } = sendOf({ mine: mine.map(textOf), says, labels, pending: av._avSent });
       av._avSent = pending; // the chat shows it now, or it is still on its way
       paint(av, stateOf({ newest: at >= 0 && at === latest, sent }));
@@ -647,14 +653,20 @@ const AnswerViews = (() => {
   // What a poll or a quiz shows once its choice was sent: the choice that went is marked (not by colour alone: it is pressed), and a
   // quiz says whether it was right. Open again, or never sent: nothing marked, nothing said.
   function mark(av, { state, said }) {
+    const picks = av.dataset.avAct === 'picks';
     for (const box of $$('.av-poll', av)) {
       const choices = $$('[data-av-press]', box);
       const out = $('.av-reveal', box);
       const sent = state === 'sent';
-      const v = sent && out ? verdict({ options: choices.map((c) => c.dataset.say), answer: choices.findIndex((c) => c.dataset.say === box.dataset.correct), explain: box.dataset.explain }, said) : null;
+      const options = choices.map((c) => c.dataset.say);
+      // A view of several picks says what each question was sent with: the line of its own question.
+      const mine = !sent ? null : picks ? words.pickOf(said, { question: box.dataset.q, options }) : said;
+      const v = sent && out && mine != null ? verdict({ options, answer: choices.findIndex((c) => c.dataset.say === box.dataset.correct), explain: box.dataset.explain }, mine) : null;
       for (const c of choices) {
-        const went = sent && c.dataset.say === said;
-        if (sent) c.setAttribute('aria-pressed', String(went)); else c.removeAttribute('aria-pressed');
+        const went = sent && c.dataset.say === mine;
+        if (sent) c.setAttribute('aria-pressed', String(went));
+        else if (picks && state === 'open') c.setAttribute('aria-pressed', String(typed.get(`${av.dataset.av}.${box.dataset.avPoll}`) === c.dataset.say));
+        else c.removeAttribute('aria-pressed');
         const result = v && ((went && (v.right ? 'right' : 'wrong')) || (!v.right && c.dataset.say === box.dataset.correct && 'right'));
         if (result) c.setAttribute('data-result', result); else c.removeAttribute('data-result');
       }
@@ -664,7 +676,9 @@ const AnswerViews = (() => {
   function paint(av, { state, said }) {
     mark(av, { state, said });
     const off = state !== 'open' || !!av._avBusy;
-    $$('.av-in, [data-av-press], [data-av-send]', av).forEach((c) => { if (c.disabled !== off) c.disabled = off; });
+    // The Send of several picks waits until every question has one.
+    const waits = av.dataset.avAct === 'picks' && !pickedAll(av);
+    $$('.av-in, [data-av-press], [data-av-send]', av).forEach((c) => { const no = off || (waits && c.hasAttribute('data-av-send')); if (c.disabled !== no) c.disabled = no; });
     av.dataset.avState = state;
     const line = $('.av-sent', av);
     if (!line) return;
@@ -706,6 +720,9 @@ const AnswerViews = (() => {
     if (av.isConnected) { const chat = chatOf(av); if (chat) settle(chat); else paint(av, went ? { state: 'sent', said: text } : { state: 'open' }); }
   }
   const values = (av) => Object.fromEntries($$('[data-av-in]', av).map((f) => [f.dataset.avIn, read(f)]));
+  // The choices the owner has made in a view of several picks, by their question's path; kept in `typed` until the view is sent.
+  const choices = (av) => Object.fromEntries($$('.av-poll', av).map((b) => [b.dataset.avPoll, typed.get(`${av.dataset.av}.${b.dataset.avPoll}`)]));
+  const pickedAll = (av) => $$('.av-poll', av).every((b) => typed.has(`${av.dataset.av}.${b.dataset.avPoll}`));
 
   // The tooltips of the charts drawn under `root`, once each.
   function wireTips(root) {
@@ -759,7 +776,13 @@ const AnswerViews = (() => {
       const send = chat && chats.get(chat);
       const tree = av && trees.get(av.dataset.av);
       if (!send || !tree || b.disabled) return;
-      post(av, press ? press.dataset.say : words.form(tree, values(av)), send);
+      const box = press && press.closest('.av-poll');
+      if (box && av.dataset.avAct === 'picks') { // a pick, not a send: pressed, changeable, and sent with the rest by Send
+        typed.set(`${av.dataset.av}.${box.dataset.avPoll}`, press.dataset.say);
+        paint(av, { state: av.dataset.avState });
+        return;
+      }
+      post(av, press ? press.dataset.say : av.dataset.avAct === 'picks' ? words.picks(tree, choices(av)) : words.form(tree, values(av)), send);
     });
     // Copy copies its text; it is no send, and works on an older view too.
     document.addEventListener('click', async (e) => {

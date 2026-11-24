@@ -11,6 +11,11 @@
 //   text.data(node)              the numbers of a chart as { head, rows } of texts, or null: the Data toggle's table
 //   text.fields(root)            the inputs of a view in order: [{ path, node }], a node's path counted from "0" (children "0.0", "0.1", …)
 //   text.form(root, values)      what a form posts (ADR 265): each input's label and its value, one per line; values: path -> what the owner set
+//   text.questions(root)         the quizzes and polls of a view in order: [{ path, node }]
+//   text.picks(root, chosen)     what a view of several quizzes and polls posts (ADR 265, amendment): each question and the choice made, one per line; chosen: path -> the choice
+//   text.pickOf(sent, node)      the choice that a sent text names for one quiz or poll (the line of its question), or null
+//   AnswerText.said(label, v)    one line of a send: "Label: value", or "Label? value" when the label already ends in ? : . or !
+//   AnswerText.opens(line, label)  whether a line of a send is the one for that label (the older "Label?: value" too)
 //   text.buttons(root)           the buttons of a view: [{ path, node }]
 //   text.press(button)           what a button posts: its `send` (200 characters at most), else its label
 //   text.shows(button)           what the page writes on it for the owner to read: that, when it is not the label
@@ -122,6 +127,12 @@ const within = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const oneLine = (v) => String(v ?? '').split(/\r\n?|\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' / ');
 // The ends of a slider or a range: the bot's, else 0 and 100.
 const ends = (n) => { const lo = finite(n.min) ?? 0, hi = finite(n.max) ?? 100; return hi > lo ? [lo, hi] : [0, 100]; };
+// One line of what a form or a set of picks posts: the label, then the value. A label that already ends in a mark (a question, a
+// colon, a full stop, an exclamation mark) takes just a space before the value ("How was your week? 8"), else a colon and a space.
+const ENDS_IN_MARK = /[?:.!]$/;
+const said = (label, value) => `${label}${ENDS_IN_MARK.test(label) ? ' ' : ': '}${value}`;
+// Whether a line of a sent message is the line for `label`. A view stays sent for the way it was written before too: "Label?: value".
+const opens = (line, label) => String(line).startsWith(`${label}${ENDS_IN_MARK.test(label) ? ' ' : ': '}`) || String(line).startsWith(`${label}: `);
 const cutText = (s, n) => { const t = String(s).slice(0, n); return /[\uD800-\uDBFF]/.test(t.charAt(t.length - 1)) ? t.slice(0, -1) : t; };
 
 // A view's nodes with the path of each, as the page counts them: the root is "0", its children "0.0", "0.1", ….
@@ -202,7 +213,20 @@ function of(view, opts) {
     return out;
   };
   // A form's message: "Budget: 500", one input to a line, a dash for what is empty. '' for a view with no input.
-  const form = (root, values) => fields(root).map(({ path, node }) => `${node.label}: ${valueOf(node, values ? values[path] : undefined) || '–'}`).join('\n');
+  const form = (root, values) => fields(root).map(({ path, node }) => said(node.label, valueOf(node, values ? values[path] : undefined) || '–')).join('\n');
+  // The quizzes and polls of a view. One alone sends its choice at once (a button); several, and no form around them, are picked in and
+  // sent together, one line a question: "Which is the capital of France? Paris" (ADR 265, amendment).
+  const questions = (root) => walk(root, (n) => n.type === 'poll' || n.type === 'quiz');
+  const picks = (root, chosen) => questions(root).map(({ path, node }) => said(node.question, chosen && (node.options || []).includes(chosen[path]) ? chosen[path] : '–')).join('\n');
+  // The choice a sent text names for one question: its line's rest, when that is one of the choices.
+  const pickOf = (sent, node) => {
+    for (const l of String(sent ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+      if (!opens(l, node.question)) continue;
+      const rest = l.slice(l.startsWith(`${node.question}: `) ? node.question.length + 2 : node.question.length + 1).trim();
+      if ((node.options || []).includes(rest)) return rest;
+    }
+    return null;
+  };
   const press = (n) => cutText((typeof n.send === 'string' ? n.send.trim() : '') || n.label, SEND_MAX);
   // What the owner reads on a button before pressing it: what it posts when that is not its label, else ''. Never in a tooltip alone
   // (a touch screen and the keyboard show none): the owner sees exactly what is sent.
@@ -236,7 +260,7 @@ function of(view, opts) {
       }
       case 'pie': {
         const total = (n.slices || []).reduce((a, s) => a + s.value, 0);
-        return { head: ['', tr('Value'), '%'], rows: (n.slices || []).map((s) => [s.label, `${num(s.value)}${unit}`, total ? `${round((s.value / total) * 100)}%` : '']) };
+        return { head: [tr('Label'), tr('Value'), '%'], rows: (n.slices || []).map((s) => [s.label, `${num(s.value)}${unit}`, total ? `${round((s.value / total) * 100)}%` : '']) };
       }
       case 'scatter': {
         const series = n.series || [];
@@ -332,10 +356,10 @@ function of(view, opts) {
   const alt = (reply, opts) => rewrite(reply, opts, { view: (v) => v.alt, code: (c) => c.alt });
   const text = (reply, opts) => rewrite(reply, opts, { view: (v) => join([v.alt, tree(v.root)]), code: (c) => join([c.alt, fenced(c.code, 'ui')]) });
 
-  return { alt, text, tree, data, has, fields, form, buttons, press, shows, start, ends, countdown };
+  return { alt, text, tree, data, has, fields, form, questions, picks, pickOf, buttons, press, shows, start, ends, countdown };
 }
 
-const api = { of, bins, outline, month, agenda, realDay, shade, moment };
+const api = { of, said, opens, bins, outline, month, agenda, realDay, shade, moment };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.AnswerText = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
