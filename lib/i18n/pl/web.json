@@ -1936,5 +1936,6 @@
   "Choose": "Wybierz",
   "{n} of {max}": "{n} z {max}",
   "opens in a new tab": "otwiera się w nowej karcie",
-  "Sent: {text}": "Wysłano: {text}"
+  "Sent: {text}": "Wysłano: {text}",
+  "Sends: {text}": "Wyśle: {text}"
 }

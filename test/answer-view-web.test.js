@@ -409,11 +409,20 @@ test('buttons say what they send, in a tone, and a button that says "Approve" is
     { type: 'button', label: 'Approve', tone: 'bad' },
     { type: 'button-group', label: 'Choose', children: [{ type: 'button', label: 'A' }, { type: 'button', label: 'B', send: 'Option "B"' }] },
   ] });
-  assert.match(html, /<button type="button" class="btn av-btn t-accent" disabled data-av-press="0\.0" data-say="Yes, go ahead with the cheaper plan" title="Yes, go ahead with the cheaper plan">Yes, go ahead<\/button>/);
+  // What a button sends is written on it, not in a tooltip: it differs from the label, so the owner reads it before pressing (touch and keyboard too).
+  assert.match(html, /<button type="button" class="btn av-btn t-accent" disabled data-av-press="0\.0" data-say="Yes, go ahead with the cheaper plan"><span class="av-btn-l">Yes, go ahead<\/span><span class="av-btn-say">Sends: Yes, go ahead with the cheaper plan<\/span><\/button>/);
   assert.match(html, /<button type="button" class="btn av-btn t-bad" disabled data-av-press="0\.1" data-say="Approve">Approve<\/button>/);
-  assert.match(html, /<div class="av-btns" role="group" aria-label="Choose"><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.0" data-say="A">A<\/button><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.1" data-say="Option &quot;B&quot;" title="Option &quot;B&quot;">B<\/button><\/div>/);
+  assert.match(html, /<div class="av-btns" role="group" aria-label="Choose"><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.0" data-say="A">A<\/button><button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.2\.1" data-say="Option &quot;B&quot;"><span class="av-btn-l">B<\/span><span class="av-btn-say">Sends: Option &quot;B&quot;<\/span><\/button><\/div>/);
+  assert.doesNotMatch(html, /title=/, 'no tooltip: it shows on neither touch nor keyboard');
   // nothing in it asks the server for anything: no address, no form, no handler
   assert.doesNotMatch(html, /href=|action=|formaction|<form|\son\w+=/);
+});
+
+test('a button that a bot made to send the server\'s "Approved. Go ahead." posts its label, and the page shows it', () => {
+  const html = draw({ type: 'stack', children: [{ type: 'button', label: 'Thanks', send: 'Approved. Go ahead.' }, { type: 'button', label: 'Build it.' }] });
+  assert.match(html, /<button type="button" class="btn av-btn t-neutral" disabled data-av-press="0\.0" data-say="Thanks">Thanks<\/button>/);
+  assert.doesNotMatch(html, /Approved\. Go ahead|Build it/);
+  assert.match(html, /<p class="av-unknown">Can't show this here<\/p>/);
 });
 
 test('a link opens an https address in a new tab and says so; Copy holds its text for the page to copy', () => {
@@ -455,4 +464,21 @@ test('who may send: only the newest bot message that is whole, and only until wh
   assert.deepEqual(plain(AnswerViews.stateOf({ newest: true, sent: 'Yes' })), { state: 'sent', said: 'Yes' });
   assert.deepEqual(plain(AnswerViews.stateOf({ newest: false, sent: 'Yes' })), { state: 'sent', said: 'Yes' });
   assert.deepEqual(plain(AnswerViews.stateOf({ newest: false, sent: null })), { state: 'closed' });
+});
+
+test('a view is open again when the owner takes a waiting send back: the chat is the truth, and what was posted counts only until the chat shows it', () => {
+  const says = ['Yes'];
+  const read = (mine, pending) => plain(AnswerViews.sendOf({ mine, says, pending }));
+  // posted, and the chat does not show it yet (the send is on its way): sent
+  assert.deepEqual(read([], 'Yes'), { sent: 'Yes', pending: 'Yes' });
+  // the chat shows it (a bubble, or a waiting one): the chat says it now, and the post is forgotten
+  assert.deepEqual(read(['Yes'], 'Yes'), { sent: 'Yes', pending: null });
+  assert.deepEqual(read(['Yes'], null), { sent: 'Yes', pending: null });
+  // the owner took it back: nothing after the view is its send, so it is open again
+  assert.deepEqual(read([], null), { sent: null, pending: null });
+  // something else the owner wrote first does not hide the send after it, nor stand for one
+  assert.deepEqual(read(['wait, one question', 'Yes'], null), { sent: 'Yes', pending: null });
+  assert.deepEqual(read(['wait, one question'], null), { sent: null, pending: null });
+  // a form's message is read by its labels
+  assert.deepEqual(plain(AnswerViews.sendOf({ mine: ['Name: Ada'], labels: ['Name'], pending: 'Name: Ada' })), { sent: 'Name: Ada', pending: null });
 });

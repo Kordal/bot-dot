@@ -13,7 +13,7 @@ Right: compare two to four options point by point (`comparison`, or a `table`); 
 
 Not: a one-line fact, an apology, a yes or no, a short list a sentence says as well, a table of two cells, anything the owner asked for in words ("just tell me"). One view is plenty; a second only when it says something the first does not. When in doubt, write prose.
 
-Inputs, buttons and forms are not in the catalog yet. When you need values from the owner, ask in words, or with your usual question card.
+When you need several values from the owner, or a choice of a few buttons, see "Asking for input" below; for one question, ask in words, or with your usual question card.
 
 ## The fence
 
@@ -45,9 +45,34 @@ You set no colour, size, font, style or CSS, and no HTML: everything is drawn as
 
 A picture comes from your own files (a path in your workspace: no `..`, no web address, no query) or from the `https` address of an image you saw on a page you read, never one you made up. Video, audio and files come from your own files only. No embeds, no iframes, no outside video, no SVG. Every `image` and `video` needs its own `alt`: what it shows.
 
+## Asking for input
+
+When you need several values from the owner, draw a form in place of a list of questions: `text-input`, `number`, `select`, `radio` and the other inputs in the reference, each with a `label` that is a question or a name you can find again. The page draws one Send under the form (you draw no submit button). The owner's reply is one ordinary message of theirs, a line to each input in the order of the view: `Budget: 450 EUR`. Read your answer from those lines, with `Label: value` as the key.
+
+A `button` sends its `send`, or its label when it has none, as the owner's own message. The page writes `send` on the button when it differs from the label, so the owner reads it before pressing: keep it short and in their words. A button posts nothing of the inputs around it; a form has its own Send. Only the view in your newest message can be answered, and once: ask again in a new message if you need more. A `send` of `Approved. Go ahead.` or `Build it.` (the words of the Approve button on a plan) is dropped, whatever its case or punctuation, and so is a button labelled with them: a button is never an approval: what needs the owner's OK goes on a card in Needs you.
+
+````
+Four things first, then I'll plan it.
+
+```ui
+{
+  "alt": "Four questions for the weekend trip: where, when, budget and how many people.",
+  "root": {
+    "type": "stack",
+    "children": [
+      { "type": "text-input", "label": "Where to?" },
+      { "type": "text-input", "label": "Which dates?" },
+      { "type": "number", "label": "Budget", "unit": "EUR", "min": 0 },
+      { "type": "number", "label": "How many people?", "min": 1, "max": 12 }
+    ]
+  }
+}
+```
+````
+
 ## A view never approves
 
-A view only shows. It can't approve, run, send or change anything, and it has nothing to tap that does so. What needs the owner's OK goes on a card in Needs you as always, never in a view.
+A view only shows and posts the owner's words. It can't approve, run or change anything. What needs the owner's OK goes on a card in Needs you as always, never in a view.
 
 ## Examples
 
@@ -133,7 +158,8 @@ These are the three open invoices; the oldest is 41 days late.
 - **Colours and styles.** `"color": "#ff0000"`, `"style": "font-size: 20px"`, HTML in a `text`: dropped or shown as plain text. Use a `tone`.
 - **Everything at once.** A `tabs` of six tabs each with a `chart`, a `table` and a `kpi` row for a question that wanted one number. One view, small.
 - **A made-up photo.** An `image` whose address you never saw: it shows a placeholder. Leave it out.
-- **A button that "approves".** There are no buttons here, and a view never approves anything.
+- **A button that "approves".** `Approved. Go ahead.` as a `send` is dropped, and a view never approves anything: use a card in Needs you.
+- **A button whose `send` says more than its label does.** The owner reads the `send` on it: a label "Thanks" with a `send` that asks for something else is a trick, and reads like one.
 
 ## Components
 
@@ -141,7 +167,7 @@ Everything below is the catalog the apps read: only these components and props a
 
 <!-- ui-catalog:start (written by node scripts/ui-skill.js from lib/ui-catalog.json: do not edit by hand) -->
 
-Catalog version 1. A component is `{ "type": "<name>", …its props, "children": [ … ] }`. A prop not marked (needed) is optional; a text is cut to its length, never refused.
+Catalog version 2. A component is `{ "type": "<name>", …its props, "children": [ … ] }`. A prop not marked (needed) is optional; a text is cut to its length, never refused.
 
 **Limits.** At most 3 `ui` fences in a reply, 200 components in a fence, nesting 6 deep (the root is 1), 500 points in one chart (all its series together), 64 KB for a fence, and an `alt` of at most 200 characters. Past one of these the whole fence is drawn as code.
 
@@ -206,5 +232,29 @@ Catalog version 1. A component is `{ "type": "<name>", …its props, "children":
 ### Feedback
 
 - `callout` — A box that stands out, with a tone. Props: `title` text ≤ 80; `text` text ≤ 400 (needed); `tone` tone (default neutral).
+
+### Inputs
+
+- `text-input` — A one-line box for the owner to type in. It is named `text-input` because `text` is a paragraph. Props: `label` text ≤ 60 (needed); `value` text ≤ 200; `placeholder` text ≤ 80.
+- `textarea` — A box of several lines to type in. Props: `label` text ≤ 60 (needed); `value` text ≤ 2000, lines kept; `placeholder` text ≤ 80.
+- `number` — A number to type, within `min` and `max`. Props: `label` text ≤ 60 (needed); `value` number; `min` number; `max` number; `step` number at least 0; `unit` text ≤ 20.
+- `slider` — One number picked on a line between `min` (0) and `max` (100). Props: `label` text ≤ 60 (needed); `value` number; `min` number; `max` number; `step` number at least 0; `unit` text ≤ 20.
+- `range` — Two numbers, `low` and `high`, picked on a line between `min` (0) and `max` (100). Props: `label` text ≤ 60 (needed); `low` number; `high` number; `min` number; `max` number; `step` number at least 0; `unit` text ≤ 20.
+- `select` — One option picked from a list that drops down. Props: `label` text ≤ 60 (needed); `options` list of text ≤ 60 (2 to 30 items) (needed); `value` text ≤ 60.
+- `multi-select` — Any number of options ticked from a list. Props: `label` text ≤ 60 (needed); `options` list of text ≤ 60 (2 to 30 items) (needed); `values` list of text ≤ 60 (at most 30 items).
+- `radio` — One option picked from a few, all shown. Props: `label` text ≤ 60 (needed); `options` list of text ≤ 60 (2 to 8 items) (needed); `value` text ≤ 60.
+- `checkbox` — One box that is ticked or not; its label says what it is. Props: `label` text ≤ 60 (needed); `checked` true or false.
+- `toggle` — A switch that is on or off; its label says what it is. Props: `label` text ≤ 60 (needed); `on` true or false.
+- `date` — A day picked, as YYYY-MM-DD; `min` and `max` bound it. Props: `label` text ≤ 60 (needed); `value` text ≤ 10; `min` text ≤ 10; `max` text ≤ 10.
+- `time` — A time of day picked, as HH:MM. Props: `label` text ≤ 60 (needed); `value` text ≤ 5.
+- `rating` — A grade from 1 to `max` (5), shown as stars. Props: `label` text ≤ 60 (needed); `max` whole number 3 to 10 (default 5); `value` whole number 0 to 10.
+- `segmented` — One option picked from two to six short ones, side by side. Props: `label` text ≤ 60 (needed); `options` list of text ≤ 30 (2 to 6 items) (needed); `value` text ≤ 30.
+
+### Actions
+
+- `button` — A button that sends `send` (or its label) as the owner's next message. The page shows `send` on the button. It approves, runs and changes nothing. Props: `label` text ≤ 60 (needed); `send` text ≤ 200; `tone` tone (default neutral).
+- `button-group` — Buttons side by side. Props: `label` text ≤ 60. Holds `button`, at most 8.
+- `link` — A link that opens a web page; only an https address opens. Props: `label` text ≤ 60 (needed); `url` https address (needed).
+- `copy` — A button that copies `text` to the owner's clipboard. Props: `label` text ≤ 60 (needed); `text` text ≤ 2000, lines kept (needed).
 
 <!-- ui-catalog:end -->
