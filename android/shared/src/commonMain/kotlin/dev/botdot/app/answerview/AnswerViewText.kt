@@ -17,10 +17,9 @@ data class ViewTable(val title: String?, val head: List<String>, val rows: List<
 /** A number as it is read on a screen: whole as it is, else to two decimals. */
 fun viewNumber(d: Double): String = jsNumberText(round(d * 100) / 100)
 
-private fun JsonElement.num(): Double? = (this as? JsonPrimitive)?.takeIf { !it.isString && it !is JsonNull }?.content?.toDoubleOrNull()
+private fun JsonElement.num(): Double? = asNumber()
 private fun JsonElement.obj() = this as? JsonObject
 private fun JsonElement.str(): String? = (this as? JsonPrimitive)?.takeIf { it.isString }?.content
-private fun JsonObject.text(name: String) = this[name]?.str()
 
 /** The numbers of a table, a chart, a pie, a scatter, a histogram, a sparkline or a gauge as a table; null for any other component. */
 fun ViewNode.dataTable(): ViewTable? {

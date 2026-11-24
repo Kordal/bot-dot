@@ -459,7 +459,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val api by app.api.collectAsState()
     // A file you sent in this group opens in the viewer (#268).
     val ownFiles = remember(groupId, server?.features) { { f: Attachment -> DocumentView.groupUpload(groupId, f.file) }.takeIf { DocumentView.opensChatFiles(server?.features) } }
-    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalBotLinks provides rememberBotLinks(app)) {
+    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features), LocalAnswerViews provides rememberAnswerViews(features), LocalBotLinks provides rememberBotLinks(app)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
@@ -624,7 +624,7 @@ private fun GroupDraft(text: String, bot: Bot?, name: String, color: String?) {
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Text(name, color = parseColor(color, p.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
-            TheirBubble { MarkdownText(draftSource(text), copy = false) }
+            TheirBubble { MarkdownText(draftSource(text), copy = false, draft = true) }
         }
     }
 }

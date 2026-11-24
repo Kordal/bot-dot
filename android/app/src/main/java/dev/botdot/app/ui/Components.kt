@@ -23,6 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import dev.botdot.app.answerview.copyText
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.clickable
@@ -741,12 +742,15 @@ fun chipText(w: ChipWords, warn: Color): AnnotatedString = AnnotatedString.Build
 @Composable
 fun Modifier.holdToCopy(text: String?): Modifier {
     if (text.isNullOrBlank()) return this
+    // A reply with an answer view is copied as its text: the view's `alt`, its tables as Markdown tables (ADR 264).
+    val views = LocalAnswerViews.current
+    val copied = if (views != null && text.contains("```ui")) views.copyText(text) else text
     val context = androidx.compose.ui.platform.LocalContext.current
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
-    return this.pointerInput(text) {
+    return this.pointerInput(copied) {
         detectTapGestures(onLongPress = {
             haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-            copyToClipboard(context, text)
+            copyToClipboard(context, copied)
         })
     }
 }

@@ -28,10 +28,14 @@ data class Problem(val at: String, val code: String, val prop: String? = null, v
 class ViewNode(val type: String, val props: JsonObject = JsonObject(emptyMap()), val children: List<ViewNode>? = null, val noSource: Boolean = false) {
     val isUnknown get() = type == UNKNOWN
 
-    fun text(name: String): String? = (props[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
-    fun number(name: String): Double? = (props[name] as? JsonPrimitive)?.takeIf { !it.isString && it !is JsonNull }?.content?.toDoubleOrNull()
-    fun flag(name: String): Boolean? = (props[name] as? JsonPrimitive)?.takeIf { !it.isString && it !is JsonNull }?.content?.let { if (it == "true") true else if (it == "false") false else null }
+    fun text(name: String): String? = props.text(name)
+    fun number(name: String): Double? = props.number(name)
+    fun flag(name: String): Boolean? = props.flag(name)
+    fun media(name: String): ViewMedia? = props.media(name)
     fun items(name: String): List<JsonElement> = (props[name] as? JsonArray) ?: emptyList()
+    fun objects(name: String): List<JsonObject> = items(name).mapNotNull { it as? JsonObject }
+    fun strings(name: String): List<String> = items(name).mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+    fun numbers(name: String): List<Double?> = items(name).map { it.asNumber() }
 
     /** The tree as the shared fixture writes it. */
     fun toJson(): JsonObject = JsonObject(buildMap {
@@ -42,6 +46,19 @@ class ViewNode(val type: String, val props: JsonObject = JsonObject(emptyMap()),
     })
 
     companion object { const val UNKNOWN = "unknown" }
+}
+
+/** A picture, video, sound or file the view names: a path among the bot's files (`kind` "file") or an https address (`kind` "https"). */
+data class ViewMedia(val kind: String, val value: String) { val isFile get() = kind == "file" }
+
+// What a prop or an item of a list holds, as the validator has kept it.
+fun JsonElement.asNumber(): Double? = (this as? JsonPrimitive)?.takeIf { !it.isString && it !is JsonNull }?.content?.toDoubleOrNull()
+fun JsonObject.text(name: String): String? = (this[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
+fun JsonObject.number(name: String): Double? = this[name]?.asNumber()
+fun JsonObject.flag(name: String): Boolean? = (this[name] as? JsonPrimitive)?.takeIf { !it.isString && it !is JsonNull }?.content?.let { if (it == "true") true else if (it == "false") false else null }
+fun JsonObject.media(name: String): ViewMedia? = (this[name] as? JsonObject)?.let { m ->
+    val kind = m.text("kind") ?: return null
+    ViewMedia(kind, (if (kind == "file") m.text("path") else m.text("url")) ?: return null)
 }
 
 /** A fence read: [Drawn], or [Code], which is drawn as code with its `alt` above it ([refused] says why). */
