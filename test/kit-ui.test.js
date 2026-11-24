@@ -1,4 +1,4 @@
-// The skill kit:ui (#1625, ADR 264, ADR 265): how a bot or the Chief draws an answer view, a chart, a table or another
+// The skill kit:ui (#1625, ADR 264): how a bot or the Chief draws an answer view, a chart, a table or another
 // component of the catalog in a ```ui fence, only when it is clearer than text. It ships in bot-skills/ beside
 // kit:shopping, so every bot is told of it in one line and loads the catalog and the rules only when it picks it. The
 // component reference in it is generated from lib/ui-catalog.json (lib/ui-skill.js, scripts/ui-skill.js), so that it
@@ -95,10 +95,10 @@ test('what the skill says in words is what the catalog and the validator hold', 
   assert.match(prose, /your own files|your files/i);
   assert.match(prose, /never approves|can't approve/i);
   assert.match(prose, /inputs|forms/i);
-  // The limits it names are the catalog's own (they are also in the generated part).
-  const { limits } = catalog;
-  assert.ok(prose.includes(String(limits.fences)) && prose.includes(String(limits.nodes)) && prose.includes(String(limits.depth)) && prose.includes(String(limits.points)), 'limits');
-  assert.match(prose, /64 ?KB/);
+  // The limits are said once, in the generated part, so that they can't drift: the prose points to them and copies no number.
+  assert.match(prose, /limits are in the reference below/i);
+  for (const v of [catalog.limits.nodes, catalog.limits.points, `${catalog.limits.bytes / 1024} KB`]) assert.ok(!new RegExp(`(^|[^\\d€,.])${v}(?![\\d,.]\\d)`).test(prose), `${v} is not written by hand`);
+  assert.match(prose, /Give it a `source`|marked/i);
 });
 
 test('its good examples are views the validator reads whole; its bad ones are named, not copied', () => {

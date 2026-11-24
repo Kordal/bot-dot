@@ -59,11 +59,14 @@ const walk = (n, f) => { if (!n || typeof n !== 'object') return; f(n); (n.child
 function fencesOf(reply) {
   const parts = view.split(reply, { done: true });
   const sources = sourcesOf(reply);
+  const drawn = parts.filter((p) => p.view || p.code !== undefined);
+  // Two readers of one reply must agree on its fences; if they ever don't, say so rather than score without looking.
+  if (sources.length !== drawn.length) throw new Error(`ui-scoring: the validator split found ${drawn.length} ui fences and the scan ${sources.length}`);
   const text = parts.filter((p) => p.text).map((p) => p.text).join('\n').trim();
-  const fences = parts.filter((p) => p.view || p.code !== undefined).map((p, i) => {
+  const fences = drawn.map((p, i) => {
     if (!p.view) return { drawn: false, refused: p.refused, alt: p.alt || '', problems: [], types: [], noSource: false };
     // The parts hold the tree; what the validator named (a dropped prop, an unknown component) comes from reading the text again.
-    const r = sources.length === parts.filter((x) => x.view || x.code !== undefined).length ? view.validate(sources[i]) : { problems: [] };
+    const r = view.validate(sources[i]);
     const types = new Set();
     let noSource = false;
     walk(p.view.root, (n) => { types.add(n.type); if (n.noSource) noSource = true; });

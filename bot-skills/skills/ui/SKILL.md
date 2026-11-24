@@ -31,11 +31,11 @@ A view is one fenced block named `ui` in your reply, holding one JSON object wit
 - The fence is plain JSON, with no comments and no trailing commas. A fence that isn't valid JSON is shown as code.
 - A component is `{ "type": "<name>", …its props, "children": [ … ] }`. Use only the components and props below: an unknown component is shown as a quiet line, an unknown prop is dropped, and a component with a needed prop missing is cut out (the view around it is drawn).
 - Start with `stack`, or with the component itself when it is the whole view (a `chart`, a `table`). Put the answer in your text above the fence, in the owner's language, and write the view's own words in that language too.
-- Keep views small. The limits are in the reference below: past one, the whole fence is shown as code. At most 3 fences in a reply, 200 components in a fence, nesting 6, 500 points in a chart, 64 KB.
+- Keep views small. The limits are in the reference below (fences, components, nesting, points, size): past one, the whole fence is shown as code.
 
 ## Where the numbers come from
 
-Every `chart`, `table` and `kpi` (and `pie`, `scatter`, `histogram`, `sparkline` and `gauge`) takes a `source`: a file of yours, a link, a tile, a tool you used, or "the bot's estimate". **`source` is required on data**: a view without one is drawn with a quiet "No source" mark, so the owner knows the number is unchecked. Say where each number really came from. Never invent a source, and never put a number in a view that you did not read or work out: write "the bot's estimate" for a figure you reckoned yourself.
+Every chart, table and KPI (each component in the reference marked "Give it a `source`") takes a `source`: a file of yours, a link, a tile, a tool you used, or "the bot's estimate". **`source` is required on data**: a view without one is drawn with a quiet "No source" mark, so the owner knows the number is unchecked. Say where each number really came from. Never invent a source, and never put a number in a view that you did not read or work out: write "the bot's estimate" for a figure you reckoned yourself.
 
 ## Tones, not colours
 
