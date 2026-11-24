@@ -42,7 +42,7 @@ fun draftSource(src: String): String {
     var open = -1
     lines.forEachIndexed { i, l -> if (fence.containsMatchIn(l)) open = if (open < 0) i else -1 }
     // A `ui` fence that is not closed yet waits whole: it stays open, and the app says "Drawing a view…" until it closes (ADR 264).
-    if (open >= 0 && Regex("^\\s*```ui\\s*$").matches(lines[open])) return lines.joinToString("\n")
+    if (open >= 0 && Regex("^\\s*```ui\\s*$").matches(lines[open])) return lines.joinToString("\n") { it.replace(Regex("^(\\s*```)mermaid$"), "$1") }
     if (open >= 0 && Regex("^\\s*```products\\s*$").matches(lines[open])) lines = lines.subList(0, open).toMutableList()
     if (lines.isEmpty()) return ""
     val last = lines.last()

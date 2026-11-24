@@ -166,6 +166,8 @@ class AnswerViewTest {
         assertEquals(listOf(ReplyPart.Text("Looking."), ReplyPart.Drawing), views.split(dev.botdot.app.markdown.draftSource(draft), done = false))
         // Another code block is closed for the draft, as before.
         assertEquals("```kotlin\nval a = 1\n```", dev.botdot.app.markdown.draftSource("```kotlin\nval a = 1"))
+        // A closed mermaid fence before an open ui fence still loses its word: no "Open on web" under a draft (ADR 041).
+        assertEquals("```\ngraph TD\n```\n```ui\n{\"alt\"", dev.botdot.app.markdown.draftSource("```mermaid\ngraph TD\n```\n```ui\n{\"alt\""))
     }
 
     @Test fun aCopyOfAReplyWritesTheAltOfAViewAndItsTablesAsMarkdownTables() {
