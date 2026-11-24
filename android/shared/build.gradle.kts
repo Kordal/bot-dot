@@ -85,6 +85,8 @@ val fixtures = mapOf(
     "figureCases" to "test/fixtures/figure-cases.json",
     "pushSeals" to "test/fixtures/push-seals.json",
     "figureDefinition" to "lib/figure.json",
+    "uiCases" to "test/fixtures/ui-cases.json",
+    "uiCatalog" to "lib/ui-catalog.json",
 ).mapValues { rootProject.file("../${it.value}") }
 
 abstract class WriteFixtures : DefaultTask() {
