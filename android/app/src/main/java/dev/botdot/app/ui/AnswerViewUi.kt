@@ -178,12 +178,15 @@ internal fun AnswerPart(part: ReplyPart, color: Color, copy: Boolean, modifier: 
 fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: Int = 0) {
     val reply = LocalViewReply.current
     val fields = remember(root) { ViewForm.fields(root) }
-    val buttons = remember(root) { ViewForm.buttons(root) }
-    val acts = fields.isNotEmpty() || buttons.isNotEmpty()
+    // Several quizzes or polls and no form are picked in and sent together, as a form is (ADR 265, amendment): their choices are no button's words.
+    val picking = remember(root) { ViewForm.picking(root) }
+    val questions = remember(root) { ViewForm.questions(root) }
+    val buttons = remember(root, picking) { ViewForm.buttons(root, choices = !picking) }
+    val acts = fields.isNotEmpty() || buttons.isNotEmpty() || picking
     val viewKey = "${reply?.id.orEmpty()}#$at"
     val values = remember(viewKey) { mutableStateMapOf<String, JsonElement>().apply { putAll(AnswerViewMemory.drafts.of(viewKey)) } }
     val says = remember(buttons) { buttons.map { ViewForm.press(it.node) } }
-    val labels = remember(fields) { fields.map { it.node.text("label").orEmpty() } }
+    val labels = remember(fields, picking) { if (picking) questions.map { it.node.text("question").orEmpty() } else fields.map { it.node.text("label").orEmpty() } }
     // The chat is the truth: what it shows of the owner's messages first, else what this phone posted that it does not show yet.
     val posted = AnswerViewMemory.pending[viewKey]
     val read = if (reply != null) ViewForm.sendOf(reply.mine, says, labels, posted) else null
@@ -203,11 +206,16 @@ fun AnswerView(alt: String, root: ViewNode, modifier: Modifier = Modifier, at: I
             if (went) { AnswerViewMemory.drafts.sent(viewKey); AnswerViewMemory.pending[viewKey] = text; values.clear() }
         }
     }
-    val form = remember(viewKey, live, values, reply) { FormCtx(viewKey, live, values) { post(it) } }
+    val form = remember(viewKey, live, values, reply, picking) { FormCtx(viewKey, live, values, picking) { post(it) } }
     CompositionLocalProvider(LocalForm provides form, LocalViewSaid provides (state as? ViewState.Sent)?.said) {
         Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             ViewBlock(root, alt, "0", top = true)
             if (fields.isNotEmpty()) Button({ post(ViewForm.form(root, values)) }, Modifier.heightIn(min = 48.dp), enabled = live) { Text(tr("Send")) }
+            else if (picking) {
+                val chosen = questions.mapNotNull { q -> (values[q.path] as? JsonPrimitive)?.content?.let { q.path to it } }.toMap()
+                // Send waits until every question has a choice.
+                Button({ post(ViewForm.picks(root, chosen)) }, Modifier.heightIn(min = 48.dp), enabled = live && chosen.size == questions.size) { Text(tr("Send")) }
+            }
             if (acts && state != null && state != ViewState.Open) {
                 val line = if (state is ViewState.Sent) tr("Sent: {text}", "text" to state.said) else tr("Not sent")
                 Text(line, color = LocalPaper.current.muted, fontSize = Type.s14, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -273,7 +281,7 @@ private fun ViewBlockOf(n: ViewNode, alt: String, path: String, top: Boolean) {
         "steps" -> ViewSteps(n)
         "hero" -> ViewHero(n)
         "kpi" -> ViewKpi(n)
-        "stat-row" -> ViewGrid(n.children.orEmpty(), if (n.children.orEmpty().size <= 2) n.children.orEmpty().size.coerceAtLeast(1) else 2, Space.s16, alt, path, wide = n.children.orEmpty().size.coerceAtLeast(1))
+        "stat-row" -> ViewStatRow(n.children.orEmpty(), alt, path)
         "progress" -> ViewProgress(n)
         "table" -> ViewTableList(n)
         "timeline" -> ViewTimeline(n)
@@ -286,7 +294,7 @@ private fun ViewBlockOf(n: ViewNode, alt: String, path: String, top: Boolean) {
         "alert" -> ViewAlert(n)
         "empty-state" -> ViewEmptyState(n) { c, i -> ViewBlock(c, alt, "$path.$i") }
         "countdown" -> ViewCountdown(n)
-        "poll", "quiz" -> ViewPoll(n)
+        "poll", "quiz" -> ViewPoll(n, path)
         "chart", "pie", "scatter", "histogram", "sparkline", "gauge", "heatmap" -> ViewChart(n)
         "image" -> ViewImage(n.media("src"), n.text("alt").orEmpty(), n.text("caption"), Modifier.fillMaxWidth(), square = false)
         "gallery" -> ViewGallery(n)
@@ -342,6 +350,23 @@ private fun ViewGrid(kids: List<ViewNode>, columns: Int, space: androidx.compose
                 Row(horizontalArrangement = Arrangement.spacedBy(space)) {
                     rowKids.forEach { (i, c) -> Box(Modifier.weight(1f)) { ViewBlock(c, alt, "$path.$i") } }
                     repeat(cols - rowKids.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+/** KPIs wrap evenly: all in one row when each can have 140 dp, else one to a line, never two and an orphan (as the web page does). */
+@Composable
+private fun ViewStatRow(kids: List<ViewNode>, alt: String, path: String) {
+    val space = Space.s16
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val fit = ((maxWidth + space) / (140.dp + space)).toInt()
+        val cols = if (kids.size <= fit) kids.size.coerceAtLeast(1) else 1
+        Column(verticalArrangement = Arrangement.spacedBy(space)) {
+            kids.withIndex().chunked(cols).forEach { rowKids ->
+                Row(horizontalArrangement = Arrangement.spacedBy(space)) {
+                    rowKids.forEach { (i, c) -> Box(Modifier.weight(1f)) { ViewBlock(c, alt, "$path.$i") } }
                 }
             }
         }

@@ -284,6 +284,9 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
                 kids = list
             }
         }
+        // A source that only says there is none ("none", "n/a", "no source available") is no source: the quiet "No source" mark shows.
+        val said = (out["source"] as? JsonPrimitive)?.content
+        if (spec.sourced && said != null && saysNone(said)) out.remove("source")
         return ViewNode(type, JsonObject(out), kids, noSource = spec.sourced && out["source"] == null)
     }
 
@@ -412,6 +415,26 @@ internal fun String.jsTrim(): String {
 
 /** What a text is compared by to tell a reserved phrase: lower case with everything but letters and digits left out, so its case, spacing and punctuation change nothing. */
 internal fun phraseKey(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
+
+/**
+ * What a `source` that says there is none reads like, in English and Polish, compared as a reserved phrase is ([phraseKey]).
+ * A source is read clause by clause (a colon, comma, semicolon, bracket, full stop or dash ends one): it says there is none when
+ * it is empty, or its last clause is one of these, so "the bot's estimate: none, no source available" is no source either.
+ */
+private val NO_SOURCE = listOf(
+    "none", "n/a", "na", "nil", "nothing", "unknown", "not known", "unavailable", "not available", "not applicable", "not specified", "not given", "not provided",
+    "no source", "no sources", "no source available", "no source given", "no source provided", "no source known", "no sources available", "source unknown", "source not available", "no data source",
+    "brak", "brak źródła", "brak źródeł", "brak źródła danych", "brak danych", "brak informacji", "nie dotyczy", "nie podano", "nie ma", "nie ma źródła", "bez źródła", "b/d", "n/d", "nic",
+    "nieznane", "nieznany", "nieznana", "źródło nieznane", "nieznane źródło", "niedostępne", "niedostępny", "źródło niedostępne",
+).map { phraseKey(it) }.toSet()
+
+private val SOURCE_CLAUSE = Regex("[:;,.()–—…]|\\s-\\s")
+
+/** Whether a `source` says there is none: [source] is read as [NO_SOURCE] says. A text with no clause in it (only marks) says none too. */
+internal fun saysNone(source: String): Boolean {
+    val parts = source.split(SOURCE_CLAUSE).map { phraseKey(it) }.filter { it.isNotEmpty() }
+    return parts.isEmpty() || parts.last() in NO_SOURCE
+}
 
 /** A text cut to [n] characters, not in the middle of a pair. */
 private fun cap(s: String, n: Int): String {

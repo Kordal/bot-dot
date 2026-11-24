@@ -3850,7 +3850,11 @@ h3.av-heading { font-size: var(--fs-16); }
 .av-timeline .t-warn .mark { background: var(--warn); border-color: var(--warn); }
 .av-timeline .t-bad .mark { background: var(--err); border-color: var(--err); }
 .av-timeline .t-accent .mark { background: var(--mention); border-color: var(--mention); }
-.av-statrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-12); }
+/* KPIs wrap evenly: all in one row when each can have 150px, else one to a line, never two and an orphan. A flex-basis of
+   (the width all of them need - the row's width) x 999 is 0 when they fit (they share the row) and far past the row when they
+   don't (each takes a line); --n is how many there are. */
+.av-statrow { --need: calc(var(--n, 1) * 150px + (var(--n, 1) - 1) * var(--sp-12)); display: flex; flex-wrap: wrap; gap: var(--sp-12); }
+.av-statrow > * { flex: 1 1 calc((var(--need) - 100%) * 999); min-width: 0; max-width: 100%; }
 .av-kpi { gap: var(--sp-8); }
 .av-progress { display: flex; flex-direction: column; gap: var(--sp-8); }
 .av-progress-l { display: flex; justify-content: space-between; gap: var(--sp-12); }

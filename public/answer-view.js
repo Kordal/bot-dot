@@ -113,6 +113,18 @@ const FENCE = /^\s*(`{3,}|~{3,})/;
 // its case, spacing and punctuation change nothing ("APPROVED,  go-ahead!" is "Approved. Go ahead.").
 const phraseKey = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
+// What a `source` that says there is none reads like, in English and Polish, compared as a reserved phrase is (phraseKey). A source
+// is read clause by clause (a colon, comma, semicolon, bracket, full stop or dash ends one): it says there is none when it is
+// empty, or its last clause is one of these, so "the bot's estimate: none, no source available" is no source either.
+const NO_SOURCE = new Set([
+  'none', 'n/a', 'na', 'nil', 'nothing', 'unknown', 'not known', 'unavailable', 'not available', 'not applicable', 'not specified', 'not given', 'not provided',
+  'no source', 'no sources', 'no source available', 'no source given', 'no source provided', 'no source known', 'no sources available', 'source unknown', 'source not available', 'no data source',
+  'brak', 'brak źródła', 'brak źródeł', 'brak źródła danych', 'brak danych', 'brak informacji', 'nie dotyczy', 'nie podano', 'nie ma', 'nie ma źródła', 'bez źródła', 'b/d', 'n/d', 'nic',
+  'nieznane', 'nieznany', 'nieznana', 'źródło nieznane', 'nieznane źródło', 'niedostępne', 'niedostępny', 'źródło niedostępne',
+].map(phraseKey));
+const CLAUSE = /[:;,.()–—…]|\s-\s/;
+const saysNone = (s) => { const parts = String(s).split(CLAUSE).map(phraseKey).filter(Boolean); return !parts.length || NO_SOURCE.has(parts[parts.length - 1]); };
+
 function of(catalog, options) {
   const L = catalog.limits;
   const reserved = new Set((Array.isArray(catalog.reserved) ? catalog.reserved : []).map(phraseKey));
@@ -241,6 +253,8 @@ function of(catalog, options) {
         out.children = kids;
       }
     }
+    // A source that only says there is none ("none", "n/a", "no source available") is no source: the quiet "No source" mark shows.
+    if (spec.sourced && out.source && saysNone(out.source)) delete out.source;
     if (spec.sourced && !out.source) out.noSource = true;
     return out;
   }

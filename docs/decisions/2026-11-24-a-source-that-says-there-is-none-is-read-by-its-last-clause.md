@@ -1,0 +1,1 @@
+2026-11-24: A source that says there is none is read by its last clause, and the phrases live in the validators, not the catalog: "the bot's estimate: none, no source available" had to count as none, so the clause rule beats an exact match, and the shared fixture keeps the three validators equal (ADR 264, amendment).

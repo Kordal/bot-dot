@@ -73,16 +73,25 @@ object ViewForm {
      * The buttons of a view, in the order of the tree. A poll's and a quiz's choices count as buttons that post their own words,
      * each at the path of its poll or quiz and its number ("0.1.0"), so that a view knows what it sent by the same rule (wave 3).
      */
-    fun buttons(root: ViewNode): List<ViewFound> {
+    fun buttons(root: ViewNode, choices: Boolean = true): List<ViewFound> {
         val out = ArrayList<ViewFound>()
         fun go(n: ViewNode, path: String) {
             if (n.type == "button") out += ViewFound(path, n)
-            if (n.type == "poll" || n.type == "quiz") n.strings("options").forEachIndexed { i, o -> out += ViewFound("$path.$i", ViewNode("button", JsonObject(mapOf("label" to JsonPrimitive(o))))) }
+            if (choices && (n.type == "poll" || n.type == "quiz")) n.strings("options").forEachIndexed { i, o -> out += ViewFound("$path.$i", ViewNode("button", JsonObject(mapOf("label" to JsonPrimitive(o))))) }
             n.children.orEmpty().forEachIndexed { i, c -> go(c, "$path.$i") }
         }
         go(root, "0")
         return out
     }
+
+    /** The quizzes and polls of a view, in the order of the tree. */
+    fun questions(root: ViewNode): List<ViewFound> = walk(root) { it.type == "poll" || it.type == "quiz" }
+
+    /**
+     * Whether a view's quizzes and polls are picked in and sent together (ADR 265, amendment): there are several and no form
+     * around them. One alone sends its choice at once, as a button does.
+     */
+    fun picking(root: ViewNode): Boolean = fields(root).isEmpty() && questions(root).size > 1
 
     // ---- numbers and text, the way JavaScript reads them ----
 
@@ -183,9 +192,35 @@ object ViewForm {
         }
     }
 
+    private val ENDS_IN_MARK = setOf('?', ':', '.', '!')
+
+    /**
+     * One line of a send: "Budget: 500", or "How was your week? 8" when the label already ends in a question mark, a colon, a full
+     * stop or an exclamation mark (a space before the value, no colon after a mark).
+     */
+    fun said(label: String, value: String): String = label + (if (label.isNotEmpty() && label.last() in ENDS_IN_MARK) " " else ": ") + value
+
+    /** Whether a line of a sent message is the line for [label]; a view that was sent as "Label?: value" before still reads as sent. */
+    fun opens(line: String, label: String): Boolean =
+        line.startsWith(label + (if (label.isNotEmpty() && label.last() in ENDS_IN_MARK) " " else ": ")) || line.startsWith("$label: ")
+
     /** A form's message: "Budget: 500", one input to a line, a dash for what is empty. '' for a view with no input. [values]: path -> what the owner set. */
     fun form(root: ViewNode, values: Map<String, JsonElement> = emptyMap()): String =
-        fields(root).joinToString("\n") { (path, node) -> "${node.text("label").orEmpty()}: ${valueOf(node, values[path]).ifEmpty { "–" }}" }
+        fields(root).joinToString("\n") { (path, node) -> said(node.text("label").orEmpty(), valueOf(node, values[path]).ifEmpty { "–" }) }
+
+    /** What a view of several quizzes and polls sends: each question and the choice made, one to a line, a dash for a question with none. [chosen]: path -> the choice. */
+    fun picks(root: ViewNode, chosen: Map<String, String> = emptyMap()): String =
+        questions(root).joinToString("\n") { (path, node) -> said(node.text("question").orEmpty(), chosen[path]?.takeIf { it in node.strings("options") } ?: "–") }
+
+    /** The choice a sent text names for one quiz or poll: the rest of the line of its question, when that is one of its choices; else null. */
+    fun pickOf(sent: String?, question: String, options: List<String>): String? {
+        for (l in (sent ?: "").replace("\r\n", "\n").replace('\r', '\n').split('\n')) {
+            if (!opens(l, question)) continue
+            val rest = l.substring(if (l.startsWith("$question: ")) question.length + 2 else question.length + 1).jsTrim()
+            if (rest in options) return rest
+        }
+        return null
+    }
 
     /** What a button posts: its `send` (200 characters at most), else its label. */
     fun press(n: ViewNode): String = cutText(n.text("send")?.jsTrim()?.takeIf { it.isNotEmpty() } ?: n.text("label").orEmpty(), SEND_MAX)
@@ -214,7 +249,7 @@ object ViewForm {
         if (t.isEmpty()) return null
         if (says.any { lineOf(it) == t }) return t
         val lines = t.split('\n')
-        return if (labels.isNotEmpty() && labels.all { l -> lines.any { it.startsWith("$l: ") } }) t else null
+        return if (labels.isNotEmpty() && labels.all { l -> lines.any { opens(it, l) } }) t else null
     }
 
     /** What a view has sent, and what is still on its way: see [sendOf]. */

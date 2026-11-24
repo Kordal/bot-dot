@@ -131,7 +131,7 @@ object AnswerViewMemory {
 }
 
 /** The form of the view being drawn: what the owner set, whether its inputs are live, and how a button posts. */
-internal class FormCtx(val viewKey: String, val live: Boolean, val values: SnapshotStateMap<String, JsonElement>, val press: (String) -> Unit) {
+internal class FormCtx(val viewKey: String, val live: Boolean, val values: SnapshotStateMap<String, JsonElement>, val picking: Boolean = false, val press: (String) -> Unit) {
     fun set(path: String, raw: JsonElement) { values[path] = raw; AnswerViewMemory.drafts.put(viewKey, path, raw) }
 }
 

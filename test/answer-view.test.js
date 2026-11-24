@@ -130,6 +130,13 @@ test('what a view posts as the owner\'s next message is the text the shared fixt
   assert.ok(fixture.sends.length >= 9);
   for (const c of fixture.sends) {
     if ('posts' in c) assert.equal(words.form(c.view.root, c.values), c.posts, c.name);
+    // Several quizzes and polls with no form are picked in and sent together (ADR 265, amendment): one line a question, and each
+    // line reads back as the pick it holds, so that the send is recognised and each quiz can say whether its own pick was right.
+    if ('picking' in c) assert.equal(words.fields(c.view.root).length === 0 && words.questions(c.view.root).length > 1, c.picking, c.name);
+    if ('pickPosts' in c) {
+      assert.equal(words.picks(c.view.root, c.chosen), c.pickPosts, c.name);
+      for (const { path, node } of words.questions(c.view.root)) assert.equal(words.pickOf(c.pickPosts, node), (node.options || []).includes(c.chosen[path]) ? c.chosen[path] : null, `${c.name}: ${path}`);
+    }
     if (c.presses) assert.deepEqual(Object.fromEntries(words.buttons(c.view.root).map((b) => [b.path, words.press(b.node)])), c.presses, c.name);
     // What the owner reads under a button before pressing it: what it sends, when that is not its label (ADR 265).
     if (c.shows) assert.deepEqual(Object.fromEntries(words.buttons(c.view.root).map((b) => [b.path, words.shows(b.node)]).filter(([, t]) => t)), c.shows, c.name);

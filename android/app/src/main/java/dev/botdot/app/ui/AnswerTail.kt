@@ -55,6 +55,7 @@ import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -294,11 +295,14 @@ internal fun ViewCountdown(n: ViewNode) {
 
 /** A question with a button for each choice; a choice posts its own words, and a quiz says after the send whether it was right. */
 @Composable
-internal fun ViewPoll(n: ViewNode) {
+internal fun ViewPoll(n: ViewNode, path: String) {
     val p = LocalPaper.current
     val f = LocalForm.current
-    val said = LocalViewSaid.current
     val options = n.strings("options")
+    val picking = f?.picking == true
+    // In a view of several picks, what was sent is a line for each question: this one's is the rest of the line of its own question.
+    val said = LocalViewSaid.current.let { if (picking && it != null) ViewForm.pickOf(it, n.text("question").orEmpty(), options) else it }
+    val picked = if (picking && said == null) (f?.values?.get(path) as? JsonPrimitive)?.content else null
     val quiz = n.type == "quiz"
     val answer = n.number("answer")?.toInt()
     val verdict = if (quiz && said != null) ViewTail.verdict(options, answer, n.text("explain"), said) else null
@@ -306,7 +310,8 @@ internal fun ViewPoll(n: ViewNode) {
     Column(Modifier.fillMaxWidth().semantics { contentDescription = n.text("question").orEmpty() }, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Text(n.text("question").orEmpty(), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
         options.forEachIndexed { i, o ->
-            val went = said == o
+            val went = said == o || picked == o
+            val choose = { if (picking) f?.set(path, JsonPrimitive(o)) else f?.press?.invoke(ViewForm.press(ViewNode("button", JsonObject(mapOf("label" to JsonPrimitive(o)))))); Unit }
             val right = verdict != null && (verdict.first && went || !verdict.first && answer == i)
             val wrong = verdict != null && !verdict.first && went
             val c = toneColors(if (right) "good" else if (wrong) "bad" else null)
@@ -317,10 +322,10 @@ internal fun ViewPoll(n: ViewNode) {
                 Text(o)
             }
             if (right || wrong) androidx.compose.material3.Button(
-                { f?.press?.invoke(ViewForm.press(ViewNode("button", JsonObject(mapOf("label" to kotlinx.serialization.json.JsonPrimitive(o)))))) }, mod, enabled = false,
+                { choose() }, mod, enabled = false,
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(disabledContainerColor = c.soft, disabledContentColor = c.text), elevation = null,
             ) { face() }
-            else SecondaryButton({ f?.press?.invoke(ViewForm.press(ViewNode("button", JsonObject(mapOf("label" to kotlinx.serialization.json.JsonPrimitive(o)))))) }, mod, enabled = on) {
+            else SecondaryButton({ choose() }, mod, enabled = on) {
                 if (went) Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.padding(end = Space.s8).size(18.dp))
                 Text(o)
             }
