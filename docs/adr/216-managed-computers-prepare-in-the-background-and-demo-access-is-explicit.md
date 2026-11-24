@@ -1,7 +1,7 @@
 # ADR 216: Managed computers prepare in the background and demo access is explicit
 
 - Status: Accepted (2026-11-11, owner's provisioning request)
-- Task: [#1268](https://github.com/Kordal/bot-dot/issues/1268)
+- Task: [#1268](https://github.com/ladrok/bot-dot/issues/1268)
 
 ## Context
 

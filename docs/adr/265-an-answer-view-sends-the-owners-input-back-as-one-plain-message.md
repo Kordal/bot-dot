@@ -1,7 +1,7 @@
 # ADR-265: An answer view sends the owner's input back as one plain message of their own
 
-- **Status:** Accepted (by the owner, 2026-11-24, in the grilling of [#1622](https://github.com/Kordal/bot-dot/issues/1622))
-- **Owning task:** [#1627](https://github.com/Kordal/bot-dot/issues/1627) (the spec is [#1622](https://github.com/Kordal/bot-dot/issues/1622))
+- **Status:** Accepted (by the owner, 2026-11-24, in the grilling of [#1622](https://github.com/ladrok/bot-dot/issues/1622))
+- **Owning task:** [#1627](https://github.com/ladrok/bot-dot/issues/1627) (the spec is [#1622](https://github.com/ladrok/bot-dot/issues/1622))
 - **Builds on:** [ADR 264](264-a-bot-draws-an-answer-view-in-a-ui-fence-from-a-catalog-the-server-hands-out.md) (the format and the catalog; "a view never approves"), [Milestone 7](../product/milestone7.md) (a message to a busy bot waits its turn), [Milestone 8](../product/milestone8.md) (nothing approved unseen)
 
 ## Context

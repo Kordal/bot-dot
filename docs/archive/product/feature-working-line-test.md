@@ -1,6 +1,6 @@
 # Feature test: the working line follows a bot's work
 
-Test document of ALV-002 ([Kordal/bot-dot#331](https://github.com/Kordal/bot-dot/issues/331), from the spec [Kordal/bot-dot#329](https://github.com/Kordal/bot-dot/issues/329)): a working bot's one line goes on after its opening line, in the botdot server's words, under the bot's chat and in its row on the web page. The Android app follows in ALV-003 ([Kordal/bot-dot#332](https://github.com/Kordal/bot-dot/issues/332)): its steps are under Android below. Groups and the Chief of Staff follow in ALV-004 ([Kordal/bot-dot#333](https://github.com/Kordal/bot-dot/issues/333)): their steps are under Groups and the Chief of Staff below.
+Test document of ALV-002 ([ladrok/bot-dot#331](https://github.com/ladrok/bot-dot/issues/331), from the spec [ladrok/bot-dot#329](https://github.com/ladrok/bot-dot/issues/329)): a working bot's one line goes on after its opening line, in the botdot server's words, under the bot's chat and in its row on the web page. The Android app follows in ALV-003 ([ladrok/bot-dot#332](https://github.com/ladrok/bot-dot/issues/332)): its steps are under Android below. Groups and the Chief of Staff follow in ALV-004 ([ladrok/bot-dot#333](https://github.com/ladrok/bot-dot/issues/333)): their steps are under Groups and the Chief of Staff below.
 
 ## Checked before the owner's test
 

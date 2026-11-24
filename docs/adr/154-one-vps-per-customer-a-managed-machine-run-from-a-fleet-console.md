@@ -1,7 +1,7 @@
 # ADR-154: One VPS per customer, a managed machine of one or several accounts, run from a fleet console
 
-- **Status:** Accepted (2026-11-04, the owner's decision on the spec [#977](https://github.com/Kordal/bot-dot/issues/977)). Amends [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) (the admin is an account on the machine) and [ADR 146](146-only-the-admin-moves-an-accounts-computer.md) (the admin page moves an account's computer): on a managed machine both are the fleet console's.
-- **Owning task:** [#978](https://github.com/Kordal/bot-dot/issues/978)
+- **Status:** Accepted (2026-11-04, the owner's decision on the spec [#977](https://github.com/ladrok/bot-dot/issues/977)). Amends [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) (the admin is an account on the machine) and [ADR 146](146-only-the-admin-moves-an-accounts-computer.md) (the admin page moves an account's computer): on a managed machine both are the fleet console's.
+- **Owning task:** [#978](https://github.com/ladrok/bot-dot/issues/978)
 - **Amended by:** [ADR 164](164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md): the agent also sends the front door's Feedback outbox
 
 ## Context

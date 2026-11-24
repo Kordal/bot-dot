@@ -1,7 +1,7 @@
 # ADR-040: A waiting message is steered into the run that is going, at its next tool call, by the owner's press
 
 - **Status:** Accepted
-- **Owning task:** [#173](https://github.com/Kordal/bot-dot/issues/173)
+- **Owning task:** [#173](https://github.com/ladrok/bot-dot/issues/173)
 - **Changed by:** [ADR 253](253-a-waiting-message-in-a-group-is-steered-into-the-busy-members-run.md): a group's waiting message can be steered too
 
 ## Context
@@ -53,9 +53,9 @@ The same press in a Chief chat, under a message that waits behind the Chief's re
 - Groups are not covered: a group keeps its own waiting list (ADR 019).
 - In a Chief chat a turn botdot started can't be steered: the owner's message waits for the reply to end, as before.
 
-Amended by [#206](https://github.com/Kordal/bot-dot/issues/206) (2026-10-20), the hook's form:
+Amended by [#206](https://github.com/ladrok/bot-dot/issues/206) (2026-10-20), the hook's form:
 
-- **The hook is an `http` hook, not a command.** The settings file holds `{ "type": "http", "url": "http://127.0.0.1:<port>/api/self/session/steer", "headers": { "X-Run-Token": …, "X-Bot-Dot": "1" }, "timeout": 10 }` (the Chief's: `/api/chief/steer` with `X-Chief-Key` and `X-Chief-Chat`). Claude Code posts each call to it itself, so no `sh` and `node lib/steer-hook.js` start after every tool call: measured 0.15 s plain and 0.24 s under gVisor per call, before any HTTP ([#203](https://github.com/Kordal/bot-dot/issues/203)). `lib/steer-hook.js` is gone.
+- **The hook is an `http` hook, not a command.** The settings file holds `{ "type": "http", "url": "http://127.0.0.1:<port>/api/self/session/steer", "headers": { "X-Run-Token": …, "X-Bot-Dot": "1" }, "timeout": 10 }` (the Chief's: `/api/chief/steer` with `X-Chief-Key` and `X-Chief-Chat`). Claude Code posts each call to it itself, so no `sh` and `node lib/steer-hook.js` start after every tool call: measured 0.15 s plain and 0.24 s under gVisor per call, before any HTTP ([#203](https://github.com/ladrok/bot-dot/issues/203)). `lib/steer-hook.js` is gone.
 - **The route answers in Claude Code's hook output.** `{ "hookSpecificOutput": { "hookEventName": "PostToolUse", "additionalContext": … } }` when something was steered, `{}` when nothing was. What Claude Code posts (the call, with the tool's output) is not parsed, as it can be larger than any body botdot reads, but taken in to its end before the message is: an answer cut off mid-upload must not lose it.
 - **The key stays off every command line,** in the private settings file only, as before.
 - **botdot not answering leaves the run as it was:** Claude Code takes a refused connection, a timeout or an answer that is not 2xx as a hook error that does not stop the run, as the script did by saying nothing.

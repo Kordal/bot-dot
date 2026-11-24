@@ -1,7 +1,7 @@
 # ADR-084: A principal's tree that is already its own is not walked on each start
 
 - **Status:** Accepted (2026-10-23)
-- **Owning task:** [#521](https://github.com/Kordal/bot-dot/issues/521)
+- **Owning task:** [#521](https://github.com/ladrok/bot-dot/issues/521)
 
 ## Context
 

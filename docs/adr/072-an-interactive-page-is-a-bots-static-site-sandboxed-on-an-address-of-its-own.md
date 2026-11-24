@@ -1,7 +1,7 @@
 # ADR-072: An interactive page is a bot's static site, sandboxed on an address of its own
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#399](https://github.com/Kordal/bot-dot/issues/399)
+- **Owning task:** [#399](https://github.com/ladrok/bot-dot/issues/399)
 - **Builds on:** [ADR 065](065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md) (a page is Markdown, never HTML), [ADR 071](071-a-page-draws-the-block-kit-bound-to-the-boards-tiles.md) (blocks bound to the Board's tiles), [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md) (the account's computer)
 - **Amends:** ADR 065's "Never HTML or scripts from the bot", for this one kind of page
 

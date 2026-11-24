@@ -1,7 +1,7 @@
 # ADR-111: The Chief proposes a company's team, and Create makes it once
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#671](https://github.com/Kordal/bot-dot/issues/671), spec [#668](https://github.com/Kordal/bot-dot/issues/668)
+- **Owning task:** [#671](https://github.com/ladrok/bot-dot/issues/671), spec [#668](https://github.com/ladrok/bot-dot/issues/668)
 
 ## Context
 

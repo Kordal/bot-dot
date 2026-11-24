@@ -1,7 +1,7 @@
 # ADR-224: A teammate's message to a bot at work goes into its run when it is the same task
 
 - **Status:** Accepted (2026-11-12, the owner: not every message from another bot as a steer: "niech jev ai zdecyduje czy to ten sam topic czy inny", #1278)
-- **Owning task:** [#1278](https://github.com/Kordal/bot-dot/issues/1278)
+- **Owning task:** [#1278](https://github.com/ladrok/bot-dot/issues/1278)
 - **Changes:** [ADR 062](062-a-message-to-a-busy-bot-starts-beside-the-run-that-is-going.md) (a message to a busy bot starts beside its run) and [ADR 106](106-a-follow-up-to-a-bot-at-work-goes-into-the-run-it-belongs-to.md) (only the owner's follow-ups are sorted), for a teammate's messages. [ADR 040](040-a-waiting-message-is-steered-into-the-run-at-its-next-tool-call.md) (Steer) now carries a teammate's messages too.
 
 ## Context

@@ -1,8 +1,8 @@
 # ADR-157: The machine backs itself up off-site with restic, from root's step
 
 - **Status:** Accepted (2026-11-05)
-- **Owning task:** [#1016](https://github.com/Kordal/bot-dot/issues/1016), part of [#1014](https://github.com/Kordal/bot-dot/issues/1014)
-- **Builds on:** the backup set of [#986](https://github.com/Kordal/bot-dot/issues/986) (its parts and owner maps), [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (the fleet console reads root's step's status files) and the instance id of [#982](https://github.com/Kordal/bot-dot/issues/982).
+- **Owning task:** [#1016](https://github.com/ladrok/bot-dot/issues/1016), part of [#1014](https://github.com/ladrok/bot-dot/issues/1014)
+- **Builds on:** the backup set of [#986](https://github.com/ladrok/bot-dot/issues/986) (its parts and owner maps), [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (the fleet console reads root's step's status files) and the instance id of [#982](https://github.com/ladrok/bot-dot/issues/982).
 
 ## Context
 

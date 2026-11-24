@@ -1,7 +1,7 @@
 # ADR-107: An irreversible step on a bot's computer waits for a card
 
 - **Status:** Accepted (the owner's decisions of 2026-10-28)
-- **Owning task:** [#638](https://github.com/Kordal/bot-dot/issues/638)
+- **Owning task:** [#638](https://github.com/ladrok/bot-dot/issues/638)
 - **Builds on:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (carry on), [ADR 010](010-a-connected-app-action-waits-in-its-run.md) (a connected-app action waits in its run), [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md)
 - **Leaves as it is:** [ADR 014](014-botdots-memory-is-the-only-memory-a-bot-keeps.md) (a project's `AGENTS.md` / `CLAUDE.md` is that project's text)
 

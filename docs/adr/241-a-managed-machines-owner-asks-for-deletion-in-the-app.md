@@ -1,7 +1,7 @@
 # ADR-241: A managed machine's owner asks for deletion in the app
 
 - **Status:** Accepted (2026-11-13, the operator chose "B: console, your passkey")
-- **Owning task:** [#1313](https://github.com/Kordal/bot-dot/issues/1313)
+- **Owning task:** [#1313](https://github.com/ladrok/bot-dot/issues/1313)
 - **Amends:** #1312 (Settings opened botdot.app's page, and deletion was asked by email)
 
 ## Context

@@ -4,8 +4,8 @@ Current scope update: the owner subsequently authorized issue 97 server privileg
 
 Historical record: the native Linux GUI app was removed on 29 September 2026. References to its Rust/GTK/Flatpak code, builds and outstanding checks below describe the earlier scope, not current support or release requirements. Linux servers, containers and bots' computers remain supported.
 
-Current image result: [Images run 36625499597](https://github.com/Kordal/bot-dot/actions/runs/36625499597)
-and [signed upgrade run 36627061472](https://github.com/Kordal/bot-dot/actions/runs/36627061472)
+Current image result: [Images run 36625499597](https://github.com/ladrok/bot-dot/actions/runs/36625499597)
+and [signed upgrade run 36627061472](https://github.com/ladrok/bot-dot/actions/runs/36627061472)
 passed. Release 201 signs both image indexes at revision `3b64714`; all four
 platform scans report zero CRITICAL findings. The evidence handoff now uses
 checksummed GitHub Release assets, with Buildx v0.32.0 pinned and checked before
@@ -131,7 +131,7 @@ tag absence were checked. Backups and deletion receipts remain under
 
 ### Image publication blocked by artifact quota
 
-Self-hosted image run [36578884042](https://github.com/Kordal/bot-dot/actions/runs/36578884042)
+Self-hosted image run [36578884042](https://github.com/ladrok/bot-dot/actions/runs/36578884042)
 passed the ARM64 server SBOM and critical-vulnerability scan, then GitHub rejected
 its mandatory artifact upload because artifact storage quota was still exceeded.
 GitHub reports that usage recalculates every 6–12 hours. The earlier cleanup
@@ -145,8 +145,8 @@ volumes and bootstrap image. No production credentials were loaded or signed-ima
 upgrade performed. Issue 96 remains open for complete publication and upgrade
 acceptance.
 
-Production [Android 0.1.74](https://github.com/Kordal/bot-dot/releases/tag/android-v0.1.74)
-and [Mac 1.0.10](https://github.com/Kordal/bot-dot/releases/tag/mac-v1.0.10) releases
+Production [Android 0.1.74](https://github.com/ladrok/bot-dot/releases/tag/android-v0.1.74)
+and [Mac 1.0.10](https://github.com/ladrok/bot-dot/releases/tag/mac-v1.0.10) releases
 were published by the self-hosted workflows. Their actual Node/Kotlin/Swift
 production verifiers accepted the downloaded signatures and hashes and rejected
 tampering, wrong-app manifests and rollback. Android APK signing and the Mac's
@@ -163,7 +163,7 @@ no SDK image was downloaded and no existing AVD or physical device was used.
 | Artifact | Source revision | APK SHA-256 |
 | --- | --- | --- |
 | Android 0.1.74, versionCode 74 | `c735a3152487cba2e33ad5c8355d8cf98064e62e` | `18bb757a57f51360d8d0316b982aa3841eb896e5dd43d71d6168bcb199639dbe` |
-| [Android 0.1.75](https://github.com/Kordal/bot-dot/releases/tag/android-v0.1.75), versionCode 75 | `3fbb9049505541bbae0c0a552554deb08cdd4d55` | `a94a13af5c72b29092cf130b87f3a52ba50dbba204ea1314a9e79236b9c5531f` |
+| [Android 0.1.75](https://github.com/ladrok/bot-dot/releases/tag/android-v0.1.75), versionCode 75 | `3fbb9049505541bbae0c0a552554deb08cdd4d55` | `a94a13af5c72b29092cf130b87f3a52ba50dbba204ea1314a9e79236b9c5531f` |
 
 ADB installed only the starting version 74. The actual botdot server at revision
 `3fbb9049505541bbae0c0a552554deb08cdd4d55` ran with fresh synthetic data and served
@@ -201,10 +201,10 @@ Actual Mac update installation was subsequently verified below.
 ## Actual Mac update installation
 
 The unchanged published Mac 1.0.10 app updated to
-[1.0.11](https://github.com/Kordal/bot-dot/releases/tag/mac-v1.0.11) through
+[1.0.11](https://github.com/ladrok/bot-dot/releases/tag/mac-v1.0.11) through
 Settings → Updates → This Mac. Release 11 was built from
 `52b1843600b702b1c9d3d38489c248b2aa955123` by self-hosted
-[run 36582586539](https://github.com/Kordal/bot-dot/actions/runs/36582586539).
+[run 36582586539](https://github.com/ladrok/bot-dot/actions/runs/36582586539).
 Its archive SHA256 is
 `497413d963cb6b73c426d11b84e5abfdbf34f02700f32776764843422ccec370`.
 

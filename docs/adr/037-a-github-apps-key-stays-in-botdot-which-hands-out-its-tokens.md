@@ -1,7 +1,7 @@
 # ADR-037: A GitHub App's key stays in botdot, which hands out its tokens
 
-- **Status:** Accepted (2026-10-20, the owner's decision on [#155](https://github.com/Kordal/bot-dot/issues/155): "A+B")
-- **Owning task:** [#155](https://github.com/Kordal/bot-dot/issues/155)
+- **Status:** Accepted (2026-10-20, the owner's decision on [#155](https://github.com/ladrok/bot-dot/issues/155): "A+B")
+- **Owning task:** [#155](https://github.com/ladrok/bot-dot/issues/155)
 
 ## Context
 

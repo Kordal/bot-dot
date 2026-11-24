@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (by the owner, 2026-10-20)
 - **Changed by:** [ADR 070](070-a-look-reads-the-owners-mail-and-calendar-read-only.md) (a look reads the owner's mail and calendar, read-only: decision 4 no longer holds for looks), [ADR 168](168-a-missing-app-is-one-connect-card-and-connecting-it-carries-the-work-on.md) (the Chief's turn after its Connect card in its chat is connected is given connected apps)
-- **Owning task:** [#184](https://github.com/Kordal/bot-dot/issues/184) (this record); implemented by [#185](https://github.com/Kordal/bot-dot/issues/185)
+- **Owning task:** [#184](https://github.com/ladrok/bot-dot/issues/184) (this record); implemented by [#185](https://github.com/ladrok/bot-dot/issues/185)
 - **Changes:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (a late yes on the Chief's connected-app card starts a Chief turn that holds a grant), [ADR 010](010-a-connected-app-action-waits-in-its-run.md) (adds the Chief as a second kind of caller; the Chief's card goes when the owner writes in that chat, unlike a bot's card of a run the Chief started), [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (a connected app's answer counts as the web)
 - **Supersedes:** the lines of the Chief's instructions on connected apps (`lib/chief.js`): "A bot can use an app once it's connected and given to that bot" and "You can't connect apps yourself", only where they say the Chief can't use an app
 
@@ -10,7 +10,7 @@
 
 Today only a bot uses a connected app. The owner connects the app on the Connectors page (Composio holds the sign-in), gives it to a bot, and the bot gets two tools, `connector_actions` and `connector_run` (`lib/connectors-mcp.js`). botdot makes every call itself, so the Composio key and the app's tokens never reach the bot. A read goes through; a write, and an action botdot has no description of, waits inside the bot's run for the owner's OK on a card in Needs you, for ten minutes ([ADR 010](010-a-connected-app-action-waits-in-its-run.md), `lib/connector-approvals.js`). A late yes starts the bot again with a one-use grant for that run.
 
-The Chief can do none of this. Asked "what are my latest GitHub issues?", it must make or find a bot with the GitHub connector and run it. The owner wants the Chief to do it itself ([#180](https://github.com/Kordal/bot-dot/issues/180), decisions of 2026-10-20):
+The Chief can do none of this. Asked "what are my latest GitHub issues?", it must make or find a bot with the GitHub connector and run it. The owner wants the Chief to do it itself ([#180](https://github.com/ladrok/bot-dot/issues/180), decisions of 2026-10-20):
 
 1. The Chief gets every connected app. A read goes through. Every write, and every action botdot has no description of, waits for the owner's OK on a card in Needs you, inside the Chief's turn.
 2. "Always allow this action" works for the Chief as it does for a bot.

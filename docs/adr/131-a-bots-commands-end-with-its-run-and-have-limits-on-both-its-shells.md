@@ -1,7 +1,7 @@
 # ADR-131: A bot's commands end with its run and have limits, on both its shells
 
 - **Status:** Accepted
-- **Owning task:** [#830](https://github.com/Kordal/bot-dot/issues/830)
+- **Owning task:** [#830](https://github.com/ladrok/bot-dot/issues/830)
 
 ## Context
 

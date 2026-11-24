@@ -1,7 +1,7 @@
 # ADR-136: A local botdot runs the Linux installer in a VM of its own
 
 - **Status:** Accepted
-- **Owning task:** [#882](https://github.com/Kordal/bot-dot/issues/882) (parent [#878](https://github.com/Kordal/bot-dot/issues/878))
+- **Owning task:** [#882](https://github.com/ladrok/bot-dot/issues/882) (parent [#878](https://github.com/ladrok/bot-dot/issues/878))
 - **Amends:** [ADR 0002](0002-mac-hosting-in-docker.md), [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)
 - **Amended by:** [ADR 170](170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md) (on Linux, the installer runs on the computer itself, with the accounts' users guarded and no VM)
 
@@ -11,7 +11,7 @@ The desktop app for Windows and Mac (#878) is a window onto a front door. Beside
 
 ## Decision
 
-- **The same installer, in a Linux VM of its own.** The desktop app sets up a Linux VM that belongs to botdot alone and runs the real `install.sh` in it: on Windows a WSL2 distribution named `botdot`, on macOS a Lima VM. Every check the installer makes of the machine (Docker, rootless Docker, gVisor) stays as it is. Plan B without gVisor is a follow-up, if a spike asks for it. The spikes ([#879](https://github.com/Kordal/bot-dot/issues/879) for WSL2, [#880](https://github.com/Kordal/bot-dot/issues/880) for Lima) add their results here.
+- **The same installer, in a Linux VM of its own.** The desktop app sets up a Linux VM that belongs to botdot alone and runs the real `install.sh` in it: on Windows a WSL2 distribution named `botdot`, on macOS a Lima VM. Every check the installer makes of the machine (Docker, rootless Docker, gVisor) stays as it is. Plan B without gVisor is a follow-up, if a spike asks for it. The spikes ([#879](https://github.com/ladrok/bot-dot/issues/879) for WSL2, [#880](https://github.com/ladrok/bot-dot/issues/880) for Lima) add their results here.
 - **A third way to reach botdot: `local`.** It is chosen only by the answer `BOT_DOT_REACH=local`, which the desktop app gives. The installer's question still offers only a public domain and a tailnet: a person installing on a server shouldn't pick it.
 - **One account.** The front door runs with `FRONT_DOOR_ONE_ACCOUNT` (the account `BOT_DOT_ADMIN`, `owner` by default): no sign-up link is printed or opens, and there is no admin page, no feedback to an admin and no shared rooms. The installer makes the account's Linux user, rootless Docker and botdot server as it makes the admin's on a server.
 - **The passkey is made with a setup key.** The installer makes the key once (64 hex characters, which the front door's 32 to 100 base64url characters include) and keeps it in the front door's `.env`, which only root reads. It opens the one account's sign-up page until that account exists, and nothing after.

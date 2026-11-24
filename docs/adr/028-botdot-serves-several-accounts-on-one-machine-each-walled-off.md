@@ -1,7 +1,7 @@
 # ADR-028: botdot serves several accounts on one machine, each walled off
 
 - **Status:** Accepted (2026-10-16, the owner's decision). Supersedes [ADR 027](027-botdot-trusts-one-owner-on-a-server-of-its-own-reached-through-tailscale.md). Its parts about a computer per bot (a gVisor container for each bot, at most a set number running at once) are superseded by [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md): the account has one computer. Amended by [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md): on a managed machine there is no admin page, and its admin is the fleet console. Amended by [ADR 165](165-a-phone-sends-files-to-the-owners-place-on-a-ten-minute-code.md): a phone's Upload from phone, on a ten-minute code, is passed on without a session too.
-- **Owning task:** the spec [#463](https://github.com/Kordal/bot-dot/issues/463)
+- **Owning task:** the spec [#463](https://github.com/ladrok/bot-dot/issues/463)
 
 ## Context
 
@@ -81,7 +81,7 @@ No account ever sees a ceiling, a gauge or a cost.
 
 ## Spike result
 
-2026-10-16, [#464](https://github.com/Kordal/bot-dot/issues/464), `make gvisor-real`. **Kept**, with the four changes below, which tickets 2 to 10 build on.
+2026-10-16, [#464](https://github.com/ladrok/bot-dot/issues/464), `make gvisor-real`. **Kept**, with the four changes below, which tickets 2 to 10 build on.
 
 Where it ran: a nested rootless Docker (`docker:28-dind-rootless`) whose every container runs under gVisor `release-20261005.0`, inside Docker Desktop's Linux VM on an arm64 Mac. The VM has no `/dev/kvm`, so gVisor used its systrap platform, as on a VPS without nested virtualisation. botdot's real server and computer images were built from this source.
 

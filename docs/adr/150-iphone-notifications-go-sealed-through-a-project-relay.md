@@ -1,8 +1,8 @@
 # ADR-150: iPhone notifications go sealed through a project relay
 
 - **Status:** Accepted
-- **Owning task:** [#964](https://github.com/Kordal/bot-dot/issues/964) (parent [#961](https://github.com/Kordal/bot-dot/issues/961))
-- **Amends:** issue [#87](https://github.com/Kordal/bot-dot/issues/87) ("no relay"), for the iOS app only
+- **Owning task:** [#964](https://github.com/ladrok/bot-dot/issues/964) (parent [#961](https://github.com/ladrok/bot-dot/issues/961))
+- **Amends:** issue [#87](https://github.com/ladrok/bot-dot/issues/87) ("no relay"), for the iOS app only
 
 ## Context
 

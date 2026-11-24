@@ -1,7 +1,7 @@
 # ADR-135: A project's folder follows its name
 
 - **Status:** Accepted
-- **Owning task:** [#865](https://github.com/Kordal/bot-dot/issues/865)
+- **Owning task:** [#865](https://github.com/ladrok/bot-dot/issues/865)
 - **Amends:** [ADR 097](097-a-shared-project-is-a-folder-on-the-accounts-computer.md), [ADR 122](122-a-projects-folder-is-on-the-accounts-computer-and-reached-over-botdot-without-it.md)
 
 ## Context

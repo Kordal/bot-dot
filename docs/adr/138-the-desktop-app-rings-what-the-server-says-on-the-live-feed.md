@@ -1,7 +1,7 @@
 # ADR-138: The desktop app rings what the server says on the live feed
 
 - **Status:** Accepted
-- **Owning task:** [#885](https://github.com/Kordal/bot-dot/issues/885)
+- **Owning task:** [#885](https://github.com/ladrok/bot-dot/issues/885)
 - **Amends:** [ADR 137](137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md)
 
 ## Context

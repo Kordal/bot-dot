@@ -24,12 +24,12 @@ Physical lines, including comments and blank lines; these are triage measurement
 | [public/app.js](../../public/app.js) | 4,765 | Highest refactoring priority: nearly the whole browser application, with 185 named top-level functions. |
 | [server.js](../../server.js) | 1,572 | Bootstrap, HTTP dispatch, policy, orchestration, streaming, and native-app downloads. |
 | [lib/bots.js](../../lib/bots.js) | 1,301 | Bot persistence, execution, prompts, scheduling, messages, reviews, and infrastructure setup; 52 exported members. |
-| [linux/src/store.rs](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/store.rs#L112) | 998 | Shared mutable application state plus routing, polling, approvals, notifications, and commands. |
-| [linux/src/ui/widgets.rs](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/ui/widgets.rs#L18) | 968 | Large UI toolkit; less urgent than the runtime, but inputs, pickers, and dialogs are natural internal groups. |
-| [linux/src/ui/bot_settings.rs](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/ui/bot_settings.rs#L137) | 943 | Large settings implementation; split by settings section and keep one save coordinator. |
-| [linux/src/ui/settings.rs](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/ui/settings.rs#L52) | 918 | Multiple independent concerns: memory, sign-in, updates, and backups. |
+| [linux/src/store.rs](https://github.com/ladrok/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/store.rs#L112) | 998 | Shared mutable application state plus routing, polling, approvals, notifications, and commands. |
+| [linux/src/ui/widgets.rs](https://github.com/ladrok/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/ui/widgets.rs#L18) | 968 | Large UI toolkit; less urgent than the runtime, but inputs, pickers, and dialogs are natural internal groups. |
+| [linux/src/ui/bot_settings.rs](https://github.com/ladrok/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/ui/bot_settings.rs#L137) | 943 | Large settings implementation; split by settings section and keep one save coordinator. |
+| [linux/src/ui/settings.rs](https://github.com/ladrok/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/ui/settings.rs#L52) | 918 | Multiple independent concerns: memory, sign-in, updates, and backups. |
 | `macos/BotDot/UI/SettingsView.swift` (removed, ADR 142) | 595 | Lower priority; feature-specific settings views are an appropriate extraction. |
-| [macos/BotDot/Data/Store.swift](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/macos/BotDot/Data/Store.swift#L98) | 582 | Smaller version of the Linux store's responsibility concentration. |
+| [macos/BotDot/Data/Store.swift](https://github.com/ladrok/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/macos/BotDot/Data/Store.swift#L98) | 582 | Smaller version of the Linux store's responsibility concentration. |
 | [android/app/src/main/java/dev/botdot/app/ui/NeedsYouScreen.kt](../../android/app/src/main/java/dev/botdot/app/ui/NeedsYouScreen.kt) | 566 | Android is more evenly divided into screens, but orchestration still lives in composables. |
 
 These are active hotspots: in the last 60 commits, `public/app.js` was touched 28 times, `lib/bots.js` 20 times, and `server.js` 19 times. Their size matters because unrelated features repeatedly change the same files.
@@ -102,7 +102,7 @@ Authorization has useful existing checks, but adding an operation requires under
 
 ### 6. P2 — Four clients duplicate contracts and workflow state
 
-The [API guide](../api.md), server response objects, MCP tool schemas, [Android models](../../android/shared/src/commonMain/kotlin/dev/botdot/app/data/Models.kt), [Swift models](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/macos/BotDot/Data/Models.swift#L10), and [Rust models](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/models.rs#L21) are maintained separately. There is no checked-in machine-readable HTTP contract in the inspected source inventory.
+The [API guide](../api.md), server response objects, MCP tool schemas, [Android models](../../android/shared/src/commonMain/kotlin/dev/botdot/app/data/Models.kt), [Swift models](https://github.com/ladrok/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/macos/BotDot/Data/Models.swift#L10), and [Rust models](https://github.com/ladrok/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/models.rs#L21) are maintained separately. There is no checked-in machine-readable HTTP contract in the inspected source inventory.
 
 Swift and Rust wrap raw JSON and default many missing or unexpected values to empty strings, zero, or false. That tolerates additive changes, but it also hides broken required fields. The problem is already visible at the feature level: web and Android have Dashboard, while the inspected Mac and Linux route enums have no Dashboard route. That may be an intentional release gap; it needs an explicit capability/parity decision.
 

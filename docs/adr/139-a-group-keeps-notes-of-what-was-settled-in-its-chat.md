@@ -1,7 +1,7 @@
 # ADR-139: A group keeps notes of what was settled in its chat
 
 - **Status:** Accepted (asked for by the owner, 2026-11-02)
-- **Owning task:** [#893](https://github.com/Kordal/bot-dot/issues/893)
+- **Owning task:** [#893](https://github.com/ladrok/bot-dot/issues/893)
 - **Changes:** [ADR 020](020-a-member-reads-the-groups-chat-and-keeps-its-own-memory.md) (what a turn reads of its group)
 
 ## Context

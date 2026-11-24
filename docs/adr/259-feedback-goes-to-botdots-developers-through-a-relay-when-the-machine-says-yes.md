@@ -1,7 +1,7 @@
 # ADR-259: Feedback goes to botdot's developers through a relay when the machine says yes
 
 - **Status:** Accepted (by the owner, 2026-11-20)
-- **Owning task:** [#1565](https://github.com/Kordal/bot-dot/issues/1565)
+- **Owning task:** [#1565](https://github.com/ladrok/bot-dot/issues/1565)
 - **Amends:** [ADR 048](048-the-admin-page-shows-the-feedback-an-owner-sends-the-admin.md) (Feedback goes to the admin page, never to GitHub) and [ADR 164](164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md) (a reply from the console was left for later)
 - **Builds on:** [ADR 150](150-iphone-notifications-go-sealed-through-a-project-relay.md) (a small project relay), [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (the fleet console), [ADR 241](241-a-managed-machines-owner-asks-for-deletion-in-the-app.md) (deletion asked in the app)
 
@@ -30,7 +30,7 @@ The owner wants owners to reach the developers with no more effort than today's 
 **Review, then publish.** Nothing reaches the public repository without a person.
 
 - The relay keeps the report privately and drafts a public one: the text with email addresses, phone numbers, IP and web addresses, keys and tokens removed, plus the kind, app and version. The front door also removes the account's own name and its bots' names before sending.
-- In the console the operator sees the draft beside the original, writes the public title and body in English, and **publishes** it as an issue in `Kordal/bot-dot` with the label `from-feedback`, adds it to an existing issue, or closes it unpublished.
+- In the console the operator sees the draft beside the original, writes the public title and body in English, and **publishes** it as an issue in `ladrok/bot-dot` with the label `from-feedback`, adds it to an existing issue, or closes it unpublished.
 - **Screenshots are never published.** They stay with the private report.
 
 **The owner hears back.**
@@ -63,4 +63,4 @@ The owner wants owners to reach the developers with no more effort than today's 
 
 ## Notes
 
-- 2026-11-24: the relay's default address is `https://relay.botdot.app`, chosen by the owner ([#1566](https://github.com/Kordal/bot-dot/issues/1566)); `https://feedback.botdot.app`, named in the first version of the protocol, was never in DNS and is not used. The protocol is as written: only the address changed. `FRONT_DOOR_FEEDBACK_RELAY` still overrides it.
+- 2026-11-24: the relay's default address is `https://relay.botdot.app`, chosen by the owner ([#1566](https://github.com/ladrok/bot-dot/issues/1566)); `https://feedback.botdot.app`, named in the first version of the protocol, was never in DNS and is not used. The protocol is as written: only the address changed. `FRONT_DOOR_FEEDBACK_RELAY` still overrides it.

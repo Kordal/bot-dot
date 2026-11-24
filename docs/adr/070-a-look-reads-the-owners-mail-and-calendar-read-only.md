@@ -1,14 +1,14 @@
 # ADR-070: A look reads the owner's mail and calendar, read-only
 
 - **Status:** Accepted (by the owner, 2026-10-22)
-- **Owning task:** [#390](https://github.com/Kordal/bot-dot/issues/390)
+- **Owning task:** [#390](https://github.com/ladrok/bot-dot/issues/390)
 - **Changes:** [ADR 006](006-a-look-is-its-own-read-only-chief-session.md) (a look's tools) and [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md) (decision 4: a look got no connected apps)
 
 ## Context
 
 A look (ADR 006) is the Chief writing first, a few times a day, with what it can read: the owner's chats, the bots, their runs, memory and the web. What matters most to a person in the next day or two (a trip whose check-in opens tomorrow, a boarding pass that has not come, an invitation not answered, a bill due) sits in their mail and calendar, which a look could not read: ADR 047 gave connected apps only to turns the owner started, because nobody answers a card in a turn botdot started and mail is outside content.
 
-The owner wants the Chief to notice such things by itself and offer one step ([#341](https://github.com/Kordal/bot-dot/issues/341)'s answer buttons), with as few cards as possible.
+The owner wants the Chief to notice such things by itself and offer one step ([#341](https://github.com/ladrok/bot-dot/issues/341)'s answer buttons), with as few cards as possible.
 
 ## Decision
 

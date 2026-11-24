@@ -1,7 +1,7 @@
 # ADR-122: A project's folder is on the account's computer, and reached over botdot by a bot without it
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#702](https://github.com/Kordal/bot-dot/issues/702), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
+- **Owning task:** [#702](https://github.com/ladrok/bot-dot/issues/702), spec [#687](https://github.com/ladrok/bot-dot/issues/687)
 - **Amended by:** [ADR 135](135-a-projects-folder-follows-its-name.md) (a project's folder follows its name)
 - **Builds on:** [ADR 097](097-a-shared-project-is-a-folder-on-the-accounts-computer.md), [ADR 120](120-an-account-has-several-projects-kept-as-a-list-in-one-file.md)
 

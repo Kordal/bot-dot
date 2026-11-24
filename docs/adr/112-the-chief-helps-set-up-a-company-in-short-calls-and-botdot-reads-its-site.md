@@ -1,7 +1,7 @@
 # ADR-112: The Chief helps set up a company in short calls, and botdot reads its site
 
 - **Status:** Accepted (2026-10-29)
-- **Owning task:** [#670](https://github.com/Kordal/bot-dot/issues/670), spec [#668](https://github.com/Kordal/bot-dot/issues/668)
+- **Owning task:** [#670](https://github.com/ladrok/bot-dot/issues/670), spec [#668](https://github.com/ladrok/bot-dot/issues/668)
 
 ## Context
 
