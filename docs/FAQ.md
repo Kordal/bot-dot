@@ -59,7 +59,7 @@ On disk, plan about **15 GB per account**: botdot's image is about 4 GB and the 
 
 ### Can I run it on my Mac, Windows PC or a laptop?
 
-Yes, as a preview: the [desktop app](desktop.md) can run botdot on a Mac or a Windows PC, in a Linux VM of its own (Lima or WSL2), as one account on `http://localhost:4700`. Its bots run only while the computer is on and awake, and a phone can't reach it. For bots that run around the clock, use a server: a Linux VM works, as long as it stays on.
+Yes, as a preview: the [desktop app](desktop.md) can run botdot on a Mac or a Windows PC, in a Linux VM of its own (Lima or WSL2), and on a Linux desktop on the computer itself, as one account on `http://localhost:4700`. It needs about 16 GB of memory on Windows (12 GB on a Mac) and 40 GB of free disk. A local botdot sleeps with the computer: its bots run only while the computer is on and awake, and a phone can't reach it. For bots that run around the clock, use a server: a Linux VM works, as long as it stays on.
 
 ### Does it run in an LXC container, on Unraid or on a NAS?
 
