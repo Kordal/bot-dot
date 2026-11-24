@@ -617,7 +617,7 @@ private fun ManagerMessage(m: GroupMessage, lead: Bot?) {
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Text(lead?.name ?: LocalChiefName.current, color = parseColor(lead?.color ?: CHIEF_COLOR, LocalPaper.current.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
-            TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text) }
+            TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text, tables = true) }
         }
     }
 }
@@ -684,7 +684,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
                 "success" -> TheirBubble(footer, copyText = text, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
                     CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName), LocalProductSaver provides r.botId) {
-                        Column { MarkdownText(text.ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(text, bot?.name ?: r.botName); BotFilesRow(r.files); PlanFold(r.plan) }
+                        Column { MarkdownText(text.ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }, tables = true); OpenAsDocument(text, bot?.name ?: r.botName); BotFilesRow(r.files); PlanFold(r.plan) }
                     }
                 }
                 else -> when (val ended = endedWords(r, features)) {
@@ -727,7 +727,7 @@ private fun AskedFold(a: AskedBot) {
             a.reply?.takeIf { it.isNotBlank() }?.let { reply ->
                 Column(Modifier.raised(Radius.mine).padding(horizontal = Space.s16, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                     FigureText(androidx.compose.ui.text.buildAnnotatedString { bot(who) }, color = p.muted, fontSize = Type.s12, maxLines = 1)
-                    MarkdownText(reply)
+                    MarkdownText(reply, tables = true)
                 }
             }
         } }

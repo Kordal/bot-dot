@@ -412,7 +412,7 @@ private fun RoomMessageRow(m: RoomMessage, room: Room?, mine: String?) {
                 if (m.bot != null) { Box(Modifier.padding(top = Space.s16)) { BotFigure(color ?: GONE_COLOR, "idle", 28, null) }; Spacer(Modifier.size(6.dp)) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                     Text(Rooms.author(m), color = if (m.bot != null) parseColor(color, p.muted) else p.muted, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
-                    TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text) }
+                    TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text, tables = m.bot != null) }
                     if (mentioned.isNotEmpty()) Text(mentioned, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
                 }
             }

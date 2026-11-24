@@ -38,7 +38,7 @@ class MarkdownTest {
         "quote" -> Block.Quote(b.text())
         "rule" -> Block.Rule
         "code" -> Block.Code(b.text(), b.getValue("lang").jsonPrimitive.content)
-        "table" -> Block.Table(b.getValue("rows").jsonArray.map { row -> row.jsonArray.map { it.jsonPrimitive.content } })
+        "table" -> Block.Table(b.getValue("rows").jsonArray.map { row -> row.jsonArray.map { it.jsonPrimitive.content } }, b.getValue("aligns").jsonArray.map { it.jsonPrimitive.content })
         else -> error("The fixture has a block the app does not know: $type")
     }
 
@@ -162,8 +162,8 @@ class MarkdownTest {
         }
     }
 
-    @Test fun tablesLeaveOutTheSeparatorRow() {
-        assertEquals(listOf(Block.Table(listOf(listOf("A", "B"), listOf("1", "2")))), parseBlocks("| A | B |\n|---|:-:|\n| 1 | 2 |"))
+    @Test fun tablesLeaveOutTheSeparatorRowAndKeepItsAlignment() {
+        assertEquals(listOf(Block.Table(listOf(listOf("A", "B"), listOf("1", "2")), listOf("", "center"))), parseBlocks("| A | B |\n|---|:-:|\n| 1 | 2 |"))
     }
 
     @Test fun quotesAndRules() {

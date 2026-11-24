@@ -94,6 +94,8 @@ import dev.botdot.app.data.Api
 import dev.botdot.app.data.AnswerViewShelf
 import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.tr
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -560,23 +562,30 @@ private fun ViewProgress(n: ViewNode) {
     }
 }
 
-/** A table on a phone is a list: each row's first cell is its name, the others sit under it with their column's heading. */
+/**
+ * A table on a phone is a list: each row's first cell is its name, the others sit under it with their column's heading.
+ * [cells]: the styled text of a table of a reply's Markdown (ADR 264, amendment), its header's cells first and then each
+ * row's, which draws a cell's bold, code and links as the reply does, with [icons] for the sites' icons in it; without
+ * them a cell is plain text, as a bot wrote it in a view.
+ */
 @Composable
-private fun ViewTableList(n: ViewNode) {
+internal fun ViewTableList(n: ViewNode, cells: List<List<AnnotatedString>>? = null, icons: Map<String, InlineTextContent> = emptyMap()) {
     val p = LocalPaper.current
     val head = n.objects("columns")
     val rows = n.items("rows").map { r -> (r as? JsonArray).orEmpty().map { (it as? JsonPrimitive)?.takeIf { c -> c.isString }?.content.orEmpty() } }
+    fun label(i: Int) = cells?.getOrNull(0)?.getOrNull(i) ?: AnnotatedString(head.getOrNull(i)?.text("label").orEmpty())
+    fun cell(r: Int, i: Int, plain: String) = cells?.getOrNull(r + 1)?.getOrNull(i) ?: AnnotatedString(plain)
     Column(Modifier.fillMaxWidth()) {
         n.text("title")?.let { Text(it, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = Space.s8).semantics { heading() }) }
-        rows.forEachIndexed { r, cells ->
-            val spoken = cells.mapIndexed { i, c -> (head.getOrNull(i)?.text("label")?.takeIf { it.isNotEmpty() }?.let { "$it: " }.orEmpty()) + c }.joinToString(", ")
+        rows.forEachIndexed { r, row ->
+            val spoken = row.mapIndexed { i, c -> (label(i).text.takeIf { it.isNotEmpty() }?.let { "$it: " }.orEmpty()) + cell(r, i, c).text }.joinToString(", ")
             Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = spoken }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                cells.forEachIndexed { i, cell ->
-                    val title = head.getOrNull(i)?.text("label").orEmpty()
-                    if (i == 0) Text(cell, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
+                row.forEachIndexed { i, plain ->
+                    val text = cell(r, i, plain)
+                    if (i == 0) Text(text, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, inlineContent = icons)
                     else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        Text(title, color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(0.4f))
-                        Text(cell, color = p.text, fontSize = Type.s14, textAlign = if (head.getOrNull(i)?.text("align") == "right") TextAlign.End else TextAlign.Start, modifier = Modifier.weight(0.6f))
+                        Text(label(i), color = p.muted, fontSize = Type.s14, inlineContent = icons, modifier = Modifier.weight(0.4f))
+                        Text(text, color = p.text, fontSize = Type.s14, inlineContent = icons, textAlign = if (head.getOrNull(i)?.text("align") == "right") TextAlign.End else TextAlign.Start, modifier = Modifier.weight(0.6f))
                     }
                 }
             }
