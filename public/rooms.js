@@ -465,7 +465,6 @@ function openRoomSettings(id) {
     if (!room) { m.close(); return; }
     const inRoom = new Set(roomBots(room).filter(isMine).map((b) => b.id));
     const mayAdd = state.bots.filter((b) => b.rooms?.allowRooms === true && !inRoom.has(b.id));
-    const keptOut = state.bots.filter((b) => b.rooms && b.rooms.allowRooms !== true).length;
     const invited = Array.isArray(room.invites) ? room.invites : [];
     const maker = rooms.links && room.by === rooms.me;
     root.innerHTML = `
@@ -481,7 +480,6 @@ function openRoomSettings(id) {
           <div class="field">${tr('Bots')}
             <div class="room-list">${roomBots(room).map((b) => `<div class="room-item">${botFigure(b.color || ROOM_GREY, 'idle', 'sm')}<span class="grow">${esc(roomBotLabel(b))}</span>${isMine(b) ? `<button type="button" class="link-btn" data-remove-bot="${esc(b.id)}">${tr('Remove')}</button>` : ''}</div>`).join('') || `<div class="faint">${tr('No bot yet.')}</div>`}</div>
             ${mayAdd.length ? `<span class="room-inline"><select name="bot">${mayAdd.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select><button type="button" class="btn sm" data-add-bot>${tr('Add your bot')}</button></span>` : ''}
-            ${keptOut ? `<div class="faint">${mayAdd.length ? tr('More bots can join once "Shared rooms" is on in their settings.') : tr('Your bots can join once "Shared rooms" is on in their settings.')}</div>` : ''}
           </div>
           <div class="send-note hidden" role="alert"></div>
         </div>

@@ -46,15 +46,11 @@ test("a mention in a room gives another account's bot a talk-only turn in its ow
   assert.equal((await annB.post('/admin/rooms', { on: true })).status, 200);
   const scout = await makeBot(bob, { name: 'Scout', description: 'Finds plants.' });
 
-  // Rooms off in its settings: the front door doesn't let its owner add it.
+  // Every bot may be in rooms (ADR 269): its owner adds it without a switch.
   const room = (await annB.post('/front-door/rooms', { name: 'Garden club' })).data.room;
   await annB.post(`/front-door/rooms/${room.id}/invite`, { account: 'bob' });
   assert.equal((await bobB.post(`/front-door/rooms/${room.id}/accept`, {})).status, 200);
-  assert.equal((await bobB.post(`/front-door/rooms/${room.id}/bots`, { bot: scout.id })).status, 404);
-
-  // Its owner lets it in (in the account, through the front door as every request of theirs).
-  const put = await bob.api(`/bots/${scout.id}`, { method: 'PUT', body: { rooms: { allowRooms: true } } });
-  assert.equal(put.status, 200, JSON.stringify(put.data));
+  assert.deepEqual(scout.rooms, { allowRooms: true, whoMayMention: 'owner' });
   const added = await bobB.post(`/front-door/rooms/${room.id}/bots`, { bot: scout.id });
   assert.equal(added.status, 200, added.text);
   assert.deepEqual(added.data.room.bots.map((b) => [b.account, b.name]), [['bob', 'Scout']]);

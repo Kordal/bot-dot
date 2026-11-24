@@ -2207,7 +2207,6 @@ a.bot-link, .chat-thread .bubble.from-bot .md a.bot-link { color: var(--mention)
 .room-item .grow { min-width: 0; overflow-wrap: anywhere; }
 .room-inline { display: flex; gap: var(--sp-8); align-items: center; }
 .room-inline input, .room-inline select { flex: 1; min-width: 0; }
-.bs-rooms-who { margin-top: var(--sp-8); }
 @media (max-width: 479px) {
   .rooms-page { padding: var(--sp-4) var(--sp-12) var(--sp-32); }
   .room-invite { flex-wrap: wrap; }

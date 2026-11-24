@@ -522,7 +522,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
                             TextButton(enabled = !busy, onClick = { act { app.rooms.took(api().addRoomBot(roomId, b.id)) } }) { Text(tr("Add"), color = p.text) }
                         }
                     }
-                } else if (Rooms.noneAllowed(bots)) Hint(tr("None of your bots may be in shared rooms yet: switch it on in a bot's settings."))
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 SecondaryButton(enabled = !busy, onClick = { asking = "leave" }) { Text(tr("Leave"), color = p.err) }

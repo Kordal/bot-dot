@@ -79,7 +79,9 @@ fixes. botdot updates itself from Settings → Updates.
   and sandboxed twice (the frame's `sandbox` and a `Content-Security-Policy: sandbox`): it has no cookies,
   storage or access to the app, loads only its own files and reaches nothing on the internet
   ([ADR 072](docs/adr/072-an-interactive-page-is-a-bots-static-site-sandboxed-on-an-address-of-its-own.md)).
-- Shared rooms are off until the admin turns them on. A bot mentioned in one by anyone but its owner gets a
+- Shared rooms are off until the admin turns them on. Once they are on, every bot may be in them: there is no
+  per-bot switch (ADR 269), so anyone who invites the owner's bot into a room can reach it, within "Who may
+  mention it" (only its owner by default) and the owner's cards. A bot mentioned in one by anyone but its owner gets a
   talk-only turn, with no tools, notes, files or private chats; mentioned by its owner, every tool call and
   every post waits on the owner's card
   ([ADR 060](docs/adr/060-a-shared-room-lets-bots-of-several-accounts-talk-through-the-front-door.md),
