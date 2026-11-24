@@ -6,10 +6,11 @@
 # and GitHub mails the owner.
 #
 # It spends model usage: it signs in with the repository secret CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`,
-# the Claude plan's, which claude-review.yml and claude.yml use too) or ANTHROPIC_API_KEY (billed per token). With
-# neither set it does not fail: the eval skips, saying why. A run by hand (Actions → UI eval → Run workflow, on main)
-# takes the cases (BOT_DOT_TEST_LIVE_ONLY, comma separated ids) and the runs of each (BOT_DOT_TEST_LIVE_REPEAT; 3 or
-# more says more about a pick that varies).
+# the Claude plan's, which claude-review.yml and claude.yml use too). Only that one: a bot's run drops every *_KEY
+# variable of its environment unless the owner gave botdot an API key in its settings (lib/identity.js), so an
+# ANTHROPIC_API_KEY would sign nothing in. Without the secret the eval does not fail: it skips, saying why. A run by
+# hand (Actions → UI eval → Run workflow, on main) takes the cases (BOT_DOT_TEST_LIVE_ONLY, comma separated ids) and
+# the runs of each (BOT_DOT_TEST_LIVE_REPEAT; 3 or more says more about a pick that varies).
 #
 # The report (report.md and the evidence, results.json) is kept 14 days as the run's "ui-eval" artifact and shown on
 # the run's summary. It runs on GitHub's own machines (#528), on main only, and never for a pull request: a fork's gets
@@ -46,7 +47,6 @@ jobs:
       - id: eval
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BOT_DOT_TEST_LIVE_ONLY: ${{ inputs.cases }}
           BOT_DOT_TEST_LIVE_REPEAT: ${{ inputs.repeat }}
           BOT_DOT_TEST_LIVE_OUT: ${{ runner.temp }}/ui-eval
