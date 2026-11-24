@@ -13,7 +13,7 @@
 
 A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with one job, its own tools, permissions, workspace and schedule. You tell the **Chief of Staff** what you need in a chat, and it makes the bots, runs them and reports back. Anything risky waits for your OK.
 
-It runs on your own Linux server, each account walled off under rootless Docker and gVisor, with the official Claude Code CLI signed in to your own Claude subscription or API key. No telemetry. Rather not run a server? We host it for you for €29 a month at [botdot.app](https://botdot.app) ([FAQ](docs/FAQ.md#is-it-a-hosted-service)).
+It runs on your own Linux server, each account walled off under rootless Docker and gVisor, with the official Claude Code CLI signed in to your own Claude subscription or API key. No telemetry. You use it in the browser, in the [Android app](#android) or in the [desktop app](#desktop-app) for Windows, Mac and Linux. Rather not run a server? We host it for you for €29 a month at [botdot.app](https://botdot.app) ([FAQ](docs/FAQ.md#is-it-a-hosted-service)).
 
 ## Install
 
@@ -39,6 +39,8 @@ The installer asks before it installs Docker, rootless Docker and gVisor, checks
 | **Size** | 4 CPUs, 8 GB RAM recommended, 40 GB disk for one account |
 | **Claude** | Pro, Max, Ultra or an Anthropic API key, per account |
 | **Access** | A domain pointed at the server (ports 80, 443, 8443), or Tailscale |
+
+On a Mac or a Windows PC there is no server to set up: the [desktop app](#desktop-app) opens a botdot that runs elsewhere, or runs one on the computer itself (preview: about 16 GB of memory and 40 GB of free disk, and it sleeps with the computer). The server above is for bots that run around the clock.
 
 botdot runs bots unattended: read [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) first. [Install on Linux](docs/install-linux.md) has the full requirements, the optional services (Composio, Bitwarden, OpenRouter, boat.dev), what the installer changes, updates, backups and uninstalling. Stuck? [Troubleshooting](docs/FAQ.md#troubleshooting).
 
@@ -80,11 +82,11 @@ The [Android app](android/README.md) adds notifications with **Reply** and **App
 
 | Windows | Mac | Linux |
 | --- | --- | --- |
-| [x64](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) | [Apple silicon](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) | [AppImage](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) · [.rpm](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) · [ARM](docs/desktop.md#download) |
+| [x64](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) | [Apple silicon](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) | [AppImage](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) · [.rpm](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) · [ARM](docs/install-desktop.md#download) |
 
 <img src="docs/screenshots/desktop-linux.gif" alt="The Linux app: downloading the AppImage, running botdot on the computer itself, making a passkey on the sign-up page and landing in the app">
 
-Your botdot in a window of its own, kept up to date. Without a server it can run botdot on the computer itself (preview): in a VM on a Mac or PC, directly on Linux. The apps are not signed yet: on Windows choose **More info → Run anyway**, on a Mac **System Settings → Privacy & Security → Open Anyway**. [The desktop app](docs/desktop.md) has the details.
+Your botdot in a window of its own, kept up to date. Without a server it can run botdot on the computer itself (preview): in a VM on a Mac or PC, directly on Linux. The apps are not signed yet ([#1365](https://github.com/ladrok/bot-dot/issues/1365)): on Windows choose **More info → Run anyway**, on a Mac **System Settings → Privacy & Security → Open Anyway**. [Install the desktop app](docs/install-desktop.md) has the requirements and the details.
 
 Screenshots and the recording show demo data.
 
@@ -105,7 +107,7 @@ Node 22.13 or newer, no dependencies. [Development](docs/development.md), [AGENT
 | Docs | |
 | --- | --- |
 | [Install on Linux](docs/install-linux.md) | Requirements, accounts, updates, backups, uninstall |
-| [The desktop app](docs/desktop.md) | Windows, Mac, Linux, and botdot on your own computer |
+| [Install the desktop app](docs/install-desktop.md) | Windows, Mac, Linux: the download, an unsigned build, and botdot on your own computer |
 | [User guide](docs/user-guide.md) | Every feature |
 | [FAQ](docs/FAQ.md) | Costs, privacy, troubleshooting |
 | [The API](docs/api.md) | The contract the apps use |
