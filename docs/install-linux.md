@@ -4,7 +4,7 @@ The full install reference: what botdot needs, the installer, accounts, shares o
 
 **On a Linux server,** one machine serves several accounts, each signing in with a passkey and walled off from the others. Below is what it needs and the two commands that install it.
 
-The botdot server runs on Linux. On a Mac or a Windows PC, the [desktop app](install-desktop.md) can open a botdot that runs on a server, or run one on the computer itself, in a Linux VM of its own that runs this same installer; on a Linux desktop, the app runs the installer on the computer itself.
+The botdot server runs on Linux. On a Mac or a Windows PC, the [desktop app](desktop.md) can open a botdot that runs on a server, or run one on the computer itself, in a Linux VM of its own that runs this same installer; on a Linux desktop, the app runs the installer on the computer itself.
 
 ## What botdot needs, and whom it trusts
 

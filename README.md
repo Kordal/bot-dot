@@ -82,11 +82,11 @@ The [Android app](android/README.md) adds notifications with **Reply** and **App
 
 | Windows | Mac | Linux |
 | --- | --- | --- |
-| [x64](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) | [Apple silicon](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) | [AppImage](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) · [.rpm](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) · [ARM](docs/install-desktop.md#download) |
+| [x64](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) | [Apple silicon](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) | [AppImage](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) · [.rpm](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) · [ARM](docs/desktop.md#download) |
 
 <img src="docs/screenshots/desktop-linux.gif" alt="The Linux app: downloading the AppImage, running botdot on the computer itself, making a passkey on the sign-up page and landing in the app">
 
-Your botdot in a window of its own, kept up to date. Without a server it can run botdot on the computer itself (preview): in a VM on a Mac or PC, directly on Linux. The apps are not signed yet ([#1365](https://github.com/ladrok/bot-dot/issues/1365)): on Windows choose **More info → Run anyway**, on a Mac **System Settings → Privacy & Security → Open Anyway**. [Install the desktop app](docs/install-desktop.md) has the requirements and the details.
+Your botdot in a window of its own, kept up to date. Without a server it can run botdot on the computer itself (preview): in a VM on a Mac or PC, directly on Linux. The apps are not signed yet ([#1365](https://github.com/ladrok/bot-dot/issues/1365)): on Windows choose **More info → Run anyway**, on a Mac **System Settings → Privacy & Security → Open Anyway**. [Install the desktop app](docs/desktop.md) has the requirements and the details.
 
 Screenshots and the recording show demo data.
 
@@ -107,7 +107,7 @@ Node 22.13 or newer, no dependencies. [Development](docs/development.md), [AGENT
 | Docs | |
 | --- | --- |
 | [Install on Linux](docs/install-linux.md) | Requirements, accounts, updates, backups, uninstall |
-| [Install the desktop app](docs/install-desktop.md) | Windows, Mac, Linux: the download, an unsigned build, and botdot on your own computer |
+| [Install the desktop app](docs/desktop.md) | Windows, Mac, Linux: the download, an unsigned build, and botdot on your own computer |
 | [User guide](docs/user-guide.md) | Every feature |
 | [FAQ](docs/FAQ.md) | Costs, privacy, troubleshooting |
 | [The API](docs/api.md) | The contract the apps use |
