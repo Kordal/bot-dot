@@ -98,7 +98,7 @@
         "title": { "type": "string", "max": 80 },
         "options": { "type": "list", "of": { "type": "string", "max": 40 }, "max": 4, "min": 2, "required": true },
         "rows": { "type": "list", "max": 20, "min": 1, "required": true, "of": { "type": "object", "props": { "label": { "type": "string", "max": 60, "required": true }, "values": { "type": "list", "of": { "type": "string", "max": 100, "empty": true }, "max": 4, "min": 1, "required": true } } } },
-        "pick": { "type": "int", "min": 0, "max": 3 }
+        "pick": { "type": "int", "min": 0, "max": 3, "indexes": "options" }
       } },
     "checklist": { "group": "data", "since": 1, "means": "Items with a tick for each one done. It only shows them.",
       "props": {
@@ -144,7 +144,7 @@
       "props": {
         "question": { "type": "string", "max": 160, "required": true },
         "options": { "type": "list", "of": { "type": "string", "max": 60, "noReserved": true }, "max": 8, "min": 2, "required": true },
-        "answer": { "type": "int", "min": 0, "max": 7, "required": true }, "explain": { "type": "string", "max": 200 }
+        "answer": { "type": "int", "min": 0, "max": 7, "indexes": "options", "required": true }, "explain": { "type": "string", "max": 200 }
       } },
 
     "chart": { "group": "charts", "since": 1, "means": "Lines, areas, bars, stacked bars or horizontal bars over `labels`; a series is drawn in a colour by its number.", "sourced": true,

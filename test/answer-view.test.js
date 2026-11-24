@@ -61,6 +61,15 @@ test('the catalog: every component says its group, its meaning and the version i
     if (spec.default !== undefined && spec.type === 'tone') assert.ok(catalog.tones.includes(spec.default), `${where}: default tone`);
   };
   const names = Object.keys(catalog.components);
+  // A prop that names a place (`indexes`) is a whole number that names a list of its own node, which the node says first.
+  for (const [name, c] of Object.entries(catalog.components)) {
+    const keys = Object.keys(c.props);
+    keys.forEach((k, i) => {
+      if (c.props[k].indexes === undefined) return;
+      assert.equal(c.props[k].type, 'int', `${name}.${k}: a place is a whole number`);
+      assert.ok(keys.indexOf(c.props[k].indexes) >= 0 && keys.indexOf(c.props[k].indexes) < i && c.props[c.props[k].indexes].type === 'list', `${name}.${k}: names a list before it`);
+    });
+  }
   assert.ok(names.length >= 40);
   for (const [name, c] of Object.entries(catalog.components)) {
     assert.ok(['layout', 'text', 'data', 'charts', 'media', 'feedback', 'inputs', 'actions'].includes(c.group), `${name}: group`);

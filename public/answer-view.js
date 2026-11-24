@@ -125,6 +125,13 @@ function of(catalog, options) {
         let n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
         if (!Number.isFinite(n)) return NO;
         if (spec.type === 'int') n = Math.round(n);
+        if (spec.indexes) {
+          // A place in a sibling list (`indexes` names it), as the bot counted it in the list it wrote: where that item stands among
+          // the ones kept. An item that was left out, or a number past the list, names nothing: no clamping to the nearest one.
+          const kept = ctx.kept[`${at}|${where.slice(0, where.lastIndexOf('/') + 1)}${spec.indexes}`];
+          const place = kept ? kept.indexOf(n) : -1;
+          return place < 0 ? NO : place;
+        }
         if (spec.min != null) n = Math.max(n, spec.min);
         if (spec.max != null) n = Math.min(n, spec.max);
         return n === 0 ? 0 : n;
@@ -141,12 +148,15 @@ function of(catalog, options) {
           if (ctx.points > L.points) throw new Refusal('too-many-points');
         }
         const out = [];
+        const kept = []; // where each kept item stood in the list the bot wrote, for a prop that names a place in it
         for (let i = 0; i < v.length && (spec.max == null || out.length < spec.max); i++) {
           const item = read(v[i], spec.of, at, `${where}/${i}`, ctx);
           if (item === NO || item === EMPTY) ctx.problems.push({ at, code: 'bad-item', prop: `${where}/${i}` });
-          else out.push(item);
+          else { out.push(item); kept.push(i); }
         }
-        return spec.min && out.length < spec.min ? NO : out;
+        if (spec.min && out.length < spec.min) return NO;
+        ctx.kept[`${at}|${where}`] = kept;
+        return out;
       }
       case 'object': {
         if (!isObj(v)) return NO;
@@ -218,7 +228,7 @@ function of(catalog, options) {
   // One fence's text: the view it draws, or why it is drawn as code.
   function validate(source) {
     const src = typeof source === 'string' ? source : '';
-    const ctx = { nodes: 0, points: 0, problems: [] };
+    const ctx = { nodes: 0, points: 0, problems: [], kept: {} };
     const refuse = (refused, alt) => ({ ok: false, refused, alt, problems: ctx.problems });
     if (src.length > L.bytes || bytes(src) > L.bytes) return refuse('too-big', altFrom(src, L));
     let json;
