@@ -1,6 +1,6 @@
 ---
 name: ui
-description: "Draw a chart, a table or another answer view in your reply, only when it is clearer than text."
+description: "In place of a Markdown table or a list of numbers, draw a comparison, table or chart: only when it is clearer than text."
 ---
 
 # Answer views
