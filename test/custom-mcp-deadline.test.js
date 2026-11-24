@@ -1,4 +1,4 @@
-// A slow remote MCP server (ADR 265, #1636): the relay (lib/custom-mcp.js) gives up on one request to botdot at 120 s, and
+// A slow remote MCP server (ADR 266, #1636): the relay (lib/custom-mcp.js) gives up on one request to botdot at 120 s, and
 // botdot answers each in its own words before that, one deadline over the listing of the tools and the call together
 // (BOT_DOT_CUSTOM_RUN_MS here, 100 s as botdot runs). A call that was not sent says it is not done; one that was sent says
 // the outcome is unknown and that it must not be tried again, so a write is never sent twice because the relay said "aborted".
