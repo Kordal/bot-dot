@@ -15,11 +15,11 @@ const CAPTIONS = {
   '1-home.png': { en: 'Your bots and what needs you', pl: 'Twoje boty i to, co czeka na Ciebie' },
   '2-chief.png': { en: 'Ask the Chief of Staff for a bot', pl: 'Poproś Szefa sztabu o bota' },
   '3-approve.png': { en: 'Scripts wait for your OK', pl: 'Skrypty czekają na Twoją zgodę' },
-  '4-board.png': { en: 'Live values on your Board', pl: 'Wartości na żywo na Tablicy' },
-  '5-chat.png': { en: 'Chat with each bot', pl: 'Rozmawiasz z każdym botem' },
-  '6-page.png': { en: 'Pages your bots keep up to date', pl: 'Strony, które boty aktualizują' },
-  '7-project.png': { en: 'A project with its team and goals', pl: 'Projekt z zespołem i celami' },
-  '8-team.png': { en: 'Bots hand the work on to each other', pl: 'Boty przekazują sobie pracę' },
+  '4-server.png': { en: 'Gauges and live numbers in the chat', pl: 'Wskaźniki i liczby na żywo w czacie' },
+  '5-spending.png': { en: 'Charts, not walls of numbers', pl: 'Wykresy zamiast ścian liczb' },
+  '6-quiz.png': { en: 'Answer a quiz right in the chat', pl: 'Quiz do rozwiązania w czacie' },
+  '7-quotes.png': { en: 'Compare options side by side', pl: 'Porównaj opcje obok siebie' },
+  '8-board.png': { en: 'Live values on your Board', pl: 'Wartości na żywo na Tablicy' },
 };
 
 // A one-letter word stays with the next one, as Polish typesetting wants ("z każdym", not "z" at a line's end).

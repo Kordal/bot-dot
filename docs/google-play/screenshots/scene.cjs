@@ -8,8 +8,9 @@ process.env.TZ = 'Europe/Brussels';
 const fs = require('node:fs');
 const path = require('node:path');
 const ROOT = fs.existsSync(path.join(process.cwd(), 'test', 'helpers.js')) ? process.cwd() : '/home/user/bot-dot';
-const { startServer, makeBot, self, waitFor, writeData } = require(path.join(ROOT, 'test', 'helpers'));
+const { startServer, makeBot, waitFor, writeData } = require(path.join(ROOT, 'test', 'helpers'));
 const { shortName } = require(path.join(ROOT, 'public', 'mentions.js'));
+const { VIEWS, ui } = require('./views.cjs');
 
 const OUT = path.resolve(process.argv[2] || '.');
 fs.mkdirSync(OUT, { recursive: true });
@@ -19,7 +20,6 @@ const VIDEO = process.argv[3] === 'video';
 // "This morning": today at 07:00 here, or yesterday's when it is not 08:00 yet.
 const morning = (() => { const d = new Date(); if (d.getHours() < 8) d.setDate(d.getDate() - 1); d.setHours(7, 0, 0, 0); return d.getTime(); })();
 const at = (min) => new Date(morning + min * 60_000).toISOString();
-const fence = (type, v) => `\`\`\`${type}\n${JSON.stringify(v)}\n\`\`\``;
 
 const NEWS_1 = `**Good morning! Three things worth knowing today**
 
@@ -35,25 +35,6 @@ const NEWS_2 = `Yes, it looks like you do. The grant now covers homes built befo
 - **What you need:** the installer's quote and your energy label.
 
 Want me to remind you when the installer sends the quote?`;
-
-const PAGE = [
-  fence('hero', { eyebrow: 'Weekly report · Server Watch', title: 'Home server', lead: 'Backups, disks and updates of the last seven days. Kept up to date every Monday at 07:00.', tags: ['weekly', 'live'] }),
-  fence('kpi', [
-    { label: 'Uptime', value: 99.9, unit: '%', points: [99.5, 99.7, 99.6, 99.8, 99.9, 99.8, 99.9], sub: '7 days', color: 'ok' },
-    { label: 'Disk', value: 62, unit: '%', max: 100, sub: '380 GB free', good: 'down' },
-    { label: 'Backups', value: 7, of: 7, sub: 'all verified', change: false },
-    { label: 'Updates', value: 3, sub: 'waiting for your OK', change: false, color: 'warn' },
-  ]),
-  fence('grid', { columns: 2, blocks: [
-    { type: 'chart', title: 'CPU, last 7 days', style: 'bar', unit: '%', labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], series: [{ label: 'CPU', points: [18, 24, 22, 41, 33, 15, 19], color: '#3b82f6' }] },
-    { type: 'chart', title: 'Disk by folder', style: 'hbar', unit: 'GB', bars: [{ label: 'Photos', value: 410 }, { label: 'Backups', value: 260 }, { label: 'Media', value: 180 }, { label: 'Other', value: 60 }] },
-  ] }),
-  '## Status',
-  fence('status', [{ text: 'Backups', level: 'ok' }, { text: 'Certificates', level: 'ok' }, { text: 'Kernel update', level: 'warn' }]),
-  fence('callout', { title: 'Waits for you', text: 'The kernel update needs a restart. Say **restart tonight** and I will do it at 03:00.', level: 'warn' }),
-  '## This week',
-  '- Nightly backups ran at 03:10 and were checked by restoring one file each.\n- The media disk went from 58% to 62% after the holiday photos were imported.\n- The certificate of the photo library renews itself on 2 December.',
-].join('\n\n');
 
 (async () => {
   let srv = await startServer({ env: ENV });
@@ -74,6 +55,8 @@ const PAGE = [
     const inbox = await bot('Inbox Triage', '#7f77dd', 'top-hat', 'Sorts the mail, drafts the answers.', 'Read my new mail, tell me which need an answer and draft them.', { group: 'Daily' });
     const plan = await bot('Weekly Planner', '#ef9f27', 'graduate', 'Plans the week from the calendar.', 'Plan my week from the calendar and the to-dos.', { group: 'Daily' });
     const recipe = await bot('Recipe Finder', '#d4537e', 'chef', 'Dinner ideas from what is in the fridge.', 'Suggest three dinners from what is in the fridge.', { group: 'Home' });
+    const money = await bot('Money Tracker', '#7cb342', 'cowboy', 'Where the money goes each month.', 'Read my bank export and tell me where the money went this month.', { group: 'Money' });
+    const spanish = await bot('Spanish Coach', '#2aa0c8', 'party', 'Short quizzes for the trip to Madrid.', 'Quiz me on Spanish for my trip, one question at a time.', { group: 'Learning' });
     const watch = await bot('Server Watch', '#d85a30', 'hard-hat', 'Backups, disks and updates of the home server.', 'Watch the home server: backups, disks, updates.', { group: 'Tech' });
 
     // ---- the Board ----
@@ -81,7 +64,7 @@ const PAGE = [
     const val = (id, value) => srv.asChief(`/dashboard/tiles/${id}/value`, { method: 'PUT', body: { value } });
     const mail = await add({ kind: 'value', title: 'Unread mail', section: 'Today', bot: inbox.id });
     for (const v of [6, 9, 8, 11, 12, 14]) await val(mail.id, v);
-    const next = await add({ kind: 'value', title: 'Next up', section: 'Today', bot: plan.id, value: '09:30 Team sync' });
+    const next = await add({ kind: 'value', title: 'Next up', section: 'Today', bot: plan.id, value: 'Tomorrow 09:30' });
     const note = await add({ kind: 'note', title: 'Morning summary', section: 'Today', bot: news.id, size: 'wide' });
     await val(note.id, '**Rail strike called off:** trains run as normal.\n\n**Heat pump grants** extended until March.\n\nNothing urgent on your other topics.');
     const temp = await add({ kind: 'value', title: 'Living room', section: 'Home', bot: home.id, unit: '°C', size: 'wide' });
@@ -98,6 +81,11 @@ const PAGE = [
 
     // ---- this morning's chats, written while botdot is stopped ----
     await srv.stop();
+    // The Board's recent values were all read this minute: they are spread over the last hour, as a day's readings are.
+    const dash = path.join(srv.data, 'dashboard.json');
+    const board = JSON.parse(fs.readFileSync(dash, 'utf8'));
+    for (const v of Object.values(board.values || {})) for (const [p, ts] of Object.entries(v.times || {})) v.times[p] = ts.map((_, i) => Date.now() - (ts.length - i) * 6 * 60_000);
+    fs.writeFileSync(dash, JSON.stringify(board), { mode: 0o600 });
     const runs = path.join(srv.data, 'runs');
     fs.mkdirSync(runs, { recursive: true });
     let n = 0;
@@ -108,27 +96,23 @@ const PAGE = [
     };
     // Yesterday's, all read.
     run(recipe, -760, -759, { prompt: 'What can I cook tonight? We have leeks, potatoes and some cheese.', result: 'Three ideas from what you have:\n\n1. **Leek and potato soup** with toasted cheese bread, 35 minutes.\n2. **Potato gratin** with leeks and Gruyère, 50 minutes.\n3. **Leek tart** with a green salad, 45 minutes.\n\nThe soup is the quickest. Want the recipe?' });
-    run(watch, -1500, -1499, { prompt: 'How are the disks?', result: 'All four disks are healthy. The media disk is at 62%.' });
     // This morning's.
     run(news, 50, 51, { prompt: 'What is in the news this morning?', result: NEWS_1 });
     run(news, 56, 57, { prompt: 'Anything new on the heat pump grants? Do we qualify?', result: NEWS_2 });
     run(inbox, 30, 31, { trigger: 'schedule', jobId: 'mail', jobName: 'Morning mail', customPrompt: false, notify: 'always', reporting: 'delivered', prompt: 'Morning mail', result: '**14 new emails: 2 need an answer.**\n\n- The school asks whether you can help at the winter fair on 12 December. I drafted a yes.\n- Your landlord wants a date for the boiler check. I suggested Tuesday morning.\n\nThe other 12 are newsletters and receipts: archived.' });
     run(inbox, 45, 46, { prompt: 'Send the answer to the school.', result: 'Sent. I also put the winter fair in your calendar for 12 December, 14:00 to 17:00.' });
+    run(money, 35, 36, { prompt: 'Where did my money go in October?', result: `You spent **€1,840** in October, 6% less than in September.\n\n${ui(VIEWS.SPENDING)}` });
+    run(spanish, 40, 41, { prompt: 'Quiz me on Spanish for my trip.', result: `Let's start with the bill. **Question 1:**\n\n${ui(VIEWS.QUIZ)}` });
+    run(spanish, 42, 43, { prompt: 'La cuenta, por favor', result: '**Correct!** One of five done. Ready for number two?' });
     // Done: a task the Chief handed it this morning, which the owner has not looked at.
     run(plan, 20, 21, { startedBy: 'chief', notificationAudience: 'internal', prompt: 'Put the dentist on Tuesday into the week plan.', result: 'Added: Tuesday 10:30, dentist. I moved the gym to Wednesday.' });
     writeData(path.join(srv.data, 'read-positions.json'), { version: 1, since: at(-120), chats: {} });
     srv = await startServer({ dir: srv.dir, env: ENV });
 
-    // ---- Server Watch saves its weekly page, and asks for a tile with a script ----
-    srv.hold();
-    const pageRun = ok(await srv.api(`/bots/${watch.id}/run`, { method: 'POST', body: { prompt: 'Write this week\'s report of the home server as a page.' } }), 'page run');
-    const rec = await srv.nextRun((x) => x.self?.env && x.args.includes(`🤖 ${watch.name}`), 'Server Watch\'s run');
-    const saved = await self(srv, rec.self.env.RUN_TOKEN, 'page', { title: 'Home server', markdown: PAGE, sources: ['the server\'s logs', 'smartctl', 'the backup reports'] });
-    if (!saved.data.ok || saved.data.problems?.length) throw new Error(`page: ${JSON.stringify(saved.data)}`);
-    srv.reply('This week\'s report is ready: uptime 99.9%, all 7 backups verified, and 3 updates wait for your OK.');
-    srv.release(rec);
-    await srv.finished(pageRun.id || pageRun.run?.id);
-    srv.unhold();
+    // ---- Server Watch answers with a view whose numbers read the Board's tiles ----
+    srv.reply(`All in order. Live from your Board:\n\n${ui(VIEWS.SERVER_NOW)}`);
+    const liveRun = ok(await srv.api(`/bots/${watch.id}/run`, { method: 'POST', body: { prompt: 'How is the home server doing right now?' } }), 'live run');
+    await srv.finished(liveRun.id || liveRun.run?.id);
 
     // ---- the Chief makes a bot ----
     const chat = ok(await srv.api('/chief/chats', { method: 'POST' }), 'chief chat');
@@ -136,18 +120,18 @@ const PAGE = [
       { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'mk', name: 'mcp__botdot__create_bot', input: { name: 'Recipe Finder' } }] } },
       { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'mk', content: JSON.stringify({ id: recipe.id, name: 'Recipe Finder' }) }] } },
     ]));
-    srv.reply('Done: **Recipe Finder** is on your list.\n\nEvery day at 17:00 it looks at what you told it is in the fridge and suggests three dinners, the quickest first. It never orders groceries or buys anything.\n\nTell it what you have, or say *"add it to the shopping list"* under any recipe.');
+    srv.reply(`Done: **Recipe Finder** is on your list. Here is the plan:\n\n${ui(VIEWS.CHIEF_PLAN)}\n\nIt never orders groceries or buys anything.`);
     ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Make me a bot that suggests three dinners each evening from what is in the fridge.' } }), 'chief message');
     await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { timeout: 20000, what: 'the Chief\'s reply' });
     fs.rmSync(path.join(srv.out, 'events.json'));
     if (!VIDEO) {
-      // The second turn: the Chief puts a tile with a script on the Board, which waits for the owner's OK.
-      srv.reply('Both are set up:\n\n- **Router uptime**, a tile for Server Watch under Server. It reads the router every 5 minutes.\n- **Night mode**, a job for Home Helper, every day at 22:30: night scene on, thermostats to 17 °C.\n\nEach is one command with no AI, and runs on this computer, so both wait for your OK below.');
+      // The second turn: the Chief puts two tiles with a script on the Board, which wait for the owner's OK.
+      srv.reply('Two tiles, each read by one command here. Both wait for your OK below.');
       srv.hold();
-      ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Can you also put my router\'s uptime on the Board, and have Home Helper switch the house to night mode at 22:30?' } }), 'chief message 2');
-      const chiefRun = await srv.nextRun((x) => x.stdin.includes('uptime'), 'the Chief\'s second turn');
+      ok(await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Router uptime and humidity, please.' } }), 'chief message 2');
+      const chiefRun = await srv.nextRun((x) => x.stdin.includes('humidity'), 'the Chief\'s second turn');
       ok(await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'Router uptime', section: 'Server', bot: watch.id, every: 300, read: { type: 'script', script: 'ssh router uptime -p | sed "s/^up //"' } } }), 'router tile');
-      ok(await srv.asChief(`/bots/${home.id}/jobs`, { method: 'POST', body: { name: 'Night mode', kind: 'script', cron: '30 22 * * *', script: 'ha-cli scene apply night', assessment: 'A fixed routine at a fixed time: no AI needed.' } }), 'job');
+      ok(await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'Humidity', section: 'Home', bot: home.id, unit: '%', every: 300, read: { type: 'script', script: 'ha-cli sensor read humidity' } } }), 'humidity tile');
       srv.release(chiefRun);
       srv.unhold();
       await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { timeout: 20000, what: 'the Chief\'s second reply' });
@@ -180,10 +164,10 @@ const PAGE = [
     const group = (await srv.api('/group-chats')).data.groups?.find?.((g) => g.team) || (await srv.api('/group-chats')).data.find?.((g) => g.team);
     if (group) ok(await srv.api(`/group-chats/${group.id}`, { method: 'PUT', body: { category: 'Kitchen' } }), 'team category');
     if (!group) throw new Error(`no team chat: ${JSON.stringify((await srv.api('/group-chats')).data).slice(0, 300)}`);
-    fs.writeFileSync(path.join(srv.out, `result-${shortName('Reno Planner')}.txt`), 'Two of three quotes are in, and the site visit is tomorrow at 10:00. @QuoteChaser can you sum up the quotes?');
-    fs.writeFileSync(path.join(srv.out, `result-${shortName('Quote Chaser')}.txt`), 'Here is where the quotes stand:\n\n| Contractor | Start | Takes |\n| --- | --- | --- |\n| Oakline Kitchens | 6 January | 3 weeks |\n| Brightwood | 13 January | 2 weeks |\n| Northside Joinery | waiting | — |\n\nI wrote to Northside again this morning; they promised an answer by Monday.');
-    ok(await srv.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'Where are we with the quotes?' } }), 'team message');
-    await waitFor(async () => { const r = (await srv.api(`/group-chats/${group.id}/chat`)).data; return JSON.stringify(r).includes('Northside again') && !(r.working || []).length; }, { timeout: 30000, what: 'the team\'s replies' }).catch(async (e) => { console.log(JSON.stringify((await srv.api(`/group-chats/${group.id}/chat`)).data).slice(0, 3000)); throw e; });
+    fs.writeFileSync(path.join(srv.out, `result-${shortName('Reno Planner')}.txt`), 'PASS');
+    fs.writeFileSync(path.join(srv.out, `result-${shortName('Quote Chaser')}.txt`), `Brightwood looks best so far.\n\n${ui(VIEWS.QUOTES)}\n\nNorthside promised an answer by Monday.`);
+    ok(await srv.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'Quotes so far, @QuoteChaser?' } }), 'team message');
+    await waitFor(async () => { const r = (await srv.api(`/group-chats/${group.id}/chat`)).data; return JSON.stringify(r).includes('Northside promised') && !(r.working || []).length; }, { timeout: 30000, what: 'the team\'s replies' }).catch(async (e) => { console.log(JSON.stringify((await srv.api(`/group-chats/${group.id}/chat`)).data).slice(0, 3000)); throw e; });
     await sleep(500);
     for (const f of fs.readdirSync(srv.out).filter((f) => /^result-/.test(f))) fs.rmSync(path.join(srv.out, f));
     void c0;
@@ -214,7 +198,7 @@ const PAGE = [
     }
 
     // ---- served until drive.cjs is done ----
-    fs.writeFileSync(path.join(OUT, 'scene.json'), JSON.stringify({ port: Number(new URL(srv.base).port), base: srv.base, bots: { news: news.id, planner: plan.id, home: home.id, watch: watch.id, recipe: recipe.id }, chief: chat.id, team: group.id }));
+    fs.writeFileSync(path.join(OUT, 'scene.json'), JSON.stringify({ port: Number(new URL(srv.base).port), base: srv.base, bots: { news: news.id, planner: plan.id, home: home.id, watch: watch.id, recipe: recipe.id, money: money.id, spanish: spanish.id }, chief: chat.id, team: group.id }));
     console.log('serving', srv.base);
     while (!fs.existsSync(path.join(OUT, 'stop'))) {
       if (fs.existsSync(path.join(OUT, 'reply'))) { fs.rmSync(path.join(OUT, 'reply')); fs.rmSync(path.join(srv.out, `hold-${shortName('Weekly Planner')}`), { force: true }); }

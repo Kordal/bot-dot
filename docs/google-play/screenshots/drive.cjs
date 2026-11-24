@@ -1,7 +1,7 @@
 // Takes the Play phone screenshots of the Android app on an emulator (docs/google-play/README.md), from the scene
 // scene.cjs serves. Every pixel is the app's own: nothing is drawn on the pictures (caption.cjs adds the captions).
 // node docs/google-play/screenshots/drive.cjs <scene dir> <app.apk> <out dir>
-// Needs adb with one emulator. The screen is set to 1080 x 1920 (9:16, as Play wants), dark, at 09:30, and each
+// Needs adb with one emulator. The screen is set to 1080 x 1920 (9:16, as Play wants), dark, its clock showing the phone's own time (the chats are stamped with it), and each
 // picture is saved as a 24-bit PNG: Play refuses a screenshot with an alpha channel.
 // Needs you is not pictured: it keeps itself out of screenshots (FLAG_SECURE, passwords are typed there), so its
 // cards are shown where the Chief asked for them, in its chat.
@@ -26,7 +26,7 @@ function nodes() {
   return [...xml.matchAll(/<node [^>]*>/g)].map(([n]) => {
     const attr = (k) => (n.match(new RegExp(`${k}="([^"]*)"`)) || [])[1] || '';
     const [x1, y1, x2, y2] = (attr('bounds').match(/\d+/g) || [0, 0, 0, 0]).map(Number);
-    return { text: attr('text'), desc: attr('content-desc'), cls: attr('class'), x: (x1 + x2) >> 1, y: (y1 + y2) >> 1 };
+    return { text: attr('text'), desc: attr('content-desc'), cls: attr('class'), x: (x1 + x2) >> 1, y: (y1 + y2) >> 1, top: y1, bottom: y2 };
   });
 }
 async function find(test, what, timeout = 30000) {
@@ -47,12 +47,13 @@ async function find(test, what, timeout = 30000) {
 }
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
-/** The status bar as on a phone at rest: 09:30, full battery and signal, no notifications. (On API 35 a network
+const NETWORK = '-e command network -e wifi hide -e mobile show -e datatype none -e level 4';
+/** The status bar as on a phone at rest: the time, full battery and signal, no notifications. (On API 35 a network
  * command with "-e fully true" or "-e mobile hide" leaves the status bar out of demo mode altogether.)
  * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
-function calm() {
-  for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
-    '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4', '-e command notifications -e visible false']) {
+function calm(network = NETWORK) {
+  for (const extra of ['-e command enter', `-e command clock -e hhmm ${sh('date +%H%M').trim()}`, '-e command battery -e level 100 -e plugged false',
+    network, '-e command notifications -e visible false']) {
     sh(`am broadcast -a com.android.systemui.demo ${extra}`);
   }
 }
@@ -70,22 +71,55 @@ async function scroll(way, times) {
   for (let i = 0; i < times; i++) { sh(way === 'up' ? 'input swipe 540 600 540 1600 250' : 'input swipe 540 1600 540 600 250'); await sleep(400); }
   await sleep(800);
 }
-/** Back to Home (the only screen with the logo), the screens on the way closed. */
-async function home() {
-  for (let i = 0; i < 10 && !nodes().some((n) => n.desc === 'botdot'); i++) { sh('input keyevent 4'); await sleep(1200); }
+/** One slow drag that moves the chat's content by [d] pixels (positive: down, to older messages); slow, so it does not fling. */
+async function drag(d) {
+  const by = Math.max(-1000, Math.min(1000, d));
+  sh(`input swipe 540 ${Math.round(960 - by / 2)} 540 ${Math.round(960 + by / 2)} 900`);
+  await sleep(1000);
 }
-
+/**
+ * Scrolls the open chat until the first node [test] finds has its top at [y] (give or take 30 px), so that what is under
+ * it, a reply with its view, is whole on the picture. Not on the screen: towards the newest messages three times, then
+ * towards the oldest. A chat that cannot move further (its end) is as near as it gets.
+ */
+async function bring(test, what, y) {
+  let looked = 0;
+  let last = null;
+  let stuck = 0;
+  for (let i = 0; i < 24; i++) {
+    const n = nodes().find(test);
+    if (!n) { await drag(++looked <= 3 ? -700 : 700); continue; }
+    const d = y - n.top;
+    if (Math.abs(d) <= 30) { await sleep(600); return n; }
+    stuck = last !== null && Math.abs(last - n.top) < 8 ? stuck + 1 : 0;
+    if (stuck >= 2) return n;
+    last = n.top;
+    await drag(d + Math.sign(d) * 22); // the touch slop is lost at the start of a drag
+  }
+  fs.writeFileSync(path.join(OUT, `failed-${what.replace(/\W+/g, '-')}.png`), execFileSync('adb', ['exec-out', 'screencap', '-p']));
+  throw new Error(`Could not bring to the place: ${what}\n${nodes().filter((n) => n.text || n.desc).map((n) => n.text || n.desc).join(' | ')}`);
+}
+const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
 (async () => {
   adb('install', '-r', '-g', apk);
   // The phone's localhost is the computer's: the app takes plain HTTP only to a botdot on the phone itself.
   adb('reverse', `tcp:${scene.port}`, `tcp:${scene.port}`);
+  // The status bar shows the demo's icons only: the emulator's own wifi and mobile network ("3G") would add theirs beside them,
+  // so its radios are off, wifi first (airplane mode leaves it as it is). The app reaches botdot over adb's reverse tunnel,
+  // which no radio carries.
+  sh('svc wifi disable');
+  await sleep(2000);
+  sh('cmd connectivity airplane-mode enable');
+  await sleep(2000);
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
+  sh('settings put system time_12_24 24'); // the status bar's clock as the app's own stamps are written
   sh('settings put global sysui_demo_allowed 1');
   const ui = sh('pidof com.android.systemui').trim();
   calm();
   await sleep(1500);
+  calm();
   // Said in the log: whether the system UI took the commands, or restarted on one of them.
   console.log('system UI', ui, '->', sh('pidof com.android.systemui').trim(), sh('logcat -d -b crash').split('\n').slice(-6).join(' / '));
   sh(`am start -W -n ${PKG}/.MainActivity`);
@@ -104,37 +138,33 @@ async function home() {
   // The Board, from its values on Home.
   tap(await find(byText('Unread mail'), 'the Board on Home'));
   await find(byText('Living room'), 'the Board');
-  await shot('4-board.png');
-  // The Chief's chat: from the top, where it made Recipe Finder; then at the end, its two cards that wait for an OK.
+  await bring(byText('Disk'), 'the Server tiles on the Board', 450);
+  await shot('8-board.png');
+  // The Chief's chat: from where the owner asks for a bot, the Chief's plan under it; then at the end, its two cards that wait for an OK.
   open(`chief:${scene.chief}`);
   await find(byText('New chat'), 'the Chief\'s chat');
-  await scroll('up', 8);
+  await bring(has(/^Make me a bot that suggests/), 'the owner\'s ask in the Chief\'s chat', 400);
   await shot('2-chief.png');
   await scroll('down', 8);
   await shot('3-approve.png');
-  // News Monitor's chat, from this morning's first message.
-  open(`bot:${scene.bots.news}`);
-  await find(byText('Its settings'), 'News Monitor\'s chat');
-  await scroll('up', 6);
-  await shot('5-chat.png');
-  // Server Watch's weekly page, opened from its chip in the chat.
+  // Server Watch's reply: its numbers read the Board's tiles.
   open(`bot:${scene.bots.watch}`);
   await find(byText('Its settings'), 'Server Watch\'s chat');
-  await scroll('down', 6);
-  tap(await find(byText('Home server'), 'the page in Server Watch\'s chat'));
-  await find(byText('Uptime'), 'the page').catch(() => sleep(4000));
-  await shot('6-page.png');
-  sh('input keyevent 4'); // the page closed: it is drawn over the screens
-  await sleep(1200);
-  // The project's team chat, from the owner's question.
+  await bring(has(/^How is the home server/), 'Server Watch\'s question', 330);
+  await shot('4-server.png');
+  // Money Tracker's chart.
+  open(`bot:${scene.bots.money}`);
+  await find(byText('Its settings'), 'Money Tracker\'s chat');
+  await bring(has(/^Where did my money go/), 'Money Tracker\'s question', 330);
+  await shot('5-spending.png');
+  // Spanish Coach's quiz, answered.
+  open(`bot:${scene.bots.spanish}`);
+  await find(byText('Its settings'), 'Spanish Coach\'s chat');
+  await bring(has(/^Quiz me on Spanish/), 'Spanish Coach\'s question', 330);
+  await shot('6-quiz.png');
+  // The project's team chat: Quote Chaser's comparison of the quotes.
   open(`group:${scene.team}`);
   await find((n) => /Quote Chaser/.test(n.text), 'the team chat');
-  await scroll('up', 6);
-  await shot('8-team.png');
-  // The project, from the spaces under the title on Home.
-  await home();
-  tap(await find((n) => n.desc === 'botdot', 'the title on Home'));
-  tap(await find(byText('Kitchen renovation'), 'the project in the spaces'));
-  await find((n) => /Quotes in/.test(n.text), 'the project');
-  await shot('7-project.png');
+  await bring(has(/^Quotes so far/), 'the owner\'s question in the team chat', 330);
+  await shot('7-quotes.png');
 })().catch((e) => { console.error(e.message); process.exit(1); });

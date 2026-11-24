@@ -46,7 +46,7 @@ In the order Play Console shows the fields. `node docs/google-play/png.cjs check
 2. **App icon:** [graphics/icon-512.png](graphics/icon-512.png) (512 × 512, 32-bit PNG).
 3. **Feature graphic:** [graphics/feature-1024x500.png](graphics/feature-1024x500.png) (1024 × 500, 24-bit PNG, no alpha).
 4. **Video:** leave empty.
-5. **Phone screenshots:** the eight of [screenshots/en/](screenshots/en/), in their order `1-home` to `8-team` (1080 × 1920, 9:16, 24-bit PNG). Without captions: [screenshots/raw/](screenshots/raw/) instead.
+5. **Phone screenshots:** the eight of [screenshots/en/](screenshots/en/), in their order `1-home` to `8-board` (1080 × 1920, 9:16, 24-bit PNG). Without captions: [screenshots/raw/](screenshots/raw/) instead.
 6. **Tablet screenshots (7-inch, 10-inch):** leave empty. The app is listed for phones; tablet pictures are optional.
 7. Save.
 
@@ -66,7 +66,7 @@ In the order Play Console shows the fields. `node docs/google-play/png.cjs check
 
 ### Making the pictures again
 
-1. **Screenshots:** GitHub → Actions → **Play screenshots** → Run workflow, on the branch with the change. The run stages a botdot with demo data (`scene.cjs`: made-up bots, mail and contractors, no real person), starts the app on an emulator and pictures eight screens (`drive.cjs`). Download its **play-screenshots** artifact into `screenshots/raw/`.
+1. **Screenshots:** GitHub → Actions → **Play screenshots** → Run workflow, on the branch with the change. The run stages a botdot with demo data (`scene.cjs`: made-up bots, mail and contractors, no real person; the answer views in the bots' replies are in `views.cjs`, written in the `ui` fence format of the catalog and read by the app's validator in `test/google-play.test.js`), starts the app on an emulator and pictures eight screens (`drive.cjs`): Home, the Chief's plan for a new bot, the approval cards, gauges that read the Board's tiles, a chart, a quiz answered in the chat, three quotes compared, and the Board. Download its **play-screenshots** artifact into `screenshots/raw/`.
 2. **Captions:** `node docs/google-play/screenshots/caption.cjs` writes `en/` and `pl/` from `raw/`; the captions are in that file.
 3. **Icon and feature graphics:** `node docs/google-play/graphics/make.cjs` (the feature graphics use `raw/1-home.png`).
 4. Check them with `png.cjs check` (it fails on a picture Play would refuse), and look at each one.
