@@ -160,5 +160,7 @@ test('its section on inputs and send-back says what a form posts, that a button\
   // The reference lists the wave 2 components.
   const ref = uiSkill.reference(catalog);
   for (const name of ['text-input', 'textarea', 'number', 'slider', 'range', 'select', 'multi-select', 'radio', 'checkbox', 'toggle', 'date', 'time', 'rating', 'segmented', 'button', 'button-group', 'link', 'copy']) assert.match(ref, new RegExp(`^- \`${name}\` `, 'm'), name);
-  assert.match(ref, /Catalog version 2\./);
+  assert.match(ref, /Catalog version 3\./);
+  // and the long tail of wave 3
+  for (const name of ['tree', 'calendar', 'kanban', 'heatmap', 'alert', 'empty-state', 'countdown', 'poll', 'quiz']) assert.match(ref, new RegExp(`^- \`${name}\``, 'm'), name);
 });

@@ -16,6 +16,11 @@
 //   text.shows(button)           what the page writes on it for the owner to read: that, when it is not the label
 //   text.start(node, raw)        what an input holds as the page shows it (what the owner set, else the bot's, kept to what the input allows)
 //   text.ends(node)              the ends of a slider or a range: [min, max], the bot's else 0 and 100
+//   text.countdown(to, now, offset)  the time left to a countdown's moment: { ms, over, shows } or null when `to` can't be read (wave 3)
+//   AnswerText.outline(depths)   the depths a tree is drawn at (none deeper than one past the item before it)
+//   AnswerText.month(text)       a calendar's month as { year, month, days, start } (start: the weekday of the 1st, Monday 0), or null
+//   AnswerText.agenda(events)    a calendar's events in date order (those whose date can't be read last)
+//   AnswerText.shade(values)     how dark each cell of a heatmap is, 0 to 1 (null for an empty cell)
 
 (function (root) {
 
@@ -41,6 +46,69 @@ function bins(values, wanted) {
   const out = Array.from({ length: n }, (_, i) => ({ from: lo + i * width, to: i === n - 1 ? hi : lo + (i + 1) * width, count: 0 }));
   for (const v of values) out[hi === lo ? 0 : Math.min(Math.floor((v - lo) / width), n - 1)].count++;
   return out;
+}
+
+// The depths a tree is drawn at: a depth the bot wrote, but never more than one deeper than the item before it (the first is 0).
+function outline(depths) {
+  let prev = -1;
+  return depths.map((d) => { const at = Math.min(Math.max(Math.round(Number(d) || 0), 0), prev + 1); prev = at; return at; });
+}
+
+// A calendar's month, "2026-11": its days and the weekday of its first (Monday is 0); null for a text that is no month.
+function month(text) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(text ?? '').trim());
+  if (!m) return null;
+  const [year, mo] = [Number(m[1]), Number(m[2])];
+  if (mo < 1 || mo > 12 || year < 1) return null;
+  const first = new Date(Date.UTC(2000, mo - 1, 1));
+  first.setUTCFullYear(year);
+  const days = new Date(Date.UTC(2000, mo, 0));
+  days.setUTCFullYear(year, mo, 0);
+  return { year, month: mo, days: days.getUTCDate(), start: (first.getUTCDay() + 6) % 7 };
+}
+const DAY_OF = /^(\d{4})-(\d{2})-(\d{2})$/;
+// Whether a text is a real day, "2026-11-03".
+function realDay(text) {
+  const m = DAY_OF.exec(String(text ?? ''));
+  if (!m) return false;
+  const t = new Date(Date.UTC(2000, Number(m[2]) - 1, Number(m[3])));
+  t.setUTCFullYear(Number(m[1]));
+  return t.getUTCMonth() === Number(m[2]) - 1 && t.getUTCDate() === Number(m[3]);
+}
+// A calendar's events in the order of their dates (equal dates keep the bot's order); one whose date is no real day comes last.
+function agenda(events) {
+  const rows = (events || []).map((e, i) => ({ e, i, ok: realDay(e.date) }));
+  rows.sort((a, b) => (a.ok === b.ok ? (a.ok && a.e.date !== b.e.date ? (a.e.date < b.e.date ? -1 : 1) : a.i - b.i) : a.ok ? -1 : 1));
+  return rows.map((r) => r.e);
+}
+
+// How dark each cell of a heatmap is, from 0 (the smallest number) to 1 (the biggest); every cell the same is half; null for an empty one.
+function shade(values) {
+  const all = values.flat().filter((v) => Number.isFinite(v));
+  const lo = Math.min(...all), hi = Math.max(...all);
+  return values.map((row) => row.map((v) => (!Number.isFinite(v) ? null : hi === lo ? 0.5 : Math.round(((v - lo) / (hi - lo)) * 1000) / 1000)));
+}
+
+// A countdown's moment: a day ("2026-12-31", its midnight) or a day and time ("2026-12-31T18:00", seconds too), with a Z or an
+// offset ("+02:00") to name its zone, else the owner's own. → milliseconds since 1970, or null when it is not a real day and time.
+const WHEN = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?\s*(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
+function moment(to, offset) {
+  const m = WHEN.exec(String(to ?? '').trim());
+  if (!m || (m[7] && m[4] == null)) return null;
+  const [y, mo, d, h, mi, sec] = [m[1], m[2], m[3], m[4] ?? 0, m[5] ?? 0, m[6] ?? 0].map(Number);
+  const t = new Date(Date.UTC(2000, mo - 1, d, h, mi, sec));
+  t.setUTCFullYear(y);
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d || h > 23 || mi > 59 || sec > 59) return null;
+  let zone = null;
+  if (m[7]) {
+    if (/^z$/i.test(m[7])) zone = 0;
+    else { const z = /^([+-])(\d{2}):?(\d{2})?$/.exec(m[7]); if (Number(z[2]) > 14 || Number(z[3] || 0) > 59) return null; zone = (z[1] === '-' ? -1 : 1) * (Number(z[2]) * 60 + Number(z[3] || 0)); }
+  } else if (!Number.isFinite(offset)) {
+    const local = new Date(2000, mo - 1, d, h, mi, sec);
+    local.setFullYear(y);
+    return local.getTime(); // the owner's own zone, as this device keeps it (summer time of that day included)
+  } else zone = offset;
+  return t.getTime() - zone * 60000;
 }
 
 // The inputs of the catalog (wave 2): the components a form is made of.
@@ -121,13 +189,38 @@ function of(view, opts) {
     }
   }
   const fields = (root) => walk(root, (n) => INPUTS.includes(n.type));
-  const buttons = (root) => walk(root, (n) => n.type === 'button');
+  // The buttons of a view; a poll's and a quiz's choices count as buttons that post their own words, each at the path of its poll
+  // or quiz and its number ("0.1.0"), so that a view knows what it sent by the same rule.
+  const buttons = (root) => {
+    const out = [];
+    const go = (n, path) => {
+      if (n.type === 'button') out.push({ path, node: n });
+      if (n.type === 'poll' || n.type === 'quiz') (n.options || []).forEach((o, i) => out.push({ path: `${path}.${i}`, node: { type: 'button', label: o } }));
+      (n.children || []).forEach((c, i) => go(c, `${path}.${i}`));
+    };
+    go(root, '0');
+    return out;
+  };
   // A form's message: "Budget: 500", one input to a line, a dash for what is empty. '' for a view with no input.
   const form = (root, values) => fields(root).map(({ path, node }) => `${node.label}: ${valueOf(node, values ? values[path] : undefined) || '–'}`).join('\n');
   const press = (n) => cutText((typeof n.send === 'string' ? n.send.trim() : '') || n.label, SEND_MAX);
   // What the owner reads on a button before pressing it: what it posts when that is not its label, else ''. Never in a tooltip alone
   // (a touch screen and the keyboard show none): the owner sees exactly what is sent.
   const shows = (n) => { const t = press(n); return t === n.label ? '' : t; };
+
+  // The time left to a countdown's moment `to` at `now` (milliseconds), in the owner's zone (`offset`, minutes east of UTC; this
+  // device's own when it is not given) unless `to` names one: { ms, over, shows } with `shows` its words, or null when `to` is not a
+  // real day and time. It is counted on the owner's own device and nowhere else.
+  function countdown(to, now, offset) {
+    const at = moment(to, offset);
+    if (at === null) return null;
+    const ms = at - now;
+    if (ms <= 0) return { ms: 0, over: true, shows: '' };
+    const sec = Math.floor(ms / 1000);
+    const [d, h, m, s] = [Math.floor(sec / 86400), Math.floor((sec % 86400) / 3600), Math.floor((sec % 3600) / 60), sec % 60];
+    const shows = d > 0 ? tr('{d} d {h} h', { d, h }) : h > 0 ? tr('{h} h {m} min', { h, m }) : m > 0 ? tr('{m} min {s} s', { m, s }) : tr('{s} s', { s });
+    return { ms, over: false, shows };
+  }
 
   // The numbers of a chart as a table of texts: its head and its rows. null for a node that is no chart.
   function data(n) {
@@ -154,6 +247,8 @@ function of(view, opts) {
       }
       case 'histogram':
         return { head: [tr('Range'), tr('Count')], rows: bins(n.values || [], n.bins).map((b) => [tr('{from} to {to}', { from: num(b.from), to: num(b.to) }) + unit, String(b.count)]) };
+      case 'heatmap':
+        return { head: ['', ...(n.columns || [])], rows: (n.rows || []).map((r, i) => [r, ...(n.columns || []).map((_, j) => { const v = (n.values || [])[i]?.[j]; return Number.isFinite(v) ? `${num(v)}${unit}` : ''; })]) };
       case 'sparkline':
         return { head: ['', n.label || tr('Value')], rows: (n.points || []).map((v, i) => [String(i + 1), num(v)]) };
       case 'gauge':
@@ -201,8 +296,17 @@ function of(view, opts) {
       case 'button-group': return (n.children || []).map(tree).join(' ');
       case 'link': return `[${n.label}](${n.url})`;
       case 'copy': return join([`**${n.label}**`, fenced(n.text)]);
-      case 'callout': return quoted(`${n.title ? `**${n.title}** ` : ''}${n.text}`);
-      case 'chart': case 'pie': case 'scatter': case 'histogram': case 'sparkline': case 'gauge': {
+      case 'callout': case 'alert': return quoted(`${n.title ? `**${n.title}** ` : ''}${n.text}`);
+      case 'tree': {
+        const at = outline(n.items.map((x) => x.depth));
+        return join([n.title ? `**${n.title}**` : '', n.items.map((x, i) => `${'  '.repeat(at[i])}- ${x.text}${x.note ? ` (${x.note})` : ''}`).join('\n')]);
+      }
+      case 'calendar': return join([n.title ? `**${n.title}**` : '', `**${n.month}**`, agenda(n.events).map((e) => `- ${e.date}: ${e.title}`).join('\n')]);
+      case 'kanban': return join([n.title ? `**${n.title}**` : '', ...n.columns.map((c) => join([`**${c.title}**`, (c.cards || []).map((x) => `- ${x.title}${x.text ? `: ${x.text}` : ''}`).join('\n')]))]);
+      case 'empty-state': return join([`**${n.title}**`, n.text || '', kids(n)]);
+      case 'countdown': return `**${n.label}:** ${n.to}`;
+      case 'poll': case 'quiz': return join([`**${n.question}**`, n.options.map((o) => `- ${o}`).join('\n')]);
+      case 'chart': case 'pie': case 'scatter': case 'histogram': case 'sparkline': case 'gauge': case 'heatmap': {
         const d = data(n);
         const head = n.title || n.label ? `**${n.title || n.label}**` : '';
         return join([head, d && d.rows.length ? table(d.head, d.rows) : '', source(n)]);
@@ -228,10 +332,10 @@ function of(view, opts) {
   const alt = (reply, opts) => rewrite(reply, opts, { view: (v) => v.alt, code: (c) => c.alt });
   const text = (reply, opts) => rewrite(reply, opts, { view: (v) => join([v.alt, tree(v.root)]), code: (c) => join([c.alt, fenced(c.code, 'ui')]) });
 
-  return { alt, text, tree, data, has, fields, form, buttons, press, shows, start, ends };
+  return { alt, text, tree, data, has, fields, form, buttons, press, shows, start, ends, countdown };
 }
 
-const api = { of, bins };
+const api = { of, bins, outline, month, agenda, realDay, shade, moment };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.AnswerText = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

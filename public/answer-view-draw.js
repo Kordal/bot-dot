@@ -8,7 +8,9 @@
 // from the bot's own files; a video, a sound and a file only from the bot's own files. The page blocks (hero, kpi, chart,
 // status, callout) are drawn by the block kit (blocks.js), so a chat and a page look alike.
 //
-// Wave 1: layout, text, data, charts, media. Wave 2 (#1627, ADR 265): inputs, buttons, links and Copy. A form's Send, or a
+// Wave 1: layout, text, data, charts, media. Wave 3 (#1629): the long tail (tree, calendar, kanban, heatmap, alert, empty state,
+// countdown, poll, quiz); a poll's and a quiz's choices post their own words as buttons do, a quiz says after the send whether it
+// was right, and a countdown counts on this device only. Wave 2 (#1627, ADR 265): inputs, buttons, links and Copy. A form's Send, or a
 // button, posts one ordinary owner message through the chat's own send (wireChat): the page never sends anything a view
 // did not show as text, and a view never approves, runs or changes anything. Inputs and buttons work on the newest bot
 // message of a chat only; an older view is read-only, with "Sent: …" when it was sent. A component the catalog does not
@@ -18,7 +20,7 @@ const AnswerViews = (() => {
   let words = null; // AnswerText over it: a reply as text
 
   // The catalog the server hands out, and what the page draws of it (the newest `since` it has code for).
-  const DRAWS = 2;
+  const DRAWS = 3;
   function use(catalog) {
     if (!catalog || typeof catalog !== 'object' || !catalog.components) return;
     view = AnswerView.of(catalog, { known: DRAWS });
@@ -268,6 +270,109 @@ const AnswerViews = (() => {
     return `<button type="button" class="btn av-btn t-${tone(n)}" disabled data-av-press="${path}" data-say="${esc(say)}">${inner}</button>`;
   };
 
+  // ---------- the long tail (wave 3) ----------
+
+  const locale = () => { try { return typeof I18n !== 'undefined' && I18n.locale ? I18n.locale : undefined; } catch { return undefined; } };
+  const dayName = (iso, opts) => { try { return new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale(), { timeZone: 'UTC', ...opts }); } catch { return iso; } };
+
+  // An outline as nested lists, each item as deep as AnswerText.outline allows.
+  function tree(n) {
+    const depths = AnswerText.outline(n.items.map((x) => x.depth));
+    let html = '';
+    n.items.forEach((x, i) => {
+      const d = depths[i];
+      if (i === 0) html += '<ul class="av-tree">';
+      else if (d > depths[i - 1]) html += '<ul>';
+      else { html += '</li>'; for (let k = depths[i - 1]; k > d; k--) html += '</ul></li>'; }
+      html += `<li class="t-${tone(x)}"><span class="av-tree-t">${esc(x.text)}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}`;
+    });
+    html += '</li>'; for (let k = depths[depths.length - 1]; k > 0; k--) html += '</ul></li>'; html += '</ul>';
+    return `<div class="av-block">${title(n.title)}${html}</div>`;
+  }
+
+  // A month as a table (a mark on the day that has an event, its events named for a screen reader) and its events as a list in date order.
+  function calendar(n) {
+    const m = AnswerText.month(n.month);
+    const events = AnswerText.agenda(n.events || []);
+    let grid = '';
+    if (m) {
+      const mm = String(m.month).padStart(2, '0');
+      const heads = Array.from({ length: 7 }, (_, i) => `<th scope="col">${esc(dayName(`2024-01-0${i + 1}`, { weekday: 'short' }))}</th>`).join('');
+      const cells = Array.from({ length: m.start }, () => '<td class="empty" aria-hidden="true"></td>');
+      for (let d = 1; d <= m.days; d++) {
+        const iso = `${m.year}-${mm}-${String(d).padStart(2, '0')}`;
+        const here = events.filter((e) => e.date === iso);
+        cells.push(here.length ? `<td class="has t-${tone(here[0])}"><span aria-hidden="true">${d}</span><span class="sr-only">${d}: ${esc(here.map((e) => e.title).join(', '))}</span></td>` : `<td class="day">${d}</td>`);
+      }
+      while (cells.length % 7) cells.push('<td class="empty" aria-hidden="true"></td>');
+      const rows = Array.from({ length: cells.length / 7 }, (_, r) => `<tr>${cells.slice(r * 7, r * 7 + 7).join('')}</tr>`).join('');
+      grid = `<table class="av-month"><caption>${esc(dayName(`${m.year}-${mm}-01`, { month: 'long', year: 'numeric' }))}</caption><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    const list = events.length ? `<ol class="av-agenda">${events.map((e) => `<li class="t-${tone(e)}">${AnswerText.realDay(e.date) ? `<time datetime="${esc(e.date)}">${esc(dayName(e.date, { day: 'numeric', month: 'short' }))}</time>` : `<span>${esc(e.date)}</span>`} ${esc(e.title)}</li>`).join('')}</ol>` : '';
+    return `<div class="av-block av-cal">${title(n.title)}${grid}${list}</div>`;
+  }
+
+  // Columns of cards, side by side where there is room; it only shows them.
+  function kanban(n) {
+    const col = (c) => `<section class="av-col" aria-label="${esc(c.title)}"><h4>${esc(c.title)}<small> ${(c.cards || []).length}</small></h4>${(c.cards || []).length ? `<ul>${c.cards.map((x) => `<li class="t-${tone(x)}"><b>${esc(x.title)}</b>${x.text ? `<span>${esc(x.text)}</span>` : ''}</li>`).join('')}</ul>` : ''}</section>`;
+    return `<div class="av-block">${title(n.title)}<div class="av-kanban">${n.columns.map(col).join('')}</div></div>`;
+  }
+
+  // A grid of numbers, each cell shaded by its share between the smallest and the biggest (--i, 0 to 1) and showing its number.
+  function heatmap(n, ctx, path) {
+    const shades = AnswerText.shade(n.values);
+    const head = n.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('');
+    const body = n.rows.map((r, i) => `<tr><th scope="row">${esc(r)}</th>${n.columns.map((_, j) => { const v = n.values[i]?.[j]; return Number.isFinite(v) ? `<td style="--i:${shades[i][j]}">${esc(num(v))}</td>` : '<td class="none"></td>'; }).join('')}</tr>`).join('');
+    const drawing = `${n.title ? title(n.title, 'kit-chart-title') : ''}<div class="md-table"><table class="av-heat"><thead><tr><td></td>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    return figure(n, ctx, path, drawing, 'pb-card', 'group');
+  }
+
+  // A short bar with an icon and a word for its tone, so that it is not colour alone.
+  function alert(n) {
+    const t = TONES.includes(n.tone) ? n.tone : 'warn';
+    const word = { good: tr('Done'), warn: tr('Warning'), bad: tr('Problem') }[t] || tr('Note');
+    const icon = { good: '✓', warn: '!', bad: '!' }[t] || 'i';
+    return `<div class="av-alert t-${t}" role="group" aria-label="${esc(word)}"><span class="av-alert-i" aria-hidden="true">${icon}</span><div>${n.title ? `<b>${esc(n.title)}</b>` : ''}${lines(n.text)}</div></div>`;
+  }
+
+  const countdown = (n) => {
+    const left = words.countdown(n.to, Date.now());
+    if (!left) return `<div class="av-countdown t-${tone(n)}"><span class="av-count-l">${esc(n.label)}</span><span class="av-count-n">${esc(n.to)}</span></div>`;
+    tick();
+    return `<div class="av-countdown t-${tone(n)}" role="timer" aria-label="${esc(n.label)}" data-av-count="${esc(n.to)}"><span class="av-count-l">${esc(n.label)}</span><time class="av-count-n">${esc(left.over ? tr('Time is up') : left.shows)}</time></div>`;
+  };
+  // Every countdown of the page is counted by one clock, on this device and nowhere else.
+  let ticking = false;
+  function tick() {
+    if (ticking || typeof document === 'undefined' || typeof setInterval === 'undefined') return;
+    ticking = true;
+    setInterval(() => {
+      if (document.hidden) return;
+      $$('[data-av-count]').forEach((el) => {
+        const left = words.countdown(el.dataset.avCount, Date.now());
+        const out = el.querySelector('.av-count-n');
+        const shown = left ? (left.over ? tr('Time is up') : left.shows) : null;
+        if (out && shown != null && out.textContent !== shown) out.textContent = shown;
+      });
+    }, 1000);
+  }
+
+  // A poll's and a quiz's choices are buttons that post their own words (ADR 265), counted by the form's own rule (AnswerText.buttons).
+  function poll(n, path) {
+    const quiz = n.type === 'quiz';
+    const correct = quiz && Number.isInteger(n.answer) && n.answer >= 0 && n.answer < n.options.length ? n.options[n.answer] : null;
+    const choice = (o, i) => `<button type="button" class="btn av-btn av-choice t-neutral" disabled data-av-press="${path}.${i}" data-say="${esc(o)}">${esc(o)}</button>`;
+    return `<div class="av-poll${quiz ? ' av-quiz' : ''}" role="group" aria-label="${esc(n.question)}"${correct !== null ? ` data-correct="${esc(correct)}"${n.explain ? ` data-explain="${esc(n.explain)}"` : ''}` : ''}><b class="av-q">${esc(n.question)}</b><div class="av-btns">${n.options.map(choice).join('')}</div>${correct !== null ? '<p class="av-reveal" role="status" hidden></p>' : ''}</div>`;
+  }
+  // What a quiz says of the choice that was sent: whether it was the right one and the answer's words; null while nothing was sent
+  // that is one of its choices, and for a quiz that names no answer.
+  function verdict(n, said) {
+    if (!n.options.includes(said) || !Number.isInteger(n.answer) || n.answer < 0 || n.answer >= n.options.length) return null;
+    const right = n.options[n.answer] === said;
+    const first = right ? tr('Correct.') : tr('Not quite. The answer is {answer}.', { answer: n.options[n.answer] });
+    return { right, text: n.explain ? `${first} ${n.explain}` : first };
+  }
+
   // Where a file is, or '' when this reply is no bot's.
   function mediaBox(n, ctx, inner, fallback) {
     const src = address(n.src, ctx.botId);
@@ -306,6 +411,13 @@ const AnswerViews = (() => {
       case 'timeline': return `<ol class="av-timeline">${n.items.map((x) => `<li class="t-${tone(x)}"><span class="mark" aria-hidden="true"></span>${x.when ? `<small>${esc(x.when)}</small>` : ''}<b>${esc(x.title)}</b>${x.text ? `<span>${esc(x.text)}</span>` : ''}</li>`).join('')}</ol>`;
       case 'comparison': return comparison(n);
       case 'checklist': return `<div class="av-block">${title(n.title)}<ul class="av-checklist">${n.items.map((x) => `<li class="task"><input type="checkbox" disabled${x.done ? ' checked' : ''} aria-label="${esc(x.text)}"> ${esc(x.text)}</li>`).join('')}</ul></div>`;
+      case 'tree': return tree(n);
+      case 'calendar': return calendar(n);
+      case 'kanban': return kanban(n);
+      case 'alert': return alert(n);
+      case 'empty-state': return `<div class="av-empty"><b>${esc(n.title)}</b>${n.text ? `<span>${esc(n.text)}</span>` : ''}${(n.children || []).length ? `<div class="av-btns" role="group">${kids(n, ctx, path)}</div>` : ''}</div>`;
+      case 'countdown': return countdown(n);
+      case 'poll': case 'quiz': return poll(n, path);
       case 'callout': return `<div class="kit-callout ${LEVEL[tone(n)]}">${n.title ? `<b>${esc(n.title)}</b>` : ''}<div>${lines(n.text)}</div></div>`;
 
       case 'chart': return chart(n, ctx, path);
@@ -314,6 +426,7 @@ const AnswerViews = (() => {
       case 'histogram': return histogram(n, ctx, path);
       case 'sparkline': return sparkline(n, ctx, path);
       case 'gauge': return gauge(n, ctx, path);
+      case 'heatmap': return heatmap(n, ctx, path);
 
       case 'image': return `<figure class="av-figure">${picture(n.src, n.alt, ctx.botId)}${n.caption ? `<figcaption>${esc(n.caption)}</figcaption>` : ''}</figure>`;
       case 'gallery': return `<div class="av-gallery">${n.items.map((x) => `<figure class="av-figure">${picture(x.src, x.alt, ctx.botId)}${x.caption ? `<figcaption>${esc(x.caption)}</figcaption>` : ''}</figure>`).join('')}</div>`;
@@ -445,7 +558,25 @@ const AnswerViews = (() => {
       paint(av, stateOf({ newest: at >= 0 && at === latest, sent }));
     }
   }
+  // What a poll or a quiz shows once its choice was sent: the choice that went is marked (not by colour alone: it is pressed), and a
+  // quiz says whether it was right. Open again, or never sent: nothing marked, nothing said.
+  function mark(av, { state, said }) {
+    for (const box of $$('.av-poll', av)) {
+      const choices = $$('[data-av-press]', box);
+      const out = $('.av-reveal', box);
+      const sent = state === 'sent';
+      const v = sent && out ? verdict({ options: choices.map((c) => c.dataset.say), answer: choices.findIndex((c) => c.dataset.say === box.dataset.correct), explain: box.dataset.explain }, said) : null;
+      for (const c of choices) {
+        const went = sent && c.dataset.say === said;
+        if (sent) c.setAttribute('aria-pressed', String(went)); else c.removeAttribute('aria-pressed');
+        const result = v && ((went && (v.right ? 'right' : 'wrong')) || (!v.right && c.dataset.say === box.dataset.correct && 'right'));
+        if (result) c.setAttribute('data-result', result); else c.removeAttribute('data-result');
+      }
+      if (out) { out.hidden = !v; out.textContent = v ? v.text : ''; }
+    }
+  }
   function paint(av, { state, said }) {
+    mark(av, { state, said });
     const off = state !== 'open' || !!av._avBusy;
     $$('.av-in, [data-av-press], [data-av-send]', av).forEach((c) => { if (c.disabled !== off) c.disabled = off; });
     av.dataset.avState = state;
@@ -588,7 +719,7 @@ const AnswerViews = (() => {
   }
 
   return {
-    use, load, ready, has, parts, html, wire, wireChat, sentFrom, sendOf, textOf, newest, stateOf,
+    use, load, ready, has, parts, html, wire, wireChat, sentFrom, sendOf, textOf, newest, stateOf, verdict, mark,
     alt: (src, opts) => (words ? words.alt(src, opts) : String(src ?? '')),
     text: (src, opts) => (words ? words.text(src, opts) : String(src ?? '')),
   };

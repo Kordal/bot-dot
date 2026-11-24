@@ -96,6 +96,10 @@ test('an app that draws an older catalog shows a component that came later as on
   // An app that knows only wave 1 draws no input: the inputs and actions came in version 2.
   const wave1 = AnswerView.of(catalog, { known: 1 }).validate(JSON.stringify({ alt: 'A', root: { type: 'stack', children: [{ type: 'slider', label: 'Budget' }, { type: 'button', label: 'Go' }, { type: 'divider' }] } }));
   assert.deepEqual(plain(wave1.root.children), [{ type: 'unknown' }, { type: 'unknown' }, { type: 'divider' }]);
+  // An app that draws waves 1 and 2 shows the long tail of wave 3 as one quiet line each.
+  const wave2 = AnswerView.of(catalog, { known: 2 }).validate(JSON.stringify({ alt: 'A', root: { type: 'stack', children: [
+    { type: 'calendar', month: '2026-11' }, { type: 'poll', question: 'Q', options: ['A', 'B'] }, { type: 'button', label: 'Go' }] } }));
+  assert.deepEqual(plain(wave2.root.children), [{ type: 'unknown' }, { type: 'unknown' }, { type: 'button', label: 'Go' }]);
 });
 
 test('what a view posts as the owner\'s next message is the text the shared fixture names: a form\'s lines, a button\'s words', () => {
@@ -110,14 +114,51 @@ test('what a view posts as the owner\'s next message is the text the shared fixt
   assert.equal(words.shows({ type: 'button', label: 'Go' }), '');
   assert.equal(words.shows({ type: 'button', label: 'Go', send: 'Go' }), '');
   assert.equal(words.shows({ type: 'button', label: 'Go', send: 'Go on, then' }), 'Go on, then');
+  // A poll's or a quiz's choices are buttons that post their own words, counted by their path; the answer of a quiz is never posted.
+  assert.deepEqual(words.buttons({ type: 'poll', question: 'Q', options: ['A', 'B'] }).map((b) => [b.path, words.press(b.node), words.shows(b.node)]), [['0.0', 'A', ''], ['0.1', 'B', '']]);
+  assert.deepEqual(words.buttons({ type: 'quiz', question: 'Q', options: ['A', 'B'], answer: 1 }).map((b) => words.press(b.node)), ['A', 'B']);
   // every input of the catalog is in a case
   const seen = new Set();
   const walk = (n) => { if (n && typeof n === 'object') { if (typeof n.type === 'string') seen.add(n.type); Object.values(n).forEach(walk); } };
   fixture.sends.forEach((c) => walk(c.view));
-  for (const [name, c] of Object.entries(catalog.components)) if (c.group === 'inputs' || name === 'button') assert.ok(seen.has(name), `a send case has ${name}`);
+  for (const [name, c] of Object.entries(catalog.components)) if (c.group === 'inputs' || ['button', 'poll', 'quiz'].includes(name)) assert.ok(seen.has(name), `a send case has ${name}`);
   // a button's words are at most 200 characters: the validator cut them, and the page cuts them again
   assert.equal(words.press({ type: 'button', label: 'Go', send: 'x'.repeat(300) }).length, 200);
   assert.equal(words.press({ type: 'button', label: 'Go', send: '   ' }), 'Go');
+});
+
+test('a countdown counts the time left to its moment in the owner\'s own zone unless it names one, as the shared fixture says', () => {
+  const words = require('../public/answer-text').of(view);
+  assert.ok(fixture.countdowns.length >= 8);
+  for (const c of fixture.countdowns) {
+    const left = words.countdown(c.to, Date.parse(c.now), c.offset);
+    if (c.shows === null) { assert.equal(left, null, c.name); continue; }
+    assert.equal(left.over, !!c.over, c.name);
+    assert.equal(left.shows, c.shows, c.name);
+  }
+});
+
+test('a calendar\'s month, a tree\'s depths and a heatmap\'s shades are read as the shared fixture says', () => {
+  const AnswerText = require('../public/answer-text');
+  for (const c of fixture.calendars) {
+    const m = AnswerText.month(c.month);
+    if (c.days === null) assert.equal(m, null, c.name);
+    else assert.deepEqual([m.days, m.start], [c.days, c.start], c.name);
+  }
+  for (const c of fixture.outlines) assert.deepEqual(AnswerText.outline(c.depths), c.shown, c.name);
+  for (const c of fixture.shades) assert.deepEqual(AnswerText.shade(c.values), c.shades, c.name);
+  // events are listed by date; a date that is no real day comes last, in the bot's order
+  const events = [{ date: '2026-11-17', title: 'b' }, { date: 'soon', title: 'x' }, { date: '2026-11-03', title: 'a' }, { date: '2026-02-30', title: 'y' }, { date: '2026-11-03', title: 'a2' }];
+  assert.deepEqual(AnswerText.agenda(events).map((e) => e.title), ['a', 'a2', 'b', 'x', 'y']);
+});
+
+test('the long tail of wave 3 is a poll, a quiz and the rest, none of which runs, approves or changes anything', () => {
+  for (const name of ['tree', 'calendar', 'kanban', 'heatmap', 'alert', 'empty-state', 'countdown', 'poll', 'quiz']) assert.equal(catalog.components[name]?.since, 3, name);
+  assert.equal(catalog.version, 3);
+  // Only a poll's and a quiz's choices and an empty state's buttons are asked for by the owner, and they only post text (ADR 265).
+  assert.deepEqual(catalog.components['empty-state'].children.only, ['button', 'button-group', 'link']);
+  assert.equal(catalog.components.heatmap.sourced, true);
+  for (const n of ['poll', 'quiz']) assert.ok(!Object.keys(catalog.components[n].props).some((k) => /^send/.test(k)), n);
 });
 
 test('a bot cannot reach what is not in the catalog through the names of a JavaScript object', () => {
@@ -186,6 +227,10 @@ test('a view never sends a phrase the server reads as an answer: the catalog nam
   // Nothing else is read like this: a text may say it, and so may a copy.
   assert.equal(press({ type: 'text', text: 'Approved. Go ahead.' }).text, 'Approved. Go ahead.');
   // The rule is in the catalog, as data, and only a button's own words carry it.
-  const flagged = Object.entries(catalog.components).flatMap(([n, c]) => Object.entries(c.props).filter(([, s]) => s.noReserved).map(([k]) => `${n}.${k}`));
-  assert.deepEqual(flagged, ['button.label', 'button.send']);
+  const flagged = Object.entries(catalog.components).flatMap(([n, c]) => Object.entries(c.props).filter(([, s]) => s.noReserved || (s.type === 'list' && s.of.noReserved)).map(([k]) => `${n}.${k}`));
+  assert.deepEqual(flagged, ['poll.options', 'quiz.options', 'button.label', 'button.send']);
+  // A poll's or a quiz's choice posts its own words, so it can never be one of the reserved ones: it is left out.
+  const choice = view.validate(JSON.stringify({ alt: 'A', root: { type: 'poll', question: 'Q', options: ['Approved. Go ahead.', ' build-IT ', 'Fine', 'Later'] } }));
+  assert.deepEqual(plain(choice.root.options), ['Fine', 'Later']);
+  assert.deepEqual(plain(view.validate(JSON.stringify({ alt: 'A', root: { type: 'quiz', question: 'Q', options: ['Build it.', 'Fine'], answer: 0 } })).root), { type: 'unknown' });
 });

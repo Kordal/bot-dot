@@ -1937,5 +1937,15 @@
   "{n} of {max}": "{n} z {max}",
   "opens in a new tab": "otwiera się w nowej karcie",
   "Sent: {text}": "Wysłano: {text}",
-  "Sends: {text}": "Wyśle: {text}"
+  "Sends: {text}": "Wyśle: {text}",
+  "{d} d {h} h": "{d} d {h} godz.",
+  "{h} h {m} min": "{h} godz. {m} min",
+  "{m} min {s} s": "{m} min {s} s",
+  "{s} s": "{s} s",
+  "Warning": "Ostrzeżenie",
+  "Problem": "Problem",
+  "Note": "Informacja",
+  "Time is up": "Czas minął",
+  "Correct.": "Dobrze.",
+  "Not quite. The answer is {answer}.": "Nie do końca. Odpowiedź to {answer}."
 }

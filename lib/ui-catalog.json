@@ -1,6 +1,6 @@
 {
-  "about": "The catalog of answer views (ADR 264): the components a bot may draw in a ```ui fence of its reply, with their props, lengths, tones, limits and the catalog version each came in (`since`). The server hands it out at GET /api/ui-catalog (`ui-catalog` in `features`); the apps read a fence with one generic validator driven by this file (public/answer-view.js; the shared fixtures are test/fixtures/ui-cases.json). A prop is `{ type, … }`: `string` (max, multiline; empty: an empty one is kept, as a table cell), `number` (min, max, nullable inside a list), `int`, `boolean`, `enum` (values), `tone` (one of `tones`), `https` (a web address), `media` (from: `file` is a path among the bot's files, `https` an image address; exts: the extensions a file may have), `list` (of, max, min) and `object` (props). `required` is a prop that must be there; `counts: \"points\"` adds a list's length to the node's points. A component has `children` (max, only), `in` (the parents it may stand in) and `sourced` (a chart, table or KPI says where its numbers came from). `noReserved` on a string prop: a text that reads as one of the catalog's `reserved` phrases (the owner's words the server reads as an answer, such as the Approve button's: compared in lower case with everything but letters and digits left out) is not read: a prop that is not needed is dropped, one that is needed cuts out its component. Lengths cut, never refuse; only `limits` refuse a fence.",
-  "version": 2,
+  "about": "The catalog of answer views (ADR 264): the components a bot may draw in a ```ui fence of its reply, with their props, lengths, tones, limits and the catalog version each came in (`since`). The server hands it out at GET /api/ui-catalog (`ui-catalog` in `features`); the apps read a fence with one generic validator driven by this file (public/answer-view.js; the shared fixtures are test/fixtures/ui-cases.json). A prop is `{ type, … }`: `string` (max, multiline; empty: an empty one is kept, as a table cell), `number` (min, max, nullable inside a list), `int`, `boolean`, `enum` (values), `tone` (one of `tones`), `https` (a web address), `media` (from: `file` is a path among the bot's files, `https` an image address; exts: the extensions a file may have), `list` (of, max, min) and `object` (props). `required` is a prop that must be there; `counts: \"points\"` adds a list's length to the node's points. A component has `children` (max, only), `in` (the parents it may stand in) and `sourced` (a chart, table or KPI says where its numbers came from). `noReserved` on a string prop (or on the items of a list of strings, as a poll's options): a text that reads as one of the catalog's `reserved` phrases (the owner's words the server reads as an answer, such as the Approve button's: compared in lower case with everything but letters and digits left out) is not read: a prop that is not needed is dropped, one that is needed cuts out its component. Lengths cut, never refuse; only `limits` refuse a fence.",
+  "version": 3,
   "limits": { "fences": 3, "nodes": 200, "depth": 6, "bytes": 65536, "points": 500, "alt": 200 },
   "tones": ["neutral", "good", "warn", "bad", "accent"],
   "reserved": ["Approved. Go ahead.", "Build it."],
@@ -105,8 +105,47 @@
         "title": { "type": "string", "max": 80 },
         "items": { "type": "list", "max": 30, "min": 1, "required": true, "of": { "type": "object", "props": { "text": { "type": "string", "max": 120, "required": true }, "done": { "type": "boolean" } } } }
       } },
+    "tree": { "group": "data", "since": 3, "means": "An outline: items in order, each at its `depth` (0 is the top, 5 the deepest) with an optional note.",
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "items": { "type": "list", "max": 100, "min": 1, "required": true, "of": { "type": "object", "props": {
+          "text": { "type": "string", "max": 100, "required": true }, "note": { "type": "string", "max": 120 }, "depth": { "type": "int", "min": 0, "max": 5 }, "tone": { "type": "tone", "default": "neutral" } } } }
+      } },
+    "calendar": { "group": "data", "since": 3, "means": "One month as a grid, with a mark on each day that has an event, and the events listed under it in date order. `month` is YYYY-MM, a day YYYY-MM-DD; weeks start on Monday.",
+      "props": {
+        "title": { "type": "string", "max": 80 }, "month": { "type": "string", "max": 7, "required": true },
+        "events": { "type": "list", "max": 60, "of": { "type": "object", "props": {
+          "date": { "type": "string", "max": 10, "required": true }, "title": { "type": "string", "max": 60, "required": true }, "tone": { "type": "tone", "default": "neutral" } } } }
+      } },
+    "kanban": { "group": "data", "since": 3, "means": "One to six columns of cards, side by side. It only shows them: it moves nothing.",
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "columns": { "type": "list", "max": 6, "min": 1, "required": true, "of": { "type": "object", "props": {
+          "title": { "type": "string", "max": 40, "required": true },
+          "cards": { "type": "list", "max": 20, "of": { "type": "object", "props": {
+            "title": { "type": "string", "max": 80, "required": true }, "text": { "type": "string", "max": 160 }, "tone": { "type": "tone", "default": "neutral" } } } } } } }
+      } },
     "callout": { "group": "feedback", "since": 1, "means": "A box that stands out, with a tone.",
       "props": { "title": { "type": "string", "max": 80 }, "text": { "type": "string", "max": 400, "required": true }, "tone": { "type": "tone", "default": "neutral" } } },
+
+    "alert": { "group": "feedback", "since": 3, "means": "A short message in a bar, with an icon and a word for its tone (warn unless it says). For a longer note use callout.",
+      "props": { "title": { "type": "string", "max": 80 }, "text": { "type": "string", "max": 300, "required": true }, "tone": { "type": "tone", "default": "warn" } } },
+    "empty-state": { "group": "feedback", "since": 3, "means": "A quiet note for when there is nothing to show yet: a title, a line saying why, and at most two buttons or links for what to do next.",
+      "props": { "title": { "type": "string", "max": 80, "required": true }, "text": { "type": "string", "max": 200 } },
+      "children": { "max": 2, "only": ["button", "button-group", "link"] } },
+    "countdown": { "group": "feedback", "since": 3, "means": "The time left to a moment, counted on the owner's own device and nowhere else. `to` is a day (YYYY-MM-DD) or a day and time (YYYY-MM-DDTHH:MM, with Z or +HH:MM to name a zone; else the owner's own).",
+      "props": { "label": { "type": "string", "max": 60, "required": true }, "to": { "type": "string", "max": 30, "required": true }, "tone": { "type": "tone", "default": "neutral" } } },
+    "poll": { "group": "feedback", "since": 3, "means": "A question with two to eight choices; each is a button that sends its own words as the owner's next message. It counts no votes.",
+      "props": {
+        "question": { "type": "string", "max": 160, "required": true },
+        "options": { "type": "list", "of": { "type": "string", "max": 60, "noReserved": true }, "max": 8, "min": 2, "required": true }
+      } },
+    "quiz": { "group": "feedback", "since": 3, "means": "A question with two to eight answers, each a button that sends its own words. Once the owner has sent one, the view says whether it was the right one (`answer`, a number from 0) and shows `explain`.",
+      "props": {
+        "question": { "type": "string", "max": 160, "required": true },
+        "options": { "type": "list", "of": { "type": "string", "max": 60, "noReserved": true }, "max": 8, "min": 2, "required": true },
+        "answer": { "type": "int", "min": 0, "max": 7, "required": true }, "explain": { "type": "string", "max": 200 }
+      } },
 
     "chart": { "group": "charts", "since": 1, "means": "Lines, areas, bars, stacked bars or horizontal bars over `labels`; a series is drawn in a colour by its number.", "sourced": true,
       "props": {
@@ -145,6 +184,15 @@
         "label": { "type": "string", "max": 60, "required": true }, "value": { "type": "number", "required": true },
         "min": { "type": "number" }, "max": { "type": "number" }, "unit": { "type": "string", "max": 20 },
         "tone": { "type": "tone", "default": "neutral" }, "source": { "type": "string", "max": 120 }
+      } },
+
+    "heatmap": { "group": "charts", "since": 3, "means": "A grid of numbers shaded by size: a row for each of `rows`, a column for each of `columns`, `values` one list of numbers per row.", "sourced": true,
+      "props": {
+        "title": { "type": "string", "max": 80 },
+        "rows": { "type": "list", "of": { "type": "string", "max": 30 }, "max": 30, "min": 1, "required": true },
+        "columns": { "type": "list", "of": { "type": "string", "max": 30 }, "max": 30, "min": 1, "required": true },
+        "values": { "type": "list", "max": 30, "min": 1, "required": true, "of": { "type": "list", "max": 30, "counts": "points", "of": { "type": "number", "nullable": true } } },
+        "unit": { "type": "string", "max": 20 }, "source": { "type": "string", "max": 120 }
       } },
 
     "text-input": { "group": "inputs", "since": 2, "means": "A one-line box for the owner to type in. It is named `text-input` because `text` is a paragraph.",
