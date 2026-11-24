@@ -95,6 +95,7 @@ internal class PropSpec(
     val type: String, val max: Int?, val min: Double?, val maxValue: Double?, val required: Boolean, val multiline: Boolean,
     val empty: Boolean, val nullable: Boolean, val values: List<String>, val from: List<String>, val exts: List<String>?,
     val counts: String?, val minItems: Int?, val of: PropSpec?, val props: Map<String, PropSpec>?, val noReserved: Boolean = false, val indexes: String? = null,
+    val by: String? = null, val inPlace: Boolean = false,
 )
 
 internal class ChildrenSpec(val max: Int, val only: List<String>?)
@@ -118,6 +119,8 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
         var nodes = 0; var points = 0; val problems = mutableListOf<Problem>()
         /** Where each kept item of a list stood in the list the bot wrote, by the node's path and the list's own, for a prop that names a place in it. */
         val kept = HashMap<String, List<Int>>()
+        /** Where a list left an item out, by the node's path and the list's own, for a list paired with it (`by`). */
+        val lost = HashMap<String, Set<Int>>()
     }
 
     /** A fence limit that was passed: the fence is drawn as code. */
@@ -165,15 +168,28 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
                 }
                 val out = ArrayList<JsonElement>()
                 val kept = ArrayList<Int>() // where each kept item stood in the list the bot wrote, for a prop that names a place in it
+                val lost = HashSet<Int>() // where an item was left out
+                val paired = spec.by?.let { ctx.lost["$at|$it"] } // where the list this one is paired with (`by`) left an item out
                 val of = spec.of ?: return Read.No
+                var tried = 0
+                var readable = 0
                 var i = 0
                 while (i < v.size && (spec.max == null || out.size < spec.max)) {
-                    val item = read(v[i], of, at, "$where/$i", ctx)
-                    if (item is Read.Got) { out += item.v; kept += i } else ctx.problems += Problem(at, "bad-item", "$where/$i")
+                    if (paired != null && i in paired) { i++; continue } // its partner is gone, so it goes too: the ones after it keep their places
+                    tried++
+                    var item = read(v[i], of, at, "$where/$i", ctx)
+                    if (item is Read.Got) readable++
+                    else {
+                        ctx.problems += Problem(at, "bad-item", "$where/$i")
+                        if (spec.inPlace) item = blank(of) // it keeps its place, as a blank, so that the ones after it keep theirs
+                    }
+                    if (item is Read.Got) { out += item.v; kept += i } else lost += i
                     i++
                 }
+                if (spec.inPlace && tried > 0 && readable == 0) return Read.No // nothing in it could be read: not a list of blanks
                 if (spec.minItems != null && spec.minItems > 0 && out.size < spec.minItems) return Read.No
                 ctx.kept["$at|$where"] = kept
+                ctx.lost["$at|$where"] = lost
                 return Read.Got(JsonArray(out))
             }
             "object" -> {
@@ -183,6 +199,14 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
             }
         }
         return Read.No
+    }
+
+    /** What an item of a list that keeps its place (`inPlace`) is where it can't be read: a blank, as its kind has one, or [Read.No] where it has none. */
+    private fun blank(spec: PropSpec): Read = when {
+        spec.nullable -> Read.Got(JsonNull)
+        spec.type == "string" -> got("")
+        spec.type == "list" -> Read.Got(JsonArray(emptyList()))
+        else -> Read.No
     }
 
     /** A media prop: `{ kind: "file", path }` for a bot's file, `{ kind: "https", url }` for an https address, when the prop allows it. */
@@ -351,6 +375,7 @@ class AnswerViews private constructor(val version: Int, val limits: ViewLimits, 
             counts = (o["counts"] as? JsonPrimitive)?.takeIf { it.isString }?.content, minItems = int(o["min"]),
             of = obj(o["of"])?.let { spec(it) }, props = obj(o["props"])?.let { props(it) }, noReserved = bool(o["noReserved"]),
             indexes = (o["indexes"] as? JsonPrimitive)?.takeIf { it.isString }?.content,
+            by = (o["by"] as? JsonPrimitive)?.takeIf { it.isString }?.content, inPlace = bool(o["inPlace"]),
         )
         private fun props(o: Map<String, JsonElement>): Map<String, PropSpec> = LinkedHashMap<String, PropSpec>().also { m -> for ((k, v) in o) obj(v)?.let { m[k] = spec(it) } }
 
