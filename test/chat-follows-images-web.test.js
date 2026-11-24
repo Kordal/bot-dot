@@ -12,8 +12,14 @@ const src = read('replies.js');
 const from = src.indexOf('function holdChatEnd(');
 const to = src.indexOf('// A chat\'s new replies changed');
 assert.ok(from > 0 && to > from, 'replies.js has holdChatEnd and what follows growth');
-const ctx = vm.createContext({ ResizeObserver: undefined });
-vm.runInContext(`${src.slice(src.lastIndexOf('const heldChats', from), to)}\nthis.holdChatEnd = holdChatEnd;`, ctx);
+const code = `${src.slice(src.lastIndexOf('const heldChats', from), to)}\nthis.holdChatEnd = holdChatEnd;`;
+// The page as a browser with scroll anchoring has it (Chrome, Firefox) or without (WebKit).
+const page = (anchoring) => {
+  const c = vm.createContext({ ResizeObserver: undefined, CSS: { supports: (prop) => anchoring && prop === 'overflow-anchor' }, getComputedStyle: () => ({ overflowAnchor: 'auto' }) });
+  vm.runInContext(code, c);
+  return c;
+};
+const ctx = page(false);
 
 // A thread that scrolls: its content's height and how far it is scrolled; as a browser has it, a scroll event follows a move.
 function thread({ content = 3000, view = 700, top = 2300 } = {}) {
@@ -32,6 +38,15 @@ function thread({ content = 3000, view = 700, top = 2300 } = {}) {
     scrollTo(v) { t.scrollTop = v; t.fire('scroll'); },
     // A picture loads and takes `px` of height: no scroll event, as in a browser.
     grow(px) { t.content += px; t.fire('load', { target: { offsetHeight: px } }); },
+    // A picture at `at` px of the content loads and takes `px`. With scroll anchoring a picture above the view raises
+    // scrollTop by its height, so what is read stays where it was; without, the text under it moves down.
+    growAt(at, px, anchored) {
+      const above = at <= t.top; // it began above the view's top and (placed so) ends above it
+      t.content += px;
+      if (t.lineAt !== null && at < t.lineAt) t.lineAt += px; // what is under the picture moves down with it
+      if (anchored && above) t.top += px;
+      t.fire('load', { target: { offsetHeight: px, getBoundingClientRect: () => ({ top: at - t.top, bottom: at + px - t.top }) } });
+    },
   };
   return t;
 }
@@ -119,4 +134,40 @@ test('web: the pictures of a reply are never lazy', () => {
   const draw = chief.slice(chief.indexOf('const botFilesHTML'), chief.indexOf('const botFilesHTML') + 600);
   assert.match(draw, /<img src=/);
   assert.doesNotMatch(draw, /loading="lazy"/);
+});
+
+// A picture above the view (an older reply, its picture loading as the chat opens) is made up for by the browser's scroll
+// anchoring, which raises scrollTop by its height: the owner who scrolled up is left where they are, and must not be
+// taken for a chat near its end because of it (#1647). Without anchoring the same picture moves the text down.
+for (const anchored of [true, false]) {
+  const how = anchored ? 'with scroll anchoring' : 'without scroll anchoring';
+  test(`web: a picture above the view loads ${how}: a chat scrolled up 400 px stays where it is`, () => {
+    const t = thread({ content: 3000, view: 700, top: 1900 }); // 400 px up from its end
+    page(anchored).holdChatEnd(t);
+    t.growAt(500, 300, anchored); // its picture, far above the view's top
+    assert.equal(t.scrollTop, anchored ? 2200 : 1900, anchored ? 'the browser raised scrollTop by the picture' : 'nothing moved');
+    assert.equal(t.scrollHeight - t.scrollTop - t.clientHeight, anchored ? 400 : 700, 'not taken to the end');
+  });
+  test(`web: a picture above the view loads ${how}: a chat at its end stays at its end`, () => {
+    const t = thread();
+    page(anchored).holdChatEnd(t);
+    t.growAt(500, 300, anchored);
+    assert.equal(t.scrollHeight - t.scrollTop - t.clientHeight, 0);
+  });
+  test(`web: a picture below the view loads ${how}: a chat scrolled up stays; one near its end follows`, () => {
+    const t = thread({ content: 3000, view: 700, top: 1900 });
+    page(anchored).holdChatEnd(t);
+    t.growAt(2900, 300, anchored); // 300 px below the view
+    assert.equal(t.scrollTop, 1900);
+    t.top = t.content - t.clientHeight - 150; // read on down to 150 px from the end (this picture takes 100 more)
+    t.growAt(t.content - 100, 100, anchored);
+    assert.equal(t.scrollHeight - t.scrollTop - t.clientHeight, 0);
+  });
+}
+test('web: the New line stays in sight while a picture above the view loads with scroll anchoring', () => {
+  const t = thread({ content: 1400, view: 700, top: 672 });
+  t.lineAt = 700; // 28 px from the top of the view
+  page(true).holdChatEnd(t);
+  t.growAt(100, 270, true); // the browser raises scrollTop with the picture, and the line moves down with the content
+  assert.equal(t.lineAt - t.scrollTop, 28, 'the line is where it was, and the chat did not run on to the end');
 });
