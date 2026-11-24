@@ -210,7 +210,9 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     var serverBots by remember { mutableStateOf<CustomServer?>(null) }
     suspend fun load() {
         runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: tr("Couldn't load")) }
-        servers = if (dev.botdot.app.data.Apps.CUSTOM_SERVERS in app.store.version.value.value?.features.orEmpty()) runCatching { api?.customServers() }.getOrNull() else null
+        // A list that can't be read is told, as the sections above tell theirs, and the servers drawn before stay.
+        if (dev.botdot.app.data.Apps.CUSTOM_SERVERS in app.store.version.value.value?.features.orEmpty()) runCatching { api?.customServers() }.onSuccess { servers = it }.onError { tell(it.message ?: tr("Couldn't load")) }
+        else servers = null
         if ("every-bot-always" in app.store.version.value.value?.features.orEmpty()) runCatching { api?.everyBotGrants() }.onSuccess { everyBot = it.orEmpty() }
     }
     suspend fun saveKey(key: String): Boolean = runCatching { api!!.setComposioKey(key) }
