@@ -74,7 +74,8 @@
 }
 
 * { box-sizing: border-box; }
-/* No scroll bar is drawn anywhere: every pane still scrolls by wheel, trackpad, touch and keys. */
+/* No scroll bar is drawn anywhere: every pane still scrolls by wheel, trackpad, touch and keys.
+   Scripts and code blocks wrap their long lines instead, so nothing runs off unseen. */
 html, body, * { scrollbar-width: none; }
 html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display: none; width: 0; height: 0; }
 html, body { margin: 0; height: 100%; }
@@ -795,7 +796,7 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md blockquote { margin: .5em 0; padding-left: .8em; border-left: 3px solid var(--line); color: var(--muted); }
 .md hr { border: 0; border-top: 1px solid var(--line); margin: .9em 0; }
 .md code { background: var(--sunk); padding: 1px var(--sp-4); border-radius: var(--r-8); }
-.md pre { background: var(--sunk); padding: var(--sp-12) var(--sp-12); border-radius: var(--r-8); overflow: auto; }
+.md pre { background: var(--sunk); padding: var(--sp-12) var(--sp-12); border-radius: var(--r-8); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .md pre code { background: none; padding: 0; }
 /* A code block's Copy button (#285): in its top-right corner, in a column of its own that the code scrolls beside and
    a diagram is drawn beside; always there on a touch screen; with a mouse it shows on hover, and on a keyboard's
@@ -988,7 +989,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .need-card:not(.open) .need-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .need-card:not(.open) .need-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .need-body .nb { line-height: 1.5; margin: 0; font: inherit; white-space: pre-wrap; }
-.need-body pre.nb { font-family: var(--mono); font-size: var(--fs-12); white-space: pre; overflow-x: auto; }
+.need-body pre.nb { font-family: var(--mono); font-size: var(--fs-12); white-space: pre-wrap; overflow-wrap: anywhere; }
 .need-card:not(.open) .need-body div.nb, .need-card:not(.open) .need-body pre.nb { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .need-card:not(.open) .need-body div.nb { white-space: normal; }
 .need-card:not(.open) .need-body ~ .need-body, .need-card:not(.open) .job-why { display: none; }
@@ -1205,7 +1206,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .tile.suggested .tile-head, .tile.suggested .tile-why { opacity: .7; }
 .tile-why { font-size: var(--fs-12); color: var(--muted); line-height: 1.45; }
 .tile-script summary { font-size: var(--fs-12); color: var(--muted); cursor: pointer; }
-.tile-script pre { font-size: var(--fs-12); background: var(--sunk); border-radius: var(--r-8); padding: var(--sp-8) var(--sp-8); overflow-x: auto; margin: var(--sp-8) 0 0; }
+.tile-script pre { font-size: var(--fs-12); background: var(--sunk); border-radius: var(--r-8); padding: var(--sp-8) var(--sp-8); white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--sp-8) 0 0; }
 .tile-actions { display: flex; align-items: center; gap: var(--sp-8); margin-top: auto; }
 .tile-actions { justify-content: flex-end; }
 .tile-why b { font-weight: 600; color: var(--text); }
