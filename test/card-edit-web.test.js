@@ -1,7 +1,7 @@
 // The pencil on a board tile, on the web page (ADR 273, public/board-edit.js): a pencil on each tile that has a title,
 // shown only when the server has `card-edit`; pressing it rings the tile and puts a chip naming it above the project
 // chat's message box; sending carries the tile and clears both; taking the chip off sends a plain message. Android
-// draws the same from the same feature (ui/ProjectCards.kt, ProjectChat in ui/ProjectChatSheet.kt).
+// draws the same from the same feature (ui/CardEditUi.kt and the tiles of the board).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

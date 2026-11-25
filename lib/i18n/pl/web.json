@@ -1957,5 +1957,7 @@
   "New replies you haven't read yet.": "Nowe odpowiedzi, które czekają na przeczytanie.",
   "Finished. Its chat has the result.": "Skończył. Wynik jest w jego rozmowie.",
   "The last task stopped. Its chat says why.": "Ostatnie zadanie się zatrzymało. Dlaczego, widać w jego rozmowie.",
-  "Nothing to do now. Its job runs again on schedule.": "Teraz nie ma nic do zrobienia. Jego zadanie ruszy znów o swojej porze."
+  "Nothing to do now. Its job runs again on schedule.": "Teraz nie ma nic do zrobienia. Jego zadanie ruszy znów o swojej porze.",
+  "About {name}": "O: {name}",
+  "Remove {name} from this message": "Usuń „{name}” z tej wiadomości"
 }
