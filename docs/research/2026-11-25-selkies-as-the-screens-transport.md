@@ -156,11 +156,11 @@ docker exec -d -u box -e HOME=/home/box -e SCREEN=11 -e SCREEN_DISPLAY=:11 -e VN
 **Step 1, the probe (2 minutes; stop here if it fails):**
 
 ```sh
-docker exec -u box -e HOME=/home/box -e DISPLAY=:11 selkies-trial sh -c 'xdpyinfo | grep -E "MIT-SHM|DAMAGE|XFIXES|XTEST|RANDR|depth of root|dimensions"'
+docker exec -u box -e HOME=/home/box -e DISPLAY=:11 selkies-trial sh -c 'xdpyinfo | grep -E "MIT-SHM|DAMAGE|XFIXES|XTEST|RANDR|depth of root|bits_per_pixel|dimensions"'
 docker exec -u box -e HOME=/home/box -e DISPLAY=:11 selkies-trial /opt/selkies/bin/python /opt/selkies-trial/pixelflux-probe.py 8 15
 ```
 
-The probe measures the still phase first, on a screen nothing moves on, and then starts `pattern.py` itself for the moving phase and stops it at the end: do not start `pattern.py` before it. Expect `MIT-SHM` and `DAMAGE` listed, a 32-bit root, `1280x800`, `stream_info` saying `capture: 'XShm'`, `encoder: 'x264'`, then a `still` and a `moving` line of rates and CPU and `PASS`. Keep the output.
+The probe measures the still phase first, on a screen nothing moves on, and then starts `pattern.py` itself for the moving phase and stops it at the end: do not start `pattern.py` before it. Expect `MIT-SHM` and `DAMAGE` listed, a depth-24 root with `depth 24, bits_per_pixel 32` (pixelflux needs 32 bits per pixel, not depth 32), `1280x800`, `stream_info` saying `capture: 'XShm'`, `encoder: 'x264'`, then a `still` and a `moving` line of rates and CPU and `PASS`. Keep the output.
 
 **Step 2, Selkies' server and the comparison:**
 

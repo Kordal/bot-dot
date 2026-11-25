@@ -12,7 +12,7 @@ The still phase comes first on a screen nothing moves on, so run the probe befor
 `pattern.py` (beside it) itself between the two phases and stops it at the end, so the still figure is a still screen's.
 PATTERN=0 starts nothing, for a pattern you run yourself. Exit 0 when XShm worked and frames arrived, 2 when the
 capture failed or delivered nothing: then read the printed error, it names the step (shmget, shmat, shm_attach, XShm
-unavailable, a 32-bit root).
+unavailable, 32 bits per pixel, which a depth-24 root has).
 """
 import os
 import resource
