@@ -265,3 +265,21 @@ test('a paused member on a held connection is skipped in a group\'s line, and th
   assert.ok(await own.nextRun((x) => x.stdin.includes('the line while claude waits'), 'the provider member\'s turn'));
   assert.ok(!own.runs().some((x) => x.who === 'Paused One' && x.stdin?.includes('the line while claude waits')), 'the paused member had no turn');
 });
+
+// The idle check of a version switch (ADR 271) counts what waits in a queue only where its connection can run it: a
+// provider's limit does not keep the account busy with that provider's waiting work (#1668 review).
+test('work waiting on a held provider is not counted as work by the idle check', async (t) => {
+  const own = await startServer({ env: { CLAUDE_CODE_OAUTH_TOKEN: SUBSCRIPTION } });
+  t.after(() => own.stop());
+  assert.equal((await own.api('/settings/writing-first', { method: 'PUT', body: { perDay: 0 } })).status, 200);
+  assert.equal((await own.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'custom', url: `http://127.0.0.1:${providerStand.address().port}`, key: KEY_A, big: 'model-a', small: 'model-b' } })).status, 200);
+  const provider = await makeBot(own, { name: 'Provider One', model: 'provider:custom:model-a' });
+  const said = path.join(own.out, 'error-result.txt');
+  fs.writeFileSync(said, `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+  try { await own.finished((await own.api(`/bots/${provider.id}/run`, { method: 'POST', body: { prompt: 'hit the limit' } })).data.id); } finally { fs.rmSync(said, { force: true }); }
+  const waits = (await own.api(`/bots/${provider.id}/run`, { method: 'POST', body: { prompt: 'waits for the provider' } })).data;
+  assert.equal(waits.status, 'queued');
+  const r = await own.api('/update/idle', { headers: { 'x-botdot-room': '1' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.working, 0, 'the provider is held: what waits for it is no work a restart would cut off');
+});
