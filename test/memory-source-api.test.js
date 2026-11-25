@@ -728,9 +728,13 @@ test('ADR 278: a bot\'s change of a note\'s topic or end alone leaves who said i
   const same = await mem(h, { action: 'edit', id: note.id, text: 'The owner lives in Krakow', topic: 'home', until: '2099-01-01' });
   assert.equal(same.result, 'saved');
   assert.equal(same.note.source, 'owner');
-  assert.equal((await mem(h, { action: 'edit', id: note.id, topic: 'city' })).note.source, 'owner');
+  assert.doesNotMatch(same.say, NOT_QUOTED, 'the note is still the owner\'s: the answer says nothing of a quote');
+  const city = await mem(h, { action: 'edit', id: note.id, topic: 'city' });
+  assert.equal(city.note.source, 'owner');
+  assert.doesNotMatch(city.say, NOT_QUOTED);
   const worded = await mem(h, { action: 'edit', id: note.id, text: 'The owner lives in Krakow, Poland' });
   assert.equal(worded.note.source, 'bot');
+  assert.match(worded.say, NOT_QUOTED);
 });
 
 test('ADR 278: saving a bot\'s own conclusion again with the owner\'s words makes it the owner\'s, the duplicate key of ADR 015', async (t) => {
