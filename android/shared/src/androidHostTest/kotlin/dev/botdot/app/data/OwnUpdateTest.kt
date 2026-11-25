@@ -55,6 +55,18 @@ class OwnUpdateTest {
         assertEquals("A new version (abc1234) is ready. Your account moves to it by itself on Wednesday, Oct 28, or now if you choose.", u.text(TimeZone.UTC))
     }
 
+    @Test fun theWaitingSentenceFollowsTheWhenAndTonight() {
+        val z = TimeZone.UTC
+        fun waiting(more: String) = OwnUpdate.of(obj(ready.replace("\"last\":null", "$more\"last\":null")))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle.", waiting("\"when\":\"ready\",").text(z))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it at night, when your bots are idle.", waiting("\"when\":\"night\",").text(z))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it when you say, or by itself from Wednesday, Oct 28.", waiting("\"when\":\"manual\",").text(z))
+        assertEquals("Tonight is night", "A new version (abc1234) is ready. Your account moves to it at night, when your bots are idle.", waiting("\"when\":\"manual\",\"plan\":\"night\",").text(z))
+        assertEquals("ready still moves first", "A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle.", waiting("\"when\":\"ready\",\"plan\":\"night\",").text(z))
+        assertEquals("an older front door: as before", "A new version (abc1234) is ready. Your account moves to it by itself on Wednesday, Oct 28, or now if you choose.", waiting("").text(z))
+        assertEquals("not one of the three: as before", "A new version (abc1234) is ready. Your account moves to it by itself on Wednesday, Oct 28, or now if you choose.", waiting("\"when\":\"sometimes\",").text(z))
+    }
+
     @Test fun sendsTheSwitchAndUpdateNowToTheFrontDoor() = runBlocking {
         door.enqueue(json(ready.replace("\"autoUpdate\":false", "\"autoUpdate\":true")))
         assertTrue(api.setAutoUpdate(true).autoUpdate)

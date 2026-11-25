@@ -133,3 +133,16 @@ test('web: every note a waiting version brings shows under Updates, past the new
   assert.equal((card.innerHTML.match(/<section>/g) || []).length, 3);
   assert.equal((card.innerHTML.match(/<details><summary>Note \d+<\/summary>/g) || []).length, 11);
 });
+
+test('web: the waiting sentence follows the owner\'s `when` and "Tonight", and keeps the deadline for an older front door', () => {
+  const { ctx } = page();
+  const waiting = (more) => ctx.updateCardText({ autoUpdate: false, asked: false, last: null, ready: READY.ready, ...more });
+  assert.equal(waiting({ when: 'ready' }), 'A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle.');
+  assert.equal(waiting({ when: 'night' }), 'A new version (abc1234) is ready. Your account moves to it at night, when your bots are idle.');
+  assert.match(waiting({ when: 'manual' }), /^A new version \(abc1234\) is ready\. Your account moves to it when you say, or by itself from .*28/);
+  assert.equal(waiting({ when: 'manual', plan: 'night' }), 'A new version (abc1234) is ready. Your account moves to it at night, when your bots are idle.', 'Tonight is night');
+  assert.equal(waiting({ when: 'ready', plan: 'night' }), 'A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle.', 'ready still moves first');
+  assert.match(waiting({}), /^A new version \(abc1234\) is ready\. Your account moves to it by itself on .*28.*, or now if you choose\.$/, 'no `when`: an older front door, as before');
+  assert.match(waiting({ when: 'sometimes' }), /by itself on /, 'not one of the three: as before');
+  assert.match(waiting({ when: 'night', asked: true }), /^Moving to the new version/, 'moving is said as before');
+});
