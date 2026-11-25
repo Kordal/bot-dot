@@ -9,6 +9,8 @@
 #   a tailnet only:  Tailscale Serve gives the front door its HTTPS name, and nothing is on the internet
 # or, for the desktop app, on this computer only (local, ADR 136): http://localhost:<port>, one account
 #                    (FRONT_DOOR_ONE_ACCOUNT) whose passkey is made with FRONT_DOOR_SETUP_KEY, and no admin page
+# Beside it runs the machine's one shared embedding server (the `embed` profile, ADR 275), for the meaning search of every
+# account on it: each account's botdot server reaches it over a Unix socket in a folder of its own (install.sh).
 # A managed machine (FRONT_DOOR_MANAGED, ADR 154), on a public domain or a tailnet, has no admin page either: one
 # account, or several whose first (FRONT_DOOR_FIRST_ACCOUNT) is made with the setup key.
 services:
@@ -77,6 +79,37 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data                             # its certificates and keys
       - caddy-config:/config
+
+  # The machine's one embedding server, shared by every account (ADR 275): llama.cpp's llama-server with bge-m3, and
+  # a proxy that gives each account a Unix socket of its own, <BOT_DOT_EMBED_SOCKETS>/<account>/embed.sock, in a folder
+  # install.sh opens to this service's user and to that account's botdot server alone. It starts with the `embed`
+  # profile, which install.sh sets on every machine but the desktop app's, where one account runs its own server.
+  embed:
+    image: ${BOT_DOT_IMAGE:-ghcr.io/ladrok/bot-dot:latest}
+    command: ["node", "lib/embed-share.js"]
+    profiles: [embed]
+    restart: unless-stopped
+    # Its own user of the machine (botdot-embed), which is let into each account's embedding folder and nothing else.
+    user: ${BOT_DOT_EMBED_USER:-65534:65534}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # No network at all: llama-server listens on this container's own loopback, and the sockets are the only way in.
+    network_mode: none
+    environment:
+      EMBED_SHARE_SOCKETS: /sockets
+      EMBED_SHARE_SLOTS: ${BOT_DOT_EMBED_SLOTS:-4}
+      EMBED_SHARE_THREADS: ${BOT_DOT_EMBED_THREADS:-}
+    # The image's own check asks botdot's port; this asks llama-server, which takes a few seconds to load the model.
+    healthcheck:
+      test: ["CMD", "node", "lib/embed-share.js", "--check"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    volumes:
+      - ${BOT_DOT_EMBED_SOCKETS:-./embed}:/sockets
 
 volumes:
   caddy-data:
