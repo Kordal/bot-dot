@@ -253,6 +253,7 @@ const withFailed = (failed, typedSince) => (failed && typedSince.trim() ? `${fai
 
 // A message whose send failed after its chat was left (a bot's message box is built again for each bot): kept
 // by chat, 'chief' or 'bot:<id>', and put into that chat's box when it is built again.
+const MAX_BOX_TEXT = 200; // px: the message box stops growing here and scrolls (style.css: .composer textarea max-height)
 const failedSends = new Map(); // chat → { text, held, err, sent }
 
 // onSend(text, attachments, key) sends: a promise that rejects when the message did not go. The box empties at
@@ -273,9 +274,21 @@ function wireComposer(form, onSend, uploadTo, chat) {
     for (const x of marks) { html += `${esc(ta.value.slice(at, x.start))}${markHTML(x)}`; at = x.end; }
     if (under) under.innerHTML = html;
     if (under) under.style.transform = `translateY(${-ta.scrollTop}px)`;
+    // A scrollbar that takes room from the text takes it from the copy too, so the chip stays under its words.
+    if (under) under.style.right = `${(ta.offsetWidth - ta.clientWidth) || 0}px`;
   };
   ta.addEventListener('scroll', paint);
-  const grow = () => { fitHeight(ta); paint(); };
+  // The box is as tall as its text up to MAX_BOX_TEXT, and scrolls beyond. A box of one line is a pill; of more, a
+  // rounded rectangle (`tall`): the curve of a pill would cut into several lines. Every change of the text goes
+  // through here: typing, a send, a failed send's text coming back, a quote, a suggestion.
+  const box = $('.composer-box', form);
+  const grow = () => {
+    ta.style.height = 'auto';
+    const one = ta.clientHeight; // rows="1" with no height of its own: one line and its padding
+    box?.classList.toggle('tall', ta.scrollHeight > one + 1);
+    fitHeight(ta, MAX_BOX_TEXT);
+    paint();
+  };
   const mentions = chat ? wireMentions(form, chat, grow) : null;
   // The message that failed last, as it was sent: { text, files, key }. Sent again with this text and these files,
   // it is that message; an edit, or other files, makes a new one.

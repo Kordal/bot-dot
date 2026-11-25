@@ -39,7 +39,7 @@ test('web: a box counts its border, and stops growing at 200px, scrolling only f
 });
 
 test('web: the message boxes use it, and their CSS hides the scrollbar until the cap', () => {
-  assert.match(read('chief.js'), /const grow = \(\) => \{ fitHeight\(ta\); paint\(\); \}/);
+  assert.match(read('chief.js'), /const grow = \(\) => \{[^}]*fitHeight\(ta, MAX_BOX_TEXT\);\s*paint\(\);/);
   assert.match(read('app.js'), /ta\.oninput = \(\) => \{\s*fitHeight\(ta\);/);
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
   assert.match(css, /^\.composer textarea \{[^}]*overflow-y: hidden/m);
