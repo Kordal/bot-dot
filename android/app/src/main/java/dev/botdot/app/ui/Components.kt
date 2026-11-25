@@ -840,6 +840,7 @@ fun Composer(
     initialText: String = "",
     onSignIn: (() -> Unit)? = null,
     backAt: String? = null, // over Claude's usage limit (#1090): when the bots carry on
+    backAtName: String? = null, // whose limit it is when not Claude's: the account default is a provider that reached its own
     held: List<ClaudeHeld> = emptyList(), // the other connections botdot holds (#1668): a line each
     onSignInHeld: (() -> Unit)? = null, // the way to sign in to Claude, for a held line that says it is signed out
 ) {
@@ -919,7 +920,8 @@ fun Composer(
         )
         // Over Claude's usage limit (#1090): the same line says when the bots carry on, until then. A sign-out wins.
         else if (backAt != null) Text(
-            tr("Claude's usage limit is reached: bots carry on at {time}.", "time" to shortTime(backAt)),
+            if (backAtName != null) tr("{name}'s usage limit is reached: its bots carry on at {time}.", "name" to backAtName, "time" to shortTime(backAt))
+            else tr("Claude's usage limit is reached: bots carry on at {time}.", "time" to shortTime(backAt)),
             color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = Space.s8, end = Space.s8).wrapContentHeight(Alignment.CenterVertically)
                 .semantics { liveRegion = LiveRegionMode.Polite },

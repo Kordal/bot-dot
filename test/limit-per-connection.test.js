@@ -98,6 +98,7 @@ test('Claude\'s limit holds the Claude runs only: the Chief and a bot on Claude 
   const claudeAt = (await f.wait('claude', (d) => !!d.backAt && !(d.held || []).length)).data;
   assert.equal(claudeAt.held, undefined, 'the account default runs on Claude: its limit is `backAt`, as an app from before reads it');
   assert.ok(Date.parse(claudeAt.backAt) > Date.now());
+  assert.equal(claudeAt.backAtName, undefined, 'Claude is the account default: nobody to name, an app says Claude\'s');
 
   const waits = (await ask(onClaude, 'for claude, after the limit')).data;
   assert.equal(waits.status, 'queued');
@@ -129,6 +130,32 @@ test('the limits of two connections are held and ended apart', async () => {
   assert.equal((await srv.api('/setup/claude/provider/custom', { method: 'DELETE' })).status, 200);
   await waitFor(() => (heldNow().held || []).length === 0, { what: 'the provider\'s line to go' });
   assert.ok(heldNow().backAt, 'Claude is still held');
+});
+
+// The account default is a provider that reached its own limit: `backAt` is the provider's, so the apps must not say Claude's.
+test('a limit of a provider that is the account default names it next to `backAt`', async (t) => {
+  const own = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropicStand.address().port}` } });
+  const ownFeed = await feed(own);
+  t.after(async () => { ownFeed.close(); await own.stop(); });
+  assert.equal((await own.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'custom', url: `http://127.0.0.1:${providerStand.address().port}`, key: KEY_A, big: 'model-a', small: 'model-b' } })).status, 200);
+  assert.equal((await own.api('/settings', { method: 'PUT', body: { defaultModel: 'provider:custom:model-a' } })).status, 200);
+  const providerBot = await makeBot(own, { name: 'Provider bot', emoji: '🅿', model: 'provider:custom:model-a' });
+  const claudeBot = await makeBot(own, { name: 'Claude bot', emoji: '🅲', model: 'opus' });
+  const hit = async (bot) => {
+    const said = path.join(own.out, 'error-result.txt');
+    fs.writeFileSync(said, `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+    try { return await own.finished((await own.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: `hit the limit ${bot.name}` } })).data.id); } finally { fs.rmSync(said, { force: true }); }
+  };
+  await hit(providerBot);
+  const told = (await ownFeed.wait('claude', (d) => !!d.backAt)).data;
+  assert.equal(told.backAtName, 'Other', 'the default is the provider: its limit is named');
+  assert.equal(told.held, undefined, 'it is the default\'s own line, not a held one');
+  assert.equal((await feed(own).then((g) => { const c = g.events.find((e) => e.type === 'hello').data.claude; g.close(); return c; })).backAtName, 'Other', 'the hello says it too');
+  // Claude's own limit while the default is a provider is a held line, named there, and `backAt` stays the default's.
+  await hit(claudeBot);
+  const both = (await ownFeed.wait('claude', (d) => (d.held || []).some((h) => h.connection === 'claude'))).data;
+  assert.equal(both.backAtName, 'Other');
+  assert.deepEqual(both.held.map((h) => [h.connection, h.name]), [['claude', 'Claude']]);
 });
 
 test('signing out of the subscription stops and holds the Claude runs, and not a bot on a provider', async (t) => {

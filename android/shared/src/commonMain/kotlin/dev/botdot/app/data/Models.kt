@@ -352,6 +352,13 @@ fun claudeBackAt(v: JsonElement?, now: kotlin.time.Instant = kotlin.time.Clock.S
 }
 
 /**
+ * Whose limit `backAt` is, when it is not Claude's (`backAtName` of a `claude`, docs/api.md): the account default is a provider
+ * that reached its own. null when it does not say, as a botdot from before does: the line then says Claude's.
+ */
+fun claudeBackAtName(v: JsonElement?): String? =
+    ((v as? JsonObject)?.get("backAtName") as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+
+/**
  * A connection other than the account default's that botdot holds ([claudeHeld]): a provider's usage limit, or Claude's
  * sign-out or limit while the account default runs on a provider (#1668). One line each, beside the default's own.
  */

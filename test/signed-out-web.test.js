@@ -138,6 +138,23 @@ test('web: over Claude\'s usage limit the same line says when the bots carry on,
   timers.at(-1)?.f();
 });
 
+// #1668: the account default is a provider that reached its limit: `backAtName` names it, and the line is not Claude's.
+test('web: the limit of a provider that is the account default is named, not called Claude\'s; without a name it is Claude\'s', () => {
+  const { ctx, shown } = page();
+  const at = new Date(Date.now() + 3600_000).toISOString();
+  ctx.setSignedOut({ loggedIn: true, backAt: at, backAtName: 'DeepSeek' });
+  assert.deepEqual(shown().out, [true, true]);
+  assert.equal(ctx.signedOutHTML(), `DeepSeek&#39;s usage limit is reached: its bots carry on at ${at.slice(11, 16)}.`);
+  assert.doesNotMatch(ctx.signedOutHTML(), /Claude/);
+  ctx.setSignedOut({ loggedIn: true, backAt: at });
+  assert.match(ctx.signedOutHTML(), /^Claude&#39;s usage limit is reached: bots carry on at /, 'an older server names nobody: Claude\'s');
+  ctx.setSignedOut({ loggedIn: true, backAt: at, backAtName: 'DeepSeek', held: [{ connection: 'claude', name: 'Claude', backAt: at }] });
+  const lines = ctx.signedOutHTML().split('<br>');
+  assert.deepEqual(lines.map((l) => l.split('&#39;')[0]), ['DeepSeek', 'Claude'], 'the default\'s line and Claude\'s held one are two lines');
+  ctx.setSignedOut({ loggedIn: true, backAtName: 'DeepSeek' });
+  assert.deepEqual(shown().out, [false, false], 'a name without a limit is no line');
+});
+
 // #1668: a connection other than the account default's that botdot holds is a line of its own (`held` of `claude`).
 test('web: a provider\'s usage limit is a line of its own beside the account default\'s, and goes with its reset', () => {
   const { ctx, shown } = page();

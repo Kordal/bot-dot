@@ -406,6 +406,9 @@ class ClaudeState {
     // When the bots carry on after Claude's usage limit (#1090), or null: one line says it, as for a sign-out.
     private val _backAt = MutableStateFlow<String?>(null)
     val backAt: StateFlow<String?> = _backAt.asStateFlow()
+    // Whose limit `backAt` is, when it is not Claude's (the account default is a provider): null says Claude's.
+    private val _backAtName = MutableStateFlow<String?>(null)
+    val backAtName: StateFlow<String?> = _backAtName.asStateFlow()
     // The other connections botdot holds (#1668): a line each, beside the account default's.
     private val _held = MutableStateFlow<List<ClaudeHeld>>(emptyList())
     val held: StateFlow<List<ClaudeHeld>> = _held.asStateFlow()
@@ -420,14 +423,15 @@ class ClaudeState {
                 says = saysSignedOut(ev.data.arr("features")?.mapNotNull { (it as? JsonPrimitive)?.content })
                 if (!says) _signedOut.value = false else claudeSignedOut(ev.data["claude"])?.let { _signedOut.value = it }
                 _backAt.value = if (says) claudeBackAt(ev.data["claude"]) else null
+                _backAtName.value = if (_backAt.value != null) claudeBackAtName(ev.data["claude"]) else null
                 _held.value = if (says) claudeHeld(ev.data["claude"]) else emptyList()
             }
-            "claude" -> if (says && !isReplayOf(ev.id, helloAt)) claudeSignedOut(ev.data)?.let { _signedOut.value = it; _backAt.value = claudeBackAt(ev.data); _held.value = claudeHeld(ev.data) }
+            "claude" -> if (says && !isReplayOf(ev.id, helloAt)) claudeSignedOut(ev.data)?.let { _signedOut.value = it; _backAt.value = claudeBackAt(ev.data); _backAtName.value = if (_backAt.value != null) claudeBackAtName(ev.data) else null; _held.value = claudeHeld(ev.data) }
         }
     }
 
     /** Another botdot: forget what this one said. */
-    fun clear() { helloAt = null; says = false; _signedOut.value = false; _backAt.value = null; _held.value = emptyList() }
+    fun clear() { helloAt = null; says = false; _signedOut.value = false; _backAt.value = null; _backAtName.value = null; _held.value = emptyList() }
 }
 
 /**

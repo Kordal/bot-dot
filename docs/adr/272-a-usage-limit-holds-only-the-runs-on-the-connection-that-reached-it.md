@@ -1,4 +1,4 @@
-# ADR-271: A usage limit holds only the runs on the connection that reached it
+# ADR-272: A usage limit holds only the runs on the connection that reached it
 
 - **Status:** Accepted (spec in [#1668](https://github.com/ladrok/bot-dot/issues/1668)). Amends [ADR 267](267-several-providers-at-once-and-the-model-decides-which-one-runs.md), whose last consequence (the hold is the whole account's) it replaces, and [ADR 255](255-bots-can-run-on-another-model-provider-under-claude-code.md), whose line on the credential clearing the hold it extends to every connection.
 - **Owning task:** [#1668](https://github.com/ladrok/bot-dot/issues/1668)

@@ -33,6 +33,24 @@ class UsageLimitTest {
         assertNull("the reset: no line", claude.backAt.value)
     }
 
+    // #1668: the account default is a provider that reached its limit: `backAtName` says whose `backAt` it is.
+    @Test fun theLimitOfADefaultProviderIsNamed() {
+        assertEquals("DeepSeek", claudeBackAtName(data("""{"loggedIn":true,"backAt":"2026-11-06T15:00:00Z","backAtName":"DeepSeek"}""")))
+        assertNull("a botdot from before names nobody: Claude's", claudeBackAtName(data("""{"loggedIn":true,"backAt":"2026-11-06T15:00:00Z"}""")))
+        assertNull(claudeBackAtName(data("""{"loggedIn":true,"backAtName":""}""")))
+        assertNull(claudeBackAtName(null))
+        val claude = ClaudeState()
+        val later = (kotlin.time.Clock.System.now() + kotlin.time.Duration.parse("1h")).toString()
+        claude.handle(FeedEvent(null, "hello", data("""{"lastEventId":"boot.9","features":["job-line"],"claude":{"loggedIn":true,"backAt":"$later","backAtName":"DeepSeek"}}""")))
+        assertEquals(later, claude.backAt.value)
+        assertEquals("DeepSeek", claude.backAtName.value)
+        claude.handle(FeedEvent("boot.10", "claude", data("""{"loggedIn":true,"backAt":"$later"}""")))
+        assertNull("Claude's own limit: no name", claude.backAtName.value)
+        claude.handle(FeedEvent("boot.11", "claude", data("""{"loggedIn":true,"backAt":"$later","backAtName":"DeepSeek"}""")))
+        claude.handle(FeedEvent("boot.12", "claude", data("""{"loggedIn":true}""")))
+        assertNull("the reset: no name", claude.backAtName.value)
+    }
+
     // #1668: a connection other than the account default's is a line of its own: a provider's limit, or Claude's sign-out.
     @Test fun otherConnectionsHeldAreReadWhileTheyHold() {
         val held = claudeHeld(data("""{"loggedIn":true,"held":[{"connection":"custom","name":"DeepSeek","backAt":"2026-11-06T15:00:00Z"},{"connection":"claude","name":"Claude","signedOut":true},{"connection":"old","name":"Gone","backAt":"2026-11-06T11:00:00Z"},{"name":"No time"}]}"""), now)

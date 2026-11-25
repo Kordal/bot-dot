@@ -393,6 +393,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val features = server?.features
     val signedOut by app.store.claude.signedOut.collectAsState()
     val backAt by app.store.claude.backAt.collectAsState()
+    val backAtName by app.store.claude.backAtName.collectAsState()
     val heldLines by app.store.claude.held.collectAsState()
     val listState = rememberLazyListState()
     val chatKey = groupKey(groupId)
@@ -496,6 +497,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                     onError = { scope.launch { snack.showError(it) } },
                     onSignIn = onSignIn.takeIf { signedOut },
                     backAt = backAt,
+                    backAtName = backAtName,
                     held = heldLines,
                     onSignInHeld = onSignIn,
                 )

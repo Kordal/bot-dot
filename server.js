@@ -545,7 +545,8 @@ function withHeld(claude) {
   const own = B.defaultConnection();
   const at = B.limitBackAt(own);
   const held = B.heldNow().filter((h) => h.connection !== own);
-  return { ...claude, ...(at ? { backAt: at } : {}), ...(held.length ? { held } : {}) };
+  // `backAtName` names whose limit `backAt` is when it is not Claude's: the account default is a provider that reached its own.
+  return { ...claude, ...(at ? { backAt: at, ...(own !== 'claude' ? { backAtName: B.connectionName(own) } : {}) } : {}), ...(held.length ? { held } : {}) };
 }
 const heldSig = () => JSON.stringify({ own: B.defaultConnection(), held: B.heldNow() });
 let heldSeen = null; // what the apps were last told is held (heldSig), so that a hold that moved without the sign-in is said too

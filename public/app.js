@@ -65,7 +65,7 @@ function drawAway() {
 // Over Claude's usage limit (#1090) the same line says when the bots carry on (`backAt`), until then; a sign-out wins.
 // What a connection other than the account default's holds (`held`, #1668) is a line of its own: a provider's usage limit, or
 // Claude's sign-out or limit while the default runs on a provider.
-const signedOut = { on: false, backAt: null, held: [], timer: 0 };
+const signedOut = { on: false, backAt: null, backAtName: null, held: [], timer: 0 };
 const SIGNED_OUT = tr("Claude is signed out: bots can't work.");
 const heldHTML = (h) => (h.signedOut
   ? `${esc(tr("Claude is signed out: bots that use it can't work."))} <button type="button" data-sign-in>${tr('Sign in')}</button>`
@@ -74,25 +74,29 @@ const signedOutHTML = () => [
   ...(signedOut.on || signedOut.backAt || !signedOut.held.length
     ? [signedOut.on || !signedOut.backAt
       ? `${esc(SIGNED_OUT)} <button type="button" data-sign-in>${tr('Sign in')}</button>`
-      : esc(tr("Claude's usage limit is reached: bots carry on at {time}.", { time: msgTime(signedOut.backAt) }))]
+      : signedOut.backAtName
+        ? heldHTML({ name: signedOut.backAtName, backAt: signedOut.backAt }) // the default is a provider that reached its limit: not Claude's
+        : esc(tr("Claude's usage limit is reached: bots carry on at {time}.", { time: msgTime(signedOut.backAt) }))]
     : []),
   ...signedOut.held.map(heldHTML),
 ].join('<br>');
-// claude: `{ loggedIn, backAt?, held? }`. Anything else says nothing, and the line stays as it is.
+// claude: `{ loggedIn, backAt?, backAtName?, held? }`. Anything else says nothing, and the line stays as it is.
 function setSignedOut(claude) {
   if (typeof claude?.loggedIn !== 'boolean') return;
   const backAt = claude.loggedIn && typeof claude.backAt === 'string' && Date.parse(claude.backAt) > Date.now() ? claude.backAt : null;
+  const backAtName = backAt && typeof claude.backAtName === 'string' && claude.backAtName ? claude.backAtName : null; // whose limit it is, when not Claude's
   const held = (Array.isArray(claude.held) ? claude.held : [])
     .filter((h) => typeof h?.name === 'string' && (h.signedOut === true || (typeof h.backAt === 'string' && Date.parse(h.backAt) > Date.now())))
     .map((h) => ({ name: h.name, ...(h.signedOut === true ? { signedOut: true } : { backAt: h.backAt }) }));
-  if (signedOut.on === !claude.loggedIn && signedOut.backAt === backAt && JSON.stringify(signedOut.held) === JSON.stringify(held)) return;
+  if (signedOut.on === !claude.loggedIn && signedOut.backAt === backAt && signedOut.backAtName === backAtName && JSON.stringify(signedOut.held) === JSON.stringify(held)) return;
   signedOut.on = !claude.loggedIn;
   signedOut.backAt = backAt;
+  signedOut.backAtName = backAtName;
   signedOut.held = held;
   clearTimeout(signedOut.timer);
   // The server says when a limit has reset; the line goes a minute after the first of them also when that event is late.
   const ends = [backAt, ...held.map((h) => h.backAt)].filter(Boolean).map((at) => Date.parse(at));
-  if (ends.length) signedOut.timer = setTimeout(() => setSignedOut({ loggedIn: !signedOut.on, backAt: signedOut.backAt, held: signedOut.held }), Math.min(Math.min(...ends) - Date.now() + 60_000, 2 ** 31 - 1));
+  if (ends.length) signedOut.timer = setTimeout(() => setSignedOut({ loggedIn: !signedOut.on, backAt: signedOut.backAt, backAtName: signedOut.backAtName, held: signedOut.held }), Math.min(Math.min(...ends) - Date.now() + 60_000, 2 ** 31 - 1));
   drawAway();
 }
 

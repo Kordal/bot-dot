@@ -28,5 +28,5 @@ Every call to a model, bots, the Chief, and the short helper calls of the group 
 - Quality is the provider's: tool use, long contexts and images differ by model. DeepSeek ignores prompt caching and PDFs; MiniMax's thinking cannot be turned off. The check does not try a tool call.
 - Data goes to a third party the owner chose; DeepSeek, Z.ai and MiniMax are in China. The Settings row says only the provider's name.
 - OpenCode Go's terms say "own internal use": fine on a machine the owner runs, to be weighed before it is offered on Hosted.
-- The effective credential changing (a provider saved, picked, removed or its key replaced) clears the usage-limit hold as an Anthropic key does. Since [ADR 271](271-a-usage-limit-holds-only-the-runs-on-the-connection-that-reached-it.md) each connection has its hold, cleared by its own credential changing.
+- The effective credential changing (a provider saved, picked, removed or its key replaced) clears the usage-limit hold as an Anthropic key does. Since [ADR 272](272-a-usage-limit-holds-only-the-runs-on-the-connection-that-reached-it.md) each connection has its hold, cleared by its own credential changing.
 - iOS (shared data layer) reads the new fields and ignores them until its Settings catch up (#1355).
