@@ -294,6 +294,9 @@ function wireComposer(form, onSend, uploadTo, chat) {
   // A waiting message the owner took back (takeBack): its text in front of what was typed since, its files
   // ready to send. It is a new message: it has no key yet.
   form._takeBack = (text, attachments) => giveBack({ text, held: readyFiles(attachments), err: null, sent: null });
+  // The chip of a tile of the board the owner pointed at (board-edit.js) stands in the box of the project's chat only.
+  Promise.resolve().then(() => globalThis.BoardEdit?.sync());
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => globalThis.BoardEdit?.sync());
   ta.onkeydown = (e) => {
     if (mentions?.key(e)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !matchMedia('(pointer: coarse)').matches) { e.preventDefault(); form.requestSubmit(); }
@@ -426,7 +429,7 @@ function renderChief() {
       <div class="chat-thread" id="chat-thread"></div>
       ${composerHTML(messageChief())}
       <div class="job-chips" id="chief-job-chips"></div>`;
-    wireComposer($('form.composer', root), sendToChief, () => 'chief', CHIEF_BOT.id);
+    wireComposer($('form.composer', root), (text, attachments, key) => sendToChiefAbout(text, attachments, key, globalThis.BoardEdit?.cardFor('chief', state.chatId)), () => 'chief', CHIEF_BOT.id);
     holdChatEnd($('#chat-thread', root), () => chiefFigure());
     $('#chat-thread', root).addEventListener('scroll', (e) => { if (e.target.scrollTop < 400) loadOlder(e.target); }, { passive: true });
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
@@ -645,7 +648,7 @@ const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : 
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
 const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me" data-text="${esc(String(x.text || ''))}">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
-const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine">${globalThis.aboutHTML?.(m) || ''}<div class="bubble from-me" data-text="${esc(m.text)}">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
+const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine">${globalThis.aboutHTML?.(m) || ''}${globalThis.BoardEdit?.aboutHTML(m.card) || ''}<div class="bubble from-me" data-text="${esc(m.text)}">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 
 function wireActions(root) {
   wireMail(root);
@@ -808,11 +811,13 @@ async function stopChief(id = state.chatId) {
 // tapped and says why (wireComposer, sendFrom). key: the message's (messageKey), the same when it is sent again.
 // From Send until botdot answers the message stands in the chat as the page's own bubble (sentAtOnce), with
 // "Working" under it; the answer puts botdot's version in its place, and a send that failed takes it away.
-async function sendToChief(text, attachments = [], key = messageKey()) {
+async function sendToChief(text, attachments = [], key = messageKey()) { return sendToChiefAbout(text, attachments, key, null); }
+// The message box's send: the same, with the board tile the owner pointed at (board-edit.js), if any.
+async function sendToChiefAbout(text, attachments, key, card) {
   let id = state.chatId;
   const fresh = !id;
   let at = `chief:${id || ''}`; // the chat the bubble stands in: the new one has no id until it is made
-  sentAtOnce(at, { key, text, attachments });
+  sentAtOnce(at, { key, text, attachments, card });
   showSent($('#chat-thread'));
   let took;
   try {
@@ -824,13 +829,14 @@ async function sendToChief(text, attachments = [], key = messageKey()) {
       state.chatNew = false;
       sentMoved(at, at = `chief:${id}`);
     }
-    took = await api(`/chief/chats/${id}/messages`, { method: 'POST', body: { text, attachments, key } });
+    took = await api(`/chief/chats/${id}/messages`, { method: 'POST', body: { text, attachments, key, ...(card ? { card: card.card, project: card.project } : {}) } });
   } catch (e) {
     sentOver(at, key, false); // it did not go: nothing of it stays in the chat
     placeStatusLines();
     throw e;
   }
   // The message went. Nothing from here on may reject: the caller would put a sent message back into the box.
+  globalThis.BoardEdit?.sent(card); // the chip and the ring of the tile it was about are done
   try {
     // botdot had it already, from a send whose answer was lost: the chat as botdot has it, with the message once.
     if (took?.again) { await showChat(id); loadChief().then(markMore); return; }

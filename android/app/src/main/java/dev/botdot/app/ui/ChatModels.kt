@@ -136,9 +136,9 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
      * Sends a message; true once it went. [box]: it came from the message box, and goes back there when it failed.
      * The request outlives this chat's screen: leaving the chat neither stops it nor loses a message it could not send.
      */
-    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, replyTo: String? = null, answers: String? = null): Deferred<Boolean> =
+    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, replyTo: String? = null, answers: String? = null, card: dev.botdot.app.data.CardEdit.Target? = null): Deferred<Boolean> =
         // Begun in the tap itself: the message is in the chat before anything else is drawn.
-        app.scope.async(start = CoroutineStart.UNDISPATCHED) { chat.submit(text, attachments, box, key, replyTo, answers) }
+        app.scope.async(start = CoroutineStart.UNDISPATCHED) { chat.submit(text, attachments, box, key, replyTo, answers, card) }
 
     /** "Take back" on a message that waits: it leaves the server, and its text and files are in the message box again. */
     fun takeBack(q: Queued) = chat.takeBack(q)
@@ -312,7 +312,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
     val outbox = Outbox.of("chief")
 
     /** As [BotChatModel.send]. A first message makes its chat; when the message then fails, the chat stays for the next try. */
-    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null): Deferred<Boolean> {
+    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, card: dev.botdot.app.data.CardEdit.Target? = null): Deferred<Boolean> {
         val known = ownWords(chat).mapTo(HashSet()) { it.id }
         // Begun in the tap itself: the message is in the chat before anything else is drawn.
         return app.scope.async(start = CoroutineStart.UNDISPATCHED) {
@@ -320,7 +320,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
                 val a = app.api.value ?: throw ApiException(NOT_CONNECTED)
                 val id = chatId ?: try { a.newChiefChat().id.also { chatId = it; outbox.sentIn(it) } } catch (e: CancellationException) { throw e } catch (e: Exception) { throw notSent(e) }
                 // The answer is the chat: the message is in it at once, or in its list while it waits for the reply to end.
-                a.sendToChief(id, text, attachments, k)?.takeIf { it.id == chatId }?.let { now ->
+                a.sendToChief(id, text, attachments, k, card)?.takeIf { it.id == chatId }?.let { now ->
                     withAnswer(chat?.takeIf { it.id == now.id }, now)?.let { chat = it; follow() }
                 }
             }

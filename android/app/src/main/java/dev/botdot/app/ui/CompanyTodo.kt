@@ -115,10 +115,11 @@ internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List
     val n = panel.count
     val chief = chiefNamed()
     @Composable fun head(color: String?, outfit: kotlinx.serialization.json.JsonElement?) = BotFigure(color ?: chief.color, "idle", 28, if (color == null) chief.outfit else outfit)
-    Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16),
+    Column(Modifier.fillMaxWidth().cardRing("todo").raised(Radius.card).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(panel.title, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            CardPencil("todo", panel.title)
             if (n > 0) Text(n.toString(), color = p.inkText, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(CircleShape).background(p.ink).padding(horizontal = Space.s8, vertical = Space.s4))
         }
         if (full) Filters(filter) { filter = it }

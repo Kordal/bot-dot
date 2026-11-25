@@ -377,10 +377,10 @@ test('web: every quick answer, question card and plan approval sends that way, i
   assert.match(app, /wireChoices\(thread, \(t, key, of\) => sendFrom\(\$\('form.composer', root\), \(\) => runBot\(bot\.id, t, \[\], key, null, of\)\)\);/, 'naming the reply it answers (#1380)');
   assert.doesNotMatch(app, /CHIEF_SUGGESTIONS|class="suggestion"/, 'a new Chief chat has no example requests (#635)');
   assert.match(app, /build\.onclick = withKey\(async \(key\) => \{ if \(await sendFrom\(form, \(\) => sendToChief\(PLAN_APPROVAL, \[\], key\)\)\) build\.closest\('\.suggestion-actions'\)\?\.remove\(\); \}\);/);
-  assert.match(app, /wireComposer\(form, \(text, files, key\) => runBot\(bot\.id, text, files, key, replyingTo\.get\(bot\.id\)\?\.runId\), \(\) => `bot:\$\{bot\.id\}`, bot\.id\);/);
+  assert.match(app, /wireComposer\(form, \(text, files, key\) => runBotAbout\(bot\.id, text, files, key, replyingTo\.get\(bot\.id\)\?\.runId, null, globalThis\.BoardEdit\?\.cardFor\('bot', bot\.id\)\), \(\) => `bot:\$\{bot\.id\}`, bot\.id\);/);
   const calls = [...app.matchAll(/(?<!function )\b(sendToChief|runBot)\(/g)].map((m) => app.slice(app.lastIndexOf('\n', m.index) + 1, app.indexOf('\n', m.index)));
   for (const line of calls) assert.match(line, /sendFrom\(|wireComposer\(/, `a send that can fail is caught: ${line.trim()}`);
-  assert.match(app, /wireComposer\(\$\('form.composer', root\), sendToChief, \(\) => 'chief', CHIEF_BOT\.id\);/);
+  assert.match(app, /wireComposer\(\$\('form.composer', root\), \(text, attachments, key\) => sendToChiefAbout\(text, attachments, key, globalThis\.BoardEdit\?\.cardFor\('chief', state\.chatId\)\), \(\) => 'chief', CHIEF_BOT\.id\);/);
 });
 
 // The two senders, with botdot's answers given per request.
