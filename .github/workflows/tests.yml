@@ -65,7 +65,7 @@ jobs:
           ^deploy/(prepare-computers\.sh|seed-demo\.js)$
           ^lib/front-door/
           ^lib/(docker-helper|updates|signed-image|registry|release-manifest|release-trust|image-cleanup|image-layers|update-install)\.js$
-          ^lib/(audit|helper-client|tools-link|tools-worker|browser-locale|group-router|prompt-text)\.js$
+          ^lib/(audit|helper-client|helper-model|tools-link|tools-worker|browser-locale|group-router|prompt-text)\.js$
           ^lib/(boat|jsonfile|vault-files|computer-move|connectors|principal-fs|principal-fs-worker|workspace-git)\.js$
           ^lib/(vault|vault-item-types|network-address|github-app|app-errors|connected-apps)\.js$
           ^test/installer.*\.js$
