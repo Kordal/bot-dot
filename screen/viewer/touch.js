@@ -1,7 +1,8 @@
 // The screen by touch (#1735, ADR 279): a tap clicks, holding is a right click, one finger drags, two fingers scroll,
 // and a pinch zooms the picture and moves it (a zoomed picture is also moved by one finger). It sits on the transport's
 // pointer surface, so it knows nothing of RFB; a viewer that only watches sends nothing (the transport refuses), but
-// can still zoom and move the picture.
+// can still zoom and move the picture. `transport()` is always something to call: the caller hands one that does
+// nothing while the viewer is between connections.
 //
 // The picture is drawn in `layer`, which fills `screen` at zoom 1 and is made larger and moved to zoom: the RFB client
 // sees an element that changed size and scales the picture to it, so its own pixel arithmetic stays right.
@@ -111,11 +112,14 @@ export function setupTouch({ screen, layer, transport }) {
     if (!mine(ev)) return;
     own(ev);
     stopHold();
-    if (ev.type === 'touchend' && mode === 'tap' && ev.touches.length === 0) click(start, 0);
-    if (ev.type === 'touchcancel' || ev.touches.length === 0) release();
-    if (mode === 'pinch' && zoom < 1.05) zoomAt(1, lastCentre.x, lastCentre.y);
-    // A finger lifted out of a gesture ends it: the rest of its fingers do nothing until all are up.
-    mode = ev.touches.length === 0 ? 'none' : 'ignore';
+    try {
+      if (ev.type === 'touchend' && mode === 'tap' && ev.touches.length === 0) click(start, 0);
+      if (ev.type === 'touchcancel' || ev.touches.length === 0) release();
+      if (mode === 'pinch' && zoom < 1.05) zoomAt(1, lastCentre.x, lastCentre.y);
+    } finally {
+      // A finger lifted out of a gesture ends it: the rest of its fingers do nothing until all are up.
+      mode = ev.touches.length === 0 ? 'none' : 'ignore';
+    }
   }
 
   // The RFB client puts a catching layer over the page while a mouse button is down: a touch on it is still ours.

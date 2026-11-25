@@ -12,7 +12,12 @@ function el(tag, attrs, ...children) {
   return node;
 }
 
-export function setupControls({ screen, layer, words, transport }) {
+// What input uses while there is no transport (between connections: Reconnecting…, Turned off, the wait before a retry):
+// every call does nothing, so a tap or a key then neither throws nor leaves a gesture half done.
+const NONE = new Proxy({}, { get: () => () => {} });
+
+export function setupControls({ screen, layer, words, transport: current }) {
+  const transport = () => current() ?? NONE;
   setupTouch({ screen, layer, transport });
   const field = el('textarea', { id: 'typing', rows: '1', 'aria-label': words.keyboard || 'Keyboard', autocapitalize: 'off', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'enter' });
   const keyboardButton = el('button', { type: 'button', id: 'keyboard-button', 'aria-pressed': 'false' }, words.keyboard || 'Keyboard');
@@ -23,7 +28,7 @@ export function setupControls({ screen, layer, words, transport }) {
 
   const keyboard = setupKeyboard({ field, transport, onChange: (on) => keyboardButton.setAttribute('aria-pressed', String(on)) });
   const closeMenu = () => { menu.hidden = true; keysButton.setAttribute('aria-expanded', 'false'); };
-  buildMenu(menu, (chord) => { closeMenu(); if (transport()) sendChord(transport(), chord.keys); });
+  buildMenu(menu, (chord) => { closeMenu(); sendChord(transport(), chord.keys); });
 
   // A press on a button must not take the focus from the typing field: the phone's keyboard stays up.
   tools.addEventListener('mousedown', (ev) => ev.preventDefault());
