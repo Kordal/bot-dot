@@ -181,11 +181,11 @@ object BotSettings {
     fun canThink(models: List<ModelChoice>, model: String): Boolean = models.firstOrNull { it.id == model }?.effort ?: true
 
     /** The choices of a bot's Model, its own default first. */
-    fun models(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }, it.group) }
+    fun models(info: SettingsInfo): List<Option> = listOf(Option("", info.inheritedModelLabel())) + info.models.map { Option(it.id, it.label.ifBlank { it.id }, it.group) }
 
     /** The choices of a bot's Reasoning, its own default first. */
     fun efforts(info: SettingsInfo, model: String = info.settings.defaultModel): List<Option> =
-        listOf(Option("", tr("Default"))) + info.availableEfforts(model).map { Option(it.id, it.label) }
+        listOf(Option("", info.inheritedEffortLabel(model))) + info.availableEfforts(model).map { Option(it.id, it.label) }
 
     /** A server from before every bot may message every other (ADR 192): it still limits who may. */
     fun limits(features: Collection<String>?): Boolean = "everything-allowed" !in features.orEmpty()

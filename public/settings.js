@@ -32,11 +32,12 @@ function shownModel(id = '') {
   if (state.models?.some((model) => model.id === id)) return id;
   return id?.startsWith('provider:') ? '' : id;
 }
-// A model's name, and its provider's when it is not Claude's: "DeepSeek V4 Pro · DeepSeek" (docs/api.md, models[].provider).
+// A model's name, with its provider's first when it is not Claude's: "DeepSeek · DeepSeek V4 Pro". A row cuts a long
+// line at its end, and the provider is what tells two sources of one model apart (docs/api.md, models[].provider).
 const modelLabel = (id = '') => {
   const shown = shownModel(id);
   const info = state.models?.find((x) => x.id === shown);
-  return info ? (info.provider ? `${info.label} · ${info.group}` : info.label) : shown || tr("Claude Code's default");
+  return info ? (info.provider ? `${info.group} · ${info.label}` : info.label) : shown || tr("Claude Code's default");
 };
 const effortLabel = (id) => (!id ? tr("Claude Code's default") : state.efforts?.find((x) => x.id === id)?.label || id);
 const modelInfo = (id) => state.models?.find((x) => x.id === shownModel(id));
@@ -59,20 +60,37 @@ function llmValue(model, effort) {
   return llmSummary(shown, effort);
 }
 
+// The "use the default" choice of a bot's or the Chief's Model select: the account default's model.
+function modelInherit() {
+  const fallback = state.settings?.defaultModel;
+  return shownModel(fallback) ? tr('Default ({model})', { model: modelLabel(fallback) }) : tr("Claude Code's default");
+}
+// The "use the default" choice of a Reasoning select, for `model` (a bot's or the Chief's, '' = the account default's):
+// what a blank level comes to, as lib/settings.js pick decides it. A provider's model takes the account default's level
+// only when it offers it, else it runs on its own (no level is sent); Claude's takes the level the account has, if any.
+// The account default's own select keeps "Claude Code's default".
+function effortInherit(prefix, model = '') {
+  if (prefix === 'default') return tr("Claude Code's default");
+  const level = state.settings?.defaultEffort || '';
+  const info = modelInfo(model || state.settings?.defaultModel);
+  if (info?.provider && !(level && info.efforts?.includes(level))) return tr("{provider}'s own", { provider: info.group });
+  return level ? tr('Default ({level})', { level: effortLabel(level) }) : tr("Claude Code's default");
+}
+
 // Model + reasoning selects, the models in a group each: Claude's, then each connected provider's by name. One list,
-// searched by the box above it. inherit: label for the "use the default" choice ('' = Claude Code's default).
-function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
+// searched by the box above it. The "use the default" choices say what the default is for this model.
+function llmFieldsHTML(prefix, { model = '', effort = '' }) {
   const savedModel = model;
   model = shownModel(model);
   const models = state.models || [];
   const known = models.some((x) => x.id === model);
   const groups = [...new Set(models.map((x) => x.group))];
   const modelOpts = [
-    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || modelLabel())}</option>`,
+    `<option value="" ${!model ? 'selected' : ''}>${esc(prefix === 'default' ? modelLabel() : modelInherit())}</option>`,
     ...groups.map((g) => `<optgroup label="${esc(g)}">${models.filter((x) => x.group === g).map((x) => `<option value="${esc(x.id)}" ${x.id === model ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`),
     model && !known ? `<option value="${esc(model)}" selected>${esc(model)}</option>` : '',
   ].join('');
-  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || tr("Claude Code's default"))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
+  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(effortInherit(prefix, model))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
   return `
     <div class="llm-fields" data-llm="${prefix}">
       <input class="pick-search" type="search" data-model-search placeholder="${esc(tr('Search models'))}" aria-label="${esc(tr('Search models'))}"${models.length < 12 ? ' hidden' : ''}>
@@ -113,6 +131,7 @@ function wireLlmFields(form, prefix) {
       option.disabled = option.hidden = !!levels && !!option.value && !levels.includes(option.value);
       if (option.disabled && option.selected) e.value = '';
     }
+    e.options[0].textContent = effortInherit(prefix, id);
     const effort = state.efforts?.find((x) => x.id === e.value);
     describe(m, info?.note || '');
     describe(e, noEffort ? tr("{model} doesn't use reasoning levels.", { model: info?.label || id }) : effort?.note ? `${effort.label}: ${effort.note}` : '');
@@ -234,7 +253,7 @@ function renderChiefSettings() {
       <div class="set-list">
         <details class="bs-row bs-more" id="chief-model"${advanced() ? '' : ' hidden'}>
           <summary${tipAttrs(tr('What the Chief uses to plan, create and manage your bots.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(s.chiefModel, s.chiefEffort))}</span>${CHEV}</summary>
-          <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, tr('Same as the default'))}</div>
+          <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort })}</div>
         </details>
         <div class="bs-row" id="chief-skills"${tipAttrs(tr('From your library, beside its own. Only you change them.'))}>
           <div class="grow"><b>${tr('Skills')}</b><div id="chief-skill-picks"><span class="faint">${tr('Loading…')}</span></div></div>${CHEV}

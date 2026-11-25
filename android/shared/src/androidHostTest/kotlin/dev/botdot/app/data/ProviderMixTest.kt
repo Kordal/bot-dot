@@ -42,12 +42,36 @@ class ProviderMixTest {
 
     @Test fun aModelIsNamedWithItsProviderAndTheSummaryAddsTheReasoningLevel() {
         val info = info()
-        assertEquals("DeepSeek V4 Pro · DeepSeek", info.modelLabel(pro))
+        assertEquals("DeepSeek · DeepSeek V4 Pro", info.modelLabel(pro))
         assertEquals("Opus", info.modelLabel("opus"))
-        assertEquals("DeepSeek V4 Pro · DeepSeek · High", info.summary(pro, "high"))
+        assertEquals("DeepSeek · DeepSeek V4 Pro · High", info.summary(pro, "high"))
         // A level the model lacks is not said, nor one a model without reasoning is given.
-        assertEquals("DeepSeek V4 Pro · DeepSeek", info.summary(pro, "low"))
-        assertEquals("GLM 5 · GLM", info.summary(glm, "high"))
+        assertEquals("DeepSeek · DeepSeek V4 Pro", info.summary(pro, "low"))
+        assertEquals("GLM · GLM 5", info.summary(glm, "high"))
+    }
+
+    // A bot's and the Chief's "Default" say what the model they apply to gets (the server's `pick`), as the web page's do.
+    @Test fun aBotsDefaultNamesTheModelAndWhatItsReasoningComesTo() {
+        val info = info()
+        assertEquals("Default (DeepSeek · DeepSeek V4 Pro)", info.inheritedModelLabel())
+        assertEquals("Default (DeepSeek · DeepSeek V4 Pro)", BotSettings.models(info).first().label)
+        // The account default's level is offered by the default's model: named. A model without it runs on its own.
+        assertEquals("Default (High)", info.inheritedEffortLabel(""))
+        assertEquals("Default (High)", BotSettings.efforts(info, pro).first().label)
+        assertEquals("GLM's own", info.inheritedEffortLabel(glm))
+        // A Claude model takes the level the account has.
+        assertEquals("Default (High)", info.inheritedEffortLabel("opus"))
+        val low = Api.JSON.decodeFromString<SettingsInfo>(settings.replace("\"defaultEffort\":\"high\"", "\"defaultEffort\":\"low\""))
+        assertEquals("DeepSeek's own", low.inheritedEffortLabel(pro))
+        assertEquals("DeepSeek's own", low.inheritedEffortLabel(""))
+        assertEquals("Default (Low)", low.inheritedEffortLabel("opus"))
+        val none = Api.JSON.decodeFromString<SettingsInfo>(settings.replace("\"defaultEffort\":\"high\"", "\"defaultEffort\":\"\""))
+        assertEquals("Claude Code's default", none.inheritedEffortLabel("opus"))
+        assertEquals("DeepSeek's own", none.inheritedEffortLabel(pro))
+        // A server with one provider (before ADR 267) says only "Default".
+        val old = Api.JSON.decodeFromString<SettingsInfo>("""{"provider":{"name":"DeepSeek","main":"$pro","helper":"x"},"models":[],"efforts":[]}""")
+        assertEquals("Default", old.inheritedModelLabel())
+        assertEquals("Default", old.inheritedEffortLabel(""))
     }
 
     @Test fun aModelWhoseProviderWasRemovedIsNoChoiceAndAClaudeNameStays() {
