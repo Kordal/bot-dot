@@ -177,6 +177,13 @@ function vncServer(sock, got, ext) {
     await page.addInitScript(() => {
       const write = navigator.clipboard.writeText.bind(navigator.clipboard);
       window.refuseUntilTap = false;
+      // A Mac, for noVNC: it reads navigator.platform each time it turns a key (core/util/browser.js isMac).
+      const platform = Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform').get;
+      window.fakeMac = false;
+      Object.defineProperty(navigator, 'platform', { get() { return window.fakeMac ? 'MacIntel' : platform.call(this); } });
+      // The pastes the page saw, to tell a real one from the one a test has to make where the host has no ⌘+V paste.
+      window.pastes = 0;
+      addEventListener('paste', () => { window.pastes++; }, true);
       // A tap is the owner's own click, while its handler runs (Playwright's evaluate counts as a gesture, so the
       // browser's own flag cannot tell).
       let tapping = false;
@@ -265,6 +272,59 @@ function vncServer(sock, got, ext) {
       assert.deepEqual(got.log.filter((e) => e.startsWith('key')), expected, 'the keys of the text, in order, with the Polish letters as Unicode keys');
       assert.equal(await page.locator('#type-form').isVisible(), false, 'the form closes once it typed');
     }
+
+    // On a Mac: noVNC sends the held ⌘ as Alt_L (the left one) or Super_L (the right one), so what the paste releases is
+    // those, and the computer sees Ctrl+V with nothing else held, whichever ⌘ the owner holds.
+    ext = true;
+    await open(true);
+    await page.evaluate(() => { window.fakeMac = true; });
+    for (const [cmd, held] of [['MetaLeft', 'ffe9'], ['MetaRight', 'ffeb']]) {
+      const owner = `From a Mac, ${cmd}`;
+      await setClip(owner);
+      await page.locator('#screen canvas').click({ position: { x: 100, y: 100 } });
+      reset();
+      await page.evaluate(() => { window.pastes = 0; });
+      await page.keyboard.down(cmd);
+      await waitFor(() => got.log.includes(`key down ${held}`), { what: `[${cmd}] the held ⌘ to reach the computer as ${held}` });
+      await page.keyboard.press('KeyV');
+      // A host that is not a Mac has no ⌘+V paste: the browser's paste event is then made as the owner's browser makes it.
+      await page.waitForTimeout(100);
+      if (!(await page.evaluate(() => window.pastes))) {
+        await page.evaluate((t) => {
+          const data = new DataTransfer();
+          data.setData('text/plain', t);
+          document.activeElement.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+        }, owner);
+      }
+      await waitFor(() => got.log.includes('key up 76'), { what: `[${cmd}] the paste to reach the computer` });
+      assert.equal(got.clipboard, owner, `[${cmd}] the owner's text arrived`);
+      // Replay the keys the computer got: what is held when V goes down, and what the paste itself sent.
+      const down = new Set();
+      let atV = null;
+      for (const e of got.log) {
+        const m = /^key (down|up) ([0-9a-f]+)$/.exec(e);
+        if (!m) continue;
+        if (m[1] === 'down') down.add(m[2]); else down.delete(m[2]);
+        if (e === 'key down 76') atV = [...down].sort();
+      }
+      assert.deepEqual(atV, ['76', 'ffe3'], `[${cmd}] only Ctrl is held for the V, no Alt and no Super: ${got.log.join(', ')}`);
+      assert.deepEqual(got.log.filter((e) => e.startsWith('key')).slice(-4), ['key down ffe3', 'key down 76', 'key up 76', 'key up ffe3'], `[${cmd}] the paste is Ctrl down, V, V up, Ctrl up`);
+      await page.keyboard.up(cmd);
+      await page.waitForTimeout(100);
+      assert.equal(got.log.filter((e) => e === 'key down 76').length, 1, `[${cmd}] one V press`);
+    }
+    await page.evaluate(() => { window.fakeMac = false; });
+
+    // Between connections nothing throws: a paste and Type it, with the computer gone.
+    for (const s of live) s.destroy();
+    await waitFor(() => page.locator('#status').getAttribute('data-state').then((t) => t === 'reconnecting'), { what: 'the viewer to see the connection end' });
+    await page.evaluate(() => {
+      const data = new DataTransfer();
+      data.setData('text/plain', 'nobody there');
+      document.body.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    });
+    await page.keyboard.press(`${mod}+KeyV`);
+    await page.waitForTimeout(400);
 
     // Nothing crosses while the owner only watches: no copy, no paste, no Type it.
     ext = true;
