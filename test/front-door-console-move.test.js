@@ -249,19 +249,22 @@ test('self-hosted, several: an import beside an account with no share of its own
 });
 
 test('an import keeps the other machine\'s "when" for updates: an older autoUpdate false is manual, a "ready" stays, none is the default (ADR 271)', async (t) => {
-  const door = await startFrontDoor({ env: {} });
+  // A machine with an admin and root's step taking requests: the front door plans its switches, so every account is pinned (see front-door-update-pin.test.js for the others).
+  const env = { FRONT_DOOR_ADMIN: 'root-admin', FRONT_DOOR_REQUESTS: tmp(t) };
+  const door = await startFrontDoor({ env });
   t.after(() => door.stop());
   const entries = { ann: { updateWhen: 'ready' }, bob: {}, cat: { updateWhen: 'manual' }, dan: { updateWhen: 'sometime' }, eve: { updateWhen: 'night', autoUpdate: false } };
   for (const [account, entry] of Object.entries(entries)) {
     const file = path.join(tmp(t), `${account}.json`);
     fs.writeFileSync(file, JSON.stringify({ accounts: { [account]: { created: '2026-10-01T10:00:00.000Z', ...entry } } }));
-    const made = ask(door, {}, 'import-account', '--account', account, '--record', file);
+    const made = ask(door, env, 'import-account', '--account', account, '--record', file);
     assert.deepEqual(made.said, { state: 'imported', account }, made.stderr || account);
   }
   const kept = data(door).accounts;
-  assert.deepEqual([kept.ann.updateWhen, kept.ann.autoUpdate], ['ready', undefined], 'ready is kept, and root\'s step switches it with the admin\'s update as before');
-  assert.deepEqual([kept.bob.updateWhen, kept.bob.autoUpdate], [undefined, undefined], 'none is the default');
-  assert.deepEqual([kept.cat.updateWhen, kept.cat.autoUpdate], ['manual', false], 'manual is what root\'s step reads as waiting');
-  assert.deepEqual([kept.dan.updateWhen, kept.dan.autoUpdate], [undefined, undefined], 'what it does not know is the default');
-  assert.deepEqual([kept.eve.updateWhen, kept.eve.autoUpdate], ['night', undefined], 'the "when" it says wins over the old field');
+  assert.deepEqual([kept.ann.updateWhen, kept.ann.autoUpdate], ['ready', false], 'ready is kept, in words');
+  assert.deepEqual([kept.bob.updateWhen, kept.bob.autoUpdate], ['night', false], 'none is the default');
+  assert.deepEqual([kept.cat.updateWhen, kept.cat.autoUpdate], ['manual', false]);
+  assert.deepEqual([kept.dan.updateWhen, kept.dan.autoUpdate], ['night', false], 'what it does not know is the default');
+  assert.deepEqual([kept.eve.updateWhen, kept.eve.autoUpdate], ['night', false], 'the "when" it says wins over the old field');
+  assert.ok(Object.values(kept).every((a) => a.autoUpdate === false), 'root\'s step leaves every account waiting: the front door switches them (#1689)');
 });

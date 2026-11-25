@@ -8,10 +8,10 @@ import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 
 /**
- * Settings → Updates (#259, ADR 053): when this account switches to a new version. The owner's "Update automatically",
- * and "Update now" for a version the admin installed, which the account waits for until the admin's deadline. Both are
- * the front door's own routes (`/front-door/update`), never botdot's; shown only where the front door says this
- * account chooses (its session's `updates`): not on a machine of one account.
+ * Settings → Updates (#259, ADR 053): when this account switches to a new version, and "Update now" for a version that
+ * waits. Both are the front door's own routes (`/front-door/update`), never botdot's; shown only where the front door
+ * says this account chooses (its session's `updates`): wherever it plans the switches, a machine of one account
+ * included, and nowhere on a managed one.
  */
 data class OwnUpdate(
     /** The owner's "when" (ADR 271): `ready`, `night` or `manual`. null from a front door that doesn't have it: then the switch. */
@@ -27,6 +27,10 @@ data class OwnUpdate(
     /** How the last switch went: `switching`, `updated`, `kept` or `failed`, and why when it didn't happen. */
     val last: String? = null,
     val error: String? = null,
+    /** The owner's `when` (ADR 271): `ready`, `night` or `manual`; null from a front door that doesn't have it. */
+    val updateWhen: String? = null,
+    /** `night` when the owner chose "Tonight" for the version that waits. */
+    val plan: String? = null,
 ) {
     val ready get() = deadline != null
     /** The three-way "When" is drawn only when the answer has `when`; otherwise today's switch. */
@@ -44,14 +48,14 @@ data class OwnUpdate(
         ready -> {
             val version = readyVersion?.let { " ($it)" } ?: ""
             val on = day(deadline!!, zone)
-            when (updateWhen) {
-                "ready" -> tr("A new version{version} is ready. Your account moves to it as soon as your bots are idle.", "version" to version, "day" to on)
-                "night" -> tr("A new version{version} is ready. Your account moves to it at night, when your bots are idle.", "version" to version, "day" to on)
-                "manual" -> tr("A new version{version} is ready. Your account moves to it when you say, or by itself from {day}.", "version" to version, "day" to on)
+            when {
+                updateWhen == "ready" -> tr("A new version{version} is ready. Your account moves to it as soon as your bots are idle.", "version" to version)
+                updateWhen == "night" || (updateWhen == "manual" && plan == "night") -> tr("A new version{version} is ready. Your account moves to it at night, when your bots are idle.", "version" to version)
+                updateWhen == "manual" -> tr("A new version{version} is ready. Your account moves to it when you say, or by itself from {day}.", "version" to version, "day" to on)
                 else -> tr("A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.", "version" to version, "day" to on)
             }
         }
-        last == "kept" || last == "failed" -> tr("The last move to a new version didn't happen: {why}.", "why" to (error?.ifBlank { null } ?: tr("the admin can see why")))
+        last == "kept" || last == "failed" -> tr("The last move to a new version didn't happen: {why}.", "why" to (error?.ifBlank { null } ?: tr("no reason was saved")))
         else -> ""
     }
 
@@ -76,6 +80,8 @@ data class OwnUpdate(
                 deadline = text(ready, "deadline")?.takeIf { runCatching { Instant.parse(it) }.isSuccess },
                 last = text(last, "state"),
                 error = text(last, "error"),
+                updateWhen = text(j, "when")?.takeIf { it == "ready" || it == "night" || it == "manual" },
+                plan = text(j, "plan")?.takeIf { it == "night" },
             )
         }
 

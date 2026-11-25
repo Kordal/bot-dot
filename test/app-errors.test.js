@@ -3,6 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const E = require('../lib/app-errors');
+const { HELPER_MODEL } = require('../lib/helper-model');
 
 const google = (code, status, reason, message) => JSON.stringify({ error: { code, message, status, details: [{ reason }] } });
 
@@ -30,7 +31,7 @@ test('appError: status by what helps, the app\'s words as detail; forBot: the se
 
 test('explain: only an unknown kind is asked of Claude, once per error; a reply that is no plain sentence is not used', async () => {
   let asks = 0;
-  const ask = async (prompt, opts) => { asks++; assert.equal(opts.llm.model, 'haiku'); return 'The text was too long for one document. Split it and try again.'; };
+  const ask = async (prompt, opts) => { asks++; assert.equal(opts.llm.model, HELPER_MODEL); return 'The text was too long for one document. Split it and try again.'; };
   const known = E.appError(google(429, 'RESOURCE_EXHAUSTED', '', 'Quota exceeded'), { name: 'Notion' });
   assert.equal((await E.explain(known, { ask })).message, 'Notion is busy. Try again in a minute.');
   assert.equal(asks, 0);

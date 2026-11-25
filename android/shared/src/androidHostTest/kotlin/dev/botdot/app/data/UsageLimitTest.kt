@@ -5,6 +5,7 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.time.Instant
 
@@ -30,5 +31,41 @@ class UsageLimitTest {
         assertFalse(claude.signedOut.value)
         claude.handle(FeedEvent("boot.10", "claude", data("""{"loggedIn":true}""")))
         assertNull("the reset: no line", claude.backAt.value)
+    }
+
+    // #1668: the account default is a provider that reached its limit: `backAtName` says whose `backAt` it is.
+    @Test fun theLimitOfADefaultProviderIsNamed() {
+        assertEquals("DeepSeek", claudeBackAtName(data("""{"loggedIn":true,"backAt":"2026-11-06T15:00:00Z","backAtName":"DeepSeek"}""")))
+        assertNull("a botdot from before names nobody: Claude's", claudeBackAtName(data("""{"loggedIn":true,"backAt":"2026-11-06T15:00:00Z"}""")))
+        assertNull(claudeBackAtName(data("""{"loggedIn":true,"backAtName":""}""")))
+        assertNull(claudeBackAtName(null))
+        val claude = ClaudeState()
+        val later = (kotlin.time.Clock.System.now() + kotlin.time.Duration.parse("1h")).toString()
+        claude.handle(FeedEvent(null, "hello", data("""{"lastEventId":"boot.9","features":["job-line"],"claude":{"loggedIn":true,"backAt":"$later","backAtName":"DeepSeek"}}""")))
+        assertEquals(later, claude.backAt.value)
+        assertEquals("DeepSeek", claude.backAtName.value)
+        claude.handle(FeedEvent("boot.10", "claude", data("""{"loggedIn":true,"backAt":"$later"}""")))
+        assertNull("Claude's own limit: no name", claude.backAtName.value)
+        claude.handle(FeedEvent("boot.11", "claude", data("""{"loggedIn":true,"backAt":"$later","backAtName":"DeepSeek"}""")))
+        claude.handle(FeedEvent("boot.12", "claude", data("""{"loggedIn":true}""")))
+        assertNull("the reset: no name", claude.backAtName.value)
+    }
+
+    // #1668: a connection other than the account default's is a line of its own: a provider's limit, or Claude's sign-out.
+    @Test fun otherConnectionsHeldAreReadWhileTheyHold() {
+        val held = claudeHeld(data("""{"loggedIn":true,"held":[{"connection":"custom","name":"DeepSeek","backAt":"2026-11-06T15:00:00Z"},{"connection":"claude","name":"Claude","signedOut":true},{"connection":"old","name":"Gone","backAt":"2026-11-06T11:00:00Z"},{"name":"No time"}]}"""), now)
+        assertEquals(listOf(ClaudeHeld("DeepSeek", false, "2026-11-06T15:00:00Z"), ClaudeHeld("Claude", true, null)), held)
+        assertTrue("a botdot from before says none", claudeHeld(data("""{"loggedIn":true,"backAt":"2026-11-06T15:00:00Z"}"""), now).isEmpty())
+        assertTrue(claudeHeld(null, now).isEmpty())
+    }
+
+    @Test fun theStateKeepsWhatIsHeldBesideTheDefaultsLine() {
+        val claude = ClaudeState()
+        val later = (kotlin.time.Clock.System.now() + kotlin.time.Duration.parse("1h")).toString()
+        claude.handle(FeedEvent(null, "hello", data("""{"lastEventId":"boot.9","features":["job-line"],"claude":{"loggedIn":true,"held":[{"connection":"custom","name":"DeepSeek","backAt":"$later"}]}}""")))
+        assertEquals(listOf(ClaudeHeld("DeepSeek", false, later)), claude.held.value)
+        assertNull("the default's own line is not drawn", claude.backAt.value)
+        claude.handle(FeedEvent("boot.10", "claude", data("""{"loggedIn":true}""")))
+        assertTrue("the reset", claude.held.value.isEmpty())
     }
 }

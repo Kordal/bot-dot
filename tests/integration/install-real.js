@@ -805,7 +805,9 @@ const cases = [
   },
   {
     // #979, ADR 155: root's step updates to the version a request names, keeps a snapshot of the account's data for its
-    // switch alone (it goes once the new server answers), and puts it back when the named version doesn't start.
+    // switch alone (it goes once the new server answers), and puts it back when the named version doesn't start. This
+    // machine has an admin, so the front door plans its switches (ADR 271, #1689): the update only downloads, the account
+    // waits on the version it runs, and its switch is asked with SWITCH-<name>, as the front door asks it.
     name: 'a named update keeps a snapshot of the data for its switch alone, and a failed switch gets it back',
     async run(machine) {
       const REQUESTS = `${DIR}/front-door/requests`, STATUS = `${DIR}/front-door/status`;
@@ -824,6 +826,12 @@ const cases = [
         return machine.sign(`${SERVER}:release-${n}`, { app: 'server', version: n, revision: String(n).repeat(40) });
       };
       // An update root's step takes from the request file, as the console writes it: how it went.
+      const snapshots = () => machine.exec('sh', '-c', `ls -A ${HOME} | grep -E '^snapshot' || true`);
+      // The switch the front door asks of root's step for an account that waits: how it ended (updated, kept or failed).
+      const switchAsked = () => {
+        machine.exec('touch', `${REQUESTS}/SWITCH-${ADMIN}`);
+        return until('its switch', () => { const a = read(`${STATUS}/account-${ADMIN}.json`); return a && a.state !== 'waiting' && a.state !== 'switching' && a; }, 15 * 60_000);
+      };
       const updateTo = async (image) => {
         const was = read(`${STATUS}/update.json`)?.at || '';
         machine.exec('sh', '-c', `echo ${image.split('@')[1]} > ${REQUESTS}/UPDATE`);
@@ -844,10 +852,19 @@ const cases = [
       const named = await updateTo(two);
       assert.equal(named.state, 'updated', JSON.stringify(named));
       assert.equal(named.named, two.split('@')[1], 'update.json says the version asked for');
+      assert.deepEqual(named.accounts.map((a) => [a.name, a.result]), [[ADMIN, 'waiting']], 'the update only downloads: the account waits');
+      assert.equal(read(`${STATUS}/account-${ADMIN}.json`)?.state, 'waiting', "and its status says so");
+      assert.equal(pinned(), one, 'on the release it ran');
+      assert.equal(marker(), 'release-1');
+      assert.equal(snapshots(), '', 'no snapshot yet: it is for the switch alone');
+
+      stage.step('its switch, asked as the front door asks it');
+      const switched = await switchAsked();
+      assert.equal(switched.state, 'updated', JSON.stringify(switched));
       assert.equal(pinned(), two, 'the account runs exactly that release');
       await until('the account on release 2', () => { try { answers(machine); return true; } catch { return false; } }, 5 * 60_000);
       assert.equal(marker(), 'release-1', 'its data came through the switch');
-      assert.equal(machine.exec('sh', '-c', `ls -A ${HOME} | grep -E '^snapshot' || true`), '', 'its snapshot went once the new server answered');
+      assert.equal(snapshots(), '', 'its snapshot went once the new server answered');
 
       stage.step('a rollback request after a switch that finished has no snapshot to go back to');
       mark('release-2');
@@ -860,9 +877,14 @@ const cases = [
 
       stage.step('an update to release 3, which changes the data and never starts: the snapshot comes back');
       const three = await release(3, ['sh', '-c', 'echo release-3 > /data/release-marker; echo "This release does not start." >&2; exit 1']);
-      const failed = await updateTo(three);
-      assert.equal(failed.state, 'failed', JSON.stringify(failed));
-      assert.deepEqual(failed.accounts.map((a) => [a.name, a.result]), [[ADMIN, 'kept']]);
+      const downloaded = await updateTo(three);
+      assert.equal(downloaded.state, 'updated', JSON.stringify(downloaded));
+      assert.deepEqual(downloaded.accounts.map((a) => [a.name, a.result]), [[ADMIN, 'waiting']]);
+      assert.equal(pinned(), two, 'it waits on release 2');
+      assert.equal(marker(), 'release-2');
+      const failed = await switchAsked();
+      assert.equal(failed.state, 'kept', JSON.stringify(failed));
+      assert.match(failed.error, /new botdot server didn't start/);
       assert.equal(pinned(), two, 'it runs the version it ran');
       assert.equal(marker(), 'release-2', 'with its data as it was before the switch');
       answers(machine);

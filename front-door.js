@@ -75,6 +75,7 @@ const path = require('path');
 const crypto = require('crypto');
 const store = require('./lib/front-door/store');
 const nightUpdate = require('./lib/front-door/night-update');
+const switchPlan = require('./lib/front-door/switch-plan');
 const webauthn = require('./lib/front-door/webauthn');
 const limits = require('./lib/front-door/limits');
 const pages = require('./lib/front-door/pages');
@@ -139,12 +140,23 @@ if (FIRST_ACCOUNT !== null && !store.ACCOUNT_NAME.test(FIRST_ACCOUNT)) {
 }
 // A managed machine has no admin: the fleet console is (ADR 154).
 const ADMIN = MANAGED ? null : process.env.FRONT_DOOR_ADMIN || null;
+const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
+// Whether the front door plans the switches (ADR 271, #1689): on a machine of one account, and on a machine of several that
+// root's step serves and that has an admin (every account, the admin's own too, #274). Never on a managed machine, one account
+// or several: the fleet console is its admin and no owner chooses there; and none on a machine that names no admin.
+const plansSwitches = () => !!REQUESTS && !MANAGED && (!!ONE_ACCOUNT || !!ADMIN);
+// `updates` in `GET /front-door/session` says the same, and the apps then draw the Updates card in Settings (#1691).
 // The account the setup key makes: the one account, or a managed machine's first.
 const SETUP_ACCOUNT = ONE_ACCOUNT || FIRST_ACCOUNT;
 const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
 // The machine's RAM sizes the default share (#126): the last root's step measured, kept while its file is stale.
 let machineRam = null;
-const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null });
+const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null, plansSwitches: plansSwitches() });
+// Where the front door plans the switches (plansSwitches) root's step leaves every account waiting and the front door
+// switches each one when its owner chose and it is idle (ADR 271, #1689): every account it has already says
+// `autoUpdate: false` from the first start, each keeping its "when" in words. Elsewhere the old rule, `false` for `manual`
+// alone, and an account pinned before is let go.
+doors.pinUpdates();
 
 // A review code is enabled only on an explicitly configured, dedicated managed one-account machine.
 const DEMO_HASH = process.env.FRONT_DOOR_DEMO_CODE_SHA256 || '';
@@ -426,7 +438,6 @@ setInterval(() => {
   for (const map of [challenges, handoffs, agreements]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
 const socketOf = (account) => path.join(SOCKETS, account, 'botdot.sock');
-const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
 const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DOOR_STATUS) : null;
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
 // Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin. A managed machine's
@@ -714,9 +725,6 @@ function askForUpdate() {
 const SWITCH = (name) => `SWITCH-${name}`;
 const ACCOUNT_STATES = ['waiting', 'switching', 'updated', 'kept', 'failed'];
 const DAY = 24 * 3600_000;
-// Whether the owner of an account chooses when it switches: on a machine of several accounts root's step serves, every
-// account, the admin's own too (#274).
-const choosesUpdates = () => !ONE_ACCOUNT && !!REQUESTS && !!ADMIN;
 const switchAsked = (name) => !!REQUESTS && fs.existsSync(path.join(REQUESTS, SWITCH(name)));
 // What root's step said of the account, checked field by field: { state, at, since?, version?, from?, error? } or null.
 function accountStatus(name) {
@@ -733,10 +741,13 @@ function accountStatus(name) {
   if (s.state === 'switching' && (!out.at || Date.now() - Date.parse(out.at) > UPDATE_STALE_MS)) return { state: 'failed', at: out.at, error: "The update didn't finish. Update now again." };
   return out;
 }
-// What the account's owner sees in Settings, and the admin on its card: { when, autoUpdate, asked, canUpdate, ready, last }.
+// What the account's owner sees in Settings, and the admin on its card: { when, autoUpdate, plan, asked, canUpdate, ready, last }.
 // when: the owner's choice, `ready`, `night` or `manual` (ADR 271); autoUpdate is `when !== 'manual'`, for an app older than it.
+// plan: `night` when they chose "Tonight" for the version that waits (#1689), else null.
 // ready: { version, from, since, deadline } while it waits for a version the admin installed; last: how its last switch
 // went, { state, at, error? }. canUpdate: "Update now" may be asked: it waits, or its last switch didn't happen.
+// What "Tonight" is kept for: the version that waits (the time it began to wait when root's step doesn't say which).
+const planKey = (ready) => ready.version || ready.since;
 function ownUpdate(name) {
   const s = accountStatus(name);
   const asked = switchAsked(name);
@@ -744,7 +755,7 @@ function ownUpdate(name) {
     ? { version: s.version || null, from: s.from || null, since: s.since, deadline: new Date(Date.parse(s.since) + doors.updateDays() * DAY).toISOString() }
     : null;
   const last = s && s.state !== 'waiting' ? { state: s.state, at: s.at, ...(s.error !== undefined ? { error: s.error } : {}) } : null;
-  return { when: doors.updateWhen(name), autoUpdate: doors.autoUpdate(name), asked, canUpdate: !asked && !!s && ['waiting', 'kept', 'failed'].includes(s.state), ready, last };
+  return { when: doors.updateWhen(name), autoUpdate: doors.autoUpdate(name), plan: ready ? doors.updatePlan(name, planKey(ready)) : null, asked, canUpdate: !asked && !!s && ['waiting', 'kept', 'failed'].includes(s.state), ready, last };
 }
 // What a waiting version brings (#303): the notes this front door's version ships after the newest one the account's
 // botdot server ships, which it says in its /api/version, in the account's language (its /api/settings, #646). A
@@ -775,46 +786,94 @@ function askSwitch(name) {
   }
   return true;
 }
-// The deadline: an account still waiting past it is switched without its owner. Checked every minute, and whenever an
-// owner or the admin looks.
-// only: the one account to check (its owner looks), else every account.
-function switchPastDeadline({ only = null, now = Date.now() } = {}) {
-  if (!REQUESTS || ONE_ACCOUNT) return;
-  for (const a of doors.listAccounts()) {
-    if ((only && a.name !== only) || a.suspended || !choosesUpdates(a.name) || switchAsked(a.name)) continue;
-    const { ready } = ownUpdate(a.name);
-    if (!ready || Date.parse(ready.deadline) > now) continue;
-    console.log(`[front door] the account ${a.name} waited past its deadline: the machine switches it to the new version`);
-    askSwitch(a.name);
-  }
+// The front door decides every switch (ADR 271, #1689): root's step leaves every account waiting (`autoUpdate: false` for each,
+// lib/front-door/store.js) and carries out the switch it is asked for. Each minute, and whenever an owner or the admin
+// looks, the front door asks each account that waits what lib/front-door/switch-plan.js says, and when the plan says
+// `switch` asks for it with SWITCH-<account>, as "Update now" does.
+const SWITCH_EVERY_MS = Number(process.env.FRONT_DOOR_SWITCH_EVERY_MS) || 60_000;
+const IDLE_MS = 5000;
+// Whether the account says it is idle: its own verdict (GET /api/update/idle, #1688), true or false; null when it doesn't
+// answer, or is a version older than the route.
+async function idleOf(name) {
+  const r = await askAccount(name, 'GET', '/api/update/idle', null, IDLE_MS);
+  return r.status === 200 && typeof r.data?.idle === 'boolean' ? r.data.idle : null;
 }
-setInterval(() => { try { switchPastDeadline(); } catch (e) { console.error(`[front door] couldn't check the update deadline: ${e.message}`); } }, 60_000).unref();
+const switchTold = new Map(); // the account → { key, at }: the switch last asked, and for which wait of which version
+const switching = new Set(); // the accounts being looked at now: a look at one begun is left to finish
+async function switchOne(name, { now, quick }) {
+  const u = ownUpdate(name);
+  if (!u.ready || u.asked) return;
+  const key = planKey(u.ready);
+  const told = switchTold.get(name);
+  const input = {
+    when: u.when, waiting: { version: u.ready.version, since: u.ready.since, deadline: u.ready.deadline }, tonight: u.plan === 'night',
+    lastAskAt: told && told.key === `${key}@${u.ready.since}` ? told.at : null, now,
+  };
+  const need = switchPlan.needs(input);
+  if (need === 'nothing' || (quick && need !== 'switch')) return;
+  let idle = null, quietHours, timeZone;
+  if (need === 'night') {
+    // The owner's quiet hours and their time zone say when the night is: asked of the account only when the rest holds.
+    quietHours = (await getFromAccount(name, '/api/settings'))?.settings?.quietHours;
+    timeZone = quietHours?.timeZone;
+    if (!switchPlan.inNight({ timeZone, quietHours, now })) return;
+  }
+  if (need !== 'switch') idle = await idleOf(name);
+  // What was waited for may have changed: its owner asked, or the machine switched it.
+  const again = ownUpdate(name);
+  if (!again.ready || again.asked || planKey(again.ready) !== key) return;
+  const d = switchPlan.plan({ ...input, idle, timeZone, quietHours });
+  if (d.action !== 'switch') return;
+  if (!askSwitch(name)) return;
+  switchTold.set(name, { key: `${key}@${u.ready.since}`, at: new Date(now).toISOString() });
+  console.log(`[front door] the machine is asked to switch the account ${name} to the new version: ${d.why}`);
+  audited('update-switch', { account: name, detail: d.why, actor: 'front-door' });
+}
+// only: the one account to look at (its owner looks), else every account. quick: only what needs no question to an account
+// (an account a day past its deadline), for a look that must not wait for one: an owner's or the admin's page.
+async function switchDue({ only = null, now = Date.now(), quick = false } = {}) {
+  if (!REQUESTS || !plansSwitches()) return;
+  // An update asked or going: root's step will switch what it switches, and what waits is another version after it.
+  const s = updateStatus();
+  if (s.asked || s.update?.state === 'updating') return;
+  await Promise.all(doors.listAccounts().filter((a) => (!only || a.name === only) && !a.suspended && plansSwitches() && !switching.has(a.name)).map(async (a) => {
+    switching.add(a.name);
+    try { await switchOne(a.name, { now, quick }); } catch (e) { console.error(`[front door] couldn't plan the switch of the account ${a.name}: ${e.message}`); } finally { switching.delete(a.name); }
+  }));
+}
+setInterval(() => switchDue().catch((e) => console.error(`[front door] couldn't plan the switches: ${e.message}`)), SWITCH_EVERY_MS).unref();
 
-// ---------- a machine of one account updates at night (ADR 183) ----------
-// No admin page and no one who presses Update: the front door asks root's step for the newest signed release itself,
-// at 04:00 in the owner's time zone (their quiet hours' zone, the machine's when the account doesn't say), once a night.
+// ---------- a machine of one account downloads its update by itself (ADR 183, ADR 271) ----------
+// No admin page and no one who presses Update: the front door asks root's step to download the newest signed release
+// itself, once a night: at 04:00 in the owner's time zone (their quiet hours' zone, the machine's when the account doesn't
+// say), or as soon as root's step found the release when the owner chose "As soon as it's ready". The account is left
+// waiting; its switch is planned above, as every account's.
 const NIGHT_ASKED = path.join(DATA, 'night-update.json');
 const NIGHT_HOUR = /^\d{1,2}$/.test(process.env.FRONT_DOOR_NIGHT_HOUR || '') ? Number(process.env.FRONT_DOOR_NIGHT_HOUR) : nightUpdate.NIGHT_HOUR; // a test's hour
-const hourIn = (timeZone, now) => {
-  try { return Number(new Intl.DateTimeFormat('en-GB', { timeZone, hour: 'numeric', hourCycle: 'h23' }).format(now)); } catch { return now.getHours(); }
-};
-async function updateAtNight(now = new Date()) {
+async function downloadAtNight(now = new Date()) {
   if (!ONE_ACCOUNT || !REQUESTS) return;
   const s = updateStatus();
   const installed = { version: s.version, selfBuilt: s.selfBuilt };
   const asked = s.asked || s.update?.state === 'updating';
+  // Root's step would switch an account that waits (never two versions behind, ADR 053): not while it waits, or moves.
+  const u = ownUpdate(ONE_ACCOUNT);
+  const waits = !!u.ready || u.asked || u.last?.state === 'switching';
+  const when = u.when;
   let last = null;
   try { last = JSON.parse(fs.readFileSync(NIGHT_ASKED, 'utf8')); } catch { /* never asked */ }
-  const may = (hour) => nightUpdate.shouldUpdate({ installed, newest: s.newest, last, asked, hour, now: now.getTime(), nightHour: NIGHT_HOUR });
+  const may = (hour) => nightUpdate.shouldUpdate({ installed, newest: s.newest, last, asked, waits, when, hour, now: now.getTime(), nightHour: NIGHT_HOUR });
   if (!may(NIGHT_HOUR)) return; // all but the hour: the account is asked for its time zone only when the rest holds
-  const settings = await getFromAccount(ONE_ACCOUNT, '/api/settings');
-  if (!may(hourIn(settings?.settings?.quietHours?.timeZone, now))) return;
+  if (when !== 'ready') {
+    const settings = await getFromAccount(ONE_ACCOUNT, '/api/settings');
+    if (!may(switchPlan.hourIn(settings?.settings?.quietHours?.timeZone, now.getTime()))) return;
+  }
   if (!askForUpdate()) return;
   fs.writeFileSync(NIGHT_ASKED, JSON.stringify({ version: s.newest.version, at: now.toISOString() }));
-  console.log(`[front door] botdot updates itself at night: ${s.version} to ${s.newest.version}`);
-  audited('update', { detail: 'at night, by itself' });
+  const how = when === 'ready' ? '' : ' at night';
+  console.log(`[front door] botdot downloads its update${how}: ${s.version} to ${s.newest.version}`);
+  audited('update', { detail: `${when === 'ready' ? 'as soon as it is ready' : 'at night'}, by itself` });
 }
-setInterval(() => updateAtNight().catch((e) => console.error(`[front door] couldn't update at night: ${e.message}`)), Number(process.env.FRONT_DOOR_NIGHT_EVERY_MS) || 60_000).unref();
+setInterval(() => downloadAtNight().catch((e) => console.error(`[front door] couldn't download the update: ${e.message}`)), Number(process.env.FRONT_DOOR_NIGHT_EVERY_MS) || 60_000).unref();
 
 // ---------- requests ----------
 
@@ -1109,16 +1168,16 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), ...(MANAGED ? { feedbackAsk: doors.feedbackAnswerOf(account) === null } : {}), updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), ...(MANAGED ? { feedbackAsk: doors.feedbackAnswerOf(account) === null } : {}), updates: plansSwitches(), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
   if (p === '/front-door/update' || p === '/front-door/update/now' || p === '/front-door/update/notes') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    if (!choosesUpdates(account)) return send(res, 404, { error: 'Not found' });
+    if (!plansSwitches()) return send(res, 404, { error: 'Not found' });
     if (req.method === 'GET' && p === '/front-door/update') {
-      switchPastDeadline({ only: account });
+      await switchDue({ only: account, quick: true });
       return send(res, 200, ownUpdate(account));
     }
     // What's new in the version it waits for (#303): none while nothing waits.
@@ -1127,10 +1186,21 @@ async function signInRoutes(req, res, p) {
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
     const body = (await readJson(req)) || {};
     if (p === '/front-door/update') {
+      // "Tonight" (#1689, the card's button of #1690): for the version that waits, as "at night, when idle". With `when` too,
+      // the choice of `when` is made first.
+      if (body.plan !== undefined && body.plan !== 'night') return send(res, 400, { error: 'plan is night.' });
+      if (body.plan === 'night' && !ownUpdate(account).ready) return send(res, 409, { error: 'There is no new version to switch to.' });
       // `when`, or the old `autoUpdate` (true is `night`, false is `manual`): `when` wins when both come.
       const when = body.when !== undefined ? body.when : body.autoUpdate === true ? 'night' : body.autoUpdate === false ? 'manual' : undefined;
-      doors.setUpdateWhen(account, when);
-      console.log(`[front door] the account ${account} chose to update ${when}`);
+      if (when !== undefined || body.plan === undefined) {
+        doors.setUpdateWhen(account, when);
+        console.log(`[front door] the account ${account} chose to update ${when}`);
+      }
+      const ready = ownUpdate(account).ready;
+      if (body.plan === 'night' && ready) {
+        doors.setUpdatePlan(account, planKey(ready), 'night');
+        console.log(`[front door] the account ${account} chose to switch to the new version tonight`);
+      }
       return send(res, 200, ownUpdate(account));
     }
     if (!ownUpdate(account).canUpdate) return send(res, 409, { error: 'There is no new version to switch to.' });
@@ -1905,7 +1975,7 @@ async function adminRoutes(req, res, p, account) {
     const days = doors.setUpdateDays(((await readJson(req)) || {}).days);
     console.log(`[front door] the admin set the update deadline: ${days} days`);
     audited('update-days', { detail: `${days} days` });
-    switchPastDeadline();
+    await switchDue({ quick: true });
     return send(res, 200, updateStatus());
   }
   if (p === '/admin/update' && req.method === 'POST') {
@@ -1991,7 +2061,7 @@ async function adminRoutes(req, res, p, account) {
     return send(res, 200, { keySet: !!key });
   }
   if (p === '/admin/accounts' && req.method === 'GET') {
-    switchPastDeadline();
+    await switchDue({ quick: true });
     return send(res, 200, { accounts: await listAccounts() });
   }
   // The shares of the machine: the default, and the machine's load.
@@ -2133,7 +2203,7 @@ async function listAccounts() {
       ? { size: size.size, sizes: size.sizes.map((s) => ({ id: String(s.id), cpus: s.cpus, memoryGB: s.memoryGB, available: s.available !== false })) } : null;
     return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name), ...(longOf.has(a.name) ? { long: longOf.get(a.name) } : {}),
       ...(computer === 'linux' || computer === 'boat' ? { computer } : {}), ...(boatSize ? { boatSize } : {}),
-      ...(a.name === ADMIN ? { admin: true } : {}), ...(choosesUpdates(a.name) ? { update: ownUpdate(a.name) } : {}) };
+      ...(a.name === ADMIN ? { admin: true } : {}), ...(plansSwitches() ? { update: ownUpdate(a.name) } : {}) };
   }));
 }
 
@@ -2276,7 +2346,7 @@ async function accountAction(req, res, name, action) {
   }
   // "Update now" for an account that waits (ADR 053): as its owner's, to the version the admin installed.
   if (action === 'update') {
-    if (!choosesUpdates(name) || !ownUpdate(name).canUpdate) return send(res, 409, { error: `The account ${name} has no new version to switch to.` });
+    if (!plansSwitches() || !ownUpdate(name).canUpdate) return send(res, 409, { error: `The account ${name} has no new version to switch to.` });
     askSwitch(name);
     console.log(`[front door] the admin asked to switch the account ${name} to the new version now`);
     audited('update-now', { account: name });

@@ -74,7 +74,7 @@ const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.B
 push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name, language: () => B.settings.get().language });
 const { signedIn } = require('./lib/setup');
 const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN, onClaudeAuthChange: changedClaudeAuth, defaultModel: () => B.settings.get().defaultModel, setDefaultModel: (model) => B.settings.update({ defaultModel: model }) });
-const updates = require('./lib/updates').create({ busy: () => B.activeCount() + chief.activeCount(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
+const updates = require('./lib/updates').create({ busy: () => updateIdle.working(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
 // An account on a machine of one or more (ADR 028) never updates itself: the admin updates the front door and every
 // account together, on the admin page (#473).
 const UPDATES_BY_ADMIN = !!process.env.BOT_DOT_ACCOUNT;
@@ -135,6 +135,8 @@ async function runTileSource(tile, source, where, extra = {}) {
 }
 // askBrief is lib/routes/shared.js's, made below once asks and connectorApprovals are.
 const activity = require('./lib/activity').create(B.DATA_DIR); // the owner's activity per day, as counts (ADR 105)
+// Whether the account is idle, for the front door's switch to a new version (#1688), and what a restart would cut off.
+const updateIdle = require('./lib/update-idle').create({ bots: B, chief, roomTurns: require('./lib/room-turn'), activity });
 const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list), shown: () => activity.cardShown(), answered: (at) => activity.cardAnswered(at) }); // permissions and skills bots ask the owner for
 const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault secrets kept in files, by the owner's yes (#253)
 // A change a bot proposed to its own instructions keeps the run that proposed it: the bot carries on after the yes (ADR 009).
@@ -376,7 +378,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'custom-mcp-servers', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'llm-provider', 'provider-model-catalog', 'provider-model-settings', 'provider-mix', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'bot-computer-place', 'boat-own-key', 'bot-own-machine', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'about-project', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'team-chat-members', 'team-chat-lead', 'team-chat-delete', 'project-lead', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts', 'every-bot-always', 'advanced', 'everything-allowed', 'project-chief', 'vault-categories', 'board-tidy', 'project-manager', 'project-manager-bot', 'teammate-steer', 'screen-done', 'project-bots', 'project-overview', 'overview-board', 'project-conversation', 'project-updates', 'asks-several', 'setup-existing-bots', 'watches', 'card-text-size', 'group-steer', 'computer-card', 'choices-dismiss', 'ui-catalog', 'ui-live', 'rooms-every-bot'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'custom-mcp-servers', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'llm-provider', 'provider-model-catalog', 'provider-model-settings', 'provider-mix', 'connection-limits', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'bot-computer-place', 'boat-own-key', 'bot-own-machine', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'about-project', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'team-chat-members', 'team-chat-lead', 'team-chat-delete', 'project-lead', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts', 'every-bot-always', 'advanced', 'everything-allowed', 'project-chief', 'vault-categories', 'board-tidy', 'project-manager', 'project-manager-bot', 'teammate-steer', 'screen-done', 'project-bots', 'project-overview', 'overview-board', 'project-conversation', 'project-updates', 'asks-several', 'setup-existing-bots', 'watches', 'card-text-size', 'group-steer', 'computer-card', 'choices-dismiss', 'ui-catalog', 'ui-live', 'rooms-every-bot'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -503,18 +505,26 @@ let helloUnchecked = false;
 function sawClaude(c) {
   const known = signedIn(c); // null: it could not tell (lib/setup.js)
   if (known === null) return c;
-  if (helloUnchecked || (claudeSeen !== null && claudeSeen !== known)) feed.emit('claude', withBackAt({ loggedIn: known }));
+  // What the scheduler holds is the Claude connection's sign-in, not the account default's (#1668): on an API key it is signed
+  // in whatever the subscription is; on the subscription it is the subscription's check, also while the default is a provider.
+  const claudeKnown = c.connection === 'api-key' ? true : c.connection ? c.subscription : known;
+  if (claudeKnown !== null) B.claudeIs(claudeKnown);
+  if (heldSeen === null) heldSeen = heldSig();
+  if (helloUnchecked || (claudeSeen !== null && (claudeSeen !== known || heldSig() !== heldSeen))) tellClaude(known);
   helloUnchecked = false;
   claudeSeen = known;
-  B.claudeIs(known);
   return c;
 }
 // Apply the chosen credential's readiness before releasing the previous credential's hold (#1274).
 // An unchecked subscription waits for a check that can tell, rather than launching queued work on it.
-function changedClaudeAuth(c) {
-  if (signedIn(c) === null) { B.claudeIs(false); saysHeld(); }
-  else sawClaude(c);
-  B.clearClaudeLimit();
+// `changed`: the connections whose credential changed ('claude' for the API key, a provider's preset for its key or address):
+// each starts without the hold its previous credential had (#1668); the sign-in is the Claude connection's.
+function changedClaudeAuth(c, changed = ['claude']) {
+  if (changed.includes('claude')) {
+    if (signedIn(c) === null) { B.claudeIs(false); saysHeld(); }
+    else sawClaude(c);
+  }
+  for (const connection of changed) B.clearLimit(connection);
 }
 const claudeStatus = (fresh = false) => setup.claudeStatus(fresh).then(sawClaude);
 // After a sign-out whose check could not tell, while botdot holds jobs and messages as signed out: the apps that
@@ -528,11 +538,26 @@ function saysHeld() {
 // What a "hello" says of the sign-in, from what one check said (signedIn): the check's answer; and when it could
 // not tell, "signed out" while botdot holds jobs and waiting messages as signed out (bots.js isClaudeOut, kept
 // over a restart), or the app would show no line while nothing runs. Null when botdot holds nothing.
-const helloClaude = (known) => (known !== null ? withBackAt({ loggedIn: known }) : B.isClaudeOut() ? { loggedIn: false } : B.limitBackAt() ? withBackAt({ loggedIn: true }) : null);
-// Over Claude's usage limit (#1090): when botdot goes on, as `backAt`. Signed in or not: the sign-out's line wins.
-function withBackAt(claude) { const at = B.limitBackAt(); return at ? { ...claude, backAt: at } : claude; }
-// The limit was reached, moved or reset: the apps are told, with the sign-in as the server last saw it.
-B.onLimit(() => feed.emit('claude', withBackAt({ loggedIn: claudeSeen ?? !B.isClaudeOut() })));
+const helloClaude = (known) => (known !== null ? withHeld({ loggedIn: known }) : B.isClaudeOut(B.defaultConnection()) ? withHeld({ loggedIn: false }) : B.heldNow().length ? withHeld({ loggedIn: true }) : null);
+// Over a usage limit (#1090, #1668): `loggedIn` and `backAt` say what the account default runs on (the sign-in, and when its
+// connection goes on), as an app from before read them, which knew one limit; `held` says every other connection botdot holds
+// now ({ connection, name, signedOut?, backAt? }, Claude's first), one line each in the apps. Signed in or not: the sign-out's
+// line wins.
+function withHeld(claude) {
+  const own = B.defaultConnection();
+  const at = B.limitBackAt(own);
+  const held = B.heldNow().filter((h) => h.connection !== own);
+  // `backAtName` names whose limit `backAt` is when it is not Claude's: the account default is a provider that reached its own.
+  return { ...claude, ...(at ? { backAt: at, ...(own !== 'claude' ? { backAtName: B.connectionName(own) } : {}) } : {}), ...(held.length ? { held } : {}) };
+}
+const heldSig = () => JSON.stringify({ own: B.defaultConnection(), held: B.heldNow() });
+let heldSeen = null; // what the apps were last told is held (heldSig), so that a hold that moved without the sign-in is said too
+function tellClaude(loggedIn) {
+  heldSeen = heldSig();
+  feed.emit('claude', withHeld({ loggedIn }));
+}
+// A limit was reached, moved or reset: the apps are told, with the sign-in as the server last saw it.
+B.onLimit(() => tellClaude(claudeSeen ?? !B.isClaudeOut(B.defaultConnection())));
 // Checked once a minute: it costs a process.
 setInterval(() => { claudeStatus().catch(() => null); }, 60_000).unref();
 // The account's External Virtual PC that boat.dev can't save (#901): the feed's `boat_unsaved` with the whole list
@@ -632,7 +657,7 @@ const CHIEF_ROUTES = [
   ['GET', /^proxies$/],
   ['POST', /^proxies\/[a-f0-9]{8}\/test$/],
   ['PUT', /^proxies\/default$/],
-  ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
+  ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/models-in-use|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|storage\/check|connectors\/session\/(actions|run|wait|custom-tools|custom-run))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|run-again|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['POST', /^company\/(teams|todos|decisions|events|cards|card-request)$/],
@@ -843,7 +868,7 @@ const ctx = { ACCOUNT, audit, watches, storage, secretFiles, callKeys, callRefus
   withdrawCards: require('./lib/withdraw-cards').create({ asks, loginRequests, connectorApprovals, irreversibleSteps, roomRuns }), roomRuns, backups, backupAlert, connectedApps, tools, chiefReview, connectAsks, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
-  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };
+  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, updateIdle, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
@@ -856,6 +881,7 @@ const ROUTES = [
   require('./lib/routes/system').create(ctx),
   require('./lib/routes/room-turn').create(ctx), // a bot's reply in a shared room, for the front door only (ADR 060)
   require('./lib/routes/room-notice').create(ctx), // a new message in a shared room rings the owner, from the front door only (ADR 060)
+  require('./lib/routes/update-idle').create(ctx), // whether the account is idle, for the front door only (#1688)
   require('./lib/routes/group-router').create(ctx), // the admin's choice of the group router, from the front door only (#513)
   require('./lib/routes/boat').create(ctx), // the admin's boat.dev key, from the front door only (#529)
   require('./lib/routes/usage-summary').create(ctx), // a day's usage as counts, for the front door only (ADR 105)

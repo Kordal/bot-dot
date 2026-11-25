@@ -564,7 +564,7 @@ test('web: the line is above the box, in the warning colour', () => {
 // Quiet keys (#635): the empty box says whom it messages, and on a phone, where the head names the chat, "Message".
 test('web: the empty box says "Message <name>", and "Message" on a phone', () => {
   const words = (phone) => {
-    const ctx = vm.createContext({ esc, ...require('./web-page').words, away: { on: false, shown: false }, signedOut: { on: false }, signedOutHTML: () => '', ICON: {}, matchMedia: () => ({ matches: phone, addEventListener() {} }) });
+    const ctx = vm.createContext({ esc, ...require('./web-page').words, away: { on: false, shown: false }, signedOut: { on: false, backAt: null, held: [] }, signedOutHTML: () => '', ICON: {}, matchMedia: () => ({ matches: phone, addEventListener() {} }) });
     vm.runInContext(`${cut('function composerHTML(placeholder', '// Files attached in a composer')}\nthis.composerHTML = composerHTML;`, ctx);
     return ctx.composerHTML('Message Server Watch').match(/placeholder="([^"]*)" data-placeholder="([^"]*)"/).slice(1);
   };

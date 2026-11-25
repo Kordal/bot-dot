@@ -678,10 +678,11 @@ function openTarget(target) {
 
 // ---------- when this account switches to a new version ----------
 
-// Settings → "Updates" (#259, ADR 053): the owner's "Update automatically" and, when the admin installed a version this
-// account waits for, "Update now". Both are the front door's own routes, never botdot's, and only where the front door
-// says this account chooses (its session's `updates`): not on a machine of one account. While a version waits, its
-// What's new under them (#303): the notes the front door says it brings, kept for the card's next drawings.
+// Settings → "Updates" (#259, ADR 053): when this account switches to a new version, and "Update now" for a version
+// that waits. Both are the front door's own routes, never botdot's, and only where the front door says this account
+// chooses (its session's `updates`): wherever it plans the switches, a machine of one account included, and nowhere on a
+// managed one. While a version waits, its What's new under them (#303): the notes the front door says it brings, kept
+// for the card's next drawings.
 let updateNotes = [];
 async function loadUpdateCard() {
   if (!state.features.includes('accounts')) return;
@@ -708,12 +709,13 @@ const updateWhenName = (when) => (updateWhens().find(([id]) => id === when) || [
 function updateCardText(u) {
   const day = (iso) => new Date(iso).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' });
   if (u.asked || u.last?.state === 'switching') return tr('Moving to the new version. Your bots restart in a minute or two.');
+  // What moves it is the owner's `when` (ADR 271), and "Tonight" (`plan`) for this version; an older front door has neither: the deadline's sentence.
   const version = u.ready?.version ? ` (${u.ready.version})` : '';
-  if (u.ready && u.when === 'ready') return tr('A new version{version} is ready. Your account moves to it as soon as your bots are idle.', { version, day: day(u.ready.deadline) });
-  if (u.ready && u.when === 'night') return tr('A new version{version} is ready. Your account moves to it at night, when your bots are idle.', { version, day: day(u.ready.deadline) });
+  if (u.ready && u.when === 'ready') return tr('A new version{version} is ready. Your account moves to it as soon as your bots are idle.', { version });
+  if (u.ready && (u.when === 'night' || (u.plan === 'night' && u.when === 'manual'))) return tr('A new version{version} is ready. Your account moves to it at night, when your bots are idle.', { version });
   if (u.ready && u.when === 'manual') return tr('A new version{version} is ready. Your account moves to it when you say, or by itself from {day}.', { version, day: day(u.ready.deadline) });
-  if (u.ready) return tr('A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.', { version: u.ready.version ? ` (${u.ready.version})` : '', day: day(u.ready.deadline) });
-  if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return tr("The last move to a new version didn't happen: {why}.", { why: u.last.error || tr('the admin can see why') });
+  if (u.ready) return tr('A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.', { version, day: day(u.ready.deadline) });
+  if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return tr("The last move to a new version didn't happen: {why}.", { why: u.last.error || tr("no reason was saved") });
   return '';
 }
 

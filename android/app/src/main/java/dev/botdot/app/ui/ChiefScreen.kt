@@ -18,6 +18,13 @@ import dev.botdot.app.data.boxStops
 import dev.botdot.app.markdown.draftSource
 import dev.botdot.app.data.CHIEF_COLOR
 import android.net.Uri
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -76,6 +83,7 @@ import dev.botdot.app.data.EmptyChatJobs
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.PlanView
+import dev.botdot.app.data.RecentChats
 import dev.botdot.app.data.Ratings
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
@@ -105,6 +113,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val stays = sendStays(features) // Send stays while it replies, and Stop is the word on the working line
     val signedOut by app.store.claude.signedOut.collectAsState()
     val backAt by app.store.claude.backAt.collectAsState()
+    val backAtName by app.store.claude.backAtName.collectAsState()
+    val heldLines by app.store.claude.held.collectAsState()
     val activity = vm.activity
     val files = vm.files
     // Its plan above the message box (docs/api.md, "The plan"): the pending reply's, or the last reply's that was
@@ -182,6 +192,9 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
         initialText = sharedText,
         onSignIn = onSignIn.takeIf { signedOut },
         backAt = backAt,
+        backAtName = backAtName,
+        held = heldLines,
+        onSignInHeld = onSignIn,
     )
     var ownJobs by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
     LaunchedEffect(empty, features) {
@@ -203,13 +216,15 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
-            topBar = {
+            topBar = { Column {
                 ChatBar(CHIEF_COLOR, if (busy) "working" else "idle", chiefName, onName = onSettings, onBack = onBack, outfit = FigureDef.CHIEF) {
                     // Its files (#603), as a bot's.
                     if (dev.botdot.app.data.FilesExplorer.shows(features) && dev.botdot.app.data.UploadedFiles.chiefShows(features)) RoundButton(Icons.Filled.Folder, tr("Files"), onClick = onFiles)
                     RoundButton(Icons.Filled.Add, tr("New chat")) { vm.open(null) }
                 }
-            },
+                // The three latest earlier chats, one line under the header; a tap opens one and the row follows.
+                RecentChatsRow(RecentChats.of(chats, chatId)) { vm.open(it) }
+            } },
             bottomBar = { if (!empty) Column {
                 PlanDock(planView, CHIEF_COLOR, LocalChiefName.current, planFolded,
                     onFold = { planFolded = it; app.plans.setFolded(planChat, it) },
@@ -468,6 +483,41 @@ private fun Report(m: ChiefMessage) {
             if (m.text.isNotBlank()) MarkdownText(m.text, tables = !m.failed) // a file it sent while working has no text
             if (!m.failed) OpenAsDocument(m.text, m.from?.name.orEmpty())
             BotFilesRow(m.files, top = if (m.text.isNotBlank()) 8.dp else 0.dp)
+        }
+    }
+}
+
+/**
+ * The Chief's earlier chats as chips under its header (`public/chief.js`, `renderRecentChats`): the title, ellipsized,
+ * and its short time, a round mark before the title while the chat has new replies. On a phone's width the row scrolls
+ * sideways and drops the times. No chat to show, no row.
+ */
+@Composable
+private fun RecentChatsRow(chats: List<ChiefChatSummary>, onOpen: (String) -> Unit) {
+    if (chats.isEmpty()) return
+    val p = LocalPaper.current
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val phone = maxWidth < 640.dp
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = Space.s16, end = Space.s16, bottom = Space.s12),
+            horizontalArrangement = Arrangement.spacedBy(Space.s8),
+        ) {
+            for (c in chats) {
+                val marked = RecentChats.marked(c)
+                val said = if (marked) tr("New reply") + ", " + c.title else c.title
+                Row(
+                    Modifier.widthIn(max = if (phone) 160.dp else 220.dp).raised(Radius.pill, p.raise2)
+                        .clickable(onClickLabel = c.title, role = Role.Button) { onOpen(c.id) }
+                        .semantics(mergeDescendants = true) { contentDescription = said }
+                        .padding(horizontal = Space.s12, vertical = Space.s4),
+                    horizontalArrangement = Arrangement.spacedBy(Space.s8),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (marked) Box(Modifier.size(7.dp).clip(CircleShape).background(p.text))
+                    Text(c.title, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (!phone) Text(shortTime(c.updatedAt), color = p.faint, fontSize = Type.s12, maxLines = 1)
+                }
+            }
         }
     }
 }
