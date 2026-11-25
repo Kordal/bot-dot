@@ -204,7 +204,7 @@ test('a review removes the Chief\'s own loser at once and only proposes the shar
     dataDir: dir, removalLimit: (n) => Math.max(3, Math.floor(n / 4)),
     memory: {
       lastReview: () => null, setLastReview: () => {}, notesOf: (o) => PAIRS.filter((n) => n.owner === o), reviewSettings: () => ({ model: 'opus' }),
-      removeNote: (owner, id, opts) => { removed.push([owner, id, opts]); },
+      getNote: (id) => PAIRS.find((n) => n.id === id) || null, removeNote: (owner, id, opts) => { removed.push([owner, id, opts]); },
       pending: () => waiting, propose: (p) => { proposed.push(p); },
     },
     skills: { list: () => [] }, bots: { list: () => BOTS, get: (id) => BOTS.find((b) => b.id === id) },
@@ -233,9 +233,75 @@ test('a review removes the Chief\'s own loser at once and only proposes the shar
   assert.match(posted, /nothing to change/);
   // A removal or a proposal that fails is left out of the report and does not stop the review.
   answer = JSON.stringify({ settle: [{ remove: 'cold', keep: 'cnew' }, { remove: 'old', keep: 'new' }] });
-  const broken = review.create({ ...{ dataDir: dir, removalLimit: () => 3, memory: { lastReview: () => null, setLastReview: () => {}, notesOf: (o) => PAIRS.filter((n) => n.owner === o), removeNote: () => { throw new Error('No note with id cold'); }, propose: () => { throw new Error('No note with id old'); }, reviewSettings: () => ({}) }, skills: { list: () => [] }, bots: { list: () => BOTS, get: () => null }, asks: { list: () => [], add: () => {} }, attachSkill: () => {}, post: (t) => { posted = t; return 'c1'; }, run: async () => answer } });
+  const broken = review.create({ ...{ dataDir: dir, removalLimit: () => 3, memory: { lastReview: () => null, setLastReview: () => {}, notesOf: (o) => PAIRS.filter((n) => n.owner === o), getNote: (id) => PAIRS.find((n) => n.id === id) || null, removeNote: () => { throw new Error('No note with id cold'); }, propose: () => { throw new Error('No note with id old'); }, reviewSettings: () => ({}) }, skills: { list: () => [] }, bots: { list: () => BOTS, get: () => null }, asks: { list: () => [], add: () => {} }, attachSkill: () => {}, post: (t) => { posted = t; return 'c1'; }, run: async () => answer } });
   await broken.review();
   assert.match(posted, /nothing to change/);
+});
+
+// The review answers minutes after it read the notes: it acts on the notes as they stand then (#1722, ADR 277).
+function staleReview(change) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chief-review-stale-'));
+  after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let notes = PAIRS.map((n) => ({ ...n }));
+  const removed = [];
+  const proposed = [];
+  const out = { removed, proposed, posted: '' };
+  const r = review.create({
+    dataDir: dir, removalLimit: () => 3,
+    memory: {
+      lastReview: () => null, setLastReview: () => {}, notesOf: (o) => notes.filter((n) => n.owner === o).map((n) => ({ ...n })), reviewSettings: () => ({}),
+      getNote: (id) => { const n = notes.find((x) => x.id === id); return n ? { ...n } : null; },
+      removeNote: (owner, id) => { removed.push(id); notes = notes.filter((n) => n.id !== id); },
+      pending: () => [], propose: (p) => { proposed.push(p.noteId); },
+    },
+    skills: { list: () => [] }, bots: { list: () => BOTS, get: () => null }, asks: { list: () => [], add: () => {} }, attachSkill: () => {},
+    post: (t) => { out.posted = t; return 'c1'; },
+    // The answer comes after the owner (or a bot) changed the notes.
+    run: async () => { notes = change(notes); return JSON.stringify({ settle: [{ remove: 'cold', keep: 'cnew' }, { remove: 'old', keep: 'new' }] }); },
+  });
+  out.review = () => r.review();
+  return out;
+}
+const edit = (id, fields) => (notes) => notes.map((n) => (n.id === id ? { ...n, ...fields } : n));
+const without = (id) => (notes) => notes.filter((n) => n.id !== id);
+const all = (...changes) => (notes) => changes.reduce((acc, c) => c(acc), notes);
+
+test('a note that became the owner\'s while the review ran is neither removed nor proposed; the other pair still is', async () => {
+  const own = staleReview(edit('cold', { source: 'owner' }));
+  await own.review();
+  assert.deepEqual([own.removed, own.proposed], [[], ['old']], 'the Chief\'s note is the owner\'s now: left alone');
+  assert.doesNotMatch(own.posted, /Removed my note/);
+  const shared = staleReview(edit('old', { source: 'owner' }));
+  await shared.review();
+  assert.deepEqual([shared.removed, shared.proposed], [['cold'], []], 'no card for a shared note the owner has made theirs');
+  assert.doesNotMatch(shared.posted, /Proposed removing/);
+});
+
+test('a note whose text changed while the review ran is skipped, the loser or the one kept', async () => {
+  const lost = staleReview(edit('cold', { text: 'The newsletter goes out on Fridays.' }));
+  await lost.review();
+  assert.deepEqual([lost.removed, lost.proposed], [[], ['old']], 'new text is not removed on the strength of the old');
+  const keptChanged = staleReview(all(edit('cnew', { text: 'The newsletter is dropped.' }), edit('new', { text: 'Staging is on port 9000.' })));
+  await keptChanged.review();
+  assert.deepEqual([keptChanged.removed, keptChanged.proposed], [[], []], 'what it lost to is not what it was told');
+  assert.match(keptChanged.posted, /nothing to change/);
+});
+
+test('a note that is gone while the review ran, the loser or the one kept, is skipped', async () => {
+  const keptGone = staleReview(all(without('cnew'), without('new')));
+  await keptGone.review();
+  assert.deepEqual([keptGone.removed, keptGone.proposed], [[], []], 'the one kept is removed meanwhile: nothing loses to a note that is not there');
+  const lostGone = staleReview(all(without('cold'), without('old')));
+  await lostGone.review();
+  assert.deepEqual([lostGone.removed, lostGone.proposed], [[], []]);
+  assert.match(lostGone.posted, /nothing to change/);
+});
+
+test('when nothing changed meanwhile, the review still removes the Chief\'s loser and proposes the shared one', async () => {
+  const same = staleReview((notes) => notes);
+  await same.review();
+  assert.deepEqual([same.removed, same.proposed], [['cold'], ['old']]);
+  assert.match(same.posted, /Removed my note[^]*Proposed removing the shared note/);
 });
 
 // Against the real store: a shared note waits and is still there; the Chief's own is gone at once and comes back for 30 days.
