@@ -244,6 +244,10 @@ _Avoid_: untrusted input, external data
 Something true about the user for a time ("in Berlin this week"), kept as a note with the day it ends.
 _Avoid_: temporary memory, expiry, TTL
 
+**Site**:
+The website a note is about, saved as a host ("energa.pl"). The note arrives with the page when its bot opens that site, or one below it, in its browser. A note about no website has none.
+_Avoid_: domain, URL, tag
+
 **Remove**:
 To take a note out of every bot's reading because it is no longer true, replaced or ended; it can be brought back for 30 days.
 _Avoid_: delete, archive, soft delete

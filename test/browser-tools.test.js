@@ -174,7 +174,7 @@ test('the bot\'s browser_ tools ask botdot\'s browser route and answer with the 
     ['browser_click', { ref: 'e1' }, { op: 'click', ref: 'e1' }],
     ['browser_fill', { ref: 'e2', text: 'me@example.com' }, { op: 'fill', ref: 'e2', text: 'me@example.com' }],
     ['browser_press', { key: 'Enter' }, { op: 'press', key: 'Enter' }],
-    ['browser_goto', { url: 'https://example.com' }, { op: 'goto', url: 'https://example.com' }],
+    ['browser_goto', { url: 'https://example.com' }, { op: 'goto', url: 'https://example.com', arrive: true }], // arrive: botdot adds the notes about the website (ADR 274)
     ['browser_wait_for', { text: 'Welcome' }, { op: 'wait', text: 'Welcome' }],
     ['browser_select_option', { ref: 'e3', option: 'Poland' }, { op: 'select', ref: 'e3', option: 'Poland' }],
     ['browser_find', { text: 'Total' }, { op: 'find', text: 'Total' }],
@@ -275,6 +275,21 @@ test('open_browser answers with the page as soon as Camoufox is open, without a 
   assert.deepEqual(launches.map((a) => a.body.command), ["camoufox-browser 'https://example.com' >/tmp/camoufox.log 2>&1"]);
   const probe = asked.findIndex((a) => a.path === '/session/computer/browser');
   assert.ok(probe >= 0 && probe < asked.indexOf(launches[0]), 'the bridge is asked first, which starts one that ended');
+});
+
+test('open_browser and browser_goto ask botdot for the notes about the page they landed on, and no other tool does (ADR 274)', async (t) => {
+  const { asked, url } = await openBrowserStub(t, { openAfter: 0 });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const sent = () => asked.filter((a) => a.path === '/session/computer/browser').map((a) => a.body);
+  await mcp.request('tools/call', { name: 'open_browser', arguments: { url: 'https://example.org/a' } });
+  await mcp.request('tools/call', { name: 'open_browser', arguments: {} });
+  assert.deepEqual(sent().filter((b) => b.op !== 'goto' || b.arrive).map((b) => b.arrive), [true, true], 'open_browser, on a page and on a blank one');
+  await mcp.request('tools/call', { name: 'browser_goto', arguments: { url: 'https://example.org/b' } });
+  assert.equal(sent().at(-1).arrive, true);
+  await mcp.request('tools/call', { name: 'browser_snapshot', arguments: {} });
+  await mcp.request('tools/call', { name: 'browser_press', arguments: { key: 'Enter' } });
+  assert.deepEqual(sent().slice(-2).map((b) => b.arrive), [undefined, undefined]);
 });
 
 test('open_browser on an open Camoufox goes to the address in its tab and answers with that page', async (t) => {
