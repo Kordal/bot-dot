@@ -23,8 +23,8 @@ test('a machine with accounts has an embedding server of its own user, and each 
   const folder = `${done.dir}/embed/ann`;
   assert.match(done.system, new RegExp(`^chown ${SUB + 59999}:${SUB + 59999} ${folder}$`, 'm'));
   assert.equal(fs.statSync(folder).mode & 0o777, 0o700);
-  assert.match(done.system, new RegExp(`^setfacl -m u:botdot-embed:rwx,m::rwx ${folder}$`, 'm'));
-  assert.ok(done.system.indexOf(`setfacl -m u:botdot-embed:rwx,m::rwx ${folder}`) > done.system.indexOf(`chown ${SUB + 59999}:${SUB + 59999} ${folder}`));
+  assert.match(done.system, new RegExp(`^setfacl -m u:botdot-embed:wx,m::wx ${folder}$`, 'm'));
+  assert.ok(done.system.indexOf(`setfacl -m u:botdot-embed:wx,m::wx ${folder}`) > done.system.indexOf(`chown ${SUB + 59999}:${SUB + 59999} ${folder}`));
   assert.doesNotMatch(done.system, /setfacl -m g:botdot-door.* \S*\/embed\//, "the front door has no way into it");
   assert.doesNotMatch(done.system, new RegExp(`setfacl -m u:botdot-embed.* ${done.dir}/sockets/`), "and the embedding server none into the front door's");
 

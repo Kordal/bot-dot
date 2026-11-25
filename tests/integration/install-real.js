@@ -227,10 +227,13 @@ function sharedEmbeddingServer(machine) {
   // door is not let in.
   const folder = `${DIR}/embed/${ADMIN}`;
   const serverUid = machine.exec('stat', '-c', '%u', folder);
-  assert.equal(machine.exec('stat', '-c', '%a', folder), '700');
+  // stat shows an ACL's mask as the group bits, so the folder's mode is read from getfacl: the owner's rwx, the service's
+  // user alone with write and search (it makes and removes the socket, and never lists the folder), a mask to match, and
+  // nothing for the owning group or anyone else.
   const subStart = Number(machine.exec('sh', '-c', `awk -F: '$1 == "botdot-${ADMIN}" { print $2 }' /etc/subuid`));
   assert.equal(Number(serverUid), subStart + 59999, 'owned by the user the account\'s server runs as');
-  assert.match(machine.exec('getfacl', '-p', folder), /^user:botdot-embed:rwx$/m);
+  assert.deepEqual(machine.exec('getfacl', '-p', folder).split('\n').filter((l) => l && !l.startsWith('#')),
+    ['user::rwx', 'user:botdot-embed:-wx', 'group::---', 'mask::-wx', 'other::---'], 'the folder\'s ACL lets in the service\'s user alone');
   assert.equal(machine.exec('su', '-s', '/bin/sh', 'botdot-embed', '-c', `test -d ${folder} && echo in`), 'in', 'the service reaches it');
   machine.exec('useradd', '--create-home', 'eve');
   assert.equal(machine.exec('su', '-s', '/bin/sh', 'eve', '-c', `ls ${folder} >/dev/null 2>&1 && echo in || echo out`), 'out', 'another user of the machine does not');
@@ -553,7 +556,7 @@ const cases = [
       stage.step('install.sh --uninstall, answering no');
       const no = uninstall('no\n');
       assert.notEqual(no.status, 0);
-      assert.match(no.stdout, new RegExp(`This removes botdot from this machine for good:\\n.*the front door.*\\n.*the account ${ADMIN}:`));
+      assert.match(no.stdout, new RegExp(`This removes botdot from this machine for good:\\n.*the front door.*\\n.*the shared embedding server's Linux user botdot-embed\\n.*the account ${ADMIN}:`));
       assert.match(no.stdout, /Type yes to remove all of it: /);
       assert.match(no.stderr, /Nothing was removed\./);
       assert.equal(machine.api('GET', '/api/version').status, 200, 'botdot still answers');

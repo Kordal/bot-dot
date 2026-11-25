@@ -3264,7 +3264,7 @@ JSON
   chmod 700 "$folder"
   setfacl -m "g:$DOOR_USER:x,m::x" "$folder" </dev/null || die "Couldn't let the front door into $folder."
   # Its embedding folder (ADR 273), the same way round: botdot's server user owns it, and only the shared embedding
-  # server's user may enter it besides, to make the socket in it. Nobody else, and none of the account's bots, gets in,
+  # server's user may enter it besides, to make the socket in it (write and search, not read: it never lists the folder, and its mask holds the same). Nobody else, and none of the account's bots, gets in,
   # and no other account has its path. The chmod comes first: it would clear the mask the setfacl sets.
   embed_folder=''
   if embed_on; then
@@ -3272,7 +3272,7 @@ JSON
     mkdir -p "$embed_folder"
     chown "$((sub_uid + 59999)):$((sub_gid + 59999))" "$embed_folder"
     chmod 700 "$embed_folder"
-    setfacl -m "u:$EMBED_USER:rwx,m::rwx" "$embed_folder" </dev/null || die "Couldn't let the shared embedding server into $embed_folder."
+    setfacl -m "u:$EMBED_USER:wx,m::wx" "$embed_folder" </dev/null || die "Couldn't let the shared embedding server into $embed_folder."
   fi
 
   hand_images "$name"
