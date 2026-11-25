@@ -248,8 +248,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
         // The flow of a project never arranged; with the canvas, a long press here starts it.
-        // On a phone (ADR 147) the board is read as a column: the tiles are arranged on a wider screen.
-        val roomy = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= BoardCanvas.NARROW
+        // On a width the canvas would be drawn too small at (ADR 147, ADR 273) the board is read as a column: the tiles are arranged on a wider screen.
+        val roomy = !BoardCanvas.column(androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.toDouble())
         Column(Modifier.fillMaxWidth().then(if (canvas && roomy) Modifier.pointerInput(Unit) {
             holdAndDrag(onHold = { started = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); true })
         } else Modifier), verticalArrangement = Arrangement.spacedBy(Space.s16)) {

@@ -1,6 +1,7 @@
 # ADR-147: On a phone the board is one column
 
 - **Status:** Accepted (2026-11-04, the owner: "Dashboard on mobile is not really readable")
+- **Amended by:** [ADR 273](273-the-board-is-one-column-where-the-canvas-would-be-drawn-under-four-fifths-of-its-size.md), which starts the column where the canvas would be drawn under 0.8 of its size (960 pixels), not under 600
 - **Amends:** [ADR 124](124-a-projects-board-is-a-free-canvas-the-owner-arranges.md), where a phone drew the canvas small and was read by zooming; [ADR 130](130-a-projects-tiles-move-without-an-arrange-mode.md), where a long press moved a tile on any screen
 
 ## Context

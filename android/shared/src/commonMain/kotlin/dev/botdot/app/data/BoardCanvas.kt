@@ -11,8 +11,11 @@ object BoardCanvas {
     const val FEATURE = "project-layout"
     const val W = 1200
     const val GAP = 16
-    /** Narrower than this, in dp, the board is read as one column (ADR 147): the canvas scaled to a phone draws its text a third of its size. */
-    const val NARROW = 600
+    /** The smallest scale the canvas is drawn at (ADR 147, amended by ADR 273): below it the board is read as one column. */
+    const val MIN_SCALE = 0.8
+
+    /** Whether a board [width] dp wide is read as one column: the canvas scaled to it would be under [MIN_SCALE]. An unknown width (0) keeps the canvas. */
+    fun column(width: Double): Boolean = width > 0 && width < MIN_SCALE * W
     private const val MAX_H = 4000
 
     /** A kind's smallest, its first size and, for a button (New team, New card), its tallest: as tall as a button. */

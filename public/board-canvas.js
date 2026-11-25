@@ -133,9 +133,13 @@ function grown(layout, id, w, h) {
 // The bottom of the lowest tile: how high the canvas is.
 const height = (layout) => Math.max(0, ...Object.values(layout).map((r) => r[1] + r[3]));
 
-// Narrower than this (in pixels or dp) an app reads the board as one column (ADR 147): the canvas scaled down to a
-// phone's width would draw its text a third of its size.
-const NARROW = 600;
+// The smallest scale the canvas is drawn at (ADR 147, amended by ADR 273): below it a board is read as one column, as
+// the canvas's text would be drawn under four fifths of its size.
+const MIN_SCALE = 0.8;
+
+// Whether a board `width` wide (pixels or dp) is read as one column: the canvas scaled to it would be under MIN_SCALE.
+// An unknown width (0) keeps the canvas.
+const column = (width) => width > 0 && width < MIN_SCALE * W;
 
 // The tiles in the order a column reads them: from the top, and left to right where two start at the same height.
 const order = (layout) => Object.keys(layout).sort((a, b) => layout[a][1] - layout[b][1] || layout[a][0] - layout[b][0]);
@@ -157,7 +161,7 @@ function check(v) {
   return out;
 }
 
-const api = { W, GAP, NARROW, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, grown, height, order, check };
+const api = { W, GAP, MIN_SCALE, column, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, grown, height, order, check };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.BoardCanvas = api;
 

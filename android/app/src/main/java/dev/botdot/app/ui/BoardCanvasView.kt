@@ -80,13 +80,13 @@ internal suspend fun PointerInputScope.holdAndDrag(onHold: (Offset) -> Boolean, 
  * it on a canvas [BoardCanvas.W] wide, drawn at that size and scaled to the screen's width; two fingers zoom and pan.
  * A long press on a tile, then a drag, moves it, from near an edge or corner resizes it (#821, ADR 130: no Arrange
  * mode); a tile in the way slides down, and each drop is [save]d whole. Without [saved] the tiles take the first free
- * spots, and are saved at once so every app shows the same. Narrower than [BoardCanvas.NARROW] (a phone, ADR 147) the
+ * spots, and are saved at once so every app shows the same. Where the canvas would be drawn under [BoardCanvas.MIN_SCALE] (a phone, ADR 147, ADR 273) the
  * tiles stand in one column in the canvas's reading order, full width at their own height, and are moved on a wider screen.
  */
 @Composable
 internal fun BoardCanvasView(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>?, save: (Map<String, BoardCanvas.R>) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth < BoardCanvas.NARROW.dp) BoardColumn(tiles, saved) else BoardCanvasFree(tiles, saved, save)
+        if (BoardCanvas.column(maxWidth.value.toDouble())) BoardColumn(tiles, saved) else BoardCanvasFree(tiles, saved, save)
     }
 }
 
