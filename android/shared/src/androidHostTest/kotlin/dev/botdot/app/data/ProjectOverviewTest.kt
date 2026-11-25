@@ -42,4 +42,20 @@ class ProjectOverviewTest {
         assertEquals(Overviews.Head.Unknown, Overviews.head(OverviewEntry(id = "r", botId = "writer"), null))
         assertEquals(Overviews.Head.Unknown, Overviews.head(OverviewEntry(id = "g", groupId = "g1"), listOf(writer)))
     }
+
+    @Test fun anOverviewTileOnTheCanvasShowsTheWholeRowsThatFitAndAtLeastOne() {
+        val rows = listOf(100, 100, 100, 100)
+        assertEquals(4, Overviews.fit(rows, moreHeight = 30, available = 400))
+        assertEquals(4, Overviews.fit(rows, moreHeight = 30, available = 500))
+        // Four do not fit: the line that says how many more there are takes room from the rows (330 holds three and the line).
+        assertEquals(3, Overviews.fit(rows, moreHeight = 30, available = 330))
+        assertEquals(2, Overviews.fit(rows, moreHeight = 30, available = 329))
+        assertEquals(2, Overviews.fit(rows, moreHeight = 30, available = 250))
+        // Taller shows more.
+        assertEquals(3, Overviews.fit(rows, moreHeight = 30, available = 340))
+        // One row at least, even where not one fits; a lone row is never hidden.
+        assertEquals(1, Overviews.fit(rows, moreHeight = 30, available = 40))
+        assertEquals(1, Overviews.fit(listOf(500), moreHeight = 30, available = 40))
+        assertEquals(0, Overviews.fit(emptyList(), moreHeight = 30, available = 40))
+    }
 }
