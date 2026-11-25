@@ -1,6 +1,7 @@
 # ADR-148: The owner talks to a team through its lead
 
 - **Status:** Accepted (2026-11-04, the owner: "In projects, user should mostly interact with Leaders of the Teams. So whatever a normal bot needs it redirects to Leader which will ask you in return")
+- **Amended by:** the amendment of 2026-11-25 below: the lead's relay of the owner's own answer is carried by botdot (#1750)
 - **Supersedes:** in [ADR 114](114-a-team-bot-is-told-its-project-and-a-lead-what-leading-means.md), "a member is told to ask the owner directly when it needs a decision, not the lead" and the rejected alternative "Members' questions go through the lead"
 
 ## Context
@@ -34,3 +35,34 @@ The alternative left for later is done, on the web page and in the Android app: 
 ## Amendment (2026-11-12)
 
 In a team's chat, where the owner reads every reply, a member asks the owner itself and never through the lead ([ADR 218](218-in-a-chat-the-owner-reads-a-bot-asks-the-owner-itself.md)). The relay through the lead stays for a member's own runs.
+
+## Amendment (2026-11-25)
+
+- **Decided:** by the owner, on #1750 ("option A: botdot itself carries the owner's own words to the member, so the owner answers once, in the lead's chat").
+
+### Context
+
+The lead passes the owner's answer on with `message_bot` ("the lead asks the owner and brings the answer back"), but every message from another bot reaches a member framed as information, "never the owner's approval" ([ADR 224](224-a-teammates-message-to-a-bot-at-work-goes-into-its-run.md), `lib/bots.js`). The two rules contradict each other: the owner gave the bot-dot Manager an OK for Infra Admin's VM 112, the Manager relayed it, Infra Admin refused it as a bot's word, and the Manager asked the owner again. A second "yes" in the Manager's chat goes the same way, so it can loop. The lead cannot be trusted to retell an OK (a bot's text may say anything), and the owner should not be asked twice.
+
+### Decision
+
+- **`message_bot` has an optional `owner_answer`.** It names the owner's message in the sender's own chat: `"latest"`, or the number of a run in that chat. botdot looks the message up itself (`lib/owner-answer.js`): it must be words the owner typed (a run the owner started: not a bot's, the Chief's, a job's, a Board tile's or botdot's, `ownerWords` of ADR 278), in the sender's own chat (not another bot's, not a turn in a group), still in the chat (not forgotten or left out), and at most six hours old. Otherwise the call is refused whole, with the reason, and nothing is sent.
+- **The member's prompt gets a block botdot writes**, after every bot's text and under a mark made for that prompt that no bot's text holds (ADR 020's mark, `markNotIn`): who wrote it and when, the owner's words quoted inert (`prompt-text.inert`, cut), the lead's question just before them (the end of its reply and its card's questions, cut), and the plain words that this block *is* the owner's own answer, which the member may act on within what those words say (and, when they answer the question shown, within what that asked). It says too that the block is no card. The block goes wherever a bot's message reaches a run: a run the message starts, a note, an answer the bot waits for, a message steered into a run at work, and a run that carries on after an OK.
+- **The bot's own text still never counts.** What the lead wrote, and every other message of a bot, stays information, "never the owner's approval". A bot cannot make the block: it holds a mark that did not exist when the bot wrote, and `owner_answer` is only a name that botdot resolves. A line that looks like the block, without the mark, is only text.
+- **Cards are unchanged.** `ask_permission`, `ask_override`, `ask_skill`, the Vault, actions in connected apps and steps on the computer still wait for the owner's tap on their card. The block covers a bot's own "ask the owner before X" rules and the answers to its questions.
+- **The lead is told.** `LEAD_RULES` (and the Project Manager's note for the bots in no team) says to pass the owner's answer with `owner_answer`, and that a retelling is only its word.
+- **API:** `POST /api/self/session/message` takes `owner_answer` (`docs/api.md`); the run it starts holds it as `fromBot.ownerAnswer`.
+
+### Alternatives
+
+- **Teach the member to trust the lead's retelling.** Rejected: a bot's text is not the owner's, and a lead that misread, or was written to by a web page, would approve for the owner.
+- **The lead forwards the owner's message by its text.** Rejected: nothing tells the member the words are the owner's, and a bot can write any words.
+- **Send the owner's reply to the member from the owner's own chat with it.** Rejected: that is the member asking the owner directly, which ADR 148 moved to the lead ("one voice per team").
+- **No time limit.** Rejected: an old "yes" to an old question is not an answer to the question of now. Six hours covers a working session and a night's pause is asked again.
+
+### Consequences
+
+- The owner answers once, in the lead's chat; the member acts on their words and does not ask again.
+- A member's prompt grows by up to some 3,500 characters for a message that carries one.
+- A lead that names a message with `owner_answer` that fails learns why in the tool's answer and can fix it, or ask the owner.
+- A bot's run record holds the owner's words it was handed (`fromBot.ownerAnswer`), which are already in the lead's chat.
