@@ -603,6 +603,25 @@ class NeedsDesk(private val store: Store, private val api: Api, scope: Coroutine
         val decline = NeedsButton(NO, tr("Decline"), NeedsButtonLook.SECONDARY)
         val facts = { rows: List<ToolCard.Fact> -> if (rows.isEmpty()) emptyList() else listOf(NeedsBlock(NeedsLook.FACTS, rows = rows)) }
         when {
+            a.kind == "update" -> {
+                // A new version that waits for the account (#1690, ADR 271): the server's title, when it moves, and its
+                // buttons by verb, no Not now. Both go to the front door's own routes (never the account's botdot server);
+                // Now asks first only when the card says the account is busy. A card the app has no verb of draws nothing.
+                if (a.act?.verb !in AskAct.UPDATE_VERBS) return
+                val going = key in l.pressing
+                a.updateButtons.forEach { b ->
+                    on(key, b.verb) {
+                        if (b.verb == AskAct.UPDATE_NOW) api.updateNow() else api.updateTonight()
+                        runCatching { store.needs.refresh() }
+                        null
+                    }
+                }
+                add(a.title, ToolCard.text(a.body).takeIf { it.isNotEmpty() }, emptyList(),
+                    a.updateButtons.mapIndexed { i, b ->
+                        NeedsButton(b.verb, b.label.orEmpty(), if (i == 0) NeedsButtonLook.PRIMARY else NeedsButtonLook.SECONDARY, enabled = !going,
+                            ask = if (b.verb == AskAct.UPDATE_NOW && a.asksBeforeNow) NeedsQuestion(null, tr("Your account moves to the new version: your bots restart, and work still running stops."), tr("Update now")) else null)
+                    })
+            }
             a.act != null -> {
                 // Its title, Not now and the server's verb: Connect opens the app's sign-in page in the browser.
                 val label = a.actLabel ?: return
