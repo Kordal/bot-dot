@@ -62,6 +62,7 @@ const connectedAppsLib = require('./lib/connected-apps');
 const asksLib = require('./lib/asks');
 const { isCustomApp } = require('./lib/custom-app');
 const { tr } = require('./lib/i18n');
+const screenPage = require('./lib/screen-page');
 const { waitingWords } = require('./lib/bot-changes');
 const learningWords = require('./lib/learning'); // what a chip, a memory card and a memory tool's answer say
 const { CHIEF_NOTES } = require('./lib/chief-tools'); // the Chief's own place for notes (ADR 017)
@@ -1050,7 +1051,8 @@ function parseComputerPath(url) {
 }
 
 // A note in the frame, which asks again every few seconds: the computer may be about to start.
-const screenNote = (text) => `<meta http-equiv="refresh" content="5"><body style="font:14px system-ui;background:#111;color:#aaa;display:grid;place-items:center;height:100vh;margin:0">${text}</body>`;
+const screenNote = (text, lang) => `<!doctype html><html lang="${lang}"><meta charset="utf-8"><meta http-equiv="refresh" content="5"><body style="font:14px system-ui;background:#111;color:#aaa;display:grid;place-items:center;height:100vh;margin:0">${text}</body>`;
+const HTML_UTF8 = 'text/html; charset=utf-8';
 
 async function serveScreen(req, res, { botId, rest }) {
   let rel;
@@ -1062,18 +1064,22 @@ async function serveScreen(req, res, { botId, rest }) {
   }
   // The bot's own screen on the account's computer (#105), or its External Virtual PC's once botdot's viewer is up there.
   const boat = B.bots.get(botId)?.computer === 'boat';
+  const lang = B.settings.get().language; // the viewer and its notes speak the account's language (ADR 108)
   const { state } = file !== VIEWER_PAGE ? { state: 'running' } : boat ? { state: B.boatStream(botId) ? 'running' : 'stopped' } : await B.computers.screenState(botId);
   if (state !== 'running') {
-    const why = state === 'off' ? "This bot's screen starts when it first uses its computer." : "This bot's computer is turned off.";
-    res.writeHead(503, { 'Content-Type': 'text/html' });
-    return res.end(screenNote(why));
+    const words = screenPage.notes(lang);
+    res.writeHead(503, { 'Content-Type': HTML_UTF8 });
+    return res.end(screenNote(state === 'off' ? words.start : words.off, lang));
   }
   const headers = { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache', ...(file === VIEWER_PAGE ? { 'Content-Security-Policy': screenCsp(req) } : {}) };
   if (req.method === 'HEAD') { res.writeHead(200, headers); return res.end(); }
   // The owner's app opens the viewer with its mouse and keyboard (view_only=0) when the owner takes control: an
   // irreversible step that waits or is on the bot's page then counts as declined (ADR 107).
   if (file === VIEWER_PAGE && /[?&]view_only=0(&|$)/.test(rest)) irreversibleSteps.tookControl(botId);
-  sendFile(res, file, headers);
+  if (file !== VIEWER_PAGE) return sendFile(res, file, headers);
+  const html = screenPage.page(fs.readFileSync(file, 'utf8'), lang);
+  res.writeHead(200, { ...headers, 'Content-Type': HTML_UTF8 });
+  res.end(html);
 }
 
 // Every request, on the port and on the front door's socket.
@@ -1110,8 +1116,9 @@ async function handle(req, res) {
     // Words in the viewer's frame, not the browser's empty error page, and the reason in the log.
     console.warn(`[computers] couldn't show the screen of ${screen.botId}: ${e.message}`);
     if (res.headersSent) return res.destroy();
-    res.writeHead(502, { 'Content-Type': 'text/html' });
-    res.end(screenNote("This bot's screen couldn't be shown. Try again in a moment."));
+    const lang = B.settings.get().language;
+    res.writeHead(502, { 'Content-Type': HTML_UTF8 });
+    res.end(screenNote(screenPage.notes(lang).failed, lang));
   });
   let url;
   try { url = new URL(req.url, `http://${req.headers.host}`); } catch { throw httpError(400, 'Bad address'); }

@@ -108,7 +108,7 @@ function buildServer(tag, temp) {
   const context = path.join(temp, 'server');
   fs.mkdirSync(context);
   // Install code and its companion files must come from the same working tree, including a new worker before commit.
-  for (const file of ['server.js', 'front-door.js', 'package.json', 'lib', 'public', 'chief-skills', 'vendor', 'deploy/desktop', 'deploy/prepare-computers.sh', 'deploy/seed-demo.js', 'compose.yaml', 'compose.front-door.yaml']) {
+  for (const file of ['server.js', 'front-door.js', 'package.json', 'lib', 'public', 'screen', 'chief-skills', 'vendor', 'deploy/desktop', 'deploy/prepare-computers.sh', 'deploy/seed-demo.js', 'compose.yaml', 'compose.front-door.yaml']) {
     fs.mkdirSync(path.dirname(path.join(context, file)), { recursive: true });
     fs.cpSync(path.join(root, file), path.join(context, file), { recursive: true });
   }

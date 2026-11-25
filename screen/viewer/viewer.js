@@ -9,13 +9,9 @@ const viewOnly = query.get('view_only') !== '0';
 const here = location.pathname.replace(/[^/]*$/, '');
 const url = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${here}websockify`;
 
-const WORDS = {
-  starting: 'Starting the computer…',
-  watching: 'Watching',
-  control: 'You have control',
-  reconnecting: 'Reconnecting…',
-  off: 'Turned off',
-};
+// The words of each state, in the account's language: botdot writes them into the page it serves (lib/screen-page.js).
+let WORDS = {};
+try { WORDS = JSON.parse(document.body.dataset.words || '{}'); } catch { /* a state is then shown by its name */ }
 const RETRY_MS = 2000;
 
 const screen = document.getElementById('screen');
@@ -31,8 +27,8 @@ function setState(next) {
   if (next === state) return;
   state = next;
   status.dataset.state = next;
-  status.textContent = WORDS[next];
-  document.title = WORDS[next];
+  status.textContent = WORDS[next] || next;
+  document.title = status.textContent;
   if (window.parent !== window) window.parent.postMessage({ type: 'botdot-screen', state: next }, location.origin);
 }
 
@@ -69,9 +65,10 @@ function connect() {
   mine.addEventListener('disconnect', async () => {
     if (mine !== transport) return;
     transport = null;
-    // Not yet shown means it is still starting; shown once means it went away and comes back.
-    setState(everShown ? 'reconnecting' : 'starting');
-    if (await computerIsOff()) setState('off');
+    // Ask first and say it once: a computer that stays off stays on "Turned off" across the retries, with no
+    // "Reconnecting…" between. Not yet shown means it is still starting; shown once means it went away and comes back.
+    const off = await computerIsOff();
+    setState(off ? 'off' : everShown ? 'reconnecting' : 'starting');
     later();
   });
 }

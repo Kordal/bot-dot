@@ -2,10 +2,11 @@
 //   NODE_PATH=<directory containing playwright> node test/browser/screen-viewer.cjs
 // The viewer at /computer/<bot>/vnc.html against a stand-in computer: botdot's server is real, the helper behind it
 // and the VNC server (RFB 3.8, one raw picture of 800x500) are stand-ins. It checks the states in words (Starting the
-// computer…, Watching, You have control, Reconnecting…, Turned off), that it connects by itself once the computer is
+// computer…, Viewing, You have control, Reconnecting…, Turned off), that it connects by itself once the computer is
 // up and again after it dropped, that the picture is the desktop's own shape and fits the window, that it sends no
-// mouse or key until the owner has control, that the web page's frame is told the state (data-screen) and that
-// noVNC's own page is gone. Scratch data only.
+// mouse or key until the owner has control, that a computer that stays off stays on "Turned off" across the retries,
+// that the words are the account's language (Polish when it chose it) and that the web page's frame is told the state
+// (data-screen) and that noVNC's own page is gone. Scratch data only.
 //   VIEWER_SHOTS=<folder>  save a screenshot of each state
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
@@ -168,7 +169,7 @@ function vncServer(sock, got) {
     assert.equal(await page.evaluate(() => document.getElementById('status').dataset.state), 'starting');
     await shot('starting');
     vncUp = true;
-    await sees('Watching');
+    await sees('Viewing');
     assert.equal(await page.evaluate(() => window.marker), 'same page', 'it came up without a reload');
 
     // The picture is the desktop's own shape and all of it is in the window, in a wide, and in a narrow, window.
@@ -202,14 +203,14 @@ function vncServer(sock, got) {
 
     // The computer's VNC server goes away (a restart): Reconnecting…, then the picture again, on the same page.
     await page.goto(viewer(false));
-    await sees('Watching');
+    await sees('Viewing');
     await page.evaluate(() => { window.marker = 'same page'; });
     vncUp = false;
     for (const s of live) s.destroy();
     await sees('Reconnecting…');
     await shot('reconnecting');
     vncUp = true;
-    await sees('Watching');
+    await sees('Viewing');
     assert.equal(await page.evaluate(() => window.marker), 'same page', 'it came back without a reload');
 
     // The computer is turned off: Turned off, and the picture again once it is on.
@@ -217,8 +218,48 @@ function vncServer(sock, got) {
     for (const s of live) s.destroy();
     await sees('Turned off');
     await shot('off');
+    // It stays turned off across several retries (every 2 seconds): the state is set once and never flickers to
+    // "Reconnecting…" while the HEAD is out.
+    const heads = [];
+    page.on('request', (r) => { if (r.method() === 'HEAD') heads.push(r.url()); });
+    await page.evaluate(() => {
+      window.seen = [];
+      new MutationObserver(() => window.seen.push(document.getElementById('status').dataset.state + ':' + document.getElementById('status').textContent))
+        .observe(document.getElementById('status'), { childList: true, characterData: true, subtree: true, attributes: true });
+    });
+    await waitFor(() => heads.length >= 3, { what: 'three more retries of the turned-off viewer', timeout: 15_000 });
+    assert.deepEqual(await page.evaluate(() => window.seen), [], 'it never left "Turned off" while the retries went on');
+    assert.equal(await said(), 'Turned off');
     computerOn = true; vncUp = true;
-    await sees('Watching');
+    await sees('Viewing');
+
+    // The account's language: Polish, once it chose it in Settings. Every state, on a fresh page.
+    await srv.api('/settings', { method: 'PUT', body: { language: 'pl' } });
+    computerOn = true; vncUp = false;
+    await page.goto(viewer(false));
+    assert.equal(await page.evaluate(() => document.documentElement.lang), 'pl');
+    await sees('Uruchamianie komputera…');
+    assert.equal(await page.evaluate(() => document.getElementById('status').dataset.state), 'starting', 'the state the frame is told keeps its name');
+    assert.equal(await page.title(), 'Uruchamianie komputera…');
+    vncUp = true;
+    await sees('Podgląd');
+    vncUp = false;
+    for (const s of live) s.destroy();
+    await sees('Łączenie ponownie…');
+    computerOn = false;
+    await sees('Wyłączony');
+    computerOn = true; vncUp = true;
+    await sees('Podgląd');
+    await page.goto(viewer(true));
+    await sees('Masz kontrolę');
+    await shot('control-pl');
+    // The note the server shows in the frame while the computer is off.
+    computerOn = false;
+    assert.match(await (await fetch(viewer(false))).text(), /Ekran tego bota włącza się, gdy po raz pierwszy użyje komputera/);
+    computerOn = true;
+    await srv.api('/settings', { method: 'PUT', body: { language: 'en' } });
+    await page.goto(viewer(false));
+    await sees('Viewing');
 
     // The web page's frame is told the state: it wears it as data-screen, and nothing reloads it.
     await context.close();
@@ -244,7 +285,7 @@ function vncServer(sock, got) {
 
     await hostContext.close();
     assert.deepEqual(errors, []);
-    console.log('PASS: the viewer says starting, watching, control, reconnecting and turned off; connects and reconnects by itself; fits the desktop\'s own shape; sends nothing until control; tells its frame its state; no browser errors.');
+    console.log('PASS: the viewer says starting, viewing, control, reconnecting and turned off, in English and in Polish; stays turned off across retries; connects and reconnects by itself; fits the desktop\'s own shape; sends nothing until control; tells its frame its state; no browser errors.');
   } finally {
     await browser?.close();
     for (const s of live) s.destroy();

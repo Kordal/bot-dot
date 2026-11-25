@@ -134,6 +134,48 @@ test("the viewer's page, at the address the apps open, has its own policy, and i
   }
 });
 
+test("the viewer's page and the notes in its frame speak the account's language (ADR 108, ADR 279)", async (t) => {
+  const eva = await makeBot(srv, { name: 'Eva', computer: 'linux' });
+  const get = async () => { const r = await fetch(`${srv.base}/computer/${eva.id}/vnc.html`); return { r, body: await r.text() }; };
+  const words = (body) => JSON.parse(body.match(/<body data-words="([^"]*)"/)[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+  t.after(() => srv.api('/settings', { method: 'PUT', body: { language: 'en' } }));
+
+  // English, the default: the note, then the page with the words of the five states.
+  const note = await get();
+  assert.equal(note.r.status, 503);
+  assert.match(note.body, /<html lang="en">/);
+  assert.equal((await srv.api(`/bots/${eva.id}/computer`, { method: 'POST', body: { action: 'start' } })).status, 200);
+  const en = await get();
+  assert.match(en.body, /<html lang="en">/);
+  assert.match(en.body, /<title>Screen<\/title>/);
+  assert.deepEqual(words(en.body), { starting: 'Starting the computer…', watching: 'Viewing', control: 'You have control', reconnecting: 'Reconnecting…', off: 'Turned off' });
+  assert.doesNotMatch(en.body, /\{(lang|title|words)\}/, 'every mark is filled');
+
+  // Polish, once the account chose it: the page, and the note while the screen is off (in UTF-8).
+  assert.equal((await srv.api('/settings', { method: 'PUT', body: { language: 'pl' } })).status, 200);
+  const pl = await get();
+  assert.equal(pl.r.status, 200);
+  assert.match(pl.r.headers.get('content-type'), /charset=utf-8/i);
+  assert.match(pl.body, /<html lang="pl">/);
+  assert.match(pl.body, /<title>Ekran<\/title>/);
+  assert.deepEqual(words(pl.body), { starting: 'Uruchamianie komputera…', watching: 'Podgląd', control: 'Masz kontrolę', reconnecting: 'Łączenie ponownie…', off: 'Wyłączony' });
+  const frank = await makeBot(srv, { name: 'Frank', computer: 'linux' });
+  const off = await fetch(`${srv.base}/computer/${frank.id}/vnc.html`);
+  assert.equal(off.status, 503);
+  assert.match(off.headers.get('content-type'), /charset=utf-8/i);
+  const offText = await off.text();
+  assert.match(offText, /<html lang="pl">/);
+  assert.match(offText, /Ekran tego bota włącza się, gdy po raz pierwszy użyje komputera\./);
+  // The page's own files are not rewritten.
+  assert.match(await (await fetch(`${srv.base}/computer/${eva.id}/viewer/viewer.js`)).text(), /botdot's own viewer/);
+});
+
+test("the screen viewer's folder goes into the image and into the install check's stand-in image (.dockerignore is an allowlist)", () => {
+  const root = path.join(__dirname, '..');
+  assert.match(fs.readFileSync(path.join(root, '.dockerignore'), 'utf8'), /^!screen\/$/m, 'without it every installed botdot answers 404 for the screen');
+  assert.match(fs.readFileSync(path.join(root, 'tests/integration/test-install.js'), 'utf8'), /'public', 'screen', /, 'the install check copies it too');
+});
+
 test("a deleted bot's screen ends, and its number goes to the next bot (#105)", async () => {
   const gone = await makeBot(srv, { name: 'Gone', computer: 'linux' });
   assert.equal((await srv.api(`/bots/${gone.id}/computer`, { method: 'POST', body: { action: 'start' } })).status, 200);
