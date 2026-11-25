@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.ClaudeHeld
 import dev.botdot.app.data.without
 import dev.botdot.app.data.chatClock
 import dev.botdot.app.data.withFailed
@@ -839,6 +840,8 @@ fun Composer(
     initialText: String = "",
     onSignIn: (() -> Unit)? = null,
     backAt: String? = null, // over Claude's usage limit (#1090): when the bots carry on
+    held: List<ClaudeHeld> = emptyList(), // the other connections botdot holds (#1668): a line each
+    onSignInHeld: (() -> Unit)? = null, // the way to sign in to Claude, for a held line that says it is signed out
 ) {
     val p = LocalPaper.current
     // Kept when the phone turns. With the cursor: a mention is what's typed before it.
@@ -921,6 +924,22 @@ fun Composer(
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = Space.s8, end = Space.s8).wrapContentHeight(Alignment.CenterVertically)
                 .semantics { liveRegion = LiveRegionMode.Polite },
         )
+        // What a connection other than the account default's holds (#1668): a provider's usage limit, or Claude's sign-out or
+        // limit while the default runs on a provider. One line each.
+        held.forEach { h ->
+            if (h.signedOut) Text(
+                AnnotatedString.Builder().apply { append("${tr("Claude is signed out: bots that use it can't work.")} "); pushStyle(SpanStyle(fontWeight = FontWeight.SemiBold)); append(tr("Sign in")); pop() }.toAnnotatedString(),
+                color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(Radius.small)
+                    .then(if (onSignInHeld != null) Modifier.clickable(onClickLabel = tr("Sign in"), role = Role.Button, onClick = onSignInHeld) else Modifier)
+                    .padding(start = Space.s8, end = Space.s8).wrapContentHeight(Alignment.CenterVertically),
+            ) else Text(
+                tr("{name}'s usage limit is reached: its bots carry on at {time}.", "name" to h.name, "time" to shortTime(h.backAt ?: "")),
+                color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = Space.s8, end = Space.s8).wrapContentHeight(Alignment.CenterVertically)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
         // Why the last send failed, until the owner sends or edits.
         outbox.note?.let { note ->
             Text(note, color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,

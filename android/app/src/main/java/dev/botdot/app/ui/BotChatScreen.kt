@@ -174,6 +174,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     val stays = sendStays(features) // Send stays while it works, and Stop is the word on the working line
     val signedOut by app.store.claude.signedOut.collectAsState()
     val backAt by app.store.claude.backAt.collectAsState()
+    val heldLines by app.store.claude.held.collectAsState()
     // Its plan above the message box (docs/api.md, "The plan"): the run at work's, or the newest run's that was stopped
     // before its plan was done, until dismissed. Folded to its one line unless the owner opened it in this chat.
     val planView = vm.plan
@@ -197,6 +198,8 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         initialText = sharedText,
         onSignIn = onSignIn.takeIf { signedOut },
         backAt = backAt,
+        held = heldLines,
+        onSignInHeld = onSignIn,
     )
     // A job's chip: "Run now", the jobs screen's own.
     fun runJob(jobId: String) = scope.launch {

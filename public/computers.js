@@ -270,8 +270,9 @@ function friendlyProblem(meta, resultText) {
   if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|reach the API server|network error|fetch failed/i.test(text)) {
     return `${meta.steps ? tr("I lost the connection to Claude's servers, so I couldn't finish. This computer had no internet connection.") : tr("I couldn't reach Claude's servers, so I couldn't start. This computer had no internet connection.")} ${meta.jobName ? tr('I will try again at the next scheduled time.') : tr('Check the connection and send the message again.')}`;
   }
-  if (meta.carriesOnAfterLimit) return tr("Claude's usage limit was reached, so I stopped. I'll carry on by myself once it resets."); // #1090
-  if (/usage limit|hit your (usage )?limit|limit will reset/i.test(text)) return tr("Claude's usage limit was reached, so I stopped. Try again once it resets.");
+  // #1090; on a provider, its name (#1668)
+  if (meta.carriesOnAfterLimit) return meta.limitOf ? tr("{name}'s usage limit was reached, so I stopped. I'll carry on by myself once it resets.", { name: meta.limitOf }) : tr("Claude's usage limit was reached, so I stopped. I'll carry on by myself once it resets.");
+  if (/usage limit|hit your (usage )?limit|limit will reset/i.test(text)) return meta.limitOf ? tr("{name}'s usage limit was reached, so I stopped. Try again once it resets.", { name: meta.limitOf }) : tr("Claude's usage limit was reached, so I stopped. Try again once it resets.");
   if (/overloaded|529|rate.?limit|429/i.test(text)) return tr("Claude's servers were busy, so I stopped. Try again in a little while.");
   // Something else: say what it was, briefly.
   const why = String(meta.error || resultText || '').replace(/\s+/g, ' ').trim().slice(0, 200);
