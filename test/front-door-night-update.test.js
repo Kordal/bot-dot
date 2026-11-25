@@ -198,10 +198,19 @@ test('its owner has the setting: the one account of a machine reaches /front-doo
   const b = m.door.browser();
   const o = await b.post('/sign-in/options', {});
   assert.equal((await b.post('/sign-in', { credential: k.signIn(o.data.publicKey) })).status, 200);
-  assert.equal((await b.get('/front-door/session')).data.updates, true, 'a machine of one account now has the setting');
+  assert.equal((await b.get('/front-door/session')).data.updates, false, 'the apps draw no Updates card on a machine of one account yet (#1691), though the front door plans its switches');
   const u = await b.get('/front-door/update');
   assert.equal(u.status, 200, u.text);
   assert.equal(u.data.when, 'night', 'the default');
   assert.equal((await b.post('/front-door/update', { when: 'ready' })).data.when, 'ready');
   assert.equal(JSON.parse(fs.readFileSync(path.join(m.door.data, 'front-door.json'), 'utf8')).accounts.owner.autoUpdate, false, 'root\'s step leaves it waiting');
+});
+
+test('a managed machine of one account plans no switch: nothing is pinned, nothing asked, `updates` stays false', async (t) => {
+  const m = await oneAccount(t, { when: 'night', env: { FRONT_DOOR_MANAGED: '1' } });
+  m.said('account-owner.json', waiting());
+  await m.quiet(1000);
+  assert.deepEqual(m.asked().filter((f) => f.startsWith('SWITCH-')), [], 'the fleet console is its admin: no one asks for a switch');
+  const accounts = JSON.parse(fs.readFileSync(path.join(m.door.data, 'front-door.json'), 'utf8')).accounts;
+  assert.equal(accounts.owner.autoUpdate, undefined, 'the account is not pinned: root\'s step switches it as before');
 });

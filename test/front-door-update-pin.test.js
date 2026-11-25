@@ -102,3 +102,8 @@ test('a machine with an admin pins every account, and one of one account does to
   const one = await startedWith(t, { FRONT_DOOR_ONE_ACCOUNT: 'ann', FRONT_DOOR_REQUESTS: tmp(t, 'fd-requests-') });
   assert.deepEqual(one, { ann: ['night', false], bob: ['night', false], cat: ['manual', false] });
 });
+
+test('a managed machine of one account keeps `autoUpdate: false` for manual alone', async (t) => {
+  const got = await startedWith(t, { FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'ann', FRONT_DOOR_SETUP_KEY: 'k'.repeat(40), FRONT_DOOR_REQUESTS: tmp(t, 'fd-requests-') });
+  assert.deepEqual(got, { ann: ['night', undefined], bob: ['night', undefined], cat: ['manual', false] }, 'the fleet console is its admin: no one plans its switches');
+});

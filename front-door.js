@@ -141,17 +141,21 @@ if (FIRST_ACCOUNT !== null && !store.ACCOUNT_NAME.test(FIRST_ACCOUNT)) {
 // A managed machine has no admin: the fleet console is (ADR 154).
 const ADMIN = MANAGED ? null : process.env.FRONT_DOOR_ADMIN || null;
 const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
-// Whether the owner of an account chooses when it switches to a new version, the front door planning the switch: on a
-// machine of one account its owner, on a machine of several accounts root's step serves, every account, the admin's own
-// too (#274), and on one with no admin (a managed machine; one that names none) no one (ADR 271, #1689).
-const choosesUpdates = () => !!REQUESTS && (!!ONE_ACCOUNT || !!ADMIN);
+// Whether the front door plans the switches (ADR 271, #1689): on a machine of one account, and on a machine of several that
+// root's step serves and that has an admin (every account, the admin's own too, #274). Never on a managed machine, one account
+// or several: the fleet console is its admin and no owner chooses there; and none on a machine that names no admin.
+const plansSwitches = () => !!REQUESTS && !MANAGED && (!!ONE_ACCOUNT || !!ADMIN);
+// Whether `updates` says yes in `GET /front-door/session`, the apps then drawing the Updates card in Settings: only where
+// there is an admin to hand the update on, as before #1689. A machine of one account plans its switches but does not say it
+// yet: the apps' wording for it comes with #1691.
+const showsUpdates = () => plansSwitches() && !ONE_ACCOUNT;
 // The account the setup key makes: the one account, or a managed machine's first.
 const SETUP_ACCOUNT = ONE_ACCOUNT || FIRST_ACCOUNT;
 const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
 // The machine's RAM sizes the default share (#126): the last root's step measured, kept while its file is stale.
 let machineRam = null;
-const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null, plansSwitches: choosesUpdates() });
-// Where the front door plans the switches (choosesUpdates) root's step leaves every account waiting and the front door
+const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null, plansSwitches: plansSwitches() });
+// Where the front door plans the switches (plansSwitches) root's step leaves every account waiting and the front door
 // switches each one when its owner chose and it is idle (ADR 271, #1689): every account it has already says
 // `autoUpdate: false` from the first start, each keeping its "when" in words. Elsewhere the old rule, `false` for `manual`
 // alone, and an account pinned before is let go.
@@ -831,11 +835,11 @@ async function switchOne(name, { now, quick }) {
 // only: the one account to look at (its owner looks), else every account. quick: only what needs no question to an account
 // (an account a day past its deadline), for a look that must not wait for one: an owner's or the admin's page.
 async function switchDue({ only = null, now = Date.now(), quick = false } = {}) {
-  if (!REQUESTS || !choosesUpdates()) return;
+  if (!REQUESTS || !plansSwitches()) return;
   // An update asked or going: root's step will switch what it switches, and what waits is another version after it.
   const s = updateStatus();
   if (s.asked || s.update?.state === 'updating') return;
-  await Promise.all(doors.listAccounts().filter((a) => (!only || a.name === only) && !a.suspended && choosesUpdates(a.name) && !switching.has(a.name)).map(async (a) => {
+  await Promise.all(doors.listAccounts().filter((a) => (!only || a.name === only) && !a.suspended && plansSwitches() && !switching.has(a.name)).map(async (a) => {
     switching.add(a.name);
     try { await switchOne(a.name, { now, quick }); } catch (e) { console.error(`[front door] couldn't plan the switch of the account ${a.name}: ${e.message}`); } finally { switching.delete(a.name); }
   }));
@@ -1167,14 +1171,14 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), ...(MANAGED ? { feedbackAsk: doors.feedbackAnswerOf(account) === null } : {}), updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), ...(MANAGED ? { feedbackAsk: doors.feedbackAnswerOf(account) === null } : {}), updates: showsUpdates(), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
   if (p === '/front-door/update' || p === '/front-door/update/now' || p === '/front-door/update/notes') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    if (!choosesUpdates(account)) return send(res, 404, { error: 'Not found' });
+    if (!plansSwitches()) return send(res, 404, { error: 'Not found' });
     if (req.method === 'GET' && p === '/front-door/update') {
       await switchDue({ only: account, quick: true });
       return send(res, 200, ownUpdate(account));
@@ -2202,7 +2206,7 @@ async function listAccounts() {
       ? { size: size.size, sizes: size.sizes.map((s) => ({ id: String(s.id), cpus: s.cpus, memoryGB: s.memoryGB, available: s.available !== false })) } : null;
     return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name), ...(longOf.has(a.name) ? { long: longOf.get(a.name) } : {}),
       ...(computer === 'linux' || computer === 'boat' ? { computer } : {}), ...(boatSize ? { boatSize } : {}),
-      ...(a.name === ADMIN ? { admin: true } : {}), ...(choosesUpdates(a.name) ? { update: ownUpdate(a.name) } : {}) };
+      ...(a.name === ADMIN ? { admin: true } : {}), ...(plansSwitches() ? { update: ownUpdate(a.name) } : {}) };
   }));
 }
 
@@ -2345,7 +2349,7 @@ async function accountAction(req, res, name, action) {
   }
   // "Update now" for an account that waits (ADR 053): as its owner's, to the version the admin installed.
   if (action === 'update') {
-    if (!choosesUpdates(name) || !ownUpdate(name).canUpdate) return send(res, 409, { error: `The account ${name} has no new version to switch to.` });
+    if (!plansSwitches() || !ownUpdate(name).canUpdate) return send(res, 409, { error: `The account ${name} has no new version to switch to.` });
     askSwitch(name);
     console.log(`[front door] the admin asked to switch the account ${name} to the new version now`);
     audited('update-now', { account: name });
