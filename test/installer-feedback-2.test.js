@@ -2,7 +2,7 @@
 // install asks whether to send Feedback to botdot's developers when someone can answer, says no when nobody can, never
 // asks a managed machine, and gives the answer to the front door once, through its environment. The front door's side
 // (it takes the answer only while its data has none) is in test/front-door-feedback-relay.test.js.
-// Part 2 of 2 of the Feedback tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 2 of 2 of the Feedback tests: the parts run side by side, so that no one file sets the time of a shard (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');

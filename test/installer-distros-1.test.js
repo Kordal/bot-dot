@@ -1,7 +1,7 @@
 // The installer on distributions other than Ubuntu (install.sh, step 1): Debian and Ubuntu through apt-get, Fedora and
 // the RHEL family through dnf, gVisor from its release files where apt-get isn't, and a clear stop where a machine
 // can't run botdot or its packages can't be installed by the installer.
-// Part 1 of 2 of the distributions tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 1 of 2 of the distributions tests: the parts run side by side, so that no one file sets the time of a shard (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');

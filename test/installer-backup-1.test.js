@@ -1,7 +1,7 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): a backup set of the whole machine and its restore,
 // asked of root's step with the requests BACKUP and RESTORE (#986). The restore's own run through each account's
 // Docker is in `make install-real`; here the stand-in Docker writes down what it was asked.
-// Part 1 of 3 of the backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 1 of 3 of the backup tests: the parts run side by side, so that no one file sets the time of a shard (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');

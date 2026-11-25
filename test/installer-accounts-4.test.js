@@ -1,6 +1,6 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): new accounts from sign-up links, suspend, resume and
 // delete from the admin page, shares of the machine, and the uninstaller.
-// Part 4 of 4 of the accounts and uninstaller tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 4 of 4 of the accounts and uninstaller tests: the parts run side by side, so that no one file sets the time of a shard (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
