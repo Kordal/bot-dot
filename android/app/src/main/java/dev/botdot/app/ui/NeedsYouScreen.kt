@@ -142,7 +142,10 @@ import dev.botdot.app.data.CardGroups
 import dev.botdot.app.data.GroupRef
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.data.ToolCard
+import dev.botdot.app.data.AskAct
 import dev.botdot.app.data.actLabel
+import dev.botdot.app.data.asksBeforeNow
+import dev.botdot.app.data.updateButtons
 import dev.botdot.app.data.VaultTypes
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
@@ -1106,7 +1109,48 @@ private fun answerAll(scope: CoroutineScope, api: Api, card: AskCard.Several, ye
 @Composable
 private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { "" }, answer: (String, Boolean, String?, Boolean, Boolean) -> Unit) {
     val decide: (String, Boolean, String?) -> Unit = { title, yes, label -> answer(title, yes, label, false, false) }
-    if (a.act != null) {
+    if (a.kind == "update") {
+        // A new version that waits for the account (`update`, #1690, ADR 271): the server's title, when it moves, and its
+        // buttons by verb, no Not now. Both go to the front door's own routes, never the account's botdot server; Now asks
+        // first only when the card says the account is busy. A card this app has no verb of is not drawn.
+        if (a.act?.verb !in AskAct.UPDATE_VERBS) return
+        val app = BotDotApp.of(LocalContext.current)
+        val scope = rememberCoroutineScope()
+        val p = LocalPaper.current
+        var going by remember(a.id) { mutableStateOf(false) }
+        var failed by remember(a.id) { mutableStateOf<String?>(null) }
+        var asking by remember(a.id) { mutableStateOf(false) }
+        val go: (String) -> Unit = { verb ->
+            going = true
+            failed = null
+            scope.launch {
+                runCatching {
+                    val api = app.api.value ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+                    if (verb == AskAct.UPDATE_NOW) api.updateNow() else api.updateTonight()
+                }.onSuccess { app.store.needs.refresh() }.onFailure { failed = it.message ?: tr("That didn't work") }
+                going = false
+            }
+        }
+        Failing(failed) {
+            Card(who, a.title, ToolCard.text(a.body).takeIf { it.isNotEmpty() }) {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8, Alignment.End)) {
+                    a.updateButtons.forEachIndexed { i, b ->
+                        val press: () -> Unit = { if (b.verb == AskAct.UPDATE_NOW && a.asksBeforeNow) asking = true else go(b.verb) }
+                        if (i == 0) Button(onClick = press, enabled = !going,
+                            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(b.label.orEmpty()) }
+                        else SecondaryButton(onClick = press, enabled = !going) { Text(b.label.orEmpty(), color = p.text) }
+                    }
+                }
+            }
+        }
+        if (asking) AlertDialog(
+            onDismissRequest = { asking = false },
+            title = { Text(tr("Update now?")) },
+            text = { Text(tr("Your account moves to the new version: your bots restart, and work still running stops.")) },
+            confirmButton = { TextButton(onClick = { asking = false; go(AskAct.UPDATE_NOW) }) { Text(tr("Update now"), color = p.text) } },
+            dismissButton = { TextButton(onClick = { asking = false }) { Text(tr("Cancel"), color = p.text) } },
+        )
+    } else if (a.act != null) {
         // A card whose main button the server names by a verb (`act`, docs/api.md "A missing connected app"): its
         // title, in setup what is wrong, Not now and that button, no more. Connect opens the app's sign-in page and
         // says where that is (ConnectAsks); Open Connectors opens that screen. A verb this app does not know draws no card.

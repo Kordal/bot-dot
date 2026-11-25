@@ -144,9 +144,35 @@ function standIn(door, account, { answer = null } = {}) {
 
 // What the front door asks every account on its own timers, whatever a browser does (ADR 081, #529, ADR 105): left out
 // by `seenOf`, so a test that checks no request of a page reached a botdot server doesn't fail when a timer fires.
-const ON_ITS_OWN = /^\/api\/(group-router|boat|usage-summary|backups\/machine|backups\/offsite|connectors\/install-key)(\?|$)/;
+const ON_ITS_OWN = /^\/api\/(group-router|boat|usage-summary|backups\/machine|backups\/offsite|connectors\/install-key|update\/idle|update\/offer)(\?|$)/;
 // How many requests each stand-in saw, other than those the front door sends on its own.
 const ownSeen = (stand) => stand.seen.filter((r) => !ON_ITS_OWN.test(r.url));
 const seenOf = (stands) => Object.values(stands).map((s) => ownSeen(s).length).join();
 
-module.exports = { startFrontDoor, standIn, seenOf, ownSeen };
+// A time zone where the hour is now `from` to `to` (0-23, inclusive): the front door's night is the owner's own clock's.
+// Any hour is somewhere (Etc/GMT-N is UTC+N), and a margin of an hour or two between `from` and `to` keeps a test that
+// runs across the turn of an hour right.
+function zoneWhere(from, to) {
+  for (let offset = -12; offset <= 14; offset++) {
+    const timeZone = offset >= 0 ? `Etc/GMT-${offset}` : `Etc/GMT+${-offset}`;
+    const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone, hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
+    if (hour >= from && hour <= to) return timeZone;
+  }
+  throw new Error(`no time zone is at ${from} to ${to} now`);
+}
+
+// What a stand-in account answers to the front door's questions about an update: its idle answer (`idle()`, true or false
+// and, null, as a server older than #1688 that has no such route) and its settings (the owner's quiet hours, or a function
+// that gives them when asked).
+function updateAnswers({ idle = () => true, quietHours = { start: 22, end: 7, timeZone: 'UTC' } } = {}) {
+  return (req) => {
+    if (req.url === '/api/update/idle') {
+      const i = idle();
+      return i === null ? [404, { error: 'Not found' }] : [200, { idle: i, working: i ? 0 : 1, nextStartAt: null, lastOwnerMessageAt: null }];
+    }
+    if (req.url === '/api/settings') return [200, { settings: { quietHours: typeof quietHours === 'function' ? quietHours() : quietHours } }];
+    return null;
+  };
+}
+
+module.exports = { startFrontDoor, standIn, seenOf, ownSeen, zoneWhere, updateAnswers };

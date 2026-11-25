@@ -274,10 +274,12 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         call(Req(baseUrl.trimEnd('/') + "/front-door/update").header("Accept", "application/json").get().build())).jsonObject)
     /** The owner's "Update automatically". A refusal throws the front door's sentence. */
     suspend fun setAutoUpdate(on: Boolean): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", OwnUpdate.body(on))).jsonObject)
+    /** The owner's "When" (ADR 271): `ready`, `night` or `manual`. A refusal throws the front door's sentence. */
+    suspend fun setUpdateWhen(updateWhen: String): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", OwnUpdate.whenBody(updateWhen))).jsonObject)
     /** What's new in the version this account waits for (#303), newest first. Asked only while [OwnUpdate.ready]. */
     suspend fun updateNotes(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(
         call(Req(baseUrl.trimEnd('/') + "/front-door/update/notes").header("Accept", "application/json").get().build())))
-    /** "Update now": the machine switches this account alone to the version the admin installed. */
+    /** "Update now": the machine switches this account alone to the version that waits. */
     suspend fun updateNow(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update/now")).jsonObject)
 
     // ---------- shared rooms (ADR 060, #318): the front door's own routes ----------
@@ -390,7 +392,9 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * and an irreversible step on a bot's computer (`computer-step=1`, ADR 107) and a missing connected app
      * (`connect-app=1`, ADR 168) too: this app draws those cards.
      */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1"))
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1&update=1"))
+    /** "Tonight" on a new version's card (#1690): the front door's own route, never the account's botdot server. A refusal throws its sentence. */
+    suspend fun updateTonight(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", buildJsonObject { put("plan", "night") })).jsonObject)
     /** A missing app's sign-in page, through its card (docs/api.md "A missing connected app"); only with `connect-cards` in the features. */
     suspend fun connectAsk(id: String): AskConnect = json.decodeFromString(send("POST", "/asks/${enc(id)}/connect"))
     /** How the connection its Connect made stands, as the owner comes back from the sign-in page. */

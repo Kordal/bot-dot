@@ -118,6 +118,23 @@ object Overviews {
     /** Blockers is failed work: the questions stand in Needs you ([ProjectOverview.failures]). */
     val noBlockers: String get() = tr("No failed work.")
     val noReplies: String get() = tr("No replies yet.")
+
+    /**
+     * How many of a tile's rows, with these [heights], to show in [available] height on an arranged board (web: `fit` in
+     * public/project-overview.js, ADR 273): all when they fit; else as many whole rows as fit beside the line that says
+     * how many more there are ([moreHeight]), one at least. The same unit for all three.
+     */
+    fun fit(heights: List<Int>, moreHeight: Int, available: Int): Int {
+        if (heights.size < 2 || heights.sum() <= available) return heights.size
+        var used = moreHeight
+        var n = 0
+        for (h in heights) {
+            if (n > 0 && used + h > available) break
+            used += h
+            n++
+        }
+        return n
+    }
 }
 
 /**

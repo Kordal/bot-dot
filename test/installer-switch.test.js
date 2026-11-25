@@ -5,19 +5,28 @@ if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { PIN, SIGNED, installer, withBob, status, running } = require('./installer-helpers');
+const { PIN, SIGNED, installer, rerun, withBob, status, running } = require('./installer-helpers');
 
 // --- Each account's owner chooses when it switches to a new version (#259, ADR 053) ---------------------------
+
+// A machine of one account, as withBob (test/installer-helpers.js) makes one of two: the install's own, the admin's.
+function oneAccount(t) {
+  const first = rerun(t);
+  const data = path.join(first.dir, 'front-door', 'data', 'front-door.json');
+  const door = (d) => fs.writeFileSync(data, typeof d === 'string' ? d : JSON.stringify({ accounts: {}, passkeys: {}, sessions: {}, signUpLinks: {}, deleted: {}, ...d }));
+  const upIn = (done, account) => done.docker.some((c) => c.host === `unix://${first.run}/${account}/docker.sock` && /^compose .* up -d/.test(c.call));
+  return { first, door, upIn };
+}
 
 // An install of ann and bob on the version before (PIN), the front door pinning it too, whose front door's data says
 // `accounts`. update(): the admin page's update through root's step, which finds the newest (SIGNED); request(name):
 // root's step for one request. Each returns what it did since the last one.
-function onOlderVersion(t, accounts, { pins = {} } = {}) {
-  const { first, door, upIn } = withBob(t);
+function onOlderVersion(t, accounts, { pins = {}, one = false } = {}) {
+  const { first, door, upIn } = one ? oneAccount(t) : withBob(t);
   door({ accounts });
   const pin = (f, image) => fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/^BOT_DOT_IMAGE=.*$/m, `BOT_DOT_IMAGE=${image}`));
   pin(path.join(first.dir, 'front-door', '.env'), pins.door || `ghcr.io/ladrok/bot-dot${PIN}`);
-  for (const name of ['ann', 'bob']) pin(path.join(first.dir, 'accounts', name, '.env'), pins[name] || `ghcr.io/ladrok/bot-dot${PIN}`);
+  for (const name of one ? ['ann'] : ['ann', 'bob']) pin(path.join(first.dir, 'accounts', name, '.env'), pins[name] || `ghcr.io/ladrok/bot-dot${PIN}`);
   let seen = fs.readFileSync(path.join(first.top, 'docker.log'), 'utf8').split('\n').filter(Boolean).length;
   const request = (name, options = {}) => {
     fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', name), '');
@@ -166,4 +175,46 @@ test('the installer run by hand switches every account, and deleting an account 
   door({ accounts: { ann: {} }, deleted: { bob: '2026-10-21T12:00:00.000Z' } });
   request('bob');
   assert.ok(!fs.existsSync(path.join(first.dir, 'front-door', 'status', 'account-bob.json')));
+});
+
+// --- The front door decides every switch (#1689, ADR 271): it writes `autoUpdate: false` for every account ------------
+
+test("an update only downloads when the front door says `autoUpdate: false` for every account, and each switches when asked (#1689)", (t) => {
+  const { update, request } = onOlderVersion(t, { ann: { updateWhen: 'night', autoUpdate: false }, bob: { updateWhen: 'ready', autoUpdate: false } });
+  const done = update();
+  const result = status(done, 'update.json');
+  assert.equal(result.state, 'updated', done.log);
+  assert.deepEqual(result.accounts, [{ name: 'ann', result: 'waiting' }, { name: 'bob', result: 'waiting' }], 'the admin\'s Update restarts no account');
+  assert.ok(!done.up('ann') && !done.up('bob'), 'neither is restarted');
+  for (const name of ['ann', 'bob']) {
+    assert.ok(done.calls(name).some((c) => c === `pull ghcr.io/ladrok/bot-dot${SIGNED}`), `the new version is downloaded into ${name}'s Docker`);
+    assert.equal(done.accountEnv(name).BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${PIN}`, `${name} runs the version it ran`);
+    assert.equal(status(done, `account-${name}.json`).state, 'waiting');
+  }
+  assert.equal(done.env.BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${SIGNED}`, 'the front door moves on');
+  // The front door asks each switch with SWITCH-<name>, when it decides to.
+  const bob = request('SWITCH-bob');
+  assert.ok(bob.up('bob') && !bob.up('ann'), 'bob alone');
+  assert.equal(bob.accountEnv('bob').BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${SIGNED}`);
+  const ann = request('SWITCH-ann');
+  assert.ok(ann.up('ann') && !ann.up('bob'), 'then ann');
+  assert.equal(status(ann, 'account-ann.json').state, 'updated');
+});
+
+test('a machine of one account: the update downloads and leaves its account waiting, and it switches on SWITCH-<name> (#1689, ADR 271)', (t) => {
+  const { update, request } = onOlderVersion(t, { ann: { updateWhen: 'night', autoUpdate: false } }, { one: true });
+  const done = update();
+  const result = status(done, 'update.json');
+  assert.equal(result.state, 'updated', done.log);
+  assert.deepEqual(result.accounts, [{ name: 'ann', result: 'waiting' }], 'step one: downloaded, and left waiting');
+  assert.ok(!done.up('ann'), 'its bots are not restarted');
+  assert.ok(done.calls('ann').some((c) => c === `pull ghcr.io/ladrok/bot-dot${SIGNED}`), 'the new version is in its Docker');
+  assert.equal(done.accountEnv('ann').BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${PIN}`);
+  assert.equal(done.env.BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${SIGNED}`, 'the front door runs the new version');
+  assert.equal(status(done, 'account-ann.json').state, 'waiting');
+  // Step two: the front door's own plan asks for the switch.
+  const now = request('SWITCH-ann');
+  assert.ok(now.up('ann'), 'switched');
+  assert.equal(now.accountEnv('ann').BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${SIGNED}`);
+  assert.equal(status(now, 'account-ann.json').state, 'updated');
 });

@@ -19,11 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.CHIEF_COLOR
@@ -104,27 +108,57 @@ private fun OverviewSection(title: String, content: @Composable () -> Unit) {
 internal fun OverviewRows(items: List<OverviewEntry>, bots: List<Bot>?, open: (OverviewEntry) -> Unit, empty: String? = null, sites: Boolean = false) {
     val p = LocalPaper.current
     if (items.isEmpty() && empty != null) Text(empty, color = p.muted)
-    items.forEach { x ->
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-            // Whose it is (web: head in public/project-overview.js): the bot's head, the Chief's, or the owner's.
-            Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-                when (val h = Overviews.head(x, bots)) {
-                    is Overviews.Head.Of -> BotFigure(h.bot.color, h.bot.state, 28, h.bot.outfit)
-                    Overviews.Head.Chief -> BotFigure(CHIEF_COLOR, if (x.state == "working") "working" else "idle", 28, FigureDef.CHIEF)
-                    Overviews.Head.You -> YouHead(28)
-                    Overviews.Head.Unknown -> Unit
-                }
+    items.forEach { x -> OverviewRow(x, bots, open, sites) }
+}
+
+@Composable
+private fun OverviewRow(x: OverviewEntry, bots: List<Bot>?, open: (OverviewEntry) -> Unit, sites: Boolean = false, probe: Boolean = false) {
+    val p = LocalPaper.current
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).then(if (probe) Modifier.clearAndSetSemantics {} else Modifier.clickable { open(x) }).padding(vertical = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+        // Whose it is (web: head in public/project-overview.js): the bot's head, the Chief's, or the owner's.
+        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+            when (val h = Overviews.head(x, bots)) {
+                is Overviews.Head.Of -> BotFigure(h.bot.color, h.bot.state, 28, h.bot.outfit)
+                Overviews.Head.Chief -> BotFigure(CHIEF_COLOR, if (x.state == "working") "working" else "idle", 28, FigureDef.CHIEF)
+                Overviews.Head.You -> YouHead(28)
+                Overviews.Head.Unknown -> Unit
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
-                Text(dev.botdot.app.data.Overviews.meta(x), color = p.muted, fontSize = Type.s12)
-                // The bot's Markdown as in its chat, in at most four lines; a link opens itself, the rest of the row the chat.
-                if (x.text.isBlank()) Text(dev.botdot.app.data.Overviews.text(x), color = p.text)
-                else {
-                    val text = remember(x.text, p, sites) { previewText(x.text, p.text, p, sites) }
-                    Text(text, color = p.text, maxLines = 4, overflow = TextOverflow.Ellipsis, inlineContent = remember(text) { siteIconsIn(listOf(text)) })
-                }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
+            Text(dev.botdot.app.data.Overviews.meta(x), color = p.muted, fontSize = Type.s12)
+            // The bot's Markdown as in its chat, in at most four lines; a link opens itself, the rest of the row the chat.
+            if (x.text.isBlank()) Text(dev.botdot.app.data.Overviews.text(x), color = p.text)
+            else {
+                val text = remember(x.text, p, sites) { previewText(x.text, p.text, p, sites) }
+                Text(text, color = p.text, maxLines = 4, overflow = TextOverflow.Ellipsis, inlineContent = remember(text) { siteIconsIn(listOf(text)) })
             }
+        }
+    }
+}
+
+/**
+ * The rows of an overview tile that has the height the owner gave it on the canvas (web: `fit` in
+ * public/project-overview.js, ADR 273): the whole rows that fit the room it is given, one at least, then a muted "N more"
+ * for the rest ([Overviews.fit]). Taller, it shows more. It does not scroll.
+ */
+@Composable
+private fun OverviewRowsFit(items: List<OverviewEntry>, bots: List<Bot>?, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
+    val p = LocalPaper.current
+    SubcomposeLayout(modifier.clipToBounds()) { constraints ->
+        val width = Constraints(minWidth = constraints.maxWidth, maxWidth = constraints.maxWidth)
+        // Every row is measured as a probe, which is no node for a screen reader or a tap; only the rows that fit are composed again as themselves.
+        val heights = items.mapIndexed { i, x -> subcompose("probe-$i") { OverviewRow(x, bots, open, probe = true) }.first().measure(width).height }
+        val room = if (constraints.hasBoundedHeight) constraints.maxHeight else Int.MAX_VALUE
+        val moreOf = { slot: String, k: Int, probe: Boolean -> subcompose(slot) { Text(tr("{n} more", "n" to k), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(top = Space.s4).then(if (probe) Modifier.clearAndSetSemantics {} else Modifier)) }.first().measure(width) }
+        val n = Overviews.fit(heights, if (items.size > 1) moreOf("more-room", items.size - 1, true).height else 0, room)
+        val more = if (n < items.size) moreOf("more", items.size - n, false) else null
+        val shown = items.take(n).mapIndexed { i, x -> subcompose("row-$i") { OverviewRow(x, bots, open) }.first().measure(width) }
+        val height = shown.sumOf { it.height } + (more?.height ?: 0)
+        layout(constraints.maxWidth, if (constraints.hasBoundedHeight) constraints.maxHeight else height) {
+            var y = 0
+            for (r in shown) { r.placeRelative(0, y); y += r.height }
+            more?.placeRelative(0, y)
         }
     }
 }
@@ -160,9 +194,9 @@ internal fun overviewOpener(ui: CompanyUi, c: Company, ways: CompanyWays): (Over
     }
 }
 
-/** Current work, Blockers or Latest replies as a board tile. */
+/** Current work, Blockers or Latest replies as a board tile; [fixed] on the canvas, where the tile has the height the owner gave it. */
 @Composable
-internal fun OverviewTile(key: String, feed: OverviewState, bots: List<Bot>?, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
+internal fun OverviewTile(key: String, feed: OverviewState, bots: List<Bot>?, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier, fixed: Boolean = false) {
     val p = LocalPaper.current
     val title = when (key) { "work" -> tr("Current work"); "blockers" -> tr("Blockers"); else -> tr("Latest replies") }
     Column(modifier.fillMaxWidth().cardRing(key).raised(Radius.card).padding(Space.s16).testTag("overview-$key"), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
@@ -174,9 +208,11 @@ internal fun OverviewTile(key: String, feed: OverviewState, bots: List<Bot>?, op
         val d = feed.snapshot
         when {
             d == null -> Text(feed.status, color = p.muted)
-            key == "work" -> OverviewRows(d.work, bots, open, Overviews.noWork)
-            key == "blockers" -> OverviewRows(d.failures(), bots, open, Overviews.noBlockers)
-            else -> OverviewRows(d.replies, bots, open, Overviews.noReplies)
+            else -> {
+                val (items, none) = when (key) { "work" -> d.work to Overviews.noWork; "blockers" -> d.failures() to Overviews.noBlockers; else -> d.replies to Overviews.noReplies }
+                // On the canvas the tile's height is the owner's: whole rows and "N more". In the column every row is shown.
+                if (fixed && items.size > 1) OverviewRowsFit(items, bots, open, Modifier.weight(1f)) else OverviewRows(items, bots, open, none)
+            }
         }
     }
 }

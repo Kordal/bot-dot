@@ -8,6 +8,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -130,7 +131,17 @@ class BoardCanvasTest {
         val l = mapOf("todo" to R(800, 0, 392, 560), "goal:o1" to R(0, 0, 592, 260), "card:k" to R(0, 276, 392, 220), "new-card" to R(408, 276, 392, 64), "days" to R(0, 600, 1200, 140))
         assertEquals(listOf("goal:o1", "todo", "card:k", "new-card", "days"), BoardCanvas.order(l))
         assertEquals(emptyList<String>(), BoardCanvas.order(emptyMap()))
-        assertEquals(600, BoardCanvas.NARROW)
+    }
+
+    @Test fun aBoardUnderTheMinimumScaleIsAColumn() {
+        // ADR 273: the canvas is never drawn under 0.8 of its size, so under 960 dp the board is one column.
+        assertEquals(0.8, BoardCanvas.MIN_SCALE, 0.0)
+        assertTrue("a phone", BoardCanvas.column(390.0))
+        assertTrue("a window with the chat open", BoardCanvas.column(850.0))
+        assertTrue(BoardCanvas.column(959.0))
+        assertFalse("exactly the minimum scale: the canvas", BoardCanvas.column(960.0))
+        assertFalse(BoardCanvas.column(1300.0))
+        assertFalse("an unknown width keeps the canvas", BoardCanvas.column(0.0))
     }
 
     @Test fun theLayoutIsReadAndSentWhole() = runBlocking {

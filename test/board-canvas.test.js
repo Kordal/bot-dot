@@ -115,5 +115,15 @@ test('order: a column reads the tiles from the top, left to right where two star
   const layout = { todo: [800, 0, 392, 560], 'goal:o1': [0, 0, 592, 260], 'card:k': [0, 276, 392, 220], 'new-card': [408, 276, 392, 64], days: [0, 600, 1200, 140] };
   assert.deepEqual(B.order(layout), ['goal:o1', 'todo', 'card:k', 'new-card', 'days']);
   assert.deepEqual(B.order({}), []);
-  assert.equal(B.NARROW, 600);
+});
+
+test('column: a board is read as one column where the canvas would be drawn under 0.8 of its size (ADR 273)', () => {
+  assert.equal(B.MIN_SCALE, 0.8);
+  assert.equal(B.NARROW, undefined, 'the old fixed width is gone');
+  assert.equal(B.column(390), true, 'a phone');
+  assert.equal(B.column(850), true, 'a window with the chat open');
+  assert.equal(B.column(959), true);
+  assert.equal(B.column(960), false, 'exactly 0.8 of the canvas: the canvas');
+  assert.equal(B.column(1300), false);
+  assert.equal(B.column(0), false, 'an unknown width keeps the canvas');
 });

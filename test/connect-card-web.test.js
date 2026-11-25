@@ -172,7 +172,7 @@ test('web: Open Connectors opens the Connectors view', () => {
 });
 
 test('web: the page asks for these cards wherever it reads the asks, and wires their button', () => {
-  assert.equal(app.match(/api\('\/asks\?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1'\)/g).length, 2);
+  assert.equal(app.match(/api\('\/asks\?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1&update=1'\)/g).length, 2);
   assert.match(read('needs.js'), /if \(act\) act\.onclick = \(\) => actNeed\(x\);/);
 });
 
