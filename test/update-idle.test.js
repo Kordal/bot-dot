@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { startServer, makeBot, heldRun, waitFor } = require('./helpers');
+const { startServer, makeBot, heldRun, waitFor, readData, restartServer, setQueue } = require('./helpers');
 const idleLib = require('../lib/update-idle');
 const chiefJobsLib = require('../lib/chief-jobs');
 const lookLib = require('../lib/look');
@@ -272,4 +272,34 @@ test("the owner's message, runs going, a message that waits its turn and a Chief
   r = await idleOwn();
   assert.equal(r.idle, false, 'nothing is going, but the owner wrote a moment ago');
   assert.ok(r.lastOwnerMessageAt);
+});
+
+// A turn held at the limit of its group waits for the owner's "Go on", maybe for ever, and is kept in queue.json: a
+// restart loses nothing of it, so it is no work. botdot drops what waits when it stops a line at the limit, so the
+// turn here is put in queue.json by hand, as a crash between the reply that reached the limit and the stop leaves it.
+test('a group turn held at the twelve-reply limit does not count as work, though it waits in a queue', async (t) => {
+  let own = await startServer();
+  t.after(async () => { own.unhold(); await own.stop(); });
+  await own.api('/settings/writing-first', { method: 'PUT', body: { perDay: 0 } });
+  const ping = await makeBot(own, { name: 'Ping', emoji: '🤖', prompt: 'Do the work of Ping.' });
+  const pong = await makeBot(own, { name: 'Pong', emoji: '🤖', prompt: 'Do the work of Pong.' });
+  const made = await own.api('/group-chats', { method: 'POST', body: { name: 'Limit', members: [ping.id, pong.id] } });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+  const group = made.data;
+  fs.writeFileSync(path.join(own.out, 'result-Ping.txt'), 'Corrected. @Pong check it again.');
+  fs.writeFileSync(path.join(own.out, 'result-Pong.txt'), 'One more thing is wrong. @Ping fix it.');
+  const sent = await own.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'Ping and Pong: keep correcting each other.' } });
+  assert.equal(sent.status, 201, JSON.stringify(sent.data));
+  const stopped = await waitFor(async () => {
+    const c = (await own.api(`/group-chats/${group.id}/chat?limit=200`)).data;
+    return c.limit && !c.working.length ? c : null;
+  }, { timeout: 30_000, what: 'the line to stop at the limit' });
+  assert.equal(stopped.limit.replies, 12);
+
+  own = await restartServer(own, (data) => setQueue(data, (q) => {
+    q.queues[ping.id] = [{ key: 'turn:held-1', kind: 'turn', runId: 'held-1', prompt: 'Ping and Pong: keep correcting each other.', groupId: group.id, groupMessageId: sent.data.id, queuedAt: new Date().toISOString() }];
+  }));
+  assert.equal(readData(own.data, 'queue.json').queues[ping.id].length, 1, 'the held turn is kept in the queue file across a restart');
+  const r = (await own.api('/update/idle', { headers: FD })).data;
+  assert.equal(r.working, 0, 'and it is no work');
 });
