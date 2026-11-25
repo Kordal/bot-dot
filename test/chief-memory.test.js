@@ -6,7 +6,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, self, sharedByBot, waitFor, readData, writeData } = require('./helpers');
+const { startServer, makeBot, self, sharedByBot, waitFor, readData, writeData, hookCall } = require('./helpers');
 const { rpcClient, scratchMemory } = require('./memory-helpers');
 const { TOOLS } = require('../lib/mcp-server');
 const { MEMORY_WRITES, READS, CLEAN, readKind } = require('../lib/chief-tools');
@@ -591,6 +591,22 @@ test('ADR 278: a change of a note\'s end or topic alone leaves who said it; a ne
   assert.equal(await savedBy(), 'owner', 'the same text once cleaned, a new topic');
   await turn.call('update_note', { id: note, note: 'The owner is in Berlin this week, then Rome' });
   assert.equal(await savedBy(), 'bot', 'new words without a quote');
+  await turn.end();
+});
+
+test('ADR 278: what the owner steered into the turn is their words too, and a quote of it is found', async (t) => {
+  srv.hold();
+  const chat = await newChat();
+  await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Plan my week.' } });
+  const rec = await srv.nextRun((r) => isChief(r) && r.stdin.includes('Plan my week.'), "the Chief's turn");
+  const turn = await turnOf(t, rec, chat);
+  const w = (await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Note that I work from Gdansk on Mondays.' } })).data.queued[0];
+  assert.equal((await srv.api(`/chief/chats/${chat.id}/queued/${w.id}/steer`, { method: 'POST' })).status, 200);
+  const read = (await hookCall(rec.settings, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_response: 'x' })).hookSpecificOutput;
+  assert.ok(read.additionalContext.includes('Gdansk'), 'the turn read it');
+  const r = await turn.call('remember', { note: 'The owner works from Gdansk on Mondays', place: 'me', quote: 'I work from Gdansk on Mondays' });
+  assert.equal(r.saved[0].saidBy, 'owner');
+  assert.doesNotMatch(r.say, /not quoted/);
   await turn.end();
 });
 
