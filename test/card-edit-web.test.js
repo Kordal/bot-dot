@@ -36,7 +36,7 @@ function page({ features = ['card-edit'], chat = 'open', polish = false } = {}) 
   // The page's own naming of a piece (public/company.js), with the page's tr.
   ctx.Company.pieceLabel = vm.runInContext(`(${source('public/company.js').match(/const pieceLabel = (.*);/)[1]})`, ctx);
   vm.runInContext(read('board-edit.js'), ctx);
-  return { ctx, state, composer, chips, opened, made, BoardEdit: ctx.window.BoardEdit, document };
+  return { ctx, state, composer, chips, opened, made, BoardEdit: ctx.window.BoardEdit, document, setChat: (v) => { chat = v; } };
 }
 
 test('the chip names the tile, a message about it carries the tile and its project, and sending clears it', async () => {
@@ -81,6 +81,47 @@ test('taking the chip off sends a plain message, and a tile that left the board 
   assert.equal(p.BoardEdit.cardFor('bot', 'pm')?.card, 'work', 'still on the board: kept');
   p.ctx.Company.onBoard = () => false;
   p.BoardEdit.apply(element(), gone);
+  assert.equal(p.BoardEdit.cardFor('bot', 'pm'), null);
+});
+
+// A pencil on the Work tile, pressed: the chip stands over the manager's box.
+async function pointed(p) {
+  const tile = element({ h2: element({}, { textContent: 'Current work' }) }, { append() {} });
+  tile.dataset = { cfOv: 'work' };
+  p.BoardEdit.apply(element({ '[data-cf-ov="work"], [data-cf-ov="blockers"], [data-cf-ov="replies"]': tile }), p.state.company);
+  await p.made.find((el) => el.className.includes('be-pencil')).onclick({ stopPropagation() {} });
+  await new Promise((r) => setImmediate(r)); // the chat has opened
+  assert.equal(p.BoardEdit.cardFor('bot', 'pm')?.card, 'work');
+}
+
+test('a message goes with the tile only from the box that shows its chip: leaving the board for another chat sends a plain one', async () => {
+  const p = page();
+  await pointed(p);
+  // The owner leaves the Projects screen without sending and opens the manager's chat from the bot list: nothing is docked.
+  p.setChat('closed');
+  p.BoardEdit.sync();
+  assert.equal(p.chips().length, 0, 'no chip in that chat');
+  assert.equal(p.BoardEdit.cardFor('bot', 'pm'), null, 'and the message is plain: no tile, no project');
+  p.setChat('open');
+  p.BoardEdit.sync();
+  assert.equal(p.chips().length, 0, 'back on the board the chip does not come back by itself');
+  assert.equal(p.BoardEdit.cardFor('bot', 'pm'), null);
+});
+
+test('a chat of the project that is not the manager\'s has no chip and sends no tile, and the manager\'s has them again', async () => {
+  const p = page();
+  await pointed(p);
+  p.state.botId = 'someone-else'; // another bot is docked beside the board
+  p.BoardEdit.sync();
+  assert.equal(p.chips().length, 0);
+  assert.equal(p.BoardEdit.cardFor('bot', 'pm'), null);
+  assert.equal(p.BoardEdit.cardFor('bot', 'someone-else'), null);
+  p.state.botId = 'pm';
+  p.BoardEdit.sync();
+  assert.equal(p.chips().length, 1, 'the manager\'s chat is docked again: the chip is back');
+  assert.equal(p.BoardEdit.cardFor('bot', 'pm')?.card, 'work');
+  // Whatever happens to the chip, a message goes with the tile only while the chip is in its box.
+  p.composer.inserted = [];
   assert.equal(p.BoardEdit.cardFor('bot', 'pm'), null);
 });
 

@@ -81,6 +81,31 @@ test("a message to the project's own Chief chat that points at a tile tells that
   assert.deepEqual(mine.card, { id: 'replies', label: 'Latest replies' });
 });
 
+test("a message to the project's Chief chat that waits for its reply keeps its tile: in the queued list, and in the turn that starts later", async (t) => {
+  t.after(() => srv.unhold());
+  const isChief = (x) => x.args.includes('🧭 Chief of Staff');
+  srv.hold();
+  const first = await srv.api(`/chief/chats/${chat}/messages`, { method: 'POST', body: { text: 'Keep the Chief busy a moment' } });
+  assert.equal(first.status, 201, JSON.stringify(first.data));
+  const going = await srv.nextRun((x) => isChief(x) && x.stdin.includes('Keep the Chief busy a moment'), "the Chief's first turn");
+  const waits = await srv.api(`/chief/chats/${chat}/messages`, { method: 'POST', body: { text: 'Now only the Bookkeeper\'s replies on the board', card: 'replies' } });
+  assert.equal(waits.status, 201, JSON.stringify(waits.data));
+  assert.equal(waits.data.busy, true);
+  assert.deepEqual(waits.data.queued.map((q) => [q.text, q.card]), [["Now only the Bookkeeper's replies on the board", { id: 'replies', label: 'Latest replies' }]], 'listed as waiting, with its tile');
+  assert.deepEqual((await srv.api(`/chief/chats/${chat}`)).data.queued[0].card, { id: 'replies', label: 'Latest replies' });
+  // A waiting message that points at no tile carries no `card` at all.
+  const plain = await srv.api(`/chief/chats/${chat}/messages`, { method: 'POST', body: { text: 'And a plain one' } });
+  assert.equal(plain.data.queued.find((q) => q.text === 'And a plain one').card, undefined);
+  srv.reply('Done.');
+  srv.release(going);
+  const turn = await srv.nextRun((x) => isChief(x) && x.stdin.includes("Now only the Bookkeeper's replies on the board"), 'the waiting message\'s turn');
+  assert.match(turn.stdin, /This message is about the board tile "Latest replies" \(replies\)\./, 'the turn that started later is told which tile it is');
+  srv.unhold();
+  await waitFor(async () => { const c = (await srv.api(`/chief/chats/${chat}`)).data; return !c.busy && !c.queued.length; }, { timeout: 30_000, what: 'both waiting messages ran' });
+  const mine = (await srv.api(`/chief/chats/${chat}`)).data.messages.find((m) => m.role === 'user' && m.text.startsWith('Now only'));
+  assert.deepEqual(mine.card, { id: 'replies', label: 'Latest replies' }, 'and the chat keeps the tile on the message');
+});
+
 test('a message without a card, or after the owner took the chip off, is told nothing about a tile', async () => {
   const sent = await srv.api(`/chief/chats/${chat}/messages`, { method: 'POST', body: { text: 'What is on the board, plainly?' } });
   assert.equal(sent.status, 201);

@@ -11,6 +11,7 @@
 
   // The tile the pencil points at now: { project, id, label }, until it is sent, taken off, or its tile is gone.
   let target = null;
+  let opening = false; // the chat the pencil asked for is still opening: it is not docked yet, and that is no reason to forget the tile
 
   // Where each pointable tile is in the drawn board, and the title it has: `tile` is the element that gets the ring,
   // `head` the one the pencil stands in (a card's head) or, with none, the tile's top right corner.
@@ -63,9 +64,10 @@
   // The pencil was pressed: the chat opens beside the board, the chip stands above its box, and the box has the focus.
   async function pick(c, id, label) {
     target = { project: c.id, id, label };
+    opening = true;
     ring();
     sync();
-    await Dock.openDefault();
+    try { await Dock.openDefault(); } finally { opening = false; }
     sync();
     const box = composer()?.text;
     if (box) box.focus({ preventScroll: true });
@@ -82,7 +84,9 @@
 
   // The chip above the message box of the project's chat, and none in any other box.
   function sync() {
-    const mine = target && state.company?.id === target.project ? composer() : null;
+    // The project's chat no longer docked (the owner left the board for another chat): nothing is pointed at any more.
+    if (target && !opening && (state.company?.id !== target.project || !Dock.docked())) { target = null; ring(); }
+    const mine = target ? composer() : null;
     for (const chip of $$('.card-chip')) if (!mine || !mine.contains(chip)) chip.remove();
     if (!mine) return;
     let chip = $('.card-chip', mine);
@@ -111,6 +115,8 @@
   function cardFor(kind, id) {
     const c = state.company;
     const d = on() && target && c?.id === target.project ? Dock.defaultChat() : null;
+    // A tile goes only from the box that shows its chip: a chat opened from the bot list has none, and sends a plain message.
+    if (d && !composer()?.querySelector('.card-chip')) return null;
     if (!d || d.kind !== kind || (kind === 'bot' ? d.id !== id : c.chiefChat !== id)) return null;
     return { card: target.id, project: target.project, label: target.label };
   }
