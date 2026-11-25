@@ -188,7 +188,7 @@ test('step two: past its deadline, 7 days there, an account that waits is switch
 
 test('its owner has the setting: the one account of a machine reaches /front-door/update (#1689)', async (t) => {
   const key = SETUP_KEY();
-  const m = await oneAccount(t, { newest: null, env: { FRONT_DOOR_SETUP_KEY: key } });
+  const m = await oneAccount(t, { newest: null, env: { FRONT_DOOR_SETUP_KEY: key }, answer: updateAnswers({ idle: () => false }) });
   const sheet = m.door.browser();
   const k = passkey.create({ rpId: m.door.rpId, origin: m.door.origin });
   const options = await sheet.post(`/sign-up/${key}/options`, { name: 'owner', login: 'owner' });
@@ -198,12 +198,17 @@ test('its owner has the setting: the one account of a machine reaches /front-doo
   const b = m.door.browser();
   const o = await b.post('/sign-in/options', {});
   assert.equal((await b.post('/sign-in', { credential: k.signIn(o.data.publicKey) })).status, 200);
-  assert.equal((await b.get('/front-door/session')).data.updates, false, 'the apps draw no Updates card on a machine of one account yet (#1691), though the front door plans its switches');
+  assert.equal((await b.get('/front-door/session')).data.updates, true, 'the front door plans its switches, so the apps draw the Updates card (#1691)');
   const u = await b.get('/front-door/update');
   assert.equal(u.status, 200, u.text);
   assert.equal(u.data.when, 'night', 'the default');
   assert.equal((await b.post('/front-door/update', { when: 'ready' })).data.when, 'ready');
   assert.equal(JSON.parse(fs.readFileSync(path.join(m.door.data, 'front-door.json'), 'utf8')).accounts.owner.autoUpdate, false, 'root\'s step leaves it waiting');
+  // With a version waiting, the same answer carries `busy` from the account's idle answer (#1690): the Settings warning and the card's ask read it.
+  m.said('account-owner.json', waiting());
+  const waits = (await b.get('/front-door/update')).data;
+  assert.equal(waits.canUpdate, true);
+  assert.equal(waits.busy, true, 'the account said it is not idle, on a machine of one account too');
 });
 
 test('a managed machine of one account plans no switch: nothing is pinned, nothing asked, `updates` stays false', async (t) => {
