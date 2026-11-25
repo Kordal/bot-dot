@@ -733,7 +733,8 @@ function accountStatus(name) {
   if (s.state === 'switching' && (!out.at || Date.now() - Date.parse(out.at) > UPDATE_STALE_MS)) return { state: 'failed', at: out.at, error: "The update didn't finish. Update now again." };
   return out;
 }
-// What the account's owner sees in Settings, and the admin on its card: { autoUpdate, asked, canUpdate, ready, last }.
+// What the account's owner sees in Settings, and the admin on its card: { when, autoUpdate, asked, canUpdate, ready, last }.
+// when: the owner's choice, `ready`, `night` or `manual` (ADR 271); autoUpdate is `when !== 'manual'`, for an app older than it.
 // ready: { version, from, since, deadline } while it waits for a version the admin installed; last: how its last switch
 // went, { state, at, error? }. canUpdate: "Update now" may be asked: it waits, or its last switch didn't happen.
 function ownUpdate(name) {
@@ -743,7 +744,7 @@ function ownUpdate(name) {
     ? { version: s.version || null, from: s.from || null, since: s.since, deadline: new Date(Date.parse(s.since) + doors.updateDays() * DAY).toISOString() }
     : null;
   const last = s && s.state !== 'waiting' ? { state: s.state, at: s.at, ...(s.error !== undefined ? { error: s.error } : {}) } : null;
-  return { autoUpdate: doors.autoUpdate(name), asked, canUpdate: !asked && !!s && ['waiting', 'kept', 'failed'].includes(s.state), ready, last };
+  return { when: doors.updateWhen(name), autoUpdate: doors.autoUpdate(name), asked, canUpdate: !asked && !!s && ['waiting', 'kept', 'failed'].includes(s.state), ready, last };
 }
 // What a waiting version brings (#303): the notes this front door's version ships after the newest one the account's
 // botdot server ships, which it says in its /api/version, in the account's language (its /api/settings, #646). A
@@ -1126,8 +1127,10 @@ async function signInRoutes(req, res, p) {
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
     const body = (await readJson(req)) || {};
     if (p === '/front-door/update') {
-      const on = doors.setAutoUpdate(account, body.autoUpdate);
-      console.log(`[front door] the account ${account} turned automatic updates ${on ? 'on' : 'off'}`);
+      // `when`, or the old `autoUpdate` (true is `night`, false is `manual`): `when` wins when both come.
+      const when = body.when !== undefined ? body.when : body.autoUpdate === true ? 'night' : body.autoUpdate === false ? 'manual' : undefined;
+      doors.setUpdateWhen(account, when);
+      console.log(`[front door] the account ${account} chose to update ${when}`);
       return send(res, 200, ownUpdate(account));
     }
     if (!ownUpdate(account).canUpdate) return send(res, 409, { error: 'There is no new version to switch to.' });

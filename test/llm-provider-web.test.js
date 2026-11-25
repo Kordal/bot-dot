@@ -75,7 +75,7 @@ test('web: the provider box lists the server\'s presets, hides what a preset doe
 function picker(state) {
   const ctx = vm.createContext({ ...words, esc, state });
   const source = read('settings.js');
-  vm.runInContext(source.slice(source.indexOf('function shownModel'), source.indexOf('// ---------- the rows of a settings screen')) + '\nObject.assign(this, { llmFieldsHTML, llmSummary, llmValue, modelLabel });', ctx);
+  vm.runInContext(source.slice(source.indexOf('function shownModel'), source.indexOf('// ---------- the rows of a settings screen')) + '\nObject.assign(this, { llmFieldsHTML, llmSummary, llmValue, modelLabel, modelInherit, effortInherit });', ctx);
   return ctx;
 }
 const MODELS = [
@@ -91,9 +91,9 @@ test('web: the Model picker groups every connected provider\'s models beside Cla
   const form = ctx.llmFieldsHTML('bot', { model: 'provider:glm:glm-5.3', effort: '' });
   assert.match(form, /<optgroup label="Always the newest">[\s\S]*<optgroup label="DeepSeek">[\s\S]*<optgroup label="Z\.ai GLM"><option value="provider:glm:glm-5\.3" selected>GLM 5\.3<\/option>/);
   assert.match(form, /data-model-search/, 'one searchable list');
-  assert.equal(ctx.llmSummary('provider:deepseek:deepseek-v4-pro', 'high'), 'DeepSeek V4 Pro · DeepSeek · High');
+  assert.equal(ctx.llmSummary('provider:deepseek:deepseek-v4-pro', 'high'), 'DeepSeek · DeepSeek V4 Pro · High');
   assert.equal(ctx.llmSummary('opus', ''), 'Opus (latest)', 'no provider named for Claude');
-  assert.equal(ctx.llmSummary('provider:glm:glm-5.3', 'high'), 'GLM 5.3 · Z.ai GLM', 'a model with no levels names none');
+  assert.equal(ctx.llmSummary('provider:glm:glm-5.3', 'high'), 'Z.ai GLM · GLM 5.3', 'a model with no levels names none');
   assert.equal(ctx.llmValue('', ''), 'Default');
   // A model of a provider that is gone is no choice: the bot follows the default.
   assert.equal(ctx.llmValue('provider:minimax:MiniMax-M3', ''), 'Default');
@@ -101,6 +101,48 @@ test('web: the Model picker groups every connected provider\'s models beside Cla
   const fields = ctx.llmFieldsHTML('default', { model: 'older-model' });
   assert.match(fields, /<option value="older-model" selected>older-model/, 'a saved Claude ID stays selectable');
   assert.doesNotMatch(fields, /__custom|ModelCustom|Full model name/);
+});
+
+// What "Default" of the Reasoning select comes to (lib/settings.js pick), and the Model's, for the model the select is about.
+test('web: a bot\'s Reasoning "Default" says what its own model gets, not what the account default\'s model gets', () => {
+  const state = { models: MODELS, efforts: EFFORTS, settings: { defaultModel: 'opus', defaultEffort: 'high' } };
+  const ctx = picker(state);
+  assert.equal(ctx.modelInherit(), 'Default (Opus (latest))');
+  // The model the bot follows (the account default's) offers the account's level: it is named.
+  assert.equal(ctx.effortInherit('bot', ''), 'Default (High)');
+  assert.equal(ctx.effortInherit('bot', 'opus'), 'Default (High)');
+  // A provider's model that offers the level takes it; one that does not runs on its own, and is named so.
+  assert.equal(ctx.effortInherit('bot', 'provider:deepseek:deepseek-v4-pro'), 'Default (High)');
+  state.settings.defaultEffort = 'medium';
+  assert.equal(ctx.effortInherit('bot', 'provider:deepseek:deepseek-v4-pro'), "DeepSeek's own");
+  assert.equal(ctx.effortInherit('chief', 'provider:glm:glm-5.3'), "Z.ai GLM's own");
+  assert.equal(ctx.effortInherit('bot', 'opus'), 'Default (medium)', 'a level the list does not name is shown as it is');
+  // With the default on a provider's model, a bot with none of its own follows it.
+  state.settings = { defaultModel: 'provider:deepseek:deepseek-flash', defaultEffort: 'max' };
+  assert.equal(ctx.effortInherit('bot', ''), 'Default (Max)');
+  assert.equal(ctx.modelInherit(), 'Default (DeepSeek · DeepSeek V4.1 Flash)');
+  state.settings.defaultEffort = '';
+  assert.equal(ctx.effortInherit('bot', ''), "DeepSeek's own");
+  state.settings = { defaultModel: '', defaultEffort: '' };
+  assert.equal(ctx.effortInherit('bot', 'opus'), "Claude Code's default");
+  assert.equal(ctx.modelInherit(), "Claude Code's default");
+  // The account default's own select keeps "Claude Code's default".
+  state.settings = { defaultModel: 'opus', defaultEffort: 'high' };
+  assert.equal(ctx.effortInherit('default', 'provider:deepseek:deepseek-flash'), "Claude Code's default");
+  // The select is drawn with it, for the bot and for the Chief.
+  const own = ctx.llmFieldsHTML('chief', { model: 'provider:glm:glm-5.3', effort: '' });
+  assert.match(own, /name="chiefModel"[^>]*><option value="" >Default \(Opus \(latest\)\)<\/option>/);
+  assert.match(own, /name="chiefEffort"><option value="" selected>Z\.ai GLM&#39;s own<\/option>/);
+  const follows = ctx.llmFieldsHTML('bot', {});
+  assert.match(follows, /name="botModel"[^>]*><option value="" selected>Default \(Opus \(latest\)\)<\/option>/);
+  assert.match(follows, /name="botEffort"><option value="" selected>Default \(High\)<\/option>/);
+});
+
+test('web: the Reasoning "Default" follows the Model select as the owner changes it', () => {
+  const source = read('settings.js');
+  const wire = source.slice(source.indexOf('function wireLlmFields'), source.indexOf('function readLlmFields'));
+  assert.match(wire, /e\.options\[0\]\.textContent = effortInherit\(prefix, id\)/);
+  assert.match(wire, /m\.onchange = \(\) => \{[\s\S]*update\(\)/);
 });
 
 test('web: the search box appears with the long list and filters by name, ID and provider', () => {

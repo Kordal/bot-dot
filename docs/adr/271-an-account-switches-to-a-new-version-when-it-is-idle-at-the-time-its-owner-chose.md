@@ -1,0 +1,42 @@
+# ADR-271: An account switches to a new version when it is idle, at the time its owner chose
+
+- **Status:** Accepted (2026-11-25, the owner's decisions in [#1686](https://github.com/ladrok/bot-dot/issues/1686))
+- **Owning task:** [#1686](https://github.com/ladrok/bot-dot/issues/1686); this ADR comes with its first ticket, [#1687](https://github.com/ladrok/bot-dot/issues/1687), which builds the setting
+- **Amends:** [ADR 053](053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md) (the owner's on/off becomes a "when", and the admin's Update only downloads) and [ADR 183](183-a-machine-of-one-account-updates-itself-at-night.md) (a machine of one account updates in two steps, by the same rule as every account)
+- **Keeps:** [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md)'s way back, [ADR 045](045-the-update-runs-in-phases-of-its-own-apart-from-the-install.md)'s phases and [ADR 155](155-an-update-can-name-its-version-and-keeps-a-snapshot-of-each-accounts-data.md)'s snapshot before a switch; [ADR 053](053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md)'s deadline and its one-version-behind limit
+
+## Context
+
+ADR 053 let an owner say "not now" to the admin's update, with one switch: "Update automatically". Anything else still restarts an account in the middle of its bots' work: the admin's Update switches every account that updates automatically at once, and a machine of one account (ADR 183) restarts itself at 04:00 whatever its bots are doing. A run a restart cuts off carries on (ADR 140), but the owner still loses the thing they were waiting for, and nobody tells them an update came.
+
+What the owner wants is that an update reaches them as part of their day: said in their chat, moved to when nothing of theirs is running, at a time they chose.
+
+## Decision
+
+- **A "when" per account, instead of on/off.** `updateWhen` is `ready` ("As soon as it's ready"), `night` ("At night, when idle", the default) or `manual` ("When I say"). The front door keeps it in the account's entry of `front-door.json`, and only the account's owner changes it, in Settings on the web page and in the Android app, on a machine of several accounts and, for the first time, on a machine of one account. **No field means `night`; `autoUpdate: false` from before reads as `manual`.** `GET /front-door/update` says `when` (the apps' check that the front door has it) and keeps `autoUpdate` (`when !== "manual"`) for older apps; `POST /front-door/update` takes `{ when }` or the old `{ autoUpdate }` (`true` is `night`, `false` is `manual`).
+- **The admin's "Update every account" only downloads.** It restarts no account: every account then moves by its own "when", at an idle moment. (Amends ADR 053, whose admin's Update switched every account that updated automatically.) An admin who updates again while an account still waits has root's step switch that account, never two versions behind (ADR 053), without an idle check: the admin's own act.
+- **Idle.** An account moves to the new version only when it is idle: no run of a bot, group, Chief turn, look, checkup or script job going, nothing queued, no job, reminder or look due in the next 30 minutes, and no message from the owner in the last 10 minutes. Busy: the front door tries again later, never forces.
+- **Night** is from 04:00 until the end of the owner's quiet hours (07:00 when they have none), in their quiet hours' time zone. Busy all night: the next night.
+- **The deadline stays** (ADR 053): from the deadline on, the switch no longer waits for the owner's choice, only for an idle moment, for at most 24 hours; then it switches anyway (runs it cuts off carry on, ADR 140). On a machine of one account the deadline is 7 days.
+- **"Now" means now.** The owner's "Now" switches at once; the warning that work still running stops shows only when the account is busy.
+- **A machine of one account updates in two steps** (amends ADR 183). The front door asks root's step to download (at 04:00, or as soon as it finds the release for "As soon as it's ready"); the account is left waiting; then the front door asks its switch by the same rule as every account. The split is also what lets the What's new notes be shown before the switch.
+- **The front door decides every switch; root's step only carries them out.** For root's step every account is written `autoUpdate: false`, so root's step always leaves it waiting, and the front door asks each switch with `SWITCH-<name>` (ADR 053). `install.sh` needs no change. Only the front door knows the owner's "when", their quiet hours' time zone and the deadline; root's step would need each of them, read every minute with the image's Node.
+- **The account's server answers "am I idle"** on a route only the front door reaches (the socket mark and `x-botdot-room`, as the group router's and the backups'): `GET /api/update/idle`. The front door asks it, and decides.
+- **The announcement is a fixed botdot note plus a card**, not a Chief-written message. The front door tells each account its update state on a change and every minute (as it tells accounts what the off-site backups did); the account keeps one `update` card in Needs you, with **[Now]** and **[Tonight]**, and posts the note once per version into the Chief's chat with `chief.post()`, naming the card (ADR 252). The note lists the What's new titles; it is not an AI turn, not counted in the Chief's daily messages and held through quiet hours. The card's buttons call the front door's own routes with the owner's session, never the account server.
+- **Migration.** Each account is `night` unless its entry says otherwise: an entry with `autoUpdate: false` reads as `manual`, none as `night`. A later entry is written with `updateWhen` in words; `autoUpdate: false` is written for root's step to read.
+
+## Alternatives
+
+- **Root's step checking idle.** It would need to ask each account's server, and know the owner's "when", their quiet hours and the deadline, all of which are the front door's; and it would hold the installer's lock while it waits. Root's step only carries out a switch it is asked for.
+- **The account's server telling the front door the owner's choice.** The front door is the one that reaches root's step and keeps the deadline; making it ask the server for the choice would make an account's own server a part of the switch, and a server that is down could never be switched. The front door keeps the choice, and the account's server is asked one question: is it idle.
+- **`[[choices]]` in chat for Now and Tonight.** A choice in chat is an answer to a turn; the update is not one. A card in Needs you is where a question the owner can answer at any time already stands (ADR 252).
+- **An AI-written announcement.** It costs a turn, is counted in the Chief's daily messages, may say what is not so and is not held for the owner's quiet hours. The note is fixed and lists the titles of What's new.
+- **A one-step night update.** Download and switch in one go at 04:00, as ADR 183 did. The owner would not see the notes before the switch, and a busy account would have nowhere to wait.
+
+## Consequences
+
+- An update no longer restarts an account in the middle of its owner's day: it moves when idle, at night by default, or when the owner says.
+- An account can run the version before the front door's for up to the deadline in normal use (ADR 053), and a machine of one account now can too: its `update.json` and status files say so.
+- Today's admin's Update still switches the accounts that are `ready` or `night`; the front door takes every switch over in [#1689](https://github.com/ladrok/bot-dot/issues/1689). Until then `autoUpdate: false` is written for `manual` alone.
+- An app that doesn't know `when` shows "Update automatically" from `autoUpdate`, and turning it on there sets `night`.
+- Out of scope, later: keeping the data snapshot longer for an owner's "Go back", a check after the switch, one update state for every app, and the desktop app's dialog.
