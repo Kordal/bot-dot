@@ -148,7 +148,7 @@ test("the viewer's page and the notes in its frame speak the account's language 
   const en = await get();
   assert.match(en.body, /<html lang="en">/);
   assert.match(en.body, /<title>Screen<\/title>/);
-  assert.deepEqual(words(en.body), { starting: 'Starting the computer…', watching: 'Viewing', control: 'You have control', reconnecting: 'Reconnecting…', off: 'Turned off', keyboard: 'Keyboard', keys: 'Keys' });
+  assert.deepEqual(words(en.body), { starting: 'Starting the computer…', watching: 'Viewing', control: 'You have control', reconnecting: 'Reconnecting…', off: 'Turned off', keyboard: 'Keyboard', keys: 'Keys', copied: "Copied on the bot's screen, tap to copy", typeIt: 'Type it', typeText: "Text to type on the bot's screen" });
   assert.doesNotMatch(en.body, /\{(lang|title|words)\}/, 'every mark is filled');
 
   // Polish, once the account chose it: the page, and the note while the screen is off (in UTF-8).

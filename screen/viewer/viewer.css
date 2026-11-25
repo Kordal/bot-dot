@@ -27,3 +27,16 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
   background: var(--chip); color: var(--ink-2); font-size: 13px; line-height: 1.5;
 }
 #status[data-state="control"] { color: var(--ink); font-weight: 600; }
+
+/* Copy and paste (clipboard.js): the chip when the browser wants a tap, and "Type it" with its small form. */
+[hidden] { display: none !important; }
+#clip-chip, #type-open, #type-go {
+  min-height: 36px; padding: 4px 12px; border: 1px solid var(--edge); border-radius: var(--radius);
+  background: var(--chip); color: var(--ink); font: 600 13px/1.5 var(--font); cursor: pointer;
+}
+/* The chip is above the buttons of controls.css (bottom right, 48px high); Type it is at the left, above the state chip. */
+#clip-chip { position: fixed; left: 50%; bottom: 72px; z-index: 1; transform: translateX(-50%); max-width: calc(100% - 32px); }
+#type-box { position: fixed; left: 8px; bottom: 50px; display: grid; gap: 8px; justify-items: start; max-width: calc(100% - 16px); }
+#type-form { display: grid; gap: 8px; justify-items: end; width: min(360px, calc(100vw - 16px)); padding: 8px; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--bg); }
+#type-field { width: 100%; resize: vertical; padding: 8px; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); }
+#clip-chip:focus-visible, #type-open:focus-visible, #type-go:focus-visible, #type-field:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

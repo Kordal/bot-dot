@@ -4,6 +4,7 @@
 import { setupTouch } from './touch.js';
 import { setupKeyboard } from './keyboard.js';
 import { buildMenu, sendChord } from './keys-menu.js';
+import { guarded } from './guarded.js';
 
 function el(tag, attrs, ...children) {
   const node = document.createElement(tag);
@@ -12,12 +13,8 @@ function el(tag, attrs, ...children) {
   return node;
 }
 
-// What input uses while there is no transport (between connections: Reconnecting…, Turned off, the wait before a retry):
-// every call does nothing, so a tap or a key then neither throws nor leaves a gesture half done.
-const NONE = new Proxy({}, { get: () => () => {} });
-
 export function setupControls({ screen, layer, words, transport: current }) {
-  const transport = () => current() ?? NONE;
+  const transport = guarded(current);
   setupTouch({ screen, layer, transport });
   const field = el('textarea', { id: 'typing', rows: '1', 'aria-label': words.keyboard || 'Keyboard', autocapitalize: 'off', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'enter' });
   const keyboardButton = el('button', { type: 'button', id: 'keyboard-button', 'aria-pressed': 'false' }, words.keyboard || 'Keyboard');
