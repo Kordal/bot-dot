@@ -369,6 +369,9 @@ test('ownerWords: only a request the owner typed, also in a run that carries on'
   for (const name of ['assignment', 'assignmentAgain', 'followUp', 'followUpAgain', 'chief', 'chiefAgain', 'job', 'tile', 'tileAgain', 'hello', 'review', 'teammate', 'lost']) assert.equal(words(name), '', name);
   assert.equal(H.ownerWords(runs.again), '', 'without a way to read the run it continues, nothing is known');
   assert.equal(H.ownerWords(null, read), '');
+  // A message of files alone: the line botdot puts for it is not the owner's.
+  assert.equal(H.ownerWords(run({ prompt: H.FILES_ONLY, attachments: [{ name: 'a.txt' }] })), '');
+  assert.equal(H.ownerWords(run({ prompt: 'Have a look at the attached files. I am vegan.', attachments: [{ name: 'a.txt' }] })), 'Have a look at the attached files. I am vegan.');
 });
 
 test('ownerSteers: what the owner steered into a run and into each run of the chain it carries on (ADR 278)', () => {
