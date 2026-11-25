@@ -111,6 +111,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `docs/adr/` | Architecture Decision Records |
 | `docs/decisions/` | One file per small, non-obvious choice that is not architecture (`YYYY-MM-DD-short-name.md`, one dated line) |
 | `docs/agents/` | What the skills read: the issue tracker (`issue-tracker.md`), the triage labels (`triage-labels.md`) and the domain documents (`domain.md`) |
+| `docs/research/` | Findings of research tickets, one dated file each (`YYYY-MM-DD-topic.md`) with a go/no-go, and any scripts a trial needs in a folder beside it |
 | `docs/archive/` | Past working notes, kept for history: reviews, audits, acceptance and memory reports, research notes, feature test lists and the Milestone 1 screenshots (`evidence/`) |
 | `docs/screenshots/` | The README's screenshots, made by `scene.cjs` (demo data, the real UI) and framed by `frame.cjs` |
 | `scripts/` | `dev.js`, what `npm start` runs (the server behind the front door, on this machine), `check-code.js` and `typecheck.sh` (`make lint`'s code and type checks, `tsconfig.json`), and the tests of the documentation link check |
