@@ -6,6 +6,7 @@
 process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
 const path = require('path');
 const { startServer, makeBot, writeData, waitFor, heldRun, feed } = require('./helpers');
 const { tileOf, tileNote } = require('../lib/project-board-note');
@@ -151,6 +152,30 @@ test('a bot that runs no project, and a card that is gone, are refused on its ch
   assert.equal(gone.status, 400);
   const plain = await srv.api(`/bots/${other.id}/run`, { method: 'POST', body: { prompt: 'Just a message' } });
   assert.equal(plain.status, 201, 'a message with no card is as it was');
+});
+
+test("a refused card message changes nothing: the bot's declined logins keep their state, the run list and the chat stay as they were", async () => {
+  const other = await makeBot(srv, { name: 'Bystander', emoji: '🧍', prompt: 'Does other things.' });
+  const declined = path.join(srv.data, 'asks-declined.json');
+  const no = (botId) => ({ botId, vaultLogin: 'shop.example.com', at: new Date().toISOString() });
+  fs.writeFileSync(declined, JSON.stringify([no(other.id), no(lead.id)], null, 2));
+  const before = fs.readFileSync(declined, 'utf8');
+  const runs = async (id) => (await srv.api(`/runs?botId=${id}`)).data.length;
+  const [otherRuns, leadRuns] = [await runs(other.id), await runs(lead.id)];
+  // A card of no board, a card that is gone, no string: all refused with 400, and the owner's message counts as written to nobody.
+  for (const [id, card] of [[other.id, 'replies'], [lead.id, 'card:gone'], [lead.id, 42]]) {
+    const r = await srv.api(`/bots/${id}/run`, { method: 'POST', body: { prompt: 'Change it', card } });
+    assert.equal(r.status, 400, JSON.stringify(card));
+    assert.equal(fs.readFileSync(declined, 'utf8'), before, 'the declined logins are not touched');
+  }
+  assert.deepEqual([await runs(other.id), await runs(lead.id)], [otherRuns, leadRuns], 'no run, and nothing waiting, was made');
+  // The same message with a card that is on the board is a message as any: the bot may ask for the login again.
+  const ok = await srv.api(`/bots/${lead.id}/run`, { method: 'POST', body: { prompt: 'Sort the replies', card: 'replies' } });
+  assert.equal(ok.status, 201, JSON.stringify(ok.data));
+  const after = JSON.parse(fs.readFileSync(declined, 'utf8'));
+  assert.equal(after.find((d) => d.botId === lead.id).ownerWrote, true);
+  assert.equal(after.find((d) => d.botId === other.id).ownerWrote, undefined, "another bot's no is not touched");
+  await waitFor(async () => !(await srv.api(`/bots/${lead.id}`)).data.running, { what: 'the run ends' });
 });
 
 test('a message to the busy manager keeps its tile while it waits: in the bot, in the list and in the queued event', async (t) => {
