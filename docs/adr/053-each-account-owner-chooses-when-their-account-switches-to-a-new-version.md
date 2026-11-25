@@ -1,6 +1,7 @@
 # ADR-053: Each account's owner chooses when their account switches to a new version
 
 - **Status:** Accepted (2026-10-21, the owner's request in [#259](https://github.com/ladrok/bot-dot/issues/259)). Amends [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md) (an account one version behind is now a normal state, not only a failure) and [ADR 045](045-the-update-runs-in-phases-of-its-own-apart-from-the-install.md) (the phase `switch` leaves some accounts waiting).
+- **Amended by:** [ADR 271](271-an-account-switches-to-a-new-version-when-it-is-idle-at-the-time-its-owner-chose.md) (2026-11-25): the owner's on/off becomes a "when" (as soon as it's ready, at night when idle, when I say), the admin's "Update every account" only downloads and every account then switches by its own "when" at an idle moment, and the front door decides every switch. The deadline, the waiting state, "Update now" and the one-version-behind limit stay.
 - **Owning task:** [#259](https://github.com/ladrok/bot-dot/issues/259); amended by [#274](https://github.com/ladrok/bot-dot/issues/274) (2026-10-21): the admin's own account chooses too.
 
 ## Context
