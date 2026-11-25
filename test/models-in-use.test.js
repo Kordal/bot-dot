@@ -64,6 +64,13 @@ test('a provider\'s model shows its name, a bot of a removed provider shows the 
   assert.equal(gone.provider, 'Claude subscription', 'what it really runs on now');
   assert.match(gone.note, /not available any more/);
   assert.match(r.chief.note || '', /not available any more/);
+  // The account default was on that provider too, so there is no account default to fall back on: Claude Code's own choice.
+  for (const note of [gone.note, r.chief.note, r.accountDefault.note]) {
+    assert.match(note, /so it runs on Claude Code's own choice\.$/);
+    assert.ok(!/account default/.test(note), 'it does not claim an account default it does not have');
+  }
+  assert.match(r.accountDefault.note, /It asked for model-a/);
+  assert.equal(r.accountDefault.model, "Claude Code's own choice");
 });
 
 test('the Chief has one read-only tool for it, which reads that route', async (t) => {
@@ -101,4 +108,53 @@ test('with the admin\'s Jev, the calls it is asked first for say so, and an API 
     assert.equal(keyed.bots[0].provider, 'Anthropic API key');
     assert.ok(!JSON.stringify(keyed).includes('ghij'));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a bot of a removed provider, with a Claude account default, says it runs on that default', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'models-in-use-'));
+  try {
+    const settings = require('../lib/settings').create(dir, {});
+    settings.update({ defaultModel: 'sonnet' });
+    const { build } = require('../lib/models-in-use');
+    const r = build({ settings, bots: [{ id: 'x', name: 'X', model: 'provider:custom:gone', effort: '' }], reviewModel: 'opus', router: 'haiku' });
+    assert.match(r.bots[0].note, /so it runs on the account default, Sonnet \(latest\)\.$/);
+    assert.equal(r.accountDefault.note, undefined);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the group router, the wake gate and the busy-bot call report the model the machine override makes them ask for', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'models-in-use-'));
+  const vars = ['BOT_DOT_GROUP_ROUTER_MODEL', 'BOT_DOT_WAKE_GATE_MODEL', 'BOT_DOT_FOLLOW_UP_MODEL', 'BOT_DOT_WAKE_GATE'];
+  const before = vars.map((v) => process.env[v]);
+  try {
+    const settings = require('../lib/settings').create(dir, {});
+    const { build } = require('../lib/models-in-use');
+    const label = (r, what) => r.background.find((c) => c.for === what)?.model;
+    const names = ['Who a group message is for', 'Whether a note needs a run (the wake gate)', 'What a message to a busy bot is'];
+    process.env.BOT_DOT_WAKE_GATE = 'on'; // the wake gate is listed only when it is on
+    const asked = (id) => settings.describer()(settings.forHelper({ model: id })).model;
+    process.env.BOT_DOT_GROUP_ROUTER_MODEL = 'claude-sonnet-5-5';
+    process.env.BOT_DOT_WAKE_GATE_MODEL = 'claude-opus-5-5';
+    process.env.BOT_DOT_FOLLOW_UP_MODEL = 'claude-fable-5-2';
+    const r = build({ settings, bots: [], reviewModel: 'opus', router: 'haiku' });
+    assert.deepEqual(names.map((n) => label(r, n)), ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-2'].map(asked));
+    for (const v of vars.slice(0, 3)) delete process.env[v];
+    const base = build({ settings, bots: [], reviewModel: 'opus', router: 'haiku' });
+    assert.deepEqual(names.map((n) => label(base, n)), ['claude-haiku-5-5', 'claude-haiku-5-5', 'claude-haiku-5-5'].map(asked));
+    assert.notDeepEqual(names.map((n) => label(r, n)), names.map((n) => label(base, n)), 'the override changes what is reported');
+    // What is reported is what the call itself asks for: one helper per module, read by create too.
+    process.env.BOT_DOT_GROUP_ROUTER_MODEL = 'claude-sonnet-5-5';
+    process.env.BOT_DOT_WAKE_GATE_MODEL = 'claude-opus-5-5';
+    process.env.BOT_DOT_FOLLOW_UP_MODEL = 'claude-fable-5-2';
+    assert.deepEqual([require('../lib/group-router').modelOf(), require('../lib/wake-gate').modelOf(), require('../lib/follow-up').modelOf()], ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-2']);
+  } finally {
+    vars.forEach((v, i) => { if (before[i] === undefined) delete process.env[v]; else process.env[v] = before[i]; });
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
