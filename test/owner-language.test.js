@@ -39,7 +39,7 @@ test("the Chief's checkup and memory review are told the account's language (a l
   const chief = read('lib/chief.js');
   assert.match(chief, /lookLib\.systemPrompt\(\{[^}]*lang: s\.language \}\)/);
   assert.match(chief, /checkupLib\.systemPrompt\(\{[^}]*lang: s\.language \}\)/);
-  assert.match(read('lib/chief-review.js'), /systemPrompt\(\{ rules: s\.chiefRules, name: s\.chiefName, lang: s\.language \}\)/);
+  assert.match(read('lib/chief-review.js'), /systemPrompt\(\{ rules: s\.chiefRules, name: s\.chiefName, lang: s\.language, limit \}\)/);
 });
 
 test("a project's recorded update is in the account's language", () => {

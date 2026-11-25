@@ -236,7 +236,7 @@ function reviewSummary(reviews) {
   return new Map([...out].sort(([x], [y]) => x.localeCompare(y)));
 }
 
-const REVIEW_LEGEND = 'As wanted: repeats that ended the way the scenario says (grading.js REVIEW_SCENARIOS): duplicates down to one note, the lesson in a run saved as a note, the owner\'s note as it was and still pinned, a tidy memory unchanged, no note of words that neither the notes nor the runs hold, a how-to as a skill with its note removed. Removed, Reworded, Re-pinned, Added, Skills: per repeat, how many seeded notes the review removed, reworded, pinned or unpinned, how many notes and skills it made. Invented: per repeat, notes it wrote whose numbers or half of whose words were in neither.';
+const REVIEW_LEGEND = 'As wanted: repeats that ended the way the scenario says (grading.js REVIEW_SCENARIOS): duplicates down to one note, the lesson in a run saved as a note, the owner\'s note as it was and still pinned, a tidy memory unchanged, no note of words that neither the notes nor the runs hold, a how-to as a skill with its note removed, the older of two notes that cannot both be true removed for a reason that names the newer one with the owner\'s own contradicting pair left as it was and named in the report. Removed, Reworded, Re-pinned, Added, Skills: per repeat, how many seeded notes the review removed, reworded, pinned or unpinned, how many notes and skills it made. Invented: per repeat, notes it wrote whose numbers or half of whose words were in neither.';
 
 function reviewReport(reviews) {
   const rows = reviewSummary(reviews);
