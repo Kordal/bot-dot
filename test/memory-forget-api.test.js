@@ -58,7 +58,7 @@ test('in a run the owner started that has read nothing outside, a forget erases 
   const b = await bot();
   // The owner said it, and the bot saved it; then it came up in a second chat.
   const first = await held(t, b, ownerAsks(srv, b, 'My dentist is Dr Zebrowska, remember that.'));
-  const id = noteId(await first.tools.text('remember', { note: 'The dentist is Dr Zebrowska', topic: 'health' }));
+  const id = noteId(await first.tools.text('remember', { note: 'The dentist is Dr Zebrowska', topic: 'health', quote: 'My dentist is Dr Zebrowska' }));
   await first.end('Saved: your dentist is Dr Zebrowska.');
   const second = { run: await ended(t, b, 'Book Dr Zebrowska for Friday.', 'Dr Zebrowska has no slot on Friday.') };
   const other = await ended(t, b, 'What is the capital of Portugal?', 'Lisbon.');
@@ -209,7 +209,7 @@ test('a forget names only what is the bot\'s: its own notes, shared notes and it
 test('in a run the owner did not start, and after the run read outside content, a forget erases nothing and waits on a card: the yes erases, the no keeps', async (t) => {
   const b = await bot();
   const wrote = await held(t, b, ownerAsks(srv, b, 'My gate code is MAGNOLIA.'));
-  const id = noteId(await wrote.tools.text('remember', { note: 'The gate code is MAGNOLIA' }));
+  const id = noteId(await wrote.tools.text('remember', { note: 'The gate code is MAGNOLIA', quote: 'My gate code is MAGNOLIA' }));
   await wrote.end('Saved.');
   const cards = async () => (await pendingOf(b)).map((p) => [p.action, p.title, p.meta, p.yes, p.no, p.guarded, p.text, p.notes.map((n) => n.id)]);
 
@@ -290,7 +290,7 @@ test('an approved and a declined memory change each write one line of the audit 
 test('a removed note is listed and restored by a bot only in a run the owner started', async (t) => {
   const b = await bot();
   const h = await held(t, b, ownerAsks(srv, b, 'Remove the note about the parking spot.'));
-  const id = noteId(await h.tools.text('remember', { note: 'The parking spot is number 14', topic: 'car' }));
+  const id = noteId(await h.tools.text('remember', { note: 'The parking spot is number 14', topic: 'car', quote: 'the note about the parking spot' }));
   assert.match(await h.tools.text('remove_note', { id, reason: 'moved house' }), new RegExp(`^Removed note \\[${id}\\]\\. No bot reads it any more\\. For 30 days the owner can have it brought back; then it is gone\\.$`));
   assert.deepEqual((await learnedOf(h.run)).at(-1), { kind: 'memory-removed', text: 'Removed: The parking spot is number 14', chip: 'Removed: The parking spot is number 14' });
   assert.match(await h.tools.text('recall', { query: 'parking spot', history: true }), /Nothing found/, 'recall, with history too, hands out no removed note');
@@ -337,7 +337,7 @@ test('remember with an end date saves a passing state for all bots: the chip nam
   const b = await bot();
   const until = inDays(4);
   const h = await held(t, b, ownerAsks(srv, b, "This week I'm in Berlin."));
-  const said = await h.tools.text('remember', { note: 'In Berlin', scope: 'shared', until });
+  const said = await h.tools.text('remember', { note: 'In Berlin', scope: 'shared', until, quote: "This week I'm in Berlin" });
   const id = noteId(said);
   assert.match(said, new RegExp(`^Saved to the shared memory \\(every bot reads it\\) as \\[${id}\\], pinned\\. It holds until ${until}; botdot removes it the day after\\.`));
   assert.deepEqual((await learnedOf(h.run)).map((x) => [x.kind, x.text, x.chip]), [['memory-shared', 'In Berlin', `Remembered for all bots until ${dayWords(until)}: In Berlin`]]);
@@ -347,7 +347,7 @@ test('remember with an end date saves a passing state for all bots: the chip nam
   assert.ok(past.isError);
   assert.match(past.content[0].text, /is in the past \(today is \d{4}-\d\d-\d\d\)\. Give the day it ends, or save it without an end\./);
   assert.match((await h.tools.call('remember', { note: 'In Rome', until: 'next Sunday' })).content[0].text, /Give the end as a calendar day, like 2026-10-11\./);
-  assert.match(await h.tools.text('update_memory', { id, note: 'In Berlin', until: inDays(6), reason: 'staying longer' }), /Updated note/);
+  assert.match(await h.tools.text('update_memory', { id, note: 'In Berlin', until: inDays(6), reason: 'staying longer', quote: "This week I'm in Berlin" }), /Updated note/);
   assert.equal((await srv.api('/memory')).data.shared.find((n) => n.id === id).until, inDays(6));
   assert.match(await h.tools.text('recall', { query: 'Berlin', in: 'notes' }), new RegExp(`\\(note, shared, pinned, the owner said, \\d{4}-\\d\\d-\\d\\d, until ${inDays(6)}\\) In Berlin`));
   await h.end('Noted, until Sunday.');

@@ -109,10 +109,49 @@ test('small talk, a guess and a file want no note at all; Berlin wants a shared 
   for (const text of ['this week', 'until Sunday', 'in October 2026', 'for 5 days', 'version 2.1.284', 'it may 2x the load', 'plans 1 may change', 'open 24/7']) assert.equal(realDate(text), false, text);
 });
 
-test('ten write-side scenarios, each with a name of its own', () => {
-  assert.equal(WRITE_SCENARIOS.length, 10);
-  assert.equal(new Set(WRITE_SCENARIOS.map((w) => w.name)).size, 10);
+test('twelve write-side scenarios, each with a name of its own', () => {
+  assert.equal(WRITE_SCENARIOS.length, 12);
+  assert.equal(new Set(WRITE_SCENARIOS.map((w) => w.name)).size, 12);
   for (const w of WRITE_SCENARIOS) assert.ok(w.turns.length && w.turns.every((t) => t.say) && typeof w.wanted === 'function' && w.says, w.name);
+});
+
+// ADR 273: what the owner said is kept as theirs; a task and a question are never said to be a fact about them.
+test('the scenarios where the owner states something want the note to be the owner\'s; a task and a question want no note marked so', () => {
+  const stated = ['remember-that', 'prefer-typescript', 'decided-postgresql', 'no-more-redis', 'for-this-bot-go'];
+  const about = { 'remember-that': '6543', 'prefer-typescript': 'TypeScript', 'decided-postgresql': 'PostgreSQL', 'no-more-redis': 'Redis', 'for-this-bot-go': 'Go' };
+  for (const name of stated) {
+    const w = scenario(name);
+    const note = (source) => ({ text: `The owner said ${about[name]}`, ...(source ? { source } : {}) });
+    const turns = [{ text: 'Saved it.' }];
+    assert.equal(grade(w, { own: [note('owner')], shared: [] }, turns).wanted, true, `${name}: the owner's`);
+    assert.equal(grade(w, { own: [note('bot')], shared: [] }, turns).wanted, false, `${name}: the bot's own conclusion`);
+    assert.equal(grade(w, { own: [note('outside')], shared: [] }, turns).wanted, false, `${name}: after outside content`);
+    assert.equal(grade(w, { own: [], shared: [note('owner')] }, turns).wanted, true, `${name}: shared`);
+    assert.equal(grade(w, { own: [note()], shared: [] }, turns).wanted, true, `${name}: a store that records no source is not held against it`);
+  }
+  const twice = scenario('said-twice');
+  assert.equal(grade(twice, { own: [{ text: 'Prefers TypeScript.', source: 'owner' }], shared: [] }).wanted, true);
+  assert.equal(grade(twice, { own: [{ text: 'Prefers TypeScript.', source: 'bot' }], shared: [] }).wanted, false);
+  const berlin = scenario('berlin');
+  assert.equal(grade(berlin, { own: [], shared: [{ text: 'In Berlin', until: '2026-10-11', source: 'owner' }] }).wanted, true);
+  assert.equal(grade(berlin, { own: [], shared: [{ text: 'In Berlin', until: '2026-10-11', source: 'bot' }] }).wanted, false);
+});
+
+test('w11 and w12: a task and a question say nothing about the owner, and no note marked as the owner\'s may say so', () => {
+  const task = scenario('w11');
+  const question = scenario('w12');
+  assert.deepEqual(task.turns.map((t) => t.say), ['Find me a vegan lasagne recipe.']);
+  assert.deepEqual(question.turns.map((t) => t.say), ['Should I switch to Rust?']);
+  for (const [w, text] of [[task, 'The owner is vegan.'], [question, 'The owner uses Rust.']]) {
+    const turns = [{ text: 'Here you go.' }];
+    assert.equal(grade(w, { own: [], shared: [], waiting: [] }, turns).wanted, true, 'no note at all');
+    assert.equal(grade(w, { own: [{ text, source: 'bot' }], shared: [] }, turns).wanted, true, 'its own conclusion');
+    assert.equal(grade(w, { own: [{ text, source: 'outside' }], shared: [] }, turns).wanted, true);
+    assert.equal(grade(w, { own: [{ text, source: 'owner' }], shared: [] }, turns).wanted, false, 'in the owner\'s mouth');
+    assert.equal(grade(w, { own: [], shared: [{ text, source: 'owner' }] }, turns).wanted, false, 'shared too');
+    assert.equal(grade(w, { own: [{ text: 'Likes pancakes.', source: 'owner' }], shared: [] }, turns).wanted, true, 'a note of another thing does not count');
+    assert.deepEqual(grade(w, { own: [{ text, source: 'bot' }], shared: [] }, turns), { saved: true, own: 1, shared: 0, waiting: 0, notes: 1, wanted: true });
+  }
 });
 
 // ---------- the comparison, on two made-up result files ----------
@@ -219,8 +258,10 @@ test('the recorded baseline says when, on which model and at which revision it w
   // Reading: every question a bot was asked ran with nothing it is about inside <conversation>.
   const asked = baseline.results.filter((r) => r.scenario !== 'chief').flatMap((r) => r.questions);
   assert.ok(asked.length > 0 && asked.every((q) => q.result.conversation && q.result.conversation.holds.length === 0));
-  // Writing: the ten scenarios, three repeats each.
-  for (const w of WRITE_SCENARIOS) assert.equal(baseline.writes.filter((x) => x.scenario === w.name && x.grade).length, baseline.repeat, w.name);
+  // Writing: the ten scenarios it was made with, three repeats each. w11 and w12 (ADR 273) were added after it: the next live run records them.
+  const NEWER = ['w11-a-task-not-a-fact', 'w12-a-question'];
+  for (const w of WRITE_SCENARIOS.filter((x) => !NEWER.includes(x.name))) assert.equal(baseline.writes.filter((x) => x.scenario === w.name && x.grade).length, baseline.repeat, w.name);
+  assert.deepEqual(NEWER.filter((name) => baseline.writes.some((x) => x.scenario === name)), [], 'once a baseline holds them, this list shrinks');
   assert.equal(baseline.repeat, 3);
   // Its report is the one in the repository, and it compares.
   const { results, writes, ...meta } = baseline;

@@ -307,3 +307,39 @@ test('a card of questions is said as open or as closed: a closed one is never po
   assert.match(closed, /\(under it the owner was shown a card with these questions: Which account\? \| Which day\?\. That card is closed now: the owner can no longer answer on it/);
   assert.match(closed, /ask it again on a new card, and never point the owner back to this one\)/);
 });
+
+// ---------- what the owner wrote that the block shows (ADR 273) ----------
+
+test('ownerSaid: the owner\'s requests and what they steered in, as far as the block shows them, and no one else\'s', () => {
+  const owner = run({ prompt: 'I live in Lodz.', steered: [{ id: 's1', text: 'And I am vegan.', at: '2026-10-06T11:55:00Z' }, { id: 's2', text: 'Ask Infra for the DNS record.', fromBot: { id: 'x', name: 'Fleet Doctor' } }] });
+  const said = H.ownerSaid([
+    run({ prompt: 'A teammate asked for this', trigger: 'bot', fromBot: { id: 'x', name: 'Fleet Doctor' } }),
+    run({ prompt: 'The Chief wrote this', startedBy: 'chief' }),
+    run({ prompt: 'The job\'s task', trigger: 'schedule', jobName: 'Morning check', reporting: 'delivered', result: 'News.' }),
+    run({ prompt: 'botdot started you again on this', continues: 'r0' }),
+    owner,
+    run({ prompt: 'x'.repeat(H.CUT + 500) }),
+  ], { now: NOW });
+  // Oldest first, as the block is.
+  assert.deepEqual(said.slice(1), ['I live in Lodz.', 'And I am vegan.']);
+  assert.ok(!said.some((t) => /teammate|Chief wrote|job's task|started you again|DNS record/.test(t)), JSON.stringify(said));
+  assert.equal(said[0].length, H.CUT, 'each text as far as the block shows it');
+  assert.equal(said.length, 3);
+  // A run left out of the chat is not in the block, so its words are not handed over.
+  assert.deepEqual(H.ownerSaid([run({ prompt: 'Forgotten words', forgotten: true })], { now: NOW }), []);
+  // Nothing in the chat: nothing said.
+  assert.deepEqual(H.ownerSaid([], { now: NOW }), []);
+});
+
+test('groupChat hands back the owner\'s messages of the block, not a member\'s reply nor the Project Manager\'s', () => {
+  const fixed = () => 'abcdef0123456789';
+  const at = '2026-10-06T11:00:00Z';
+  const newest = [
+    { message: { id: 'm2', at, text: 'I always use pnpm.' } },
+    { run: run({ botId: 'c', result: 'Noted: yarn is fine too.', endedAt: at }) },
+    { message: { id: 'm1', at, text: 'Ship it on Friday.', pm: true } },
+    { message: { id: 'm0', at, text: 'We deploy on Fridays.' } },
+  ];
+  const { said } = H.groupChat(newest, { reader: 'b', now: NOW, mark: fixed });
+  assert.deepEqual(said.sort(), ['I always use pnpm.', 'We deploy on Fridays.']);
+});

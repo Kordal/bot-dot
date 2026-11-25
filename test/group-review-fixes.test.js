@@ -194,8 +194,8 @@ test("in a turn a member handed on, a forget and a change to a note the owner st
   hold(srv, coder);
   const first = (await send(srv, group, { text: '@GuardCoder my gate code is MAGNOLIA and I always use pnpm. Remember both.' })).data;
   const owners = await heldTurn(coder);
-  const code = (await mem(owners, { action: 'add', scope: 'self', text: 'The gate code is MAGNOLIA.' })).note;
-  const pnpm = (await mem(owners, { action: 'add', scope: 'self', text: 'The owner always uses pnpm.' })).note;
+  const code = (await mem(owners, { action: 'add', scope: 'self', text: 'The gate code is MAGNOLIA.', quote: 'my gate code is MAGNOLIA' })).note;
+  const pnpm = (await mem(owners, { action: 'add', scope: 'self', text: 'The owner always uses pnpm.', quote: 'I always use pnpm' })).note;
   assert.deepEqual([code.source, pnpm.source], ['owner', 'owner']);
   letGo(srv, coder);
   srv.release(owners.rec);

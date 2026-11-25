@@ -38,7 +38,9 @@ async function uses(h, name, server = srv) {
   await waitFor(async () => toolUses((await server.api(`/runs/${h.run.id}`)).data.events || []).length >= list.length, { what: `the run to have asked for ${name}` });
 }
 const mem = (h, body) => self(srv, h.token, 'memory', body).then((r) => r.data);
-const remember = (h, text, extra = {}) => mem(h, { action: 'add', text, ...extra });
+// What the default run of `held` was asked, and so the owner's words a note can quote (ADR 273).
+const SAID = 'what I tell you';
+const remember = (h, text, extra = {}) => mem(h, { action: 'add', text, quote: SAID, ...extra });
 const typed = async (owner, text, extra = {}) => (await srv.api('/memory/notes', { method: 'POST', body: { owner, text, ...extra } })).data.note;
 const noteNow = async (id) => (await srv.api('/memory')).data.bots.flatMap((b) => b.notes).concat((await srv.api('/memory')).data.shared).find((n) => n.id === id);
 // What the run learned so far, from its log: its record can lag behind while it goes, and the apps are not sent
@@ -167,7 +169,8 @@ test('a carry-on answers as the run it continues and keeps what that run had rea
   const quiet = await srv.finished(r.data.id);
   refuse([]);
   const again = await carryOnOf(clean, quiet);
-  assert.equal((await remember(again, 'Use pnpm')).note.source, 'owner');
+  assert.equal((await remember(again, 'Use pnpm', { quote: 'Remember: use pnpm' })).note.source, 'owner', 'its task is what the stopped run was asked');
+  assert.equal((await remember(again, 'Use yarn instead')).note.source, 'bot', 'words that are not in it');
 
   // A run the Chief started stays the Chief's when it carries on with a grant: here, a job's stays the job's.
   const worker = await bot({ allowedTools: ['Read'] });
@@ -214,7 +217,7 @@ test('D15: a note of the owner\'s is changed at once in the owner\'s clean run a
   const mine = await held(t, b);
   const spoken = (await remember(mine, 'Answers are short')).note; // said in chat: the owner's, and not pinned by hand
   assert.deepEqual([spoken.source, spoken.pinLocked], ['owner', false]);
-  const changed = await mem(mine, { action: 'edit', id: own.id, text: 'Reports go out on Tuesdays', reason: 'The owner said so' });
+  const changed = await mem(mine, { action: 'edit', id: own.id, text: 'Reports go out on Tuesdays', reason: 'The owner said so', quote: SAID });
   assert.equal(changed.result, 'saved');
   assert.equal(changed.note.source, 'owner');
   assert.match(changed.say, /^Updated note/);
@@ -427,23 +430,23 @@ test('the bots\' tools answer with the server\'s sentence: saved, already there,
   const h = await held(t, b);
   const tools = rpcClient(t, 'self-mcp.js', h.rec.self.env);
   const today = serverDay();
-  const saved = await tools.text('remember', { note: 'Use pnpm', topic: 'tools' });
+  const saved = await tools.text('remember', { quote: SAID, note: 'Use pnpm', topic: 'tools' });
   assert.match(saved, /^Saved to your memory as \[\w+\], pinned\.$/);
   const id = saved.match(/\[(\w+)\]/)[1];
   // D17: the same sentence again is no second note and no chip.
-  const again = await tools.text('remember', { note: 'use pnpm.', topic: 'tools' });
+  const again = await tools.text('remember', { quote: SAID, note: 'use pnpm.', topic: 'tools' });
   assert.equal(again, `That note is already there as [${id}]; nothing new was saved.`);
-  assert.equal((await mem(h, { action: 'add', text: 'USE PNPM', topic: 'tools' })).result, 'already');
+  assert.equal((await mem(h, { action: 'add', text: 'USE PNPM', topic: 'tools', quote: SAID })).result, 'already');
   assert.equal((await learnedOf(h)).length, 1, 'no chip for a duplicate');
   assert.equal((await srv.api(`/bots/${b.id}/learning`)).data.memory.length, 1);
   // A similar save answers with the notes to update, own and shared, and is saved.
-  const alike = await tools.text('remember', { note: 'The database moved to PostgreSQL 17' });
+  const alike = await tools.text('remember', { quote: SAID, note: 'The database moved to PostgreSQL 17' });
   assert.match(alike, /^Saved to your memory as \[\w+\], pinned\.\nNotes that look alike/);
   assert.match(alike, new RegExp(`- \\[\\w+\\] \\(shared, the owner said, ${today}\\) The staging database runs PostgreSQL 15`));
   assert.match(alike, /update that one \(update_memory\) and remove the other \(remove_note\)/);
   assert.equal((await srv.api(`/bots/${b.id}/learning`)).data.memory.length, 2);
   // An edit: one current note and one dated version.
-  assert.match(await tools.text('update_memory', { id, note: 'Use pnpm 9', reason: 'The owner said so' }), /^Updated note \[\w+\]\. The earlier version is kept in its history\.$/);
+  assert.match(await tools.text('update_memory', { id, note: 'Use pnpm 9', reason: 'The owner said so', quote: SAID }), /^Updated note \[\w+\]\. The earlier version is kept in its history\.$/);
   const history = (await srv.api(`/memory/notes/${id}/history`)).data;
   assert.equal(history.length, 1);
   assert.deepEqual([history[0].text, history[0].source, history[0].change], ['Use pnpm', 'owner', 'edited']);
@@ -479,7 +482,7 @@ test('D13 and D14: every unpin is in the answer\'s `unpinned` and on the chip, a
   assert.equal((await learnedOf(h)).at(-1).chip, 'Remembered, after outside content: Worked out by the bot, one too many · unpinned “Worked out by the bot, number 0” (after outside content)');
   assert.equal((await noteNow(said.note.id)).pinned, true, 'the owner\'s first note is still pinned');
   // Through the tool the bot reads the same sentence.
-  assert.doesNotMatch(await tools.text('remember', { note: 'Worked out by the bot, and another' }), /pinned set|Tell the owner/);
+  assert.doesNotMatch(await tools.text('remember', { quote: SAID, note: 'Worked out by the bot, and another' }), /pinned set|Tell the owner/);
 
   // Thirty of the owner's: the thirty-first is saved searchable and the answer says so.
   const o = await bot();
@@ -592,4 +595,117 @@ test('the first start after this change says who said the notes from before, by 
   });
   assert.deepEqual(await sources(), { ...expected, [first.id]: 'bot' });
   assert.doesNotMatch(own.log.join(''), /from before now say who said them/);
+});
+
+// ---------- a note is the owner's only when it holds the owner's own words (ADR 273) ----------
+
+const NOT_QUOTED = /Kept as your own conclusion, not as what the owner said, because the owner's words were not quoted\./;
+const startedBy = (b, prompt) => () => srv.api(`/bots/${b.id}/run`, { method: 'POST', body: { prompt } }).then((r) => r.data);
+
+test('ADR 273: a note of a run the owner started is the owner\'s when its quote is found in what they wrote, and the bot\'s otherwise, with nothing refused', async (t) => {
+  const b = await bot();
+  const h = await held(t, b, startedBy(b, 'I am vegan. Find me a lasagne recipe, and mind the Gdansk market on Fridays.'));
+  const save = (text, quote) => mem(h, { action: 'add', text, ...(quote === undefined ? {} : { quote }) });
+  // Found: the owner's.
+  const found = await save('The owner is vegan', 'I am vegan');
+  assert.deepEqual([found.result, found.note.source], ['saved', 'owner']);
+  assert.doesNotMatch(found.say, NOT_QUOTED);
+  assert.equal((await learnedOf(h))[0].chip, 'Remembered: The owner is vegan');
+  // No quote, one that is not in what they wrote, one of a word, an empty one and a number: the bot's own conclusion, and saved.
+  for (const [text, quote] of [['The owner likes lasagne', undefined], ['The owner is vegetarian', 'I am vegetarian'], ['The owner is called Gdansk', 'Gdansk'], ['The owner eats tofu', ''], ['The owner is a cook', 42]]) {
+    const r = await save(text, quote);
+    assert.deepEqual([r.ok, r.result, r.note.source], [true, 'saved', 'bot'], text);
+    assert.match(r.say, NOT_QUOTED, text);
+    assert.match(r.say, /^Saved to your memory as \[\w+\], pinned\.\n/, 'the server\'s own sentence comes first');
+  }
+  assert.equal((await learnedOf(h)).at(-1).chip, 'Remembered, its own conclusion: The owner is a cook');
+  // The words are compared without case, spacing, quote marks and end punctuation.
+  for (const [i, quote] of ['"MIND   the gdansk market on fridays"', '“Mind the Gdansk market on Fridays.”', 'mind the Gdansk market on Fridays!!!'].entries()) {
+    assert.equal((await save(`Fridays at the market, ${i}`, quote)).note.source, 'owner', quote);
+  }
+  // Two meaningful words at least.
+  assert.equal((await save('The owner eats lasagne', 'lasagne')).note.source, 'bot');
+  assert.equal((await save('The owner is Gdansk-based', 'Gdansk market')).note.source, 'owner');
+  // The quote is checked and kept nowhere: not on a note, a version, a chip or an answer.
+  const everything = JSON.stringify([(await srv.api('/memory')).data, await learnedOf(h), found]);
+  assert.ok(!/mind\s+the\s+gdansk\s+market/i.test(everything), 'no note, chip or answer holds the quote');
+  assert.ok(!everything.includes('"quote"'));
+});
+
+test('ADR 273: a quote does not make a note the owner\'s where ADR 015 says it is not', async (t) => {
+  const b = await bot();
+  // After outside content: outside, quoted or not.
+  const web = await held(t, b, startedBy(b, 'I always use pnpm. Check the docs.'));
+  await uses(web, 'WebFetch');
+  assert.equal((await mem(web, { action: 'add', text: 'Uses pnpm after the web', quote: 'I always use pnpm' })).note.source, 'outside');
+  srv.release(web.rec);
+  await srv.finished(web.run.id);
+  // The Chief's task, a job's run and the review: the bot's, quoted or not.
+  const chiefs = await held(t, b, asChief(b, 'The owner always uses pnpm.'));
+  const task = await mem(chiefs, { action: 'add', text: 'Uses pnpm, said by the Chief', quote: 'always uses pnpm' });
+  assert.deepEqual([task.note.source, NOT_QUOTED.test(task.say)], ['bot', false], 'the Chief\'s words are not the owner\'s');
+  srv.release(chiefs.rec);
+  await srv.finished(chiefs.run.id);
+  const job = await jobOf(b);
+  const scheduled = await held(t, b, asJob(b, job));
+  const fromJob = await mem(scheduled, { action: 'add', text: 'Checks mail, said by a job', quote: 'Check the mail' });
+  assert.equal(fromJob.note.source, 'bot');
+  assert.doesNotMatch(fromJob.say, NOT_QUOTED, 'a run the owner did not start has no words of the owner\'s to quote');
+  srv.release(scheduled.rec);
+  await srv.finished(scheduled.run.id);
+  const review = await held(t, b, asReview(b));
+  assert.equal((await mem(review, { action: 'add', text: 'A reviewed note', quote: 'Check the mail' })).note.source, 'bot');
+});
+
+test('ADR 273: the owner\'s words are the task and their lines of the chat; a quote of anything else is not found', async (t) => {
+  const b = await bot();
+  // An earlier exchange of the chat, asked by the owner, stays in the block of the next run.
+  const earlier = await held(t, b, startedBy(b, 'My cat is called Pixel.'));
+  srv.release(earlier.rec);
+  await srv.finished(earlier.run.id);
+  const next = await held(t, b, startedBy(b, 'What was my cat called?'));
+  assert.match(next.rec.system, /<conversation>[\s\S]*My cat is called Pixel\.[\s\S]*<\/conversation>/);
+  // The instructions say to quote the owner, and never a task as a fact about them.
+  assert.match(next.rec.system, /When you save what the owner said, give "quote": their own words, copied exactly from what they wrote to you, two words at least/);
+  assert.match(next.rec.system, /Never quote a task or a question as if it were a fact about them: "Find me a vegan lasagne recipe" does not say that they are vegan/);
+  assert.equal((await mem(next, { action: 'add', text: 'The cat is Pixel', quote: 'my cat is called pixel' })).note.source, 'owner', 'from their line of the conversation block');
+  assert.equal((await mem(next, { action: 'add', text: 'The owner asked about the cat', quote: 'What was my cat called' })).note.source, 'owner', 'from the task');
+  assert.equal((await mem(next, { action: 'add', text: 'The owner has a dog', quote: 'my dog is called Rex' })).note.source, 'bot');
+  // The bot's own reply in that chat is not the owner's: its words are found in the block, and do not count.
+  assert.equal((await mem(next, { action: 'add', text: 'The reply said so', quote: 'You replied' })).note.source, 'bot');
+});
+
+test('ADR 273: update_memory too: a changed note is the owner\'s with a quote found, and the bot\'s without one', async (t) => {
+  const b = await bot();
+  const h = await held(t, b, startedBy(b, 'I moved to Krakow. I write my reports in Polish now.'));
+  const note = (await remember(h, 'The owner lives in Gdansk', { quote: 'I moved to Krakow' })).note;
+  assert.equal(note.source, 'owner');
+  const unquoted = await mem(h, { action: 'edit', id: note.id, text: 'The owner lives in Krakow', reason: 'moved' });
+  assert.deepEqual([unquoted.result, unquoted.note.source], ['saved', 'bot']);
+  assert.match(unquoted.say, /^Updated note \[\w+\]\. The earlier version is kept in its history\.\n/);
+  assert.match(unquoted.say, NOT_QUOTED);
+  assert.equal((await learnedOf(h)).at(-1).chip, 'Updated, its own conclusion: The owner lives in Krakow');
+  const wrong = await mem(h, { action: 'edit', id: note.id, text: 'The owner lives in Warsaw', quote: 'I moved to Warsaw' });
+  assert.equal(wrong.note.source, 'bot');
+  const quoted = await mem(h, { action: 'edit', id: note.id, text: 'The owner lives in Krakow, and writes reports in Polish', quote: 'I moved to Krakow' });
+  assert.deepEqual([quoted.note.source, NOT_QUOTED.test(quoted.say)], ['owner', false]);
+  // The same tools, as a bot calls them: `quote` is in both schemas and reaches the server.
+  const tools = rpcClient(t, 'self-mcp.js', h.rec.self.env);
+  const listed = (await tools.request('tools/list')).tools;
+  for (const name of ['remember', 'update_memory']) assert.equal(listed.find((x) => x.name === name).inputSchema.properties.quote.type, 'string', name);
+  assert.match(await tools.text('update_memory', { id: note.id, note: 'The owner writes reports in Polish', quote: 'I write my reports in Polish now' }), /^Updated note/);
+  assert.equal((await noteNow(note.id)).source, 'owner');
+  assert.match(await tools.text('remember', { note: 'Reports are in Polish', quote: 'my reports in Polish' }), /^Saved to your memory as \[\w+\], pinned\./);
+});
+
+test('ADR 273: saving a bot\'s own conclusion again with the owner\'s words makes it the owner\'s, the duplicate key of ADR 015', async (t) => {
+  const b = await bot();
+  const h = await held(t, b, startedBy(b, 'I prefer tabs to spaces.'));
+  const guess = await mem(h, { action: 'add', text: 'Prefers tabs' });
+  assert.equal(guess.note.source, 'bot');
+  const again = await mem(h, { action: 'add', text: 'prefers tabs.', quote: 'I prefer tabs' });
+  assert.deepEqual([again.result, again.note.id === guess.note.id], ['already', true]);
+  assert.equal((await noteNow(guess.note.id)).source, 'owner');
+  // What the owner typed in an app needs no quote.
+  assert.equal((await typed(b.id, 'Reports go out on Mondays')).source, 'owner');
 });
