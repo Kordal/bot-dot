@@ -37,5 +37,6 @@ test("the Chief's tools are about 25k characters shorter", () => {
   // 114.9k: list_mcp_servers and offer_mcp_server, the owner's own remote MCP servers (ADR 266).
   // 115.7k: around on add_job, update_job, add_my_job and update_my_job, a job the owner named no clock time for (#1667).
   // 116.3k: models_in_use, which model and provider each bot, the Chief and the background calls run on (#1684).
-  assert.ok(size < 116_300, `${size} characters`);
+  // 116.6k: site on remember and update_note, a note about one website that arrives with the page (ADR 274).
+  assert.ok(size < 116_600, `${size} characters`);
 });
