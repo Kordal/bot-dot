@@ -422,6 +422,7 @@ function renderChief() {
           <button class="icon-btn" id="chief-new" title="${tr('New chat')}">${ICON.compose}</button>
         </div>
       </div>
+      <nav class="chief-recent" id="chief-recent" aria-label="${tr('Previous chats')}" hidden></nav>
       <div class="chat-thread" id="chat-thread"></div>
       ${composerHTML(messageChief())}
       <div class="job-chips" id="chief-job-chips"></div>`;
@@ -440,6 +441,7 @@ function renderChief() {
   const drawn = $('#chat-thread').dataset.mentions;
   if (state.chatId && drawn && drawn !== mentionSig()) showChat(state.chatId);
   renderChatList();
+  renderRecentChats();
 }
 
 // A new chat (#727): the Chief's own jobs (#408) under its message box, each a chip; a tap runs one now. From the feed's
@@ -464,6 +466,24 @@ function renderChatList() {
       </button>`).join('')
     : `<div class="faint" style="padding:11px 0;font-size:12.5px">${tr('No previous chats')}</div>`;
   $$('[data-chat]', el).forEach((b) => (b.onclick = () => { setView('chief'); showChat(b.dataset.chat); renderChatList(); }));
+}
+
+// Under the Chief's header, the three latest chats other than the open one, each a chip: its title and short time, a
+// round dot before the title while it has new replies. A tap opens it. No chat to show, no row. Drawn again from the
+// feed's refresh (render) and from showChat, so a new chat, an opened one and a new reply all change it; left alone
+// when nothing in it changed, so that a row scrolled sideways stays where it is.
+const RECENT_CHATS = 3;
+function renderRecentChats() {
+  const el = $('#chief-recent');
+  if (!el) return;
+  const rows = (state.chats || []).filter((c) => c.id !== state.chatId).slice(0, RECENT_CHATS);
+  const html = rows.map((c) => `
+    <button type="button" class="chief-recent-chip" data-recent="${esc(c.id)}" title="${esc(c.title)}">${Unread.count(c) ? `<i class="chief-recent-dot" role="img" aria-label="${tr('New reply')}"></i>` : ''}<span class="chief-recent-title">${esc(c.title)}</span><span class="chief-recent-when">${esc(shortTime(c.updatedAt))}</span></button>`).join('');
+  el.hidden = !rows.length;
+  if (el.dataset.drawn === html) return;
+  el.dataset.drawn = html;
+  el.innerHTML = html;
+  $$('[data-recent]', el).forEach((b) => (b.onclick = () => { showChat(b.dataset.recent); renderChatList(); }));
 }
 
 function actionBot(a) {
@@ -669,6 +689,7 @@ async function showChat(id) {
   if (state.view === 'chief') writeHash();
   sayPresent();
   syncRead();
+  globalThis.renderRecentChats?.(); // the open chat is not among the earlier ones
   const thread = $('#chat-thread');
   const form = $('#view-chief form.composer');
   if (!thread) return;
