@@ -198,7 +198,7 @@ test('its owner has the setting: the one account of a machine reaches /front-doo
   const b = m.door.browser();
   const o = await b.post('/sign-in/options', {});
   assert.equal((await b.post('/sign-in', { credential: k.signIn(o.data.publicKey) })).status, 200);
-  assert.equal((await b.get('/front-door/session')).data.updates, false, 'the apps draw no Updates card on a machine of one account yet (#1691), though the front door plans its switches');
+  assert.equal((await b.get('/front-door/session')).data.updates, true, 'the front door plans its switches, so the apps draw the Updates card (#1691)');
   const u = await b.get('/front-door/update');
   assert.equal(u.status, 200, u.text);
   assert.equal(u.data.when, 'night', 'the default');

@@ -274,10 +274,12 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         call(Req(baseUrl.trimEnd('/') + "/front-door/update").header("Accept", "application/json").get().build())).jsonObject)
     /** The owner's "Update automatically". A refusal throws the front door's sentence. */
     suspend fun setAutoUpdate(on: Boolean): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", OwnUpdate.body(on))).jsonObject)
+    /** The owner's "When" (ADR 271): `ready`, `night` or `manual`. A refusal throws the front door's sentence. */
+    suspend fun setUpdateWhen(updateWhen: String): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", OwnUpdate.whenBody(updateWhen))).jsonObject)
     /** What's new in the version this account waits for (#303), newest first. Asked only while [OwnUpdate.ready]. */
     suspend fun updateNotes(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(
         call(Req(baseUrl.trimEnd('/') + "/front-door/update/notes").header("Accept", "application/json").get().build())))
-    /** "Update now": the machine switches this account alone to the version the admin installed. */
+    /** "Update now": the machine switches this account alone to the version that waits. */
     suspend fun updateNow(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update/now")).jsonObject)
 
     // ---------- shared rooms (ADR 060, #318): the front door's own routes ----------

@@ -8,13 +8,17 @@ import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 
 /**
- * Settings → Updates (#259, ADR 053): when this account switches to a new version. The owner's "Update automatically",
- * and "Update now" for a version the admin installed, which the account waits for until the admin's deadline. Both are
- * the front door's own routes (`/front-door/update`), never botdot's; shown only where the front door says this
- * account chooses (its session's `updates`): not on a machine of one account.
+ * Settings → Updates (#259, ADR 053): when this account switches to a new version, and "Update now" for a version that
+ * waits. Both are the front door's own routes (`/front-door/update`), never botdot's; shown only where the front door
+ * says this account chooses (its session's `updates`): wherever it plans the switches, a machine of one account
+ * included, and nowhere on a managed one.
  */
 data class OwnUpdate(
+    /** The owner's "when" (ADR 271): `ready`, `night` or `manual`. null from a front door that doesn't have it: then the switch. */
+    val updateWhen: String? = null,
     val autoUpdate: Boolean = true,
+    /** Whether the account is busy now, when the front door says: the warning of "Update now" is for a busy one. */
+    val busy: Boolean? = null,
     val asked: Boolean = false,
     val canUpdate: Boolean = false,
     /** The version that waits: its short revision, if known, and the deadline (ISO 8601) it is switched by. */
@@ -23,12 +27,17 @@ data class OwnUpdate(
     /** How the last switch went: `switching`, `updated`, `kept` or `failed`, and why when it didn't happen. */
     val last: String? = null,
     val error: String? = null,
-    /** The owner's `when` (ADR 271): `ready`, `night` or `manual`; null from a front door that doesn't have it. */
-    val updateWhen: String? = null,
     /** `night` when the owner chose "Tonight" for the version that waits. */
     val plan: String? = null,
 ) {
     val ready get() = deadline != null
+    /** The three-way "When" is drawn only when the answer has `when`; otherwise today's switch. */
+    val chooses get() = updateWhen != null
+    /** The closed row's value, in the web page's words: a waiting version first, so the choice never hides it. */
+    val value: String get() = if (ready) tr("New version") else if (chooses) whenName else if (autoUpdate) tr("Automatic") else tr("By hand")
+    val whenName get() = WHENS.firstOrNull { it.first == updateWhen }?.second ?: ""
+    /** "Update now" warns that work still running stops when the account is busy; an answer that doesn't say keeps today's warning. */
+    val warnsOnUpdateNow get() = !chooses || busy != false
     val moving get() = asked || last == "switching"
 
     /** What the section says, in the web page's words: nothing while nothing waits or moves. */
@@ -44,7 +53,7 @@ data class OwnUpdate(
                 else -> tr("A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.", "version" to version, "day" to on)
             }
         }
-        last == "kept" || last == "failed" -> tr("The last move to a new version didn't happen: {why}.", "why" to (error?.ifBlank { null } ?: tr("the admin can see why")))
+        last == "kept" || last == "failed" -> tr("The last move to a new version didn't happen: {why}.", "why" to (error?.ifBlank { null } ?: tr("no reason was saved")))
         else -> ""
     }
 
@@ -60,6 +69,8 @@ data class OwnUpdate(
             val ready = j["ready"] as? JsonObject
             val last = j["last"] as? JsonObject
             return OwnUpdate(
+                updateWhen = text(j, "when")?.takeIf { w -> WHENS.any { it.first == w } },
+                busy = (j["busy"] as? JsonPrimitive)?.takeIf { !it.isString && (it.content == "true" || it.content == "false") }?.let { it.content == "true" },
                 autoUpdate = (j["autoUpdate"] as? JsonPrimitive)?.let { !it.isString && it.content == "false" } != true,
                 asked = flag(j, "asked"),
                 canUpdate = flag(j, "canUpdate"),
@@ -67,12 +78,15 @@ data class OwnUpdate(
                 deadline = text(ready, "deadline")?.takeIf { runCatching { Instant.parse(it) }.isSuccess },
                 last = text(last, "state"),
                 error = text(last, "error"),
-                updateWhen = text(j, "when")?.takeIf { it == "ready" || it == "night" || it == "manual" },
                 plan = text(j, "plan")?.takeIf { it == "night" },
             )
         }
 
         fun body(autoUpdate: Boolean): JsonObject = buildJsonObject { put("autoUpdate", autoUpdate) }
+        fun whenBody(updateWhen: String): JsonObject = buildJsonObject { put("when", updateWhen) }
+
+        /** The three choices, in the order the owner sees them (ADR 271). */
+        val WHENS: List<Pair<String, String>> get() = listOf("ready" to tr("As soon as it's ready"), "night" to tr("At night, when idle"), "manual" to tr("When I say"))
 
         private fun day(iso: String, zone: TimeZone): String =
             formatDate(Instant.parse(iso), if (I18n.language == "pl") "EEEE, d MMMM" else "EEEE, MMM d", I18n.language, zone)

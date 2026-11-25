@@ -678,10 +678,11 @@ function openTarget(target) {
 
 // ---------- when this account switches to a new version ----------
 
-// Settings → "Updates" (#259, ADR 053): the owner's "Update automatically" and, when the admin installed a version this
-// account waits for, "Update now". Both are the front door's own routes, never botdot's, and only where the front door
-// says this account chooses (its session's `updates`): not on a machine of one account. While a version waits, its
-// What's new under them (#303): the notes the front door says it brings, kept for the card's next drawings.
+// Settings → "Updates" (#259, ADR 053): when this account switches to a new version, and "Update now" for a version
+// that waits. Both are the front door's own routes, never botdot's, and only where the front door says this account
+// chooses (its session's `updates`): wherever it plans the switches, a machine of one account included, and nowhere on a
+// managed one. While a version waits, its What's new under them (#303): the notes the front door says it brings, kept
+// for the card's next drawings.
 let updateNotes = [];
 async function loadUpdateCard() {
   if (!state.features.includes('accounts')) return;
@@ -701,6 +702,10 @@ function updateNotesHTML(u) {
   return `<div class="whats-new update-notes"><h3 class="page-sub">${tr("What's new")}</h3>${whatsNewNotesHTML(updateNotes)}</div>`;
 }
 
+// The owner's "when" (ADR 271), in the words of its three names: only an answer that has `when` draws the choice.
+const updateWhens = () => [['ready', tr("As soon as it's ready")], ['night', tr('At night, when idle')], ['manual', tr('When I say')]];
+const updateWhenName = (when) => (updateWhens().find(([id]) => id === when) || [])[1] || '';
+
 function updateCardText(u) {
   const day = (iso) => new Date(iso).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' });
   if (u.asked || u.last?.state === 'switching') return tr('Moving to the new version. Your bots restart in a minute or two.');
@@ -710,7 +715,7 @@ function updateCardText(u) {
   if (u.ready && (u.when === 'night' || (u.plan === 'night' && u.when === 'manual'))) return tr('A new version{version} is ready. Your account moves to it at night, when your bots are idle.', { version });
   if (u.ready && u.when === 'manual') return tr('A new version{version} is ready. Your account moves to it when you say, or by itself from {day}.', { version, day: day(u.ready.deadline) });
   if (u.ready) return tr('A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.', { version, day: day(u.ready.deadline) });
-  if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return tr("The last move to a new version didn't happen: {why}.", { why: u.last.error || tr('the admin can see why') });
+  if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return tr("The last move to a new version didn't happen: {why}.", { why: u.last.error || tr("no reason was saved") });
   return '';
 }
 
@@ -720,17 +725,19 @@ function drawUpdateCard(u) {
   card.hidden = !u;
   if (!u) { card.innerHTML = ''; return; }
   // What the switch's two ways mean is its tooltip; what is happening now (a version waits, a move failed) is said.
+  // An answer with `when` has the three-way choice (ADR 271); one without it, from an older front door, the switch.
+  const chooses = typeof u.when === 'string' && !!updateWhenName(u.when);
   card.innerHTML = `
-      <summary><b>${tr('Updates')}</b><span class="bs-val">${u.ready ? tr('New version') : u.autoUpdate ? tr('Automatic') : ''}</span>${CHEV}</summary>
+      <summary><b>${tr('Updates')}</b><span class="bs-val">${u.ready ? tr('New version') : chooses ? esc(updateWhenName(u.when)) : u.autoUpdate ? tr('Automatic') : ''}</span>${CHEV}</summary>
       <div class="bs-body">
-        <label class="bs-row"><b>${tr('Update automatically')}</b>
-          <span class="switch"><input type="checkbox" id="auto-update" aria-label="${esc(tr('Update automatically'))}"${u.autoUpdate ? ' checked' : ''}><span></span></span></label>
+        ${chooses ? `<label class="bs-row"><b>${tr('When')}</b><select id="update-when" aria-label="${esc(tr('When'))}">${updateWhens().map(([id, name]) => `<option value="${id}"${id === u.when ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select></label>` : `<label class="bs-row"><b>${tr('Update automatically')}</b>
+          <span class="switch"><input type="checkbox" id="auto-update" aria-label="${esc(tr('Update automatically'))}"${u.autoUpdate ? ' checked' : ''}><span></span></span></label>`}
         ${updateCardText(u) ? `<p class="muted" id="update-said">${esc(updateCardText(u))}</p>` : ''}
         ${u.canUpdate ? `<div><button type="button" class="btn" id="update-now">${tr('Update now')}</button></div>` : ''}
         ${updateNotesHTML(u)}
       </div>`;
   const box = $('#auto-update', card);
-  box.onchange = async () => {
+  if (box) box.onchange = async () => {
     box.disabled = true;
     try { drawUpdateCard(await frontDoorPost('/front-door/update', { autoUpdate: box.checked })); flashSaved($('#view-settings')); } catch (err) {
       toast(err.message, true);
@@ -738,9 +745,22 @@ function drawUpdateCard(u) {
       box.disabled = false;
     }
   };
+  const pick = $('#update-when', card);
+  if (pick) pick.onchange = async () => {
+    const to = pick.value;
+    pick.disabled = true;
+    try { drawUpdateCard(await frontDoorPost('/front-door/update', { when: to })); flashSaved($('#view-settings')); } catch (err) {
+      toast(err.message, true);
+      pick.value = u.when;
+      pick.disabled = false;
+    }
+  };
   const now = $('#update-now', card);
+  // "Now" means now: the warning that work stops is for an account the front door says is busy. An answer that doesn't
+  // say (no `busy`) keeps today's warning.
+  const warns = !chooses || u.busy !== false;
   if (now) now.onclick = async () => {
-    if (!(await askFirst(tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.'), tr('Update now'), { danger: false }))) return;
+    if (!(await askFirst(warns ? tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.') : tr('Update now? Your account moves to the new version.'), tr('Update now'), { danger: false }))) return;
     now.disabled = true;
     try { drawUpdateCard(await frontDoorPost('/front-door/update/now', {})); } catch (err) { toast(err.message, true); now.disabled = false; }
   };

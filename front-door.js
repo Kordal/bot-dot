@@ -145,10 +145,7 @@ const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRON
 // root's step serves and that has an admin (every account, the admin's own too, #274). Never on a managed machine, one account
 // or several: the fleet console is its admin and no owner chooses there; and none on a machine that names no admin.
 const plansSwitches = () => !!REQUESTS && !MANAGED && (!!ONE_ACCOUNT || !!ADMIN);
-// Whether `updates` says yes in `GET /front-door/session`, the apps then drawing the Updates card in Settings: only where
-// there is an admin to hand the update on, as before #1689. A machine of one account plans its switches but does not say it
-// yet: the apps' wording for it comes with #1691.
-const showsUpdates = () => plansSwitches() && !ONE_ACCOUNT;
+// `updates` in `GET /front-door/session` says the same, and the apps then draw the Updates card in Settings (#1691).
 // The account the setup key makes: the one account, or a managed machine's first.
 const SETUP_ACCOUNT = ONE_ACCOUNT || FIRST_ACCOUNT;
 const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
@@ -1171,7 +1168,7 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), ...(MANAGED ? { feedbackAsk: doors.feedbackAnswerOf(account) === null } : {}), updates: showsUpdates(), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), ...(MANAGED ? { feedbackAsk: doors.feedbackAnswerOf(account) === null } : {}), updates: plansSwitches(), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
