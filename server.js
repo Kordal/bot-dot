@@ -74,7 +74,7 @@ const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.B
 push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name, language: () => B.settings.get().language });
 const { signedIn } = require('./lib/setup');
 const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN, onClaudeAuthChange: changedClaudeAuth, defaultModel: () => B.settings.get().defaultModel, setDefaultModel: (model) => B.settings.update({ defaultModel: model }) });
-const updates = require('./lib/updates').create({ busy: () => B.activeCount() + chief.activeCount(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
+const updates = require('./lib/updates').create({ busy: () => updateIdle.working(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
 // An account on a machine of one or more (ADR 028) never updates itself: the admin updates the front door and every
 // account together, on the admin page (#473).
 const UPDATES_BY_ADMIN = !!process.env.BOT_DOT_ACCOUNT;
@@ -135,6 +135,8 @@ async function runTileSource(tile, source, where, extra = {}) {
 }
 // askBrief is lib/routes/shared.js's, made below once asks and connectorApprovals are.
 const activity = require('./lib/activity').create(B.DATA_DIR); // the owner's activity per day, as counts (ADR 105)
+// Whether the account is idle, for the front door's switch to a new version (#1688), and what a restart would cut off.
+const updateIdle = require('./lib/update-idle').create({ bots: B, chief, roomTurns: require('./lib/room-turn'), activity });
 const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list), shown: () => activity.cardShown(), answered: (at) => activity.cardAnswered(at) }); // permissions and skills bots ask the owner for
 const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault secrets kept in files, by the owner's yes (#253)
 // A change a bot proposed to its own instructions keeps the run that proposed it: the bot carries on after the yes (ADR 009).
@@ -843,7 +845,7 @@ const ctx = { ACCOUNT, audit, watches, storage, secretFiles, callKeys, callRefus
   withdrawCards: require('./lib/withdraw-cards').create({ asks, loginRequests, connectorApprovals, irreversibleSteps, roomRuns }), roomRuns, backups, backupAlert, connectedApps, tools, chiefReview, connectAsks, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
-  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };
+  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, updateIdle, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
@@ -856,6 +858,7 @@ const ROUTES = [
   require('./lib/routes/system').create(ctx),
   require('./lib/routes/room-turn').create(ctx), // a bot's reply in a shared room, for the front door only (ADR 060)
   require('./lib/routes/room-notice').create(ctx), // a new message in a shared room rings the owner, from the front door only (ADR 060)
+  require('./lib/routes/update-idle').create(ctx), // whether the account is idle, for the front door only (#1688)
   require('./lib/routes/group-router').create(ctx), // the admin's choice of the group router, from the front door only (#513)
   require('./lib/routes/boat').create(ctx), // the admin's boat.dev key, from the front door only (#529)
   require('./lib/routes/usage-summary').create(ctx), // a day's usage as counts, for the front door only (ADR 105)
