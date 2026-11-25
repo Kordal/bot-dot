@@ -721,6 +721,18 @@ test('ADR 276: update_memory too: a changed note is the owner\'s with a quote fo
   assert.match(await tools.text('remember', { note: 'Reports are in Polish', quote: 'my reports in Polish' }), /^Saved to your memory as \[\w+\], pinned\./);
 });
 
+test('ADR 276: a bot\'s change of a note\'s topic or end alone leaves who said it', async (t) => {
+  const b = await bot();
+  const h = await held(t, b, startedBy(b, 'I moved to Krakow.'));
+  const note = (await remember(h, 'The owner lives in Krakow', { quote: 'I moved to Krakow' })).note;
+  const same = await mem(h, { action: 'edit', id: note.id, text: 'The owner lives in Krakow', topic: 'home', until: '2099-01-01' });
+  assert.equal(same.result, 'saved');
+  assert.equal(same.note.source, 'owner');
+  assert.equal((await mem(h, { action: 'edit', id: note.id, topic: 'city' })).note.source, 'owner');
+  const worded = await mem(h, { action: 'edit', id: note.id, text: 'The owner lives in Krakow, Poland' });
+  assert.equal(worded.note.source, 'bot');
+});
+
 test('ADR 276: saving a bot\'s own conclusion again with the owner\'s words makes it the owner\'s, the duplicate key of ADR 015', async (t) => {
   const b = await bot();
   const h = await held(t, b, startedBy(b, 'I prefer tabs to spaces.'));

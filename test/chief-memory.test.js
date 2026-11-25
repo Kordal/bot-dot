@@ -579,6 +579,34 @@ test('ADR 276: the Chief files a note as the owner\'s word only with a quote fou
   await turn.end();
 });
 
+test('ADR 276: a change of a note\'s end or topic alone leaves who said it; a new text without a quote is the Chief\'s', async (t) => {
+  const turn = await ownerTurn(t, 'I am in Berlin this week.');
+  const note = (await turn.call('remember', { note: 'The owner is in Berlin this week', place: 'everyone', quote: 'I am in Berlin this week' })).notes[0];
+  const savedBy = async () => (await notesOf('_shared')).find((n) => n.id === note).source;
+  assert.equal(await savedBy(), 'owner');
+  const until = await turn.call('update_note', { id: note, until: '2099-01-01' });
+  assert.equal(until.result, 'saved');
+  assert.equal(await savedBy(), 'owner', 'a new end puts no new words in their mouth');
+  await turn.call('update_note', { id: note, note: '  The owner is in  Berlin this week ', topic: 'travel' });
+  assert.equal(await savedBy(), 'owner', 'the same text once cleaned, a new topic');
+  await turn.call('update_note', { id: note, note: 'The owner is in Berlin this week, then Rome' });
+  assert.equal(await savedBy(), 'bot', 'new words without a quote');
+  await turn.end();
+});
+
+test('ADR 276: a message of files alone makes no words of the owner: the line botdot puts for it is not quotable', async (t) => {
+  srv.hold();
+  const chat = await newChat();
+  const file = (await srv.api('/uploads?to=chief', { method: 'POST', raw: Buffer.from('a list'), headers: { 'X-File-Name': 'list.txt' } })).data;
+  assert.equal((await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: '', attachments: [file] } })).status, 201);
+  const rec = await srv.nextRun((r) => isChief(r) && r.stdin.includes('attached files'), "the Chief's turn");
+  const turn = await turnOf(t, rec, chat);
+  const r = await turn.call('remember', { note: 'The owner wants the files looked at', place: 'me', quote: 'look at the attached files' });
+  assert.equal(r.saved[0].saidBy, 'bot');
+  assert.match(r.say, /not quoted/);
+  await turn.end();
+});
+
 test('ADR 276: after the turn read a bot\'s text a quoted note is outside, as before', async (t) => {
   const turn = await ownerTurn(t, 'I always deploy on Fridays. What did Coder do last?');
   await turn.uses('mcp__botdot__list_runs', { botId: coder.id });
