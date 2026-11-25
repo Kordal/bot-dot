@@ -3,6 +3,7 @@
 // it (the web page's dialog, the picture-in-picture, the run's live screen) what state it is in.
 import { createTransport } from './transport-rfb.js';
 import { setupDrop } from './drop.js';
+import { setupControls } from './controls.js';
 
 const query = new URLSearchParams(location.search);
 // Watching until the owner takes control: only view_only=0 lets the mouse and keys through (ADR 107).
@@ -15,12 +16,14 @@ let WORDS = {};
 try { WORDS = JSON.parse(document.body.dataset.words || '{}'); } catch { /* a state is then shown by its name */ }
 const RETRY_MS = 2000;
 
-const screen = document.getElementById('screen');
+// The picture is drawn in the zoom layer inside #screen (controls.js zooms and moves it).
+const screen = document.getElementById('zoom');
 const status = document.getElementById('status');
 let state = null;
 let everShown = false;
 let transport = null;
 let retry = null;
+const controls = setupControls({ screen: document.getElementById('screen'), layer: screen, words: WORDS, transport: () => transport });
 
 // What the viewer is in: drawn in words, and told to the frame's parent (the web page), which reads the state and
 // not this page's text.
@@ -30,6 +33,7 @@ function setState(next) {
   status.dataset.state = next;
   status.textContent = WORDS[next] || next;
   document.title = status.textContent;
+  controls.state(next);
   if (window.parent !== window) window.parent.postMessage({ type: 'botdot-screen', state: next }, location.origin);
 }
 

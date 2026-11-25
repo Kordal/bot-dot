@@ -6,7 +6,11 @@
 // up and again after it dropped, that the picture is the desktop's own shape and fits the window, that it sends no
 // mouse or key until the owner has control, that a computer that stays off stays on "Turned off" across the retries,
 // that the words are the account's language (Polish when it chose it) and that the web page's frame is told the state
-// (data-screen) and that noVNC's own page is gone. Scratch data only.
+// (data-screen) and that noVNC's own page is gone. In a phone-sized touch window (#1735): a tap clicks, a hold is a right
+// click, a finger drags, two fingers scroll (none of them, nor a key,
+// throws between connections, and all work again after), a pinch zooms and moves the picture (and a tap still lands on
+// the right pixel), the phone's keyboard types on the desktop, and the keys menu sends each key, on the phone and with a mouse,
+// and is not there while the viewer only watches. Scratch data only.
 //   VIEWER_SHOTS=<folder>  save a screenshot of each state
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
@@ -201,6 +205,190 @@ function vncServer(sock, got) {
     const click = got.pointers.find((p) => p.mask === 1);
     assert.ok(click.x > 0 && click.x < W && click.y > 0 && click.y < H, `the click is in the desktop's own pixels: ${JSON.stringify(click)}`);
 
+    // By touch, in a phone-sized window (#1735): tap, hold, drag, two fingers, pinch, the phone's keyboard, the keys menu.
+    const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const phone = await phoneContext.newPage();
+    phone.on('pageerror', (e) => errors.push(e.message));
+    const cdp = await phoneContext.newCDPSession(phone);
+    const touch = (type, ...points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([x, y], id) => ({ x, y, id })) });
+    const clear = () => { got.keys.length = 0; got.pointers.length = 0; };
+    const canvasBox = () => phone.evaluate(() => { const r = document.querySelector('#screen canvas').getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; });
+    // Where a point of the window is on the desktop, from the picture as it is now.
+    const desktop = async (x, y) => { const c = await canvasBox(); return { x: (x - c.l) * W / c.w, y: (y - c.t) * H / c.h }; };
+    const near = (got_, want, what) => assert.ok(Math.abs(got_.x - want.x) <= 3 && Math.abs(got_.y - want.y) <= 3, `${what}: ${JSON.stringify(got_)} is not ${JSON.stringify(want)}`);
+    const phoneSees = (text) => waitFor(async () => (await phone.locator('#status').innerText()) === text, { what: `the phone's viewer to say "${text}"`, timeout: 15_000 });
+
+    // Watching only: the keys are not on screen, and a tap sends nothing.
+    await phone.goto(viewer(false));
+    await phoneSees('Viewing');
+    await phone.waitForSelector('#screen canvas');
+    assert.equal(await phone.locator('#tools').isVisible(), false, 'no keys while only watching');
+    clear();
+    await touch('touchStart', [195, 300]); await touch('touchEnd');
+    await phone.waitForTimeout(300);
+    assert.deepEqual([got.keys, got.pointers], [[], []], 'a tap on a viewer that only watches sends nothing');
+
+    await phone.goto(viewer(true));
+    await phoneSees('You have control');
+    await phone.waitForSelector('#screen canvas');
+    assert.equal(await phone.locator('#tools').isVisible(), true);
+    await waitFor(async () => (await canvasBox()).w > 300, { what: 'the picture on the phone' });
+
+    // A tap is a click at that point of the desktop.
+    clear();
+    await touch('touchStart', [100, 420]); await touch('touchEnd');
+    await waitFor(() => got.pointers.some((p) => p.mask === 1) && got.pointers.at(-1).mask === 0, { what: 'a tap to click' });
+    near(got.pointers.find((p) => p.mask === 1), await desktop(100, 420), 'the click');
+    assert.equal(got.pointers.filter((p) => p.mask === 1).length, 1, `one click, not two (no emulated mouse after the touch): ${JSON.stringify(got.pointers)}`);
+
+    // Holding is a right click.
+    clear();
+    await touch('touchStart', [150, 350]);
+    await waitFor(() => got.pointers.some((p) => p.mask === 4), { what: 'a hold to right click', timeout: 3000 });
+    await touch('touchEnd');
+    await phone.waitForTimeout(200);
+    assert.ok(!got.pointers.some((p) => p.mask === 1), 'a hold is not also a left click');
+    near(got.pointers.find((p) => p.mask === 4), await desktop(150, 350), 'the right click');
+
+    // One finger moving drags: the button goes down where it started and up where it ended.
+    clear();
+    await touch('touchStart', [100, 420]);
+    for (const [x, y] of [[120, 320], [160, 360], [200, 400]]) await touch('touchMove', [x, y]);
+    await touch('touchEnd');
+    await waitFor(() => got.pointers.at(-1)?.mask === 0 && got.pointers.some((p) => p.mask === 1), { what: 'a drag' });
+    near(got.pointers.find((p) => p.mask === 1), await desktop(100, 420), 'the drag starts');
+    near(got.pointers.at(-1), await desktop(200, 400), 'the drag ends');
+
+    // Two fingers moving up scroll down (the wheel's button 5), and move the pointer nowhere near a click.
+    clear();
+    await touch('touchStart', [150, 500], [250, 500]);
+    for (const y of [480, 440, 400, 360]) await touch('touchMove', [150, y], [250, y]);
+    await touch('touchEnd');
+    await waitFor(() => got.pointers.some((p) => p.mask === 16), { what: 'two fingers to scroll' });
+    assert.ok(!got.pointers.some((p) => p.mask === 1), 'scrolling is not a click');
+    assert.ok(!got.pointers.some((p) => p.mask === 8), 'moving up scrolls down only');
+
+    // A pinch zooms the picture, and one finger then moves it (and clicks nothing).
+    const before = await canvasBox();
+    clear();
+    await touch('touchStart', [175, 420], [215, 420]);
+    for (let g = 50; g <= 150; g += 25) await touch('touchMove', [195 - g / 2, 420], [195 + g / 2, 420]);
+    await touch('touchEnd');
+    await waitFor(async () => (await canvasBox()).w > before.w * 1.8, { what: 'the pinch to zoom the picture' });
+    const zoomed = await canvasBox();
+    assert.ok(zoomed.w <= before.w * 5.1, `zoom has a limit: ${zoomed.w}`);
+    assert.ok(zoomed.l <= 1 && zoomed.l + zoomed.w >= 389, 'a zoomed picture still covers the window');
+    assert.deepEqual(got.pointers.filter((p) => p.mask), [], 'a pinch sends no buttons');
+    await touch('touchStart', [100, 400]);
+    for (const x of [120, 160, 200]) await touch('touchMove', [x, 400]);
+    await touch('touchEnd');
+    await waitFor(async () => (await canvasBox()).l > zoomed.l + 50 || zoomed.l >= -1, { what: 'one finger to move the zoomed picture' });
+    assert.equal(got.pointers.filter((p) => p.mask).length, 0, 'moving a zoomed picture drags nothing');
+    // A tap still lands on the right pixel of the zoomed picture.
+    clear();
+    await touch('touchStart', [195, 422]); await touch('touchEnd');
+    await waitFor(() => got.pointers.some((p) => p.mask === 1), { what: 'a tap on the zoomed picture' });
+    near(got.pointers.find((p) => p.mask === 1), await desktop(195, 422), 'the click on the zoomed picture');
+    // Pinching back in to the whole picture puts it back.
+    await touch('touchStart', [100, 420], [290, 420]);
+    for (let g = 190; g >= 20; g -= 30) await touch('touchMove', [195 - g / 2, 420], [195 + g / 2, 420]);
+    await touch('touchEnd');
+    await waitFor(async () => Math.abs((await canvasBox()).w - before.w) < 2, { what: 'the picture back to the whole desktop' });
+
+    // The phone's keyboard: the button gives the typing field the focus, and what is typed reaches the desktop.
+    clear();
+    await phone.tap('#keyboard-button');
+    assert.equal(await phone.evaluate(() => document.activeElement.id), 'typing');
+    assert.equal(await phone.getAttribute('#keyboard-button', 'aria-pressed'), 'true');
+    await phone.keyboard.type('hi');
+    await phone.keyboard.press('Backspace');
+    await phone.keyboard.press('Enter');
+    await phone.keyboard.insertText('ż');
+    await waitFor(() => got.keys.length >= 10, { what: 'the typing to reach the desktop' });
+    assert.deepEqual(got.keys.map((k) => [k.down, k.key]), [
+      [1, 0x68], [0, 0x68], [1, 0x69], [0, 0x69], [1, 0xff08], [0, 0xff08], [1, 0xff0d], [0, 0xff0d], [1, 0x01000000 + 0x17c], [0, 0x01000000 + 0x17c],
+    ], 'the keys typed on the phone');
+    await phone.tap('#keyboard-button');
+    assert.notEqual(await phone.evaluate(() => document.activeElement.id), 'typing', 'the second press puts the keyboard away');
+
+    // The keys menu: each of its keys is sent as a chord, and the menu closes.
+    const chords = { 'Ctrl+Alt+Del': [0xffe3, 0xffe9, 0xffff], 'Esc': [0xff1b], 'Alt+Tab': [0xffe9, 0xff09], 'Super': [0xffeb], 'Ctrl+L': [0xffe3, 0x6c] };
+    await phone.tap('#keys-button');
+    assert.deepEqual(await phone.locator('#keys-menu button').allInnerTexts(), Object.keys(chords));
+    if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await phone.screenshot({ path: path.join(SHOTS, 'phone-keys.png') }); }
+    await phone.tap('#keys-button');
+    assert.equal(await phone.locator('#keys-menu').isVisible(), false, 'the button closes the menu');
+    for (const [label, keys] of Object.entries(chords)) {
+      clear();
+      await phone.tap('#keys-button');
+      await phone.tap(`#keys-menu button[data-key="${label}"]`);
+      await waitFor(() => got.keys.length >= keys.length * 2, { what: `${label} to reach the desktop` });
+      await phone.waitForTimeout(100);
+      assert.deepEqual(got.keys.map((k) => [k.down, k.key]), [...keys.map((k) => [1, k]), ...[...keys].reverse().map((k) => [0, k])], label);
+      assert.equal(await phone.locator('#keys-menu').isVisible(), false, `${label} closes the menu`);
+    }
+    // Between connections (Reconnecting…, then Turned off) there is no transport: every gesture and key is a no-op, throws
+    // nothing, and leaves no gesture half done, so the same gestures work again once the picture is back.
+    const gestures = async () => {
+      await touch('touchStart', [100, 420]); await touch('touchEnd'); // a tap
+      await touch('touchStart', [150, 350]); await phone.waitForTimeout(700); await touch('touchEnd'); // a hold
+      await touch('touchStart', [100, 420]);
+      for (const [x, y] of [[120, 320], [160, 360], [200, 400]]) await touch('touchMove', [x, y]);
+      await touch('touchEnd'); // a drag
+      await touch('touchStart', [150, 500], [250, 500]);
+      for (const y of [480, 440, 400, 360]) await touch('touchMove', [150, y], [250, y]);
+      await touch('touchEnd'); // two fingers
+      // The Keys and Keyboard buttons are off screen now, but a key already on its way can still arrive.
+      await phone.evaluate(() => {
+        const field = document.getElementById('typing');
+        field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        field.value += 'a';
+        field.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        document.querySelector('#keys-menu button[data-key="Esc"]').click();
+      });
+    };
+    for (const [why, away] of [['reconnecting', () => { computerOn = true; }], ['turned off', () => { computerOn = false; }]]) {
+      away();
+      vncUp = false;
+      for (const s of live) s.destroy();
+      await phoneSees(why === 'reconnecting' ? 'Reconnecting…' : 'Turned off');
+      clear();
+      const errorsBefore = errors.length;
+      await gestures();
+      await phone.waitForTimeout(300);
+      assert.deepEqual(errors.slice(errorsBefore), [], `no error from a gesture or a key while ${why}`);
+      assert.deepEqual([got.keys, got.pointers], [[], []], `nothing is sent while ${why}`);
+      computerOn = true; vncUp = true;
+      await phoneSees('You have control');
+      await waitFor(async () => (await canvasBox()).w > 300, { what: 'the picture back on the phone' });
+      clear();
+      await touch('touchStart', [100, 420]); await touch('touchEnd');
+      await waitFor(() => got.pointers.some((p) => p.mask === 1), { what: `a tap to click again after ${why}` });
+      clear();
+      await touch('touchStart', [100, 420]);
+      for (const [x, y] of [[120, 320], [160, 360], [200, 400]]) await touch('touchMove', [x, y]);
+      await touch('touchEnd');
+      await waitFor(() => got.pointers.some((p) => p.mask === 1) && got.pointers.at(-1)?.mask === 0, { what: `a drag again after ${why}` });
+      clear();
+      await touch('touchStart', [150, 500], [250, 500]);
+      for (const y of [480, 440, 400, 360]) await touch('touchMove', [150, y], [250, y]);
+      await touch('touchEnd');
+      await waitFor(() => got.pointers.some((p) => p.mask === 16), { what: `two fingers to scroll again after ${why}` });
+      clear();
+      await phone.tap('#keys-button');
+      await phone.tap('#keys-menu button[data-key="Esc"]');
+      await waitFor(() => got.keys.length >= 2, { what: `the Keys menu to send again after ${why}` });
+    }
+    // On a desktop too: the same menu, by mouse.
+    await phoneContext.close();
+    await page.goto(viewer(true));
+    await sees('You have control');
+    clear();
+    await page.click('#keys-button');
+    await page.click('#keys-menu button[data-key="Ctrl+Alt+Del"]');
+    await waitFor(() => got.keys.length >= 6, { what: 'Ctrl+Alt+Del from a desktop' });
+    assert.deepEqual(got.keys.map((k) => k.key), [0xffe3, 0xffe9, 0xffff, 0xffff, 0xffe9, 0xffe3]);
+
     // The computer's VNC server goes away (a restart): Reconnecting…, then the picture again, on the same page.
     await page.goto(viewer(false));
     await sees('Viewing');
@@ -285,7 +473,7 @@ function vncServer(sock, got) {
 
     await hostContext.close();
     assert.deepEqual(errors, []);
-    console.log('PASS: the viewer says starting, viewing, control, reconnecting and turned off, in English and in Polish; stays turned off across retries; connects and reconnects by itself; fits the desktop\'s own shape; sends nothing until control; tells its frame its state; no browser errors.');
+    console.log('PASS: the viewer says starting, viewing, control, reconnecting and turned off, in English and in Polish; stays turned off across retries; connects and reconnects by itself; fits the desktop\'s own shape; sends nothing until control; works by touch (tap, hold, drag, scroll, pinch, keyboard, keys menu); tells its frame its state; no browser errors.');
   } finally {
     await browser?.close();
     for (const s of live) s.destroy();
