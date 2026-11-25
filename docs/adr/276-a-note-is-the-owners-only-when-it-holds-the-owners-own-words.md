@@ -1,4 +1,4 @@
-# ADR-273: A note is the owner's only when it holds the owner's own words
+# ADR-276: A note is the owner's only when it holds the owner's own words
 
 - **Status:** Accepted (spec in [#1711](https://github.com/ladrok/bot-dot/issues/1711))
 - **Owning task:** [#1711](https://github.com/ladrok/bot-dot/issues/1711)

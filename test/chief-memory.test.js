@@ -538,9 +538,9 @@ test('a done memory change is no row under a Chief reply, live or after a reload
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).messages.at(-1).actions, old);
 });
 
-// ---------- a note is the owner's only when it holds the owner's own words (ADR 273) ----------
+// ---------- a note is the owner's only when it holds the owner's own words (ADR 276) ----------
 
-test('ADR 273: the Chief files a note as the owner\'s word only with a quote found in what the owner wrote in the chat; otherwise as its own conclusion, and nothing is refused', async (t) => {
+test('ADR 276: the Chief files a note as the owner\'s word only with a quote found in what the owner wrote in the chat; otherwise as its own conclusion, and nothing is refused', async (t) => {
   const chat = await newChat();
   const earlier = await ownerTurn(t, 'My cat is called Pixel, and I live in Lodz.', chat);
   const first = await earlier.call('remember', { note: 'The owner lives in Lodz', place: 'everyone', quote: 'I live in Lodz.' });
@@ -579,7 +579,7 @@ test('ADR 273: the Chief files a note as the owner\'s word only with a quote fou
   await turn.end();
 });
 
-test('ADR 273: after the turn read a bot\'s text a quoted note is outside, as before', async (t) => {
+test('ADR 276: after the turn read a bot\'s text a quoted note is outside, as before', async (t) => {
   const turn = await ownerTurn(t, 'I always deploy on Fridays. What did Coder do last?');
   await turn.uses('mcp__botdot__list_runs', { botId: coder.id });
   const late = await turn.call('remember', { note: 'Deploys on Fridays', place: 'bots', bots: ['Coder'], quote: 'I always deploy on Fridays' });

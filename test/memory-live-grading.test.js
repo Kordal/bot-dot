@@ -115,7 +115,7 @@ test('twelve write-side scenarios, each with a name of its own', () => {
   for (const w of WRITE_SCENARIOS) assert.ok(w.turns.length && w.turns.every((t) => t.say) && typeof w.wanted === 'function' && w.says, w.name);
 });
 
-// ADR 273: what the owner said is kept as theirs; a task and a question are never said to be a fact about them.
+// ADR 276: what the owner said is kept as theirs; a task and a question are never said to be a fact about them.
 test('the scenarios where the owner states something want the note to be the owner\'s; a task and a question want no note marked so', () => {
   const stated = ['remember-that', 'prefer-typescript', 'decided-postgresql', 'no-more-redis', 'for-this-bot-go'];
   const about = { 'remember-that': '6543', 'prefer-typescript': 'TypeScript', 'decided-postgresql': 'PostgreSQL', 'no-more-redis': 'Redis', 'for-this-bot-go': 'Go' };
@@ -258,7 +258,7 @@ test('the recorded baseline says when, on which model and at which revision it w
   // Reading: every question a bot was asked ran with nothing it is about inside <conversation>.
   const asked = baseline.results.filter((r) => r.scenario !== 'chief').flatMap((r) => r.questions);
   assert.ok(asked.length > 0 && asked.every((q) => q.result.conversation && q.result.conversation.holds.length === 0));
-  // Writing: the ten scenarios it was made with, three repeats each. w11 and w12 (ADR 273) were added after it: the next live run records them.
+  // Writing: the ten scenarios it was made with, three repeats each. w11 and w12 (ADR 276) were added after it: the next live run records them.
   const NEWER = ['w11-a-task-not-a-fact', 'w12-a-question'];
   for (const w of WRITE_SCENARIOS.filter((x) => !NEWER.includes(x.name))) assert.equal(baseline.writes.filter((x) => x.scenario === w.name && x.grade).length, baseline.repeat, w.name);
   assert.deepEqual(NEWER.filter((name) => baseline.writes.some((x) => x.scenario === name)), [], 'once a baseline holds them, this list shrinks');

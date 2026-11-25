@@ -308,7 +308,7 @@ test('a card of questions is said as open or as closed: a closed one is never po
   assert.match(closed, /ask it again on a new card, and never point the owner back to this one\)/);
 });
 
-// ---------- what the owner wrote that the block shows (ADR 273) ----------
+// ---------- what the owner wrote that the block shows (ADR 276) ----------
 
 test('ownerSaid: the owner\'s requests and what they steered in, as far as the block shows them, and no one else\'s', () => {
   const owner = run({ prompt: 'I live in Lodz.', steered: [{ id: 's1', text: 'And I am vegan.', at: '2026-10-06T11:55:00Z' }, { id: 's2', text: 'Ask Infra for the DNS record.', fromBot: { id: 'x', name: 'Fleet Doctor' } }] });

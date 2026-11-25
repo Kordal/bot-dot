@@ -2,7 +2,7 @@
 
 - **Status:** Accepted; its chip decisions superseded by [ADR 024](024-a-done-memory-change-is-no-row-under-a-reply.md) (2026-10-13)
 - **Owning task:** MEM-006
-- **Amended by:** [ADR 273](273-a-note-is-the-owners-only-when-it-holds-the-owners-own-words.md) (a note the Chief files is the user's word only with the user's words quoted; otherwise it is `bot`)
+- **Amended by:** [ADR 276](276-a-note-is-the-owners-only-when-it-holds-the-owners-own-words.md) (a note the Chief files is the user's word only with the user's words quoted; otherwise it is `bot`)
 
 ## Context
 

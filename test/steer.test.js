@@ -224,7 +224,7 @@ test('after a restart a message the run read stays read: it starts nothing, and 
   } finally { s2.unhold(); await s2.stop(); }
 });
 
-test('ADR 273: what the owner steered into a run is among the words a note of it may quote', async () => {
+test('ADR 276: what the owner steered into a run is among the words a note of it may quote', async () => {
   const bot = await makeBot(srv, { name: 'Steered Quote', emoji: '🗣️' });
   srv.reply('Done.');
   const h = await heldRun(srv, bot, 'Move the build to staging');
