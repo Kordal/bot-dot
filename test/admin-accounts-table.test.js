@@ -72,12 +72,12 @@ const ACCOUNTS = [
 ];
 
 // The script's account half (helpers, shares and the table), with fetch answering from `ACCOUNTS`.
-async function page({ askFirst = async () => true, location = { assign() {} }, ramTotal = null } = {}) {
+async function page({ askFirst = async () => true, location = { assign() {} }, ramTotal = null, accounts = ACCOUNTS } = {}) {
   const d = dom();
   const calls = [];
   const fetch = async (path, opts) => {
     calls.push([opts.method, path]);
-    const body = path === '/admin/share' ? { share: { cpu: 2, ram: 5, disk: 30 }, machine: ramTotal ? { cpus: 2, load: 0, ramTotal, ramUsed: 1e9, diskTotal: 1e11, diskUsed: 1e10 } : null } : path === '/admin/accounts' ? { accounts: ACCOUNTS } : path.endsWith('/sign-in-link') ? { url: 'https://x/l' } : path === '/admin/links' ? { links: [] }
+    const body = path === '/admin/share' ? { share: { cpu: 2, ram: 5, disk: 30 }, machine: ramTotal ? { cpus: 2, load: 0, ramTotal, ramUsed: 1e9, diskTotal: 1e11, diskUsed: 1e10 } : null } : path === '/admin/accounts' ? { accounts } : path.endsWith('/sign-in-link') ? { url: 'https://x/l' } : path === '/admin/links' ? { links: [] }
       : path === '/admin/accounts/ann/sign-out' ? { ok: true, ended: 2, signIn: '/sign-in' } : path.endsWith('/sign-out') ? { ok: true, ended: 3 } : {};
     return { ok: true, json: async () => body };
   };
@@ -392,4 +392,16 @@ test("admin page: only the admin chooses the size of an account's External Virtu
     bob.computer = 'linux';
     delete bob.boatSize;
   }
+});
+
+test('admin page: an account\'s update line names its owner\'s "when" (ADR 271); an older front door that says only autoUpdate reads as before', async () => {
+  const mk = (name, update) => ({ name, state: 'running', created: new Date(now - HOUR).toISOString(), share: { cpu: 1, ram: 3, disk: 20 }, ownShare: false, use: null, update });
+  const accounts = [mk('dee', { when: 'ready', autoUpdate: true }), mk('eli', { when: 'night', autoUpdate: true }), mk('fay', { when: 'manual', autoUpdate: false }), mk('gil', { autoUpdate: true }), mk('hal', { autoUpdate: false })];
+  const { open } = await page({ accounts });
+  const line = (name) => open(name).querySelectorAll('p').map((p) => p.textContent).pop();
+  assert.equal(line('dee'), 'Its owner chose to update as soon as it is ready.');
+  assert.equal(line('eli'), 'Its owner chose to update at night, when idle.');
+  assert.equal(line('fay'), 'Its owner chooses when it moves to a new version, up to the deadline.');
+  assert.equal(line('gil'), 'Updates with every account.', 'no "when": what an older front door said');
+  assert.equal(line('hal'), 'Its owner chooses when it moves to a new version, up to the deadline.');
 });
