@@ -1,4 +1,4 @@
-// The pencil on a board tile (ADR 275). Each tile that has a title of its own (Current work, Blockers, Latest replies,
+// The pencil on a board tile (ADR 276). Each tile that has a title of its own (Current work, Blockers, Latest replies,
 // Calendar, To-do, Files, a card made by Claude) has a pencil beside it. Pressing it opens the project's own chat, the
 // project manager's, with a chip above the message box that names the tile, the box focused and a ring on the tile.
 // The owner says what to change and sends; the message carries the tile (`card`, with the project) to the server, which

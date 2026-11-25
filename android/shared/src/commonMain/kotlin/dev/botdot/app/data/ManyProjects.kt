@@ -40,7 +40,7 @@ object ManyProjects {
     const val LEAD = "project-lead"
     /** That bot is the project's Project Manager in its own chat, the project's chat stays the Chief's (ADR 230). */
     const val MANAGER_BOT = "project-manager-bot"
-    /** A tile of the board can be pointed at from a message to the project manager (ADR 275): the pencil, [CardEdit]. */
+    /** A tile of the board can be pointed at from a message to the project manager (ADR 276): the pencil, [CardEdit]. */
     const val CARD_EDIT = "card-edit"
 
     /** The project's Project Manager (ADR 230): the bot the owner picked, while it is there; null with none. */

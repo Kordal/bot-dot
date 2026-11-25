@@ -630,7 +630,7 @@ fun MyBubble(text: String, files: List<Attachment>? = null, quote: String? = nul
     Column(Modifier.fillMaxWidth().padding(start = Space.s48), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s4)) {
     // The question this answers (AnswerQuote): one quiet line over the bubble, a tap goes to the reply that asked.
     if (quote != null) AnswerQuoteLine(quote, onQuote)
-    // The board tile it was about (ADR 275), small above it.
+    // The board tile it was about (ADR 276), small above it.
     CardAbout(about)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Column(
@@ -845,7 +845,7 @@ fun Composer(
     backAtName: String? = null, // whose limit it is when not Claude's: the account default is a provider that reached its own
     held: List<ClaudeHeld> = emptyList(), // the other connections botdot holds (#1668): a line each
     onSignInHeld: (() -> Unit)? = null, // the way to sign in to Claude, for a held line that says it is signed out
-    focusOn: Any? = null, // a board tile's pencil was pressed (ADR 275): the box takes the focus when this changes to something
+    focusOn: Any? = null, // a board tile's pencil was pressed (ADR 276): the box takes the focus when this changes to something
 ) {
     val p = LocalPaper.current
     // Kept when the phone turns. With the cursor: a mention is what's typed before it.

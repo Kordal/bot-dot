@@ -172,7 +172,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val lines by app.store.lines.lines.collectAsState() // what it said it is about to do
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
-    // The board tile the owner pointed at with its pencil (ADR 275) while this is the project's own chat: the message carries it, and sending clears it.
+    // The board tile the owner pointed at with its pencil (ADR 276) while this is the project's own chat: the message carries it, and sending clears it.
     val pointed = chatId?.let { id -> app.cardTarget?.takeIf { it.isIn(dev.botdot.app.data.ProjectChats.Open(dev.botdot.app.data.ProjectChats.CHIEF, id)) } }
     fun send(text: String, attachments: List<dev.botdot.app.data.Attachment>) {
         val sent = vm.send(text, attachments, card = pointed)

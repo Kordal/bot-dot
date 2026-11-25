@@ -1,4 +1,4 @@
-// The pencil on a board tile (ADR 275): a message to the project's manager carries the tile it is about. The server
+// The pencil on a board tile (ADR 276): a message to the project's manager carries the tile it is about. The server
 // checks it against the project's board, keeps it on the message so the history names it, and tells that one turn which
 // tile it is and what it shows now, in the owner's approved wording (pinned below). Against a real botdot server and the
 // stand-in for Claude, and the note on its own.

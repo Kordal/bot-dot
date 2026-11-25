@@ -114,7 +114,7 @@ private val GOLD = Color(0xFFE8B44A)
  */
 @Composable
 internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview: Boolean = false, teamView: Boolean = false, onTeamView: () -> Unit = {}, onBoard: () -> Unit = {}, onOverview: () -> Unit = {}) {
-    // The pencil on a board tile (ADR 275): the project's own chat it opens, and the tile it points at now.
+    // The pencil on a board tile (ADR 276): the project's own chat it opens, and the tile it points at now.
     val app = ui.app
     val bots = ui.bots.collectAsState().value.orEmpty()
     val server by app.store.version.value.collectAsState()

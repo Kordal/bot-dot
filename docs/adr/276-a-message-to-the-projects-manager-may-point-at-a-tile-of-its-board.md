@@ -1,4 +1,4 @@
-# ADR-275: A message to the project's manager may point at a tile of its board
+# ADR-276: A message to the project's manager may point at a tile of its board
 
 - **Status:** Accepted. Builds on [ADR 245](245-the-project-overview-is-the-board.md) (the overview is the board), [ADR 230](230-the-project-manager-is-the-bot-the-owner-picked-and-the-projects-chat-is-the-chiefs.md) (the project's manager bot) and [ADR 252](252-a-card-stands-in-the-chat-that-names-it.md) (a card stands in the chat that names it).
 - **Owning task:** the pencil on a board tile (the design is the approved mockup of variant A, the always-visible pencil).
