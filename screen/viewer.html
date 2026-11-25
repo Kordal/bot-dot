@@ -13,6 +13,14 @@
 <div id="drop" hidden data-drop="{drop}"><p id="drop-hint"></p></div>
 <div id="drop-note" role="status" aria-live="polite" hidden></div>
 <div id="status" role="status" aria-live="polite" data-state="starting"></div>
+<button id="clip-chip" type="button" hidden></button>
+<div id="type-box" hidden>
+  <form id="type-form" hidden>
+    <textarea id="type-field" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <button id="type-go" type="submit"></button>
+  </form>
+  <button id="type-open" type="button" aria-expanded="false"></button>
+</div>
 <script type="module" src="viewer/viewer.js"></script>
 </body>
 </html>

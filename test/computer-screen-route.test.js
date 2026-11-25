@@ -148,7 +148,7 @@ test("the viewer's page and the notes in its frame speak the account's language 
   const en = await get();
   assert.match(en.body, /<html lang="en">/);
   assert.match(en.body, /<title>Screen<\/title>/);
-  assert.deepEqual(words(en.body), { starting: 'Starting the computer…', watching: 'Viewing', control: 'You have control', reconnecting: 'Reconnecting…', off: 'Turned off', keyboard: 'Keyboard', keys: 'Keys' });
+  assert.deepEqual(words(en.body), { starting: 'Starting the computer…', watching: 'Viewing', control: 'You have control', reconnecting: 'Reconnecting…', off: 'Turned off', keyboard: 'Keyboard', keys: 'Keys', copied: "Copied on the bot's screen, tap to copy", typeIt: 'Type it', typeText: "Text to type on the bot's screen" });
   assert.doesNotMatch(en.body, /\{(lang|title|words)\}/, 'every mark is filled');
 
   // Polish, once the account chose it: the page, and the note while the screen is off (in UTF-8).
@@ -158,7 +158,7 @@ test("the viewer's page and the notes in its frame speak the account's language 
   assert.match(pl.r.headers.get('content-type'), /charset=utf-8/i);
   assert.match(pl.body, /<html lang="pl">/);
   assert.match(pl.body, /<title>Ekran<\/title>/);
-  assert.deepEqual(words(pl.body), { starting: 'Uruchamianie komputera…', watching: 'Podgląd', control: 'Masz kontrolę', reconnecting: 'Łączenie ponownie…', off: 'Wyłączony', keyboard: 'Klawiatura', keys: 'Klawisze' });
+  assert.deepEqual(words(pl.body), { starting: 'Uruchamianie komputera…', watching: 'Podgląd', control: 'Masz kontrolę', reconnecting: 'Łączenie ponownie…', off: 'Wyłączony', keyboard: 'Klawiatura', keys: 'Klawisze', copied: 'Skopiowano na ekranie bota, dotknij, aby skopiować', typeIt: 'Wpisz to', typeText: 'Tekst do wpisania na ekranie bota' });
   const frank = await makeBot(srv, { name: 'Frank', computer: 'linux' });
   const off = await fetch(`${srv.base}/computer/${frank.id}/vnc.html`);
   assert.equal(off.status, 503);

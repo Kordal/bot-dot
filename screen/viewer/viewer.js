@@ -4,6 +4,7 @@
 import { createTransport } from './transport-rfb.js';
 import { setupDrop } from './drop.js';
 import { setupControls } from './controls.js';
+import { initClipboard } from './clipboard.js';
 
 const query = new URLSearchParams(location.search);
 // Watching until the owner takes control: only view_only=0 lets the mouse and keys through (ADR 107).
@@ -24,6 +25,7 @@ let everShown = false;
 let transport = null;
 let retry = null;
 const controls = setupControls({ screen: document.getElementById('screen'), layer: screen, words: WORDS, transport: () => transport });
+const clipboard = initClipboard({ words: WORDS, viewOnly, transport: () => transport });
 
 // What the viewer is in: drawn in words, and told to the frame's parent (the web page), which reads the state and
 // not this page's text.
@@ -66,10 +68,12 @@ function connect() {
     everShown = true;
     setState(viewOnly ? 'watching' : 'control');
     if (!viewOnly) mine.focus();
+    clipboard.connected(mine);
   });
   mine.addEventListener('disconnect', async () => {
     if (mine !== transport) return;
     transport = null;
+    clipboard.gone();
     // Ask first and say it once: a computer that stays off stays on "Turned off" across the retries, with no
     // "Reconnecting…" between. Not yet shown means it is still starting; shown once means it went away and comes back.
     const off = await computerIsOff();
