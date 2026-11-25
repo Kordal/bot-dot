@@ -2,7 +2,8 @@
 // to the transport's clipboard surface (`clipboard` event, `pasteText`, `typeText`).
 //   - Text copied on the bot's screen lands in the owner's clipboard. Where the browser refuses that without a tap
 //     (Safari), a chip says so and the tap does it.
-//   - Ctrl/⌘+V on the viewer sends the owner's clipboard to the bot's screen and pastes it there.
+//   - The owner's own paste keys (⌘+V on a Mac, Ctrl+V elsewhere) send the owner's clipboard to the bot's screen and
+//     paste it there; with no text in it, the computer gets a plain Ctrl+V. Every other key goes through as it is.
 //   - "Type it" types a text key by key, for fields that refuse a paste.
 // Nothing crosses while the owner only watches: every entry point does nothing then. Nor does it throw while there is no
 // connection (reconnecting, turned off): its transport is the guarded one (guarded.js), a transport that does nothing.
@@ -62,18 +63,35 @@ export function initClipboard({ words, viewOnly, transport: current }) {
     transport().focus();
   });
 
-  // Ctrl/⌘+V: the keys are not sent as they are (the bot's screen would paste what it had); the owner's text is, and
-  // then the paste. The browser's own paste event carries the text without asking for permission.
-  const isPasteKey = (e) => (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'v' || e.key === 'V');
+  // The owner's paste keys: they are not sent as they are (the bot's screen would paste what it had); the owner's text
+  // is, and then the paste. The browser's own paste event carries the text without asking for permission. Only that one
+  // chord is held back: Ctrl+V on a Mac and Super+V elsewhere are ordinary keys for the computer, and noVNC sends them.
   const inField = (e) => e.target instanceof Element && e.target.closest('input, textarea');
   // What the owner holds right now (the DOM codes of Ctrl and ⌘): noVNC has these down on the computer, and the paste,
   // which lets go of them for a moment, puts them back.
   const HOLDABLE = new Set(['ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight']);
   const held = new Set();
+  const holding = () => [...held];
+  // A held-back chord is not lost: if the browser makes no paste event, or one without text (an image in the
+  // clipboard), the computer gets the Ctrl+V it would have had. `waiting` is that wait; `sentAt` dates the Ctrl+V it
+  // sent, so a paste event that comes later still is not pasted a second time.
+  const PASTE_WAIT_MS = 100;
+  let waiting = null;
+  let sentAt = -Infinity;
+  const plainPaste = () => {
+    clearTimeout(waiting);
+    waiting = null;
+    sentAt = performance.now();
+    transport().pasteKeys(holding);
+  };
   document.addEventListener('keydown', (e) => {
     if (viewOnly || inField(e)) return;
     if (HOLDABLE.has(e.code)) held.add(e.code);
-    if (isPasteKey(e)) e.stopPropagation();
+    if (transport().isPasteChord(e)) {
+      e.stopPropagation();
+      clearTimeout(waiting);
+      waiting = setTimeout(plainPaste, PASTE_WAIT_MS);
+    }
   }, true);
   document.addEventListener('keyup', (e) => { held.delete(e.code); }, true);
   addEventListener('blur', () => held.clear());
@@ -81,7 +99,12 @@ export function initClipboard({ words, viewOnly, transport: current }) {
     if (viewOnly || inField(e)) return;
     const text = e.clipboardData?.getData('text/plain');
     e.preventDefault();
-    if (text) transport().pasteText(text, () => [...held]);
+    if (waiting === null && performance.now() - sentAt < PASTE_WAIT_MS * 10) return; // too late: the Ctrl+V went already
+    if (text) {
+      clearTimeout(waiting);
+      waiting = null;
+      transport().pasteText(text, holding);
+    } else if (waiting !== null) plainPaste();
   });
 
   // Type it.

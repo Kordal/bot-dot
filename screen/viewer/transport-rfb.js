@@ -19,6 +19,8 @@
 //                                                                    the owner only watches)
 //   transport.pasteText(text, holding)   puts the text in the computer's clipboard, then presses Ctrl+V there;
 //             holding() says which of Ctrl and ⌘ the owner holds (DOM codes), and the paste leaves them held
+//   transport.pasteKeys(holding)   presses only that Ctrl+V (the owner's clipboard has no text to send)
+//   transport.isPasteChord(event)  the owner's own paste keys, ⌘+V on a Mac and Ctrl+V elsewhere (a keydown event)
 //   transport.typeText(text)    types the text key by key (any letters), resolves when the last key is sent
 //
 // File drop is not here: it goes by the web page's own upload route (drop.js, #1736).
@@ -66,6 +68,20 @@ export function createTransport({ target, url, viewOnly }) {
     rfb.focusOnClick = false;
     try { at.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button, bubbles: true, cancelable: true })); } finally { rfb.focusOnClick = focusOnClick; }
   };
+  // Ctrl+V on the computer, whatever the owner holds. What the owner holds is read when the V goes, not when the keys
+  // were pressed: noVNC lets go of what they let go of.
+  const pressPaste = (holding) => {
+    const keys = holding();
+    // A ⌘ the owner holds is released first: the computer is to see Ctrl+V, with nothing else held.
+    for (const [keysym, code] of heldCommand()) rfb.sendKey(keysym, code, false);
+    rfb.sendKey(KeyTable.XK_Control_L, 'ControlLeft', true);
+    rfb.sendKey(KeyTable.XK_v, 'KeyV');
+    // Then back what the owner still holds, because noVNC's keyboard has it down and sends no second down: the next key
+    // (S, A, Z) must still reach the computer with Ctrl or ⌘ held. The computer's own Ctrl stays down when the owner
+    // holds it, and the owner's letting go reaches it through noVNC.
+    if (!keys.some((code) => code.startsWith('Control'))) rfb.sendKey(KeyTable.XK_Control_L, 'ControlLeft', false);
+    for (const [keysym, code] of heldCommand()) if (keys.includes(code)) rfb.sendKey(keysym, code, true);
+  };
   return {
     // The RFB client watches its element's size, but a change made and undone within a frame can slip past it.
     refit: () => { rfb.scaleViewport = true; },
@@ -78,23 +94,13 @@ export function createTransport({ target, url, viewOnly }) {
     setViewOnly: (on) => { rfb.viewOnly = on; },
     // Takes the keyboard, so typing goes to the computer without a click first.
     focus: () => rfb.focus(),
+    isPasteChord: (e) => (isMac() || isIOS() ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'v' || e.key === 'V'),
     pasteText: (text, holding = () => []) => {
       if (rfb.viewOnly) return;
       rfb.clipboardPasteFrom(text);
-      setTimeout(() => {
-        // What the owner holds when the V goes, not when the keys were pressed: noVNC lets go of what they let go of.
-        const keys = holding();
-        // A ⌘ the owner holds is released first: the computer is to see Ctrl+V, with nothing else held.
-        for (const [keysym, code] of heldCommand()) rfb.sendKey(keysym, code, false);
-        rfb.sendKey(KeyTable.XK_Control_L, 'ControlLeft', true);
-        rfb.sendKey(KeyTable.XK_v, 'KeyV');
-        // Then back what the owner still holds, because noVNC's keyboard has it down and sends no second down: the
-        // next key (S, A, Z) must still reach the computer with Ctrl or ⌘ held. The computer's own Ctrl stays down
-        // when the owner holds it, and the owner's letting go reaches it through noVNC.
-        if (!keys.some((code) => code.startsWith('Control'))) rfb.sendKey(KeyTable.XK_Control_L, 'ControlLeft', false);
-        for (const [keysym, code] of heldCommand()) if (keys.includes(code)) rfb.sendKey(keysym, code, true);
-      }, PASTE_DELAY_MS);
+      setTimeout(() => pressPaste(holding), PASTE_DELAY_MS);
     },
+    pasteKeys: (holding = () => []) => { if (!rfb.viewOnly) pressPaste(holding); },
     typeText: async (text) => {
       let n = 0;
       for (const ch of text.replace(/\r\n?/g, '\n')) {

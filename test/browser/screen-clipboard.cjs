@@ -4,8 +4,8 @@
 // The viewer at /computer/<bot>/vnc.html against a stand-in computer (botdot's server is real; the helper and the VNC
 // server, RFB 3.8 with its clipboard, are stand-ins). It checks both clipboards, with the extended one (UTF-8, as
 // TigerVNC speaks it) and with Latin-1 cut text: text copied on the bot's screen lands in the owner's clipboard, or
-// behind a "Copied on the bot's screen, tap to copy" chip where the browser refuses it without a tap; Ctrl/⌘+V sends
-// the owner's text and then Ctrl+V, once; "Type it" types Polish letters key by key; and while the owner only watches
+// behind a "Copied on the bot's screen, tap to copy" chip where the browser refuses it without a tap; the platform's own paste keys send
+// the owner's text and then Ctrl+V, once (a paste with no text, and every other V chord, still reach the computer); "Type it" types Polish letters key by key; and while the owner only watches
 // nothing crosses and there is nothing to tap. Scratch data only.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
@@ -180,10 +180,13 @@ function vncServer(sock, got, ext) {
       // A Mac, for noVNC: it reads navigator.platform each time it turns a key (core/util/browser.js isMac).
       const platform = Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform').get;
       window.fakeMac = false;
-      Object.defineProperty(navigator, 'platform', { get() { return window.fakeMac ? 'MacIntel' : platform.call(this); } });
+      window.fakeLinux = false;
+      Object.defineProperty(navigator, 'platform', { get() { return window.fakeMac ? 'MacIntel' : window.fakeLinux ? 'Linux x86_64' : platform.call(this); } });
       // The pastes the page saw, to tell a real one from the one a test has to make where the host has no ⌘+V paste.
+      // `noPaste` is a Mac's Ctrl+V: Chromium here would paste, a Mac's browser makes no paste event.
       window.pastes = 0;
-      addEventListener('paste', () => { window.pastes++; }, true);
+      window.noPaste = false;
+      addEventListener('paste', (e) => { if (window.noPaste) e.stopImmediatePropagation(); else window.pastes++; }, true);
       // A tap is the owner's own click, while its handler runs (Playwright's evaluate counts as a gesture, so the
       // browser's own flag cannot tell).
       let tapping = false;
@@ -209,7 +212,7 @@ function vncServer(sock, got, ext) {
     // A host that is not a Mac has no ⌘+V paste, and Chromium has no Ctrl+V paste on a Mac: the browser's paste event is then
     // made as the owner's browser makes it.
     const pasteEventIfNone = async (owner) => {
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(20); // a browser's paste event comes with the key, well before the page's own wait
       if (await page.evaluate(() => window.pastes)) return;
       await page.evaluate((t) => {
         const data = new DataTransfer();
@@ -348,7 +351,47 @@ function vncServer(sock, got, ext) {
       assert.deepEqual(downAfter(got.log), [], `[${cmd}] nothing is left held: ${got.log.join(', ')}`);
       assert.equal(got.log.filter((e) => e === 'key down 76').length, 1, `[${cmd}] one V press`);
     }
-    await page.evaluate(() => { window.fakeMac = false; });
+
+    // Ctrl+V on a Mac is no paste: the browser makes no paste event, and the page lets the key through, so the computer
+    // gets Ctrl+V as the owner pressed it, with no clipboard sent. (Chromium here would paste, so its paste is dropped.)
+    await setClip('must not be sent');
+    await page.locator('#screen canvas').click({ position: { x: 100, y: 100 } });
+    reset();
+    await page.evaluate(() => { window.noPaste = true; });
+    await page.keyboard.press('Control+KeyV');
+    await waitFor(() => got.log.includes('key up 76'), { what: 'a Mac owner\'s Ctrl+V to reach the computer' });
+    await page.waitForTimeout(400);
+    assert.deepEqual(got.log, ['key down ffe3', 'key down 76', 'key up 76', 'key up ffe3'], `a Mac's Ctrl+V reaches the computer as Ctrl+V: ${got.log.join(', ')}`);
+    assert.equal(got.clipboard, null, 'and sends no clipboard');
+
+    // A paste that finds nothing to send (an image in the clipboard) is not lost either: the computer gets a Ctrl+V. So
+    // does one the browser makes no paste event for within a moment (⌘+V where the page's wait runs out).
+    await page.evaluate(() => { window.fakeMac = false; window.noPaste = false; window.pastes = 0; });
+    await page.locator('#screen canvas').click({ position: { x: 100, y: 100 } });
+    for (const how of ['an empty paste', 'no paste event']) {
+      reset();
+      await page.evaluate((none) => { window.pastes = 0; window.noPaste = none; }, how === 'no paste event');
+      await page.keyboard.press('Control+KeyV');
+      if (how === 'an empty paste') await pasteEventIfNone('');
+      await waitFor(() => got.log.includes('key up 76'), { what: `Ctrl+V to reach the computer after ${how}` });
+      await page.waitForTimeout(400);
+      assert.equal(got.log.filter((e) => e === 'key down 76').length, 1, `${how}: one V press: ${got.log.join(', ')}`);
+      assert.equal(got.log.filter((e) => e === 'key up 76').length, 1, `${how}: one V release: ${got.log.join(', ')}`);
+      assert.equal(got.clipboard, null, `${how}: no clipboard sent`);
+      assert.ok(got.log.lastIndexOf('key down ffe3') < got.log.indexOf('key down 76'), `${how}: Ctrl is down for the V: ${got.log.join(', ')}`);
+      assert.deepEqual(downAfter(got.log), [], `${how}: nothing is left held: ${got.log.join(', ')}`);
+    }
+    await page.evaluate(() => { window.noPaste = false; });
+
+    // Super+V is an ordinary key on Linux and Windows: noVNC sends it, and the page does not hold it back.
+    await page.evaluate(() => { window.fakeLinux = true; });
+    reset();
+    await page.keyboard.press('Meta+KeyV');
+    await waitFor(() => got.log.includes('key up 76'), { what: 'Super+V to reach the computer' });
+    await page.waitForTimeout(400);
+    assert.deepEqual(got.log, ['key down ffeb', 'key down 76', 'key up 76', 'key up ffeb'], `Super+V reaches the computer as Super+V: ${got.log.join(', ')}`);
+    assert.equal(got.clipboard, null, 'and sends no clipboard');
+    await page.evaluate(() => { window.fakeLinux = false; });
 
     // Between connections nothing throws: a paste and Type it, with the computer gone.
     for (const s of live) s.destroy();
