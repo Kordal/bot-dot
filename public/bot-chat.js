@@ -747,7 +747,6 @@ function updatePip(bot, run) {
         <button class="icon-btn sm" data-pip="hide" title="${tr('Hide')}">✕</button>
       </div>
       ${ready ? `<iframe src="${screenUrl(bot.id, pip.control)}" title="${tr("{name}'s screen", { name: esc(bot.name) })}"></iframe>` : `<div class="pip-wait">🖥 ${tr('Starting its computer…')}</div>`}`;
-    keepScreenConnected($('iframe', el));
   }
   $$('[data-pip]', el).forEach((b) => (b.onclick = () => {
     const a = b.dataset.pip;

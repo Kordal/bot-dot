@@ -681,5 +681,13 @@
   "Your account moves to it tonight, when your bots are idle.": "Twoje konto przejdzie na nią dziś w nocy, gdy boty nic nie robią.",
   "Your account moves to it when you say, or by itself on {day}.": "Twoje konto przejdzie na nią, gdy powiesz, albo samo: {day}.",
   "Now": "Teraz",
-  "Tonight": "Dziś w nocy"
+  "Tonight": "Dziś w nocy",
+  "Starting the computer…": "Uruchamianie komputera…",
+  "Viewing": "Podgląd",
+  "You have control": "Masz kontrolę",
+  "Reconnecting…": "Łączenie ponownie…",
+  "Turned off": "Wyłączony",
+  "This bot's screen starts when it first uses its computer.": "Ekran tego bota włącza się, gdy po raz pierwszy użyje komputera.",
+  "This bot's computer is turned off.": "Komputer tego bota jest wyłączony.",
+  "This bot's screen couldn't be shown. Try again in a moment.": "Nie udało się pokazać ekranu tego bota. Spróbuj za chwilę."
 }

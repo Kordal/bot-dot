@@ -7,6 +7,8 @@
 !lib/
 !install.sh
 !public/
+# The screen viewer's page and scripts (ADR 279), which the server serves at /computer/<bot>/.
+!screen/
 !chief-skills/
 # The skills every bot and the Chief get (#398).
 !bot-skills/

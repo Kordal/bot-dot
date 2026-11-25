@@ -76,11 +76,19 @@ test("web: a bot on boat.dev opens its own machine's desktop and line, with noth
   assert.match(app, /part\('bot-screen'\)\.classList\.toggle\('hidden', bot\.computer !== 'linux' && bot\.computer !== 'boat'\)/);
 });
 
+test("web: the screen's frames are told the viewer's state, and nothing reads its text or reloads it (ADR 279)", () => {
+  const computers = cut('// ---------- bot computers (live screen) ----------', '// The screen as large as the window');
+  assert.match(computers, /vnc\.html\?view_only=\$\{control \? 0 : 1\}/, 'the address the apps open');
+  assert.match(computers, /e\.origin !== location\.origin \|\| e\.data\?\.type !== 'botdot-screen'/, 'only its own origin speaks');
+  assert.match(computers, /f\.contentWindow === e\.source/, 'and only for the frame it came from');
+  assert.doesNotMatch(app, /keepScreenConnected|noVNC_/);
+});
+
 test("web: outside Chromium a boat machine's screen is botdot's own viewer, asked with via: vnc, as on the account's computer (ADR 149)", () => {
   const boat = cut('function openBoatComputer(', 'function openScreen(');
   assert.match(cut('const boatViaVnc', 'function openBoatComputer('), /state\.features\.includes\('boat-desktop-vnc'\) && !navigator\.userAgentData/, 'Chromium keeps the stream; an older server keeps it too');
   assert.match(boat, /vnc \? \{ body: \{ via: 'vnc' \} \} : \{\}/);
-  assert.match(boat, /<iframe src="\$\{screenUrl\(bot\.id, control\)\}"/, "botdot's noVNC, watching until Take control");
-  assert.match(boat, /keepScreenConnected\(/);
+  assert.match(boat, /<iframe src="\$\{screenUrl\(bot\.id, control\)\}"/, "botdot's viewer, watching until Take control");
+  assert.doesNotMatch(boat, /keepScreenConnected/, "the viewer reconnects by itself (ADR 279)");
   assert.match(boat, /href = vnc \? screenUrl\(bot\.id, control\) : d\.url/, 'full screen is the viewer too');
 });

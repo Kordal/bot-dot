@@ -82,7 +82,7 @@ test('isolated server and helper preserve legacy files and restore an isolated c
   const probe = () => cmd(`python3 -c 'import socket; s=socket.socket(); s.settimeout(2); print("connected" if s.connect_ex(("${address}",18080)) == 0 else "blocked")'`);
   assert.match((await probe()).text, /connected/, 'a computer reaches the local network');
   const html = await fetch(`${s.base}/computer/${id}/vnc.html`);
-  assert.equal(html.status, 200); assert.match(await html.text(), /noVNC/);
+  assert.equal(html.status, 200); assert.match(await html.text(), /viewer\/viewer\.js/);
   await require('./helper-secret-acceptance').secretAcceptance(s.helper, id);
   console.log(JSON.stringify({ base: s.base, id, daemon: s.name, evidence: 'legacy preserved/exported/reset/restored; helper command control; server lacks Docker socket' }));
   if (process.env.BOT_DOT_HELPER_HOLD === '1') {
