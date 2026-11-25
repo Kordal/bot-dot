@@ -902,11 +902,18 @@ data class Ask(
     @SerialName("name") val nameValue: JsonElement? = null,
     @SerialName("mode") val modeValue: JsonElement? = null,
     @SerialName("act") val actValue: JsonElement? = null,
+    // A new version that waits (`update`, #1690, ADR 271): its buttons by verb (`acts`) and whether the account is busy.
+    @SerialName("acts") val actsValue: JsonElement? = null,
+    @SerialName("busy") val busyValue: JsonElement? = null,
     @SerialName("no") val noValue: JsonElement? = null,
     @SerialName("chatId") val chatIdValue: JsonElement? = null,
 ) {
     /** Its main button as the server names it by a verb, or null: the buttons of its kind. */
     val act: AskAct? get() = AskAct.of(actValue)
+    /** A new version's buttons in the server's order, the main one first; none while it moves (see [updateButtons]). */
+    val acts: List<AskAct> get() = (actsValue as? JsonArray).orEmpty().mapNotNull { AskAct.of(it) }
+    /** Whether the account is busy, as the front door asked it; null when it could not. "Now" asks first only when it is. */
+    val busy: Boolean? get() = (busyValue as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
     /** A missing app's slug ("gmail"), or "". */
     val app: String get() = appValue.textOrNull().orEmpty()
     /** A missing app's name ("Gmail"), else its slug. */

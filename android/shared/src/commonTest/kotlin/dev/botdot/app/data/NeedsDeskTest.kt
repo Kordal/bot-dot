@@ -394,4 +394,89 @@ class NeedsDeskTest {
         runCurrent()
         assertTrue(desk.state.value.leave)
     }
+
+    // ---------- a new version that waits (`update`, #1690, ADR 271) ----------
+
+    private fun update(extra: String = "", acts: String = """[{"verb":"update-now","label":"Now"},{"verb":"update-tonight","label":"Tonight"}]""", act: String = """{"verb":"update-now","label":"Now"}""") =
+        ask("""{"id":"u1","kind":"update","bot":null,"title":"A new version is ready","body":"Your account moves to it when you say, or by itself on 2 December.","act":$act,"acts":$acts$extra}""")
+
+    @Test fun aNewVersionIsOneCardWithNowAndTonightAndNoNotNow() = runTest {
+        val (store, desk) = desk()
+        store.bots.set(emptyList())
+        store.needs.set(Needs(asks = listOf(update())))
+        runCurrent()
+        val card = desk.state.value.cards.single()
+        assertEquals("A new version is ready", card.title)
+        assertEquals("Your account moves to it when you say, or by itself on 2 December.", card.meta)
+        assertEquals(listOf("Now", "Tonight"), card.buttons.map { it.label })
+        assertEquals(listOf(NeedsButtonLook.PRIMARY, NeedsButtonLook.SECONDARY), card.buttons.map { it.look })
+        assertEquals(listOf("update-now", "update-tonight"), card.buttons.map { it.id })
+    }
+
+    @Test fun tonightIsLeftOutWhereTheServerDoesNotOfferIt() = runTest {
+        val (store, desk) = desk()
+        store.bots.set(emptyList())
+        store.needs.set(Needs(asks = listOf(update(acts = """[{"verb":"update-now","label":"Now"}]"""))))
+        runCurrent()
+        assertEquals(listOf("Now"), desk.state.value.cards.single().buttons.map { it.label })
+    }
+
+    @Test fun aMovingVersionSaysSoWithNoButton() = runTest {
+        val (store, desk) = desk()
+        store.bots.set(emptyList())
+        store.needs.set(Needs(asks = listOf(update(acts = "[]", act = """{"verb":"update-moving"}"""))))
+        runCurrent()
+        val card = desk.state.value.cards.single()
+        assertEquals("A new version is ready", card.title, "the server's words, whatever they are")
+        assertEquals(emptyList(), card.buttons)
+    }
+
+    @Test fun nowAsksFirstOnlyWhenTheAccountIsBusy() = runTest {
+        val (store, desk) = desk()
+        store.bots.set(emptyList())
+        store.needs.set(Needs(asks = listOf(update(extra = ""","busy":true"""))))
+        runCurrent()
+        val now = desk.state.value.cards.single().buttons.first()
+        assertEquals("Your account moves to the new version: your bots restart, and work still running stops.", now.ask?.text)
+        assertNull(desk.state.value.cards.single().buttons[1].ask, "Tonight asks nothing")
+        for (extra in listOf(""","busy":false""", "")) {
+            store.needs.set(Needs(asks = listOf(update(extra = extra))))
+            runCurrent()
+            assertNull(desk.state.value.cards.single().buttons.first().ask, "idle, or not asked: no warning of work that stops")
+        }
+    }
+
+    @Test fun nowAndTonightGoToTheFrontDoorsOwnRoutes() = runTest {
+        val botdot = FakeBotdot { 200 to """{"asked":true}""" }
+        val (store, desk) = desk(botdot.api)
+        store.bots.set(emptyList())
+        store.needs.set(Needs(asks = listOf(update())))
+        runCurrent()
+        desk.press("a:u1", "update-tonight")
+        runCurrent()
+        desk.press("a:u1", "update-now")
+        runCurrent()
+        val sent = botdot.posts()
+        assertEquals(listOf("/front-door/update", "/front-door/update/now"), sent.map { it.path })
+        assertEquals("night", Api.JSON.parseToJsonElement(sent[0].body).jsonObject["plan"]!!.jsonPrimitive.content)
+        assertTrue(sent.none { it.path.startsWith("/asks") }, "never the account's botdot server's answer on the card")
+    }
+
+    @Test fun aRefusedNowSaysWhyOnTheCard() = runTest {
+        val botdot = FakeBotdot { 409 to """{"error":"There is no new version to switch to."}""" }
+        val (store, desk) = desk(botdot.api)
+        store.bots.set(emptyList())
+        store.needs.set(Needs(asks = listOf(update())))
+        runCurrent()
+        desk.press("a:u1", "update-now")
+        runCurrent()
+        assertEquals("There is no new version to switch to.", desk.state.value.cards.single().failed)
+    }
+
+    @Test fun anAppThatDoesNotKnowTheVerbDrawsNoCard() {
+        val list = Ask.list("""[{"id":"u1","kind":"update","title":"A new version is ready","act":{"verb":"update-sing"},"acts":[]},{"id":"u2","kind":"update","title":"A new version is ready","act":{"verb":"update-now","label":"Now"},"acts":[{"verb":"update-now","label":"Now"}],"busy":true}]""")
+        assertEquals(listOf("u2"), list.map { it.id })
+        assertEquals(true, list.single().busy)
+        assertNull(list.single().actLabel, "its buttons are its own, not one main button")
+    }
 }

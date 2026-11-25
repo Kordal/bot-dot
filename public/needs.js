@@ -255,6 +255,16 @@ function needCardHTML(x, here = null) {
     return card(esc(x.a.title), esc(said(x.a.meta)), `${rows}${tooLong(x.a) ? `<div class="need-meta">${tr('Too long to show in full.')}</div>` : ''}`,
       `<button class="btn sm" data-need-no>${tr('Decline')}</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}${shut ? '' : `<button class="btn sm primary" data-need-yes>${tr('Approve')}</button>`}`, rows ? 'need-rows' : '');
   }
+  // A new version that waits for the account (`update`, docs/api.md "A new version that waits"): the server's title, when the
+  // account moves, and its buttons by verb (`acts`: Now, Tonight), no Not now: it goes by itself once the account has moved.
+  // While it moves it has no button. A verb the page does not know draws no card.
+  if (x.kind === 'ask' && x.a.kind === 'update') {
+    if (!UPDATE_VERBS.includes(x.a.act?.verb)) return '';
+    const acts = (Array.isArray(x.a.acts) ? x.a.acts : []).filter((a) => UPDATE_ACTS.includes(a?.verb) && said(a.label));
+    const busy = updating.has(x.a.id);
+    return card(esc(said(x.a.title)), esc(said(x.a.body)), '',
+      acts.map((a, i) => `<button class="btn sm${i ? '' : ' primary'}" data-need-update="${a.verb}"${busy ? ' disabled' : ''}>${esc(said(a.label))}</button>`).join(''), 'need-update');
+  }
   // A card whose main button the server names by a verb (`act`, docs/api.md "A missing connected app"): its title,
   // Not now and that button, no more. connect: the app's sign-in page through its ask, saying where that is (opening,
   // waiting for the sign-in, what went wrong); open: a screen of the page's own. A verb the page does not know draws no card.
@@ -521,6 +531,24 @@ function actNeed(x) {
   if (act?.verb === 'open' && act.screen === 'connectors') return setView('connectors');
   return openNeed(x);
 }
+// A new version's buttons (#1690, ADR 271): the front door's own routes with the owner's session, never the account's botdot
+// server. Now asks first only when the account is busy (`busy` on the card, from the account's idle answer). Either way the
+// front door tells the account again at once, so the card's next look says what it is (moving, or Tonight kept).
+const UPDATE_ACTS = ['update-now', 'update-tonight'];
+const UPDATE_VERBS = [...UPDATE_ACTS, 'update-moving'];
+const updating = new Set(); // ask ids whose button was pressed and has not come back
+async function pressUpdate(x, verb) {
+  const id = x.a.id;
+  if (updating.has(id) || !UPDATE_ACTS.includes(verb)) return;
+  if (verb === 'update-now' && x.a.busy === true && !(await askFirst(tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.'), tr('Update now'), { danger: false }))) return;
+  updating.add(id);
+  const sel = `.need-card[data-need="${CSS.escape(x.key)}"]`;
+  try {
+    await frontDoorPost(verb === 'update-now' ? '/front-door/update/now' : '/front-door/update', verb === 'update-now' ? {} : { plan: 'night' });
+    sayOnCard(sel, '');
+  } catch (e) { sayOnCard(sel, e.message); } finally { updating.delete(id); }
+  refreshNeeds();
+}
 // That button's word ("Connect", "Reconnect", "Open Connectors"): the server's, else the page's own by the verb; ''
 // for a verb the page does not know. A row of Needs you draws it in place of Review (company-home.js).
 function actLabel(x) {
@@ -528,7 +556,7 @@ function actLabel(x) {
   if (!act || !(act.verb === 'connect' || (act.verb === 'open' && act.screen === 'connectors'))) return '';
   return said(act.label) || (act.verb === 'connect' ? (x.a.mode === 'reconnect' ? tr('Reconnect') : tr('Connect')) : tr('Open Apps'));
 }
-const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.act?.verb, x.a?.act?.label, x.a?.body, x.a?.kind === 'connect-app' ? connecting.get(x.a.id) || null : null, x.a?.batch?.title, x.a?.batch?.own, x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
+const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.act?.verb, x.a?.act?.label, x.a?.body, x.a?.kind === 'update' ? [x.a.title, x.a.busy, x.a.acts, updating.has(x.a.id)] : null, x.a?.kind === 'connect-app' ? connecting.get(x.a.id) || null : null, x.a?.batch?.title, x.a?.batch?.own, x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
 
 // Back to where Needs you was opened from (state.cameFrom, needs-return.js): false when there is nowhere.
 function leaveNeeds() {
@@ -586,6 +614,7 @@ function wireNeedCards(root, items) {
     if (!x) return;
     const yes = $('[data-need-yes]', el), no = $('[data-need-no]', el), op = $('[data-need-open]', el), always = $('[data-need-always]', el), act = $('[data-need-act]', el);
     if (act) act.onclick = () => actNeed(x); // the sign-in tab opens on this click, so pop-up blockers allow it
+    $$('[data-need-update]', el).forEach((b) => { b.onclick = () => pressUpdate(x, b.dataset.needUpdate); });
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => answerNeed(x, true, yes);
@@ -631,7 +660,7 @@ const chatDecided = new Map(); // chat and key -> { scope, title, label }: decid
 const answeredAway = new Map(); // chat and key -> { scope, title, label }
 const fromChief = (x) => (x.kind === 'job' ? (changeOf(x.job) ? changeOf(x.job).by : x.job.changedBy) === 'chief'
   : x.kind === 'tile' ? (changeOf(x.t) ? changeOf(x.t).by : x.t.changedBy) !== 'bot'
-  : x.kind === 'ask' ? (['skill', 'vault-remove'].includes(x.a.kind) && !x.a.botId) || (x.a.kind === 'connect-app' && !x.a.botId) || x.a.kind === 'chief-action' || x.a.chief === true
+  : x.kind === 'ask' ? (['skill', 'vault-remove'].includes(x.a.kind) && !x.a.botId) || (x.a.kind === 'connect-app' && !x.a.botId) || x.a.kind === 'update' || x.a.kind === 'chief-action' || x.a.chief === true
   : x.kind === 'login' || x.kind === 'pay' ? x.r.from === 'chief' : false);
 // A missing app's card the Chief offered for a bot in a chat (`chatId`) stands in that chat and in the bot's.
 const inBothChats = (x) => x.kind === 'ask' && (ToolCard.is(x.a) || (x.a.kind === 'bot-change' && x.a.by === 'chief') || (x.a.kind === 'connect-app' && !!x.a.botId && !!x.a.chatId));
@@ -830,6 +859,6 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1&update=1').catch(() => state.asks);
   await refresh();
 }
