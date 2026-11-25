@@ -2,10 +2,12 @@
 // checks it against the project's board, keeps it on the message so the history names it, and tells that one turn which
 // tile it is and what it shows now, in the owner's approved wording (pinned below). Against a real botdot server and the
 // stand-in for Claude, and the note on its own.
+// One run of a bot at a time (ADR 062): the test of a message that waits needs the bot busy with one.
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
-const { startServer, makeBot, writeData, waitFor } = require('./helpers');
+const { startServer, makeBot, writeData, waitFor, heldRun, feed } = require('./helpers');
 const { tileOf, tileNote } = require('../lib/project-board-note');
 
 // What the owner approved (design of the pencil): the wording the manager is told, with its tile's rows.
@@ -124,4 +126,27 @@ test('a bot that runs no project, and a card that is gone, are refused on its ch
   assert.equal(gone.status, 400);
   const plain = await srv.api(`/bots/${other.id}/run`, { method: 'POST', body: { prompt: 'Just a message' } });
   assert.equal(plain.status, 201, 'a message with no card is as it was');
+});
+
+test('a message to the busy manager keeps its tile while it waits: in the bot, in the list and in the queued event', async (t) => {
+  const f = await feed(srv);
+  t.after(() => { f.close(); srv.unhold(); });
+  await f.wait('hello');
+  const held = await heldRun(srv, lead, 'Hold the manager busy');
+  const w = await srv.api(`/bots/${lead.id}/run`, { method: 'POST', body: { prompt: 'Sort the replies by bot', card: 'replies' } });
+  assert.equal(w.status, 201, JSON.stringify(w.data));
+  assert.equal(w.data.status, 'queued');
+  assert.deepEqual(w.data.card, { id: 'replies', label: 'Latest replies' });
+  const entry = { id: w.data.id, text: 'Sort the replies by bot', attachments: [], at: w.data.queuedAt, card: { id: 'replies', label: 'Latest replies' } };
+  assert.deepEqual((await srv.api(`/bots/${lead.id}`)).data.queued, [entry]);
+  assert.deepEqual((await srv.api('/bots')).data.find((b) => b.id === lead.id).queued, [entry]);
+  const said = (await f.wait('queued', (d) => d.botId === lead.id && d.queued.length === 1)).data;
+  assert.deepEqual(said.queued, [entry]);
+  // A waiting message that points at no tile carries no `card` at all.
+  const plain = await srv.api(`/bots/${lead.id}/run`, { method: 'POST', body: { prompt: 'And a plain one' } });
+  assert.equal(plain.data.status, 'queued');
+  assert.equal((await srv.api(`/bots/${lead.id}`)).data.queued.find((q) => q.id === plain.data.id).card, undefined);
+  srv.release(held);
+  srv.unhold();
+  await waitFor(async () => (await srv.api(`/runs?botId=${lead.id}`)).data.every((r) => r.status !== 'running' && r.status !== 'queued'), { timeout: 30_000, what: 'both waiting messages ran' });
 });
