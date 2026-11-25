@@ -37,7 +37,7 @@ test('botdot-usage counts each process for the screen in its environment, or its
   const proc = fakeProc([
     { pid: 1, comm: 'sleep', rss: 10 },
     { pid: 20, comm: 'supervisord', rss: 100, env: ['HOME=/home/box', 'SCREEN=11'] },
-    { pid: 21, ppid: 20, comm: 'Xvnc', rss: 200, cmd: ['Xvnc', ':11', '-geometry', '1024x768'] },
+    { pid: 21, ppid: 20, comm: 'Xvnc', rss: 200, cmd: ['Xvnc', ':11', '-geometry', '1280x800'] },
     // A command of the bot's through `docker exec`, with its screen's DISPLAY, and what it started under sudo.
     { pid: 30, ppid: 0, comm: 'sh', rss: 50, env: ['DISPLAY=:12'] },
     { pid: 31, ppid: 30, comm: 'apt', rss: 300 },

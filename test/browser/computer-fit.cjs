@@ -2,7 +2,7 @@
 //   NODE_PATH=<directory containing playwright> node test/browser/computer-fit.cjs
 // The computer dialog, with its computer off and on, in a large, a laptop's, a short and a phone's window and
 // after the window is resized, and with the note of a newer desktop under it: the whole dialog is in the window with no scrollbar of its own, and the screen
-// keeps the desktop's 4:3 and is as large as the window lets it be. The live screen is a stand-in page.
+// keeps the desktop's 16:10 and is as large as the window lets it be. The live screen is a stand-in page.
 // Scratch data only.
 //   FIT_SHOTS=<folder>  save a screenshot of each
 const assert = require('node:assert/strict');
@@ -48,7 +48,7 @@ const WINDOWS = [{ width: 2000, height: 1255 }, { width: 1333, height: 837 }, { 
       assert.ok(r.top >= 0 && r.bottom <= r.winH, `${what}: the dialog is in the window from top to bottom: ${JSON.stringify(r)}`);
       assert.ok(r.left >= 0 && r.right <= r.winW, `${what}: the dialog is in the window from side to side: ${JSON.stringify(r)}`);
       assert.ok(!r.scrolls, `${what}: the dialog has no scrollbar of its own: ${JSON.stringify(r)}`);
-      assert.ok(Math.abs(r.w / r.h - 4 / 3) < 0.01, `${what}: the screen keeps 4:3: ${JSON.stringify(r)}`);
+      assert.ok(Math.abs(r.w / r.h - 16 / 10) < 0.01, `${what}: the screen keeps 16:10: ${JSON.stringify(r)}`);
       assert.ok(large(r), `${what}: the screen is as large as the window lets it be: ${JSON.stringify(r)}`);
       if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `${what.replace(/\W+/g, '-')}.png`) }); }
     };
@@ -70,7 +70,7 @@ const WINDOWS = [{ width: 2000, height: 1255 }, { width: 1333, height: 837 }, { 
     }
     await context.close();
     assert.deepEqual(errors, []);
-    console.log(`PASS: the computer dialog fits ${WINDOWS.length} windows and their resizes, off and on, with the screen at 4:3; no browser errors.`);
+    console.log(`PASS: the computer dialog fits ${WINDOWS.length} windows and their resizes, off and on, with the screen at 16:10; no browser errors.`);
   } finally {
     await browser?.close();
     await srv.stop();

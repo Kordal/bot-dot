@@ -607,7 +607,7 @@ a.file-mention:hover { background: color-mix(in srgb, currentColor 16%, transpar
 .job-chip { border: 0; background: var(--raise-2); color: var(--text); border-radius: var(--r-pill); padding: var(--sp-8) var(--sp-12); font: inherit; font-size: var(--fs-14); cursor: pointer; }
 .job-chip:hover { background: var(--fill); }
 .live-screen { max-width: 520px; border-radius: var(--r-14); overflow: hidden; background: #000; }
-.live-screen iframe { width: 100%; aspect-ratio: 4 / 3; border: 0; display: block; }
+.live-screen iframe { width: 100%; aspect-ratio: 16 / 10; border: 0; display: block; }
 .live-label { display: flex; align-items: center; gap: var(--sp-8); padding: var(--sp-8) var(--sp-12); background: var(--sunk); font-size: var(--fs-12); color: var(--muted); }
 .live-label .btn { margin-left: auto; }
 
@@ -958,7 +958,7 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .tool-toggles label:has(input:disabled) { cursor: default; }
 input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .tool-toggles label { display: flex; gap: var(--sp-8); align-items: center; font-size: var(--fs-12); background: var(--sunk); padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); cursor: pointer; }
-.screen-frame { aspect-ratio: 4 / 3; background: #000; border-radius: var(--r-14); overflow: hidden; display: grid; place-items: center; }
+.screen-frame { aspect-ratio: 16 / 10; background: #000; border-radius: var(--r-14); overflow: hidden; display: grid; place-items: center; }
 /* A bot's computer: no wider than the height left for its screen lets it be (--screen-w, from fitScreen in computers.js), so
    the whole dialog is in the window (#43); what is under it keeps the dialog's width. */
 #modal.screen .screen-frame { width: min(100%, var(--screen-w, 100%)); justify-self: center; }
@@ -1549,11 +1549,11 @@ a.bs-link, a.bs-link:hover { color: inherit; text-decoration: none; }
 .pip-bar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-4) var(--sp-8) var(--sp-4) var(--sp-12); background: var(--panel); font-size: var(--fs-12); }
 .pip-bar .pip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); margin-left: var(--sp-4); }
 .pip-bar .icon-btn { width: 26px; height: 26px; font-size: var(--fs-14); }
-.pip iframe { width: 100%; aspect-ratio: 4 / 3; border: 0; display: block; }
+.pip iframe { width: 100%; aspect-ratio: 16 / 10; border: 0; display: block; }
 .pip-show { display: inline-flex; align-items: center; gap: var(--sp-8); border: 0; background: var(--fill); color: var(--text); border-radius: var(--r-pill); padding: var(--sp-8) var(--sp-12); font-size: var(--fs-12); cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
 .pip-show svg { width: 15px; height: 15px; }
 @container main (max-width: 600px) { .pip { width: 190px; right: 12px; } .pip.large { width: calc(100% - 24px); } }
-.pip-wait { aspect-ratio: 4 / 3; display: grid; place-items: center; color: var(--muted); font-size: var(--fs-12); background: #0b0b0a; }
+.pip-wait { aspect-ratio: 16 / 10; display: grid; place-items: center; color: var(--muted); font-size: var(--fs-12); background: #0b0b0a; }
 
 /* sidebar groups */
 .group-head { display: flex; align-items: center; gap: var(--sp-4); margin: var(--sp-12) var(--sp-4) var(--sp-4) var(--sp-8); }
