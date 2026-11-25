@@ -709,9 +709,9 @@ function updateCardText(u) {
   const day = (iso) => new Date(iso).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' });
   if (u.asked || u.last?.state === 'switching') return tr('Moving to the new version. Your bots restart in a minute or two.');
   const version = u.ready?.version ? ` (${u.ready.version})` : '';
-  if (u.ready && u.when === 'ready') return tr('A new version{version} is ready. Your account moves to it as soon as your bots are idle, by {day} at the latest.', { version, day: day(u.ready.deadline) });
-  if (u.ready && u.when === 'night') return tr('A new version{version} is ready. Your account moves to it at night, when your bots are idle, by {day} at the latest.', { version, day: day(u.ready.deadline) });
-  if (u.ready && u.when === 'manual') return tr('A new version{version} is ready. Your account moves to it when you say, or by {day}.', { version, day: day(u.ready.deadline) });
+  if (u.ready && u.when === 'ready') return tr('A new version{version} is ready. Your account moves to it as soon as your bots are idle.', { version, day: day(u.ready.deadline) });
+  if (u.ready && u.when === 'night') return tr('A new version{version} is ready. Your account moves to it at night, when your bots are idle.', { version, day: day(u.ready.deadline) });
+  if (u.ready && u.when === 'manual') return tr('A new version{version} is ready. Your account moves to it when you say, or by itself from {day}.', { version, day: day(u.ready.deadline) });
   if (u.ready) return tr('A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.', { version: u.ready.version ? ` (${u.ready.version})` : '', day: day(u.ready.deadline) });
   if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return tr("The last move to a new version didn't happen: {why}.", { why: u.last.error || tr('the admin can see why') });
   return '';

@@ -43,9 +43,9 @@ data class OwnUpdate(
             val version = readyVersion?.let { " ($it)" } ?: ""
             val on = day(deadline!!, zone)
             when (updateWhen) {
-                "ready" -> tr("A new version{version} is ready. Your account moves to it as soon as your bots are idle, by {day} at the latest.", "version" to version, "day" to on)
-                "night" -> tr("A new version{version} is ready. Your account moves to it at night, when your bots are idle, by {day} at the latest.", "version" to version, "day" to on)
-                "manual" -> tr("A new version{version} is ready. Your account moves to it when you say, or by {day}.", "version" to version, "day" to on)
+                "ready" -> tr("A new version{version} is ready. Your account moves to it as soon as your bots are idle.", "version" to version, "day" to on)
+                "night" -> tr("A new version{version} is ready. Your account moves to it at night, when your bots are idle.", "version" to version, "day" to on)
+                "manual" -> tr("A new version{version} is ready. Your account moves to it when you say, or by itself from {day}.", "version" to version, "day" to on)
                 else -> tr("A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.", "version" to version, "day" to on)
             }
         }

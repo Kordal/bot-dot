@@ -107,9 +107,9 @@ class OwnUpdateTest {
 
     @Test fun saysWhenTheWaitingVersionMovesAndItsDeadline() {
         val z = TimeZone.UTC
-        assertEquals("A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle, by Wednesday, Oct 28 at the latest.", OwnUpdate.of(obj(waiting("ready"))).text(z))
-        assertEquals("A new version (abc1234) is ready. Your account moves to it at night, when your bots are idle, by Wednesday, Oct 28 at the latest.", OwnUpdate.of(obj(waiting("night"))).text(z))
-        assertEquals("A new version (abc1234) is ready. Your account moves to it when you say, or by Wednesday, Oct 28.", OwnUpdate.of(obj(waiting("manual"))).text(z))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle.", OwnUpdate.of(obj(waiting("ready"))).text(z))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it at night, when your bots are idle.", OwnUpdate.of(obj(waiting("night"))).text(z))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it when you say, or by itself from Wednesday, Oct 28.", OwnUpdate.of(obj(waiting("manual"))).text(z))
         assertTrue("moving is said as before", OwnUpdate.of(obj("""{"when":"night","asked":true}""")).text(z).startsWith("Moving to the new version"))
         assertEquals("nothing waits: the choice says it all", "", OwnUpdate.of(obj("""{"when":"night"}""")).text(z))
     }

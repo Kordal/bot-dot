@@ -161,9 +161,9 @@ test('web: the text under the choice says when the waiting version moves, and th
     await ctx.loadUpdateCard();
     return card.innerHTML.match(/id="update-said">([^<]*)</)[1];
   };
-  assert.equal(await said('ready'), `A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle, by ${DAY} at the latest.`);
-  assert.match(await said('night'), /^A new version \(abc1234\) is ready\. Your account moves to it at night, when your bots are idle, by .+ at the latest\.$/);
-  assert.match(await said('manual'), /^A new version \(abc1234\) is ready\. Your account moves to it when you say, or by .+\.$/);
+  assert.equal(await said('ready'), `A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle.`);
+  assert.match(await said('night'), /^A new version \(abc1234\) is ready\. Your account moves to it at night, when your bots are idle\.$/);
+  assert.match(await said('manual'), /^A new version \(abc1234\) is ready\. Your account moves to it when you say, or by itself from .+\.$/);
   const { ctx } = page();
   assert.match(ctx.updateCardText({ when: 'night', asked: true }), /^Moving to the new version/, 'moving and failing are said as before');
   assert.equal(ctx.updateCardText({ when: 'night', last: null, ready: null }), '', 'nothing waits: the choice says it all');
