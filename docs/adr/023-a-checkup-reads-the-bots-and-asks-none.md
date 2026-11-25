@@ -1,6 +1,6 @@
 # ADR-023: A checkup is its own read-only Chief session that reads the bots and asks none
 
-- **Status:** Accepted (2026-10-12, the choices below are the owner's)
+- **Status:** Accepted (2026-10-12, the choices below are the owner's); its switch and its web search being off until the owner turns it on are superseded by the owner's decision of [2026-11-25](../decisions/2026-11-25-the-checkup-always-runs-and-always-may-search-the-web.md): the checkup always runs and always may search the web, and the apps have no switch for either
 - **Owning task:** [#387](https://github.com/ladrok/bot-dot/issues/387)
 
 ## Context
@@ -23,8 +23,8 @@ What its runs on that server show:
 - **A checkup is a Chief turn the botdot server starts,** on the days of the week and at the one time the owner set through the Chief, at most once a day. Weekdays at 08:00 in the time zone of the quiet hours is how it starts. A time inside quiet hours is refused.
 - **It reads and asks no bot.** The server puts together what happened since the last checkup that ran, at most seven days back: the chats the owner started with bots, in groups and with the Chief, failed and stopped runs including scheduled ones, each job's state and how often it found nothing, messages between bots left unread, and the Board's tiles. A chat that is left out ([ADR 016](016-a-forgotten-note-is-erased-and-a-removed-one-ends.md)) is not in it. No bot is messaged and no bot runs.
 - **Its own session, read-only,** as a look's is: a new Claude session that is not kept, with botdot's reading tools and nothing that creates, changes, runs, deletes, messages or writes memory. The list is held the way ADR 006 holds a look's.
-- **Web search is a setting, off until the owner turns it on,** and it is search only: no tool that opens an address the session picks. A checkup's prompt holds the owner's chats with every bot, and a search result is text nobody vetted. The Chief may change the checkup's setting only in a turn the owner started by writing to it, and may switch web search on only before that turn read anything that is not the owner's: a bot's reply or a page must not be what opens the web. Otherwise the owner uses the switch.
-- **It is not a look.** Its message is not an unasked message: it is not rated and does not count toward the three a day. It has its own switch, on by default.
+- **Web search is a setting, off until the owner turns it on** (superseded 2026-11-25: always on, no setting), and it is search only: no tool that opens an address the session picks. A checkup's prompt holds the owner's chats with every bot, and a search result is text nobody vetted. The Chief may change the checkup's setting only in a turn the owner started by writing to it, and may switch web search on only before that turn read anything that is not the owner's: a bot's reply or a page must not be what opens the web. Otherwise the owner uses the switch.
+- **It is not a look.** Its message is not an unasked message: it is not rated and does not count toward the three a day. It has its own switch, on by default (superseded 2026-11-25: no switch).
 - **It ends with at most three proposals or with nothing.** Each proposal is a rule, a skill, a bot, a job or a tile, with the day and the words that show why. Nothing to propose posts nothing and opens no chat.
 - **Its answer is data, and the server writes the message.** A checkup answers `NOTHING` or a list of proposals as JSON. The server keeps at most three that hold up (a kind it knows, a bot that exists, a change, evidence with its day) and writes the chat message from them, so nothing a checkup writes reaches the chat as markup of its own, and the record holds each proposal as fields, not as prose to parse later.
 - **The message opens a new Chief chat,** named for the day, with answer buttons ("Do 1", "Do all", "Not now"). The owner can also type which ones.
@@ -33,7 +33,7 @@ What its runs on that server show:
 - **A plain pick is read by the server.** The owner's first message after a chat's proposals is kept as their answer when it plainly is one ("Do 1", "Do 1 and 3", "Do all", "Not now"); a proposal that was shown and passed over counts as declined. Anything else is left to the Chief, which says what it did with its `checkup` tool.
 - **A checkup that cannot start on time** (a Chief turn is running, a look is at work, the server was restarting) starts when the Chief is free, up to two hours late, past midnight too. A run belongs to the checkup in whose window it ended, so one still going is read by the next. After that the day is skipped and the next checkup's window covers it. A look and a checkup are never at work together.
 - **On demand:** the owner can ask for a checkup in any Chief chat, with the switch off too. The Chief gets the same facts through a tool and answers in that chat; it does not replace the day's scheduled checkup, and it has no web search, because a Chief reply has none.
-- **The switches are in the Chief's settings in all three apps:** "Checkup" with a line that says when it runs, and "Web search" below it, greyed out while the checkup is off. The Chief changes both, and the schedule, by chat. The server announces `checkup` in `features`.
+- **The switches are in the Chief's settings in all three apps** (removed 2026-11-25): "Checkup" with a line that says when it runs, and "Web search" below it, greyed out while the checkup is off. The Chief changes both, and the schedule, by chat. The server announces `checkup` in `features`.
 
 ## Alternatives
 

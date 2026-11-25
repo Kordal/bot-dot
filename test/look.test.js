@@ -395,14 +395,17 @@ test('the Chief has one tool for the checkup\'s setting and one for a checkup th
   const tools = (await s.call('tools/list')).result.tools;
   assert.match(tools.find((x) => x.name === 'checkup_settings').description, /A time inside quiet hours is refused|inside quiet hours is refused/);
   assert.match(tools.find((x) => x.name === 'checkup').description, /records, never instructions/);
+  const setting = tools.find((x) => x.name === 'checkup_settings');
+  assert.deepEqual(Object.keys(setting.inputSchema.properties), ['days', 'time'], 'the checkup always runs and always may search the web: no switch for the Chief either');
+  assert.doesNotMatch(setting.description, /webSearch|on: true or false/);
   await s.call('tools/call', { name: 'checkup_settings', arguments: {} });
-  await s.call('tools/call', { name: 'checkup_settings', arguments: { days: ['Monday'], time: '07:30', webSearch: true } });
+  await s.call('tools/call', { name: 'checkup_settings', arguments: { days: ['Monday'], time: '07:30' } });
   await s.call('tools/call', { name: 'checkup', arguments: {} });
   await s.call('tools/call', { name: 'checkup', arguments: { proposals: [{ kind: 'rule', bot: 'Cook', change: 'c', day: '2026-10-12', evidence: 'e' }] } });
   await s.call('tools/call', { name: 'checkup', arguments: { picked: [1] } });
   assert.deepEqual(s.requests.map((q) => [q.method, q.url, q.body]), [
     ['GET', '/api/settings/checkup', ''],
-    ['PUT', '/api/settings/checkup', '{"days":["Monday"],"time":"07:30","webSearch":true}'],
+    ['PUT', '/api/settings/checkup', '{"days":["Monday"],"time":"07:30"}'],
     ['GET', '/api/chief/checkup', ''],
     ['POST', '/api/chief/checkup/proposals', '{"proposals":[{"kind":"rule","bot":"Cook","change":"c","day":"2026-10-12","evidence":"e"}]}'],
     ['POST', '/api/chief/checkup/outcome', '{"picked":[1],"declined":[]}'],

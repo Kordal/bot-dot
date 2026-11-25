@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
-import dev.botdot.app.data.Checkup
 import dev.botdot.app.data.ChiefGrant
 import dev.botdot.app.data.ChiefJobs
 import dev.botdot.app.data.ChiefName
@@ -161,12 +160,6 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                 FilesSection(api, UploadedFiles.CHIEF, LocalChiefName.current, viewer,
                     empty = tr("None yet."), tell = ::tell)
                 if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell, folders = WorkspaceFiles.folders(server?.features))
-            }
-            st.checkup?.let { c ->
-                Section(null) {
-                    SwitchRow(Checkup.LABEL, c.caption.ifEmpty { null }, c.on) { on -> scope.launch { desk?.setCheckup("on", on) } }
-                    SwitchRow(Checkup.WEB_SEARCH, checked = c.webSearch, enabled = c.webSearchUsable) { on -> scope.launch { desk?.setCheckup("webSearch", on) } }
-                }
             }
             Section(tr("Earlier chats")) {
                 chats.take(15).forEach { c ->

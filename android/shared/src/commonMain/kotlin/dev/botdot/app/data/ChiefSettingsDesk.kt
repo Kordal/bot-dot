@@ -38,8 +38,6 @@ class ChiefSettingsState(
     val jobs: List<ChiefJob>? = null,
     /** Its pages (chief-pages); null: no section. */
     val pages: List<PageInfo>? = null,
-    /** The checkup's switches (checkup); null: none. */
-    val checkup: Checkup? = null,
     val chats: List<ChiefChatSummary> = emptyList(),
     val savedAt: Int = 0,
     val notice: String? = null,
@@ -57,7 +55,7 @@ class ChiefSettingsState(
  * The Chief's settings for both phones (#379, #381, #383, #384, #408, #636): its name, model and reasoning, your rules
  * for it and your skills for it are saved by themselves a moment after the last change ([SAVE_MS]), "Saved" each
  * time; a refused name is put back with botdot's sentence and the rest still saves, and a refused change is not sent
- * again until it changes. Revoke, a job's switch and Remove, and the checkup's switches each act at once, and the
+ * again until it changes. Revoke, a job's switch and Remove each act at once, and the
  * feed ([events]) brings what changed elsewhere.
  */
 class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api, private val store: Store, private val events: Flow<FeedEvent>) {
@@ -70,7 +68,6 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     private var grants: List<ChiefGrant> = emptyList()
     private var jobs: List<ChiefJob>? = null
     private var pages: List<PageInfo>? = null
-    private var checkup: Checkup? = null
     private var loaded = false
     private var savedAt = 0
     private var notice: String? = null
@@ -114,7 +111,7 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
         following += scope.launch { store.version.value.collect { v -> val now = v?.features; if (now != seenFeatures) { readFeatured(now); publish() } } }
         // The name renamed elsewhere (the feed, another phone): the field follows, unless a name typed here waits to be saved.
         following += scope.launch { store.chiefName.collect { n -> if (name != null && !nameEdited) { name = ChiefName.field(n); publish() } } }
-        following += scope.launch { events.collect { ev -> Checkup.event(ev)?.let { checkup = it; publish() }; ChiefJobs.event(ev)?.let { jobs = it; publish() } } }
+        following += scope.launch { events.collect { ev -> ChiefJobs.event(ev)?.let { jobs = it; publish() } } }
         following += scope.launch { store.pageSaves.value.collect { readPages(); publish() } }
         following += scope.launch { store.chief.value.collect { publish() } }
     }
@@ -128,14 +125,13 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
         if (waiting) { saving?.cancel(); waiting = false; saving = scope.launch { withContext(NonCancellable) { save() } } }
     }
 
-    /** What only a botdot with its feature has: the name, the skills, what you always approved, its jobs, the checkup and its pages. */
+    /** What only a botdot with its feature has: the name, the skills, what you always approved, its jobs and its pages. */
     private suspend fun readFeatured(f: List<String>?) {
         seenFeatures = f
         name = if (ChiefName.FEATURE in f.orEmpty()) (if (nameEdited) name else ChiefName.field(store.chiefName.value)) else null
         library = if (ChiefSkills.shows(f)) runCatching { api.skills().library }.getOrElse { say(it.message ?: tr("Couldn't load")); emptyList() } else null
         grants = ChiefGrant.kinds(f).flatMap { k -> runCatching { api.chiefGrants(k) }.getOrNull().orEmpty() }
         jobs = if (ChiefJobs.shows(f)) runCatching { api.chiefJobs() }.getOrNull() else null
-        checkup = if (Checkup.shows(f)) runCatching { api.checkup() }.getOrElse { say(it.message ?: tr("Couldn't load")); null } else null
         readPages()
     }
 
@@ -201,16 +197,6 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
         catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Couldn't remove")) }
     }
 
-    /** One of the checkup's switches ("on", "webSearch"): shown at once, back with why when refused (not over what the feed said meanwhile). */
-    @Throws(Exception::class)
-    suspend fun setCheckup(field: String, on: Boolean) {
-        val before = checkup ?: return
-        val now = if (field == "on") before.copy(on = on) else before.copy(webSearch = on)
-        checkup = now; publish()
-        try { api.setCheckup(field, on)?.let { checkup = it }; publish() }
-        catch (e: CancellationException) { throw e } catch (e: Exception) { if (checkup == now) checkup = before; say(e.message ?: tr("Couldn't save")) }
-    }
-
     private fun say(text: String) { notice = text; noticeCount++; publish() }
 
     private fun publish() {
@@ -228,7 +214,7 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
             // The ones it has come first, as saved, so rows don't jump while they are ticked.
             skills = library?.sortedBy { it.name !in saved },
             picked = edit.chiefSkills.orEmpty(),
-            grants = grants, jobs = jobs, pages = pages, checkup = checkup,
+            grants = grants, jobs = jobs, pages = pages,
             chats = store.chief.value.value?.chats.orEmpty().take(15),
             savedAt = savedAt, notice = notice, noticeCount = noticeCount,
             files = FilesExplorer.opensFor(UploadedFiles.CHIEF, features),

@@ -207,12 +207,4 @@ function listenFeed(es) {
     if ($$('textarea, input[type=text]').some((el) => el.value.trim()) || $('#modal').open) return; // at the next load
     I18n.sync(api, state.features);
   });
-  // The checkup's setting changed, in another app or by the Chief in a chat: the switches follow.
-  es.addEventListener('checkup', (e) => {
-    let d = {};
-    try { d = JSON.parse(e.data); } catch { /* not ours */ }
-    if (typeof d.on !== 'boolean') return;
-    state.checkup = d;
-    drawCheckup();
-  });
 }

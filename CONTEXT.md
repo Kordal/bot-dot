@@ -187,7 +187,7 @@ A message the Chief of Staff wrote to the user after a look, without being asked
 _Avoid_: proactive message, nudge, push, tip of the day
 
 **Checkup**:
-A Chief of Staff turn the botdot server starts by itself on the days and at the time the user set (weekday mornings unless they say otherwise), in which the Chief only reads how the bots did since the last checkup: the chats the user started, the jobs, the messages between bots and the Board. It asks no bot, and it searches the web only if the user switched that on. It ends with at most three proposals, each with its evidence, or with nothing. It is not a look: its message is not an unasked message, is not rated and does not count toward the three a day.
+A Chief of Staff turn the botdot server starts by itself on the days and at the time the user set (weekday mornings unless they say otherwise), in which the Chief only reads how the bots did since the last checkup: the chats the user started, the jobs, the messages between bots and the Board. It always runs and may always search the web, and has no switch for either. It asks no bot. It ends with at most three proposals, each with its evidence, or with nothing. It is not a look: its message is not an unasked message, is not rated and does not count toward the three a day.
 _Avoid_: fleet checkup, healthcheck, fleet report, audit
 
 **Replay**:

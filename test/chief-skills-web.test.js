@@ -73,7 +73,7 @@ test('web: ticking a skill saves the whole list in one PUT, and a refusal is sai
 
 test("web: the skills row is in the Chief's settings, saved apart from its model and rules", () => {
   const draw = cut('function renderChiefSettings()', '// The library skills you gave the Chief');
-  assert.match(draw, /<div class="bs-row" id="chief-skills"[^>]*>\s*<div class="grow"><b>\$\{tr\('Skills'\)\}<\/b><div id="chief-skill-picks">[\s\S]*\$\{CHECKUP_HTML\}/, 'a row of the list');
+  assert.match(draw, /<div class="bs-row" id="chief-skills"[^>]*>\s*<div class="grow"><b>\$\{tr\('Skills'\)\}<\/b><div id="chief-skill-picks">[\s\S]*id="chief-chats-row"/, 'a row of the list');
   assert.match(draw, /if \(!String\(e\.target\.name \|\| ''\)\.startsWith\('chief'\)\) return;/, 'its ticks are not sent with the model and rules');
   assert.match(draw, /drawChiefSkills\(root\);/);
 });
