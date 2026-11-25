@@ -726,7 +726,7 @@ function drawUpdateCard(u) {
   // An answer with `when` has the three-way choice (ADR 271); one without it, from an older front door, the switch.
   const chooses = typeof u.when === 'string' && !!updateWhenName(u.when);
   card.innerHTML = `
-      <summary><b>${tr('Updates')}</b><span class="bs-val">${chooses ? esc(updateWhenName(u.when)) : u.ready ? tr('New version') : u.autoUpdate ? tr('Automatic') : ''}</span>${CHEV}</summary>
+      <summary><b>${tr('Updates')}</b><span class="bs-val">${u.ready ? tr('New version') : chooses ? esc(updateWhenName(u.when)) : u.autoUpdate ? tr('Automatic') : ''}</span>${CHEV}</summary>
       <div class="bs-body">
         ${chooses ? `<label class="bs-row"><b>${tr('When')}</b><select id="update-when" aria-label="${esc(tr('When'))}">${updateWhens().map(([id, name]) => `<option value="${id}"${id === u.when ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select></label>` : `<label class="bs-row"><b>${tr('Update automatically')}</b>
           <span class="switch"><input type="checkbox" id="auto-update" aria-label="${esc(tr('Update automatically'))}"${u.autoUpdate ? ' checked' : ''}><span></span></span></label>`}

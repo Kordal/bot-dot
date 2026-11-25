@@ -31,6 +31,8 @@ data class OwnUpdate(
     val ready get() = deadline != null
     /** The three-way "When" is drawn only when the answer has `when`; otherwise today's switch. */
     val chooses get() = updateWhen != null
+    /** The closed row's value, in the web page's words: a waiting version first, so the choice never hides it. */
+    val value: String get() = if (ready) tr("New version") else if (chooses) whenName else if (autoUpdate) tr("Automatic") else tr("By hand")
     val whenName get() = WHENS.firstOrNull { it.first == updateWhen }?.second ?: ""
     /** "Update now" warns that work still running stops when the account is busy; an answer that doesn't say keeps today's warning. */
     val warnsOnUpdateNow get() = !chooses || busy != false

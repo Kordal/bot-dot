@@ -131,7 +131,9 @@ class OwnUpdateTest {
         assertFalse(OwnUpdate.of(obj(waiting("manual", ""","busy":false"""))).warnsOnUpdateNow)
         assertTrue("it doesn't say: today's confirm", OwnUpdate.of(obj(waiting("manual"))).warnsOnUpdateNow)
         assertTrue("an older front door", OwnUpdate.of(obj(ready)).warnsOnUpdateNow)
-        assertEquals("At night, when idle", AppSettingsState(update = OwnUpdate.of(obj(waiting("night")))).updateValue)
-        assertEquals("Automatic", AppSettingsState(update = OwnUpdate.of(obj(ready.replace("false", "true")))).updateValue)
+        assertEquals("a waiting version is the row's value, with or without `when`", "New version", AppSettingsState(update = OwnUpdate.of(obj(ready.replace("false", "true")))).updateValue)
+        assertEquals("New version", AppSettingsState(update = OwnUpdate.of(obj(waiting("night")))).updateValue)
+        assertEquals("nothing waits: the choice's name", "At night, when idle", AppSettingsState(update = OwnUpdate.of(obj("""{"when":"night"}"""))).updateValue)
+        assertEquals("Automatic", AppSettingsState(update = OwnUpdate.of(obj("""{"autoUpdate":true}"""))).updateValue)
     }
 }

@@ -483,7 +483,7 @@ fun SettingsScreen(
 
             update?.let { u ->
                 // With `when` (ADR 271): the owner's three-way choice. Without it, from an older front door: today's switch.
-                FoldSection(tr("Updates"), if (u.chooses) u.whenName else if (u.autoUpdate) tr("Automatic") else tr("By hand")) {
+                FoldSection(tr("Updates"), u.value) {
                     if (u.chooses) Choice(tr("When"), u.updateWhen!!, dev.botdot.app.data.OwnUpdate.WHENS) { to ->
                         if (to == u.updateWhen) return@Choice
                         scope.launch { runCatching { api!!.setUpdateWhen(to) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }

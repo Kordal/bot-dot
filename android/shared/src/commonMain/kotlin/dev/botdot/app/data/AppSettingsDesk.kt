@@ -76,7 +76,7 @@ class AppSettingsState(
     val usageRange: String? get() = usage.answer?.let(Usage::range)
     val usageNone: String? get() = usage.answer?.takeIf { it.bots.isEmpty() }?.let { Usage.none(advanced) }
     /** Updates (ADR 053): its value, and its words while a version waits or moves. */
-    val updateValue: String? get() = update?.let { if (it.chooses) it.whenName else if (it.autoUpdate) tr("Automatic") else tr("By hand") }
+    val updateValue: String? get() = update?.value
     val updateText: String? get() = update?.text()?.takeIf { it.isNotEmpty() }
     /** What's new in the version that waits, under Updates. */
     val updateNotes: List<WhatsNew.Entry> get() = if (update?.ready == true) notes else emptyList()

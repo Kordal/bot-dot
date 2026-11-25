@@ -151,8 +151,22 @@ test('web: an answer with `when` draws the three-way choice, not the switch', as
     assert.match(card.innerHTML, /<b>When<\/b><select id="update-when" aria-label="When">/);
     assert.deepEqual([...card.innerHTML.matchAll(/<option value="(\w+)"( selected)?>([^<]*)</g)].map((m) => [m[1], !!m[2], m[3]]),
       [['ready', when === 'ready', "As soon as it's ready"], ['night', when === 'night', 'At night, when idle'], ['manual', when === 'manual', 'When I say']]);
-    assert.match(card.innerHTML, new RegExp(`<summary><b>Updates</b><span class="bs-val">${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</span>`), 'the row names the choice');
+    assert.match(card.innerHTML, new RegExp(`<summary><b>Updates</b><span class="bs-val">New version</span>`), 'a version waits: the row says so, not the choice');
+    const idle = page({ update: WHEN(when, { ready: null }) });
+    await idle.ctx.loadUpdateCard();
+    assert.ok(idle.card.innerHTML.includes(`<span class="bs-val">${name}</span>`), 'nothing waits: the row names the choice');
   }
+});
+
+test('web: a waiting version still says "New version" on the closed row when the answer has `when`', async () => {
+  for (const when of ['ready', 'night', 'manual']) {
+    const { ctx, card } = page({ update: WHEN(when) });
+    await ctx.loadUpdateCard();
+    assert.match(card.innerHTML, /<summary><b>Updates<\/b><span class="bs-val">New version<\/span>/, `${when}: the waiting version, not the choice's name`);
+  }
+  const { ctx, card } = page({ update: WHEN('night', { ready: null }) });
+  await ctx.loadUpdateCard();
+  assert.match(card.innerHTML, /<span class="bs-val">At night, when idle<\/span>/, 'nothing waits: the row names the choice');
 });
 
 test('web: the text under the choice says when the waiting version moves, and the deadline', async () => {
