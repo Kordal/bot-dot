@@ -1,4 +1,4 @@
-// lib/embed-share.js (ADR 273): the proxy in front of the machine's one llama-server. A socket for each account's folder,
+// lib/embed-share.js (ADR 274): the proxy in front of the machine's one llama-server. A socket for each account's folder,
 // only /health and /v1/embeddings let through, the accounts taking turns at the slots, and nothing kept. A stub
 // llama-server on a port stands in for the real one.
 const { test } = require('node:test');

@@ -142,7 +142,7 @@ DIR="${BOT_DOT_DIR:-/var/lib/botdot}"
 DOOR="$DIR/front-door"
 ENV="$DOOR/.env"
 SOCKETS="$DIR/sockets"
-# The shared embedding server's way into each account (ADR 273): $EMBED/<account>, a folder each, the mirror of the
+# The shared embedding server's way into each account (ADR 274): $EMBED/<account>, a folder each, the mirror of the
 # front door's: the account's botdot server and the embedding service's user alone may enter.
 EMBED="$DIR/embed"
 ACCOUNTS="$DIR/accounts"
@@ -162,7 +162,7 @@ PROC="${BOT_DOT_PROC:-/proc}"
 CGROUP="${BOT_DOT_CGROUP:-/sys/fs/cgroup}"
 # The front door's own user of the machine; its group alone is let into each account's socket folder.
 DOOR_USER=botdot-door
-# The shared embedding server's own user of the machine (ADR 273); its folder in each account is open to it alone.
+# The shared embedding server's own user of the machine (ADR 274); its folder in each account is open to it alone.
 EMBED_USER=botdot-embed
 DOOR_PORT=4700
 # The sandbox's own address for bots' interactive pages (#399, ADR 072): the front door's second port, reached as the
@@ -2777,7 +2777,7 @@ if ! id -u "$DOOR_USER" >/dev/null 2>&1; then
 fi
 chown "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data"
 chmod 700 "$DOOR/data"
-# The machine's one shared embedding server (ADR 273) runs as a user of its own, which is let into each account's embedding
+# The machine's one shared embedding server (ADR 274) runs as a user of its own, which is let into each account's embedding
 # folder and nothing else. Every install has it but the desktop app's, whose one account runs its own server.
 if [ "$REACH" != local ] && ! id -u "$EMBED_USER" >/dev/null 2>&1; then
   useradd --system --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin "$EMBED_USER" </dev/null \
@@ -3182,7 +3182,7 @@ UNIT
   sh "$BIN/egress.sh" </dev/null || die "The firewall that keeps the accounts' computers from private addresses and SMTP didn't start, so no account was started. See: sh $BIN/egress.sh"
 }
 
-# embed_on: this machine has the shared embedding server (ADR 273), so its accounts start no llama-server of their own:
+# embed_on: this machine has the shared embedding server (ADR 274), so its accounts start no llama-server of their own:
 # every install but the desktop app's (REACH local), whose one account would only add a second process.
 embed_on() { [ "${REACH:-}" != local ] && id -u "$EMBED_USER" >/dev/null 2>&1; }
 
@@ -3263,7 +3263,7 @@ JSON
   chown "$((sub_uid + 59999)):$((sub_gid + 59999))" "$folder"
   chmod 700 "$folder"
   setfacl -m "g:$DOOR_USER:x,m::x" "$folder" </dev/null || die "Couldn't let the front door into $folder."
-  # Its embedding folder (ADR 273), the same way round: botdot's server user owns it, and only the shared embedding
+  # Its embedding folder (ADR 274), the same way round: botdot's server user owns it, and only the shared embedding
   # server's user may enter it besides, to make the socket in it (write and search, not read: it never lists the folder, and its mask holds the same). Nobody else, and none of the account's bots, gets in,
   # and no other account has its path. The chmod comes first: it would clear the mask the setfacl sets.
   embed_folder=''
