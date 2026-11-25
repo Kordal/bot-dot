@@ -89,5 +89,6 @@ lib/tools-link.js    a tool from a link: the download over https, what the file 
 lib/tools-worker.js  the installer itself, run as the tools user: micromamba with a pinned list, or the one file behind a link
 lib/problems.js      a failed run, said in plain words (web and phone)
 public/              the UI (vanilla HTML/CSS/JS)
-vendor/novnc/        botdot's own copy of noVNC, the live-screen viewer
+vendor/novnc/        noVNC's RFB client (core/), unchanged, which the live-screen viewer draws on
+screen/              botdot's own live-screen viewer (ADR 279): its page and scripts
 ```

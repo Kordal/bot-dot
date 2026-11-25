@@ -1,24 +1,16 @@
 // ---------- bot computers (live screen) ----------
 
-const screenUrl = (botId, control = false) =>
-  `/computer/${encodeURIComponent(botId)}/vnc.html?autoconnect=1&reconnect=1&resize=scale&show_dot=1&view_only=${control ? 0 : 1}&path=${encodeURIComponent(`computer/${botId}/websockify`)}`;
+// The viewer's address (ADR 279): botdot's own page, which reconnects by itself and finds its WebSocket beside it.
+// view_only=0 gives it the mouse and keys; the Android app opens the same address with more query it ignores.
+const screenUrl = (botId, control = false) => `/computer/${encodeURIComponent(botId)}/vnc.html?view_only=${control ? 0 : 1}`;
 
-// The screen viewer (noVNC) only retries after it has connected once. If the first try fails (the
-// computer was still starting) or the computer restarted, it would sit on "Failed to connect", so
-// reload it every few seconds until it's connected.
-function keepScreenConnected(iframe) {
-  if (!iframe || iframe.dataset.kept) return;
-  iframe.dataset.kept = '1';
-  const t = setInterval(() => {
-    if (!iframe.isConnected) return clearInterval(t);
-    let doc;
-    try { doc = iframe.contentDocument; } catch { return; }
-    if (!doc || !doc.body) return;
-    const dlgOpen = doc.getElementById('noVNC_connect_dlg')?.classList.contains('noVNC_open');
-    const text = doc.body.innerText || '';
-    if (dlgOpen || /Failed to connect|Screen not available|connection is closed/i.test(text)) iframe.src = iframe.src;
-  }, 4000);
-}
+// The viewer tells the page that holds it what it is doing (starting, watching, control, reconnecting, off) with a
+// message; the frame wears it as data-screen. Nothing of the viewer's own text is read, and nothing reloads the frame.
+const SCREEN_STATES = ['starting', 'watching', 'control', 'reconnecting', 'off'];
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || e.data?.type !== 'botdot-screen' || !SCREEN_STATES.includes(e.data.state)) return;
+  for (const f of document.querySelectorAll('iframe[src^="/computer/"]')) if (f.contentWindow === e.source) f.dataset.screen = e.data.state;
+});
 
 // The screen as large as the window lets it be, at the desktop's 4:3 (a boat.dev machine's 16:9), with all of the dialog in the window and no
 // scrollbar of its own (#43): the screen is made as narrow as the height left for it asks. What is under it keeps
@@ -113,7 +105,6 @@ function openBoatComputer(bot) {
     if (!shown && vnc) {
       shown = true;
       $('#screen-frame', m).innerHTML = `<iframe src="${screenUrl(bot.id, control)}" title="${esc(tr('Live screen'))}"></iframe>`;
-      keepScreenConnected($('#screen-frame iframe', m));
       line();
     } else if (!shown) {
       shown = true;
@@ -193,7 +184,6 @@ function openScreen(botId) {
       : `<div class="screen-off"><div class="big">🖥</div>${state.computers?.[botId] === 'stopped' ? tr("The account's computer is starting again. It stays on for every bot.") : tr("The account's computer isn't made yet. The first computer tool of any bot makes it.")}</div>`;
     const start = $('#screen-start', m);
     if (start) start.onclick = async () => { start.disabled = true; await act('start', tr('Starting its screen…')); await describe(); };
-    keepScreenConnected($('#screen-frame iframe', m));
     fit();
   };
   const act = async (action, label) => {
@@ -397,7 +387,6 @@ function showRun(id) {
       $('#ask').textContent = ev.meta.prompt;
       if (ev.meta.computer && ev.meta.status === 'running' && state.bots.find((b) => b.id === ev.meta.botId)?.computer === 'linux') {
         $('#live-screen').innerHTML = `<div class="live-screen"><div class="live-label"><span class="pill accent pulse">${tr('live')}</span> ${tr("{name}'s screen", { name: esc(ev.meta.botName) })} <button class="btn ghost sm" data-screen-open>${tr('open')}</button></div><iframe src="${screenUrl(ev.meta.botId)}" title="${esc(tr('Live screen'))}"></iframe></div>`;
-        keepScreenConnected($('#live-screen iframe'));
         $('[data-screen-open]').onclick = () => openScreen(ev.meta.botId);
       }
       $('#ask').onclick = () => $('#ask').classList.toggle('expanded');

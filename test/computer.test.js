@@ -1,4 +1,4 @@
-// A bot's computer: the live-screen viewer is botdot's own copy of noVNC (nothing on it comes from the
+// A bot's computer: the live-screen viewer is botdot's own page on noVNC's RFB client (nothing on it comes from the
 // computer), and a computer's tools reach it only through botdot, with the run's key.
 // No Docker needed: these computers are never created.
 const { test, before, after } = require('node:test');
@@ -23,22 +23,30 @@ const raw = (p) => new Promise((resolve, reject) => {
   req.end();
 });
 
-test("the screen viewer is botdot's own copy of noVNC", async () => {
-  const js = await raw('/computer/abc123/app/ui.js');
+test("the screen viewer is botdot's own page on noVNC's RFB client, and noVNC's demo page is not served", async () => {
+  // The viewer's script and the RFB client are served as they are on disk; with the computer off the page itself is not.
+  const js = await raw('/computer/abc123/viewer/viewer.js');
   assert.equal(js.status, 200);
   assert.match(js.type, /javascript/);
-  assert.equal(js.body, fs.readFileSync(path.join(ROOT, 'vendor', 'novnc', 'app', 'ui.js'), 'utf8'));
-  assert.equal(JSON.parse((await raw('/computer/abc123/package.json')).body).name, '@novnc/novnc');
+  assert.equal(js.body, fs.readFileSync(path.join(ROOT, 'screen', 'viewer', 'viewer.js'), 'utf8'));
+  const rfb = await raw('/computer/abc123/core/rfb.js');
+  assert.equal(rfb.status, 200);
+  assert.equal(rfb.body, fs.readFileSync(path.join(ROOT, 'vendor', 'novnc', 'core', 'rfb.js'), 'utf8'));
+  assert.equal((await raw('/computer/abc123/vendor/pako/lib/zlib/inflate.js')).status, 200);
+  // noVNC's own page, its app/ and its package are gone.
+  for (const p of ['app/ui.js', 'app/styles/base.css', 'package.json', 'LICENSE.txt']) assert.equal((await raw(`/computer/abc123/${p}`)).status, 404, p);
+  assert.ok(!fs.existsSync(path.join(ROOT, 'vendor', 'novnc', 'vnc.html')) && !fs.existsSync(path.join(ROOT, 'vendor', 'novnc', 'app')));
 });
 
 test('a computer that is off shows that instead of the viewer', async () => {
   const r = await raw('/computer/abc123/vnc.html?autoconnect=1&view_only=1');
   assert.equal(r.status, 503);
   assert.match(r.body, /turned off/);
+  assert.match(r.body, /http-equiv="refresh"/, 'asks again by itself');
 });
 
-test("nothing outside the viewer's folder", async () => {
-  for (const p of ['/computer/abc123/../../server.js', '/computer/abc123/%2e%2e/%2e%2e/server.js', '/computer/abc123/..%2f..%2fpackage.json', '/computer/abc123/']) {
+test("nothing outside the viewer's folders", async () => {
+  for (const p of ['/computer/abc123/viewer/../../server.js', '/computer/abc123/core/../package.json', '/computer/abc123/core/%2e%2e/package.json', '/computer/abc123/viewer/%2e%2e/viewer.html/../../server.js', '/computer/abc123/viewer', '/computer/abc123/core/', '/computer/abc123/../../server.js', '/computer/abc123/%2e%2e/%2e%2e/server.js', '/computer/abc123/..%2f..%2fpackage.json', '/computer/abc123/']) {
     const r = await raw(p);
     assert.ok(r.status === 404 || (p.endsWith('/') && r.status === 503), `${p}: ${r.status}`);
   }

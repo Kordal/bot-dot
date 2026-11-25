@@ -105,12 +105,33 @@ test("each bot's computer tools reach its own screen, and the view shows the bot
   assert.deepEqual(asked.find(([op]) => op === 'startProgram'), ['startProgram', seat(bob), 'xterm']);
 
   // The view: the page, then the screen itself, from the bot's own screen.
-  assert.equal((await page(alice.id)).status, 200);
+  const shown = await page(alice.id);
+  assert.equal(shown.status, 200);
+  assert.match(shown.body, /<script type="module" src="viewer\/viewer\.js">/, "botdot's own viewer, at the address the screen has always had");
+  assert.doesNotMatch(shown.body, /noVNC_/, "not noVNC's demo page");
   const sock = await view(bob.id);
   assert.equal(typeof sock, 'object', `the view connected: ${sock}`);
   sock.destroy();
   assert.deepEqual(upgrades, [`/screen/${bob.id}/${screens[bob.id]}`]);
   assert.deepEqual(map(), screens, 'using them changed no screen');
+});
+
+test("the viewer's page, at the address the apps open, has its own policy, and its HEAD says whether the computer is on (ADR 279)", async () => {
+  const dana = await makeBot(srv, { name: 'Dana', computer: 'linux' });
+  const head = (query = '') => new Promise((resolve, reject) => {
+    http.request({ host: '127.0.0.1', port: srv.port, method: 'HEAD', path: `/computer/${dana.id}/vnc.html${query}` }, (res) => { res.resume(); resolve(res); }).on('error', reject).end();
+  });
+  assert.equal((await head()).statusCode, 503, 'off: the viewer asks this to say "Turned off"');
+  assert.equal((await srv.api(`/bots/${dana.id}/computer`, { method: 'POST', body: { action: 'start' } })).status, 200);
+  // Every address the web page and the Android app have opened it at.
+  for (const q of ['', '?view_only=1', '?autoconnect=1&reconnect=1&resize=scale&show_dot=1&view_only=1&path=computer%2Fx%2Fwebsockify']) {
+    const r = await head(q);
+    assert.equal(r.statusCode, 200, q);
+    assert.match(r.headers['content-type'], /text\/html/);
+    const csp = r.headers['content-security-policy'].split('; ');
+    for (const rule of ["default-src 'none'", "script-src 'self'", "frame-ancestors 'self'"]) assert.ok(csp.includes(rule), rule);
+    assert.ok(csp.some((r) => r.startsWith("connect-src 'self' ws://127.0.0.1:")), 'its own WebSocket');
+  }
 });
 
 test("a deleted bot's screen ends, and its number goes to the next bot (#105)", async () => {
