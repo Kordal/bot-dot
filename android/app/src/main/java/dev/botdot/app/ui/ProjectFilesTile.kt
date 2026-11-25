@@ -52,12 +52,13 @@ internal fun ProjectFilesTile(ui: CompanyUi, c: Company, onFolder: (name: String
         }
     }
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().testTag(PROJECT_FILES_TILE).raised(shape)
+    Column(Modifier.fillMaxWidth().testTag(PROJECT_FILES_TILE).cardRing("files").raised(shape)
         .clickable(onClickLabel = tr("Files")) { onFolder(folder.name, "") }.padding(Space.s12),
         verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         Row(Modifier.padding(bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Dot(FILES_COLOR)
-            Text(tr("Files"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
+            Text(tr("Files"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = Space.s8))
+            CardPencil("files", tr("Files"))
         }
         files.forEach { f ->
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(Radius.small).clickable(onClickLabel = f.name) { onFile(folder.name, f.path) },

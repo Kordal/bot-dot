@@ -172,7 +172,12 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val lines by app.store.lines.lines.collectAsState() // what it said it is about to do
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
-    fun send(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments) }
+    // The board tile the owner pointed at with its pencil (ADR 273) while this is the project's own chat: the message carries it, and sending clears it.
+    val pointed = chatId?.let { id -> app.cardTarget?.takeIf { it.isIn(dev.botdot.app.data.ProjectChats.Open(dev.botdot.app.data.ProjectChats.CHIEF, id)) } }
+    fun send(text: String, attachments: List<dev.botdot.app.data.Attachment>) {
+        val sent = vm.send(text, attachments, card = pointed)
+        if (pointed != null) scope.launch { if (sent.await() && app.cardTarget == pointed) app.cardTarget = null }
+    }
     // From a quick answer, a question card, a plan's Approve: whether it went. What was tapped stays until it did.
     suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
     // The inputs and buttons of an answer view send through the same function, as the owner's own message (ADR 265): a busy Chief shows it as waiting.
@@ -181,21 +186,25 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val viewChat = remember(chatId, chat?.messages, chat?.offset, viewLater) { ViewChat(chiefBubbles(chatId, chat?.messages.orEmpty(), chat?.offset ?: 0, viewLater)) { t, k -> sendView(t, k) } }
     // A new chat (#727): the box in the middle, under its head and name, and its own jobs (#408) under it. Gone with the first message.
     val empty = chat?.messages.isNullOrEmpty() && vm.sent == null && vm.queued.isEmpty() && (chatId == null || chat != null)
-    @Composable fun box() = Composer(
-        placeholder = tr("Message the Chief…"),
-        files = files,
-        busy = boxStops(busy, features),
-        outbox = vm.outbox,
-        onSend = { t, a -> send(t, a) },
-        onStop = { vm.stop() },
-        onError = { scope.launch { snack.showError(it) } },
-        initialText = sharedText,
-        onSignIn = onSignIn.takeIf { signedOut },
-        backAt = backAt,
-        backAtName = backAtName,
-        held = heldLines,
-        onSignInHeld = onSignIn,
-    )
+    @Composable fun box() {
+        pointed?.let { CardChip(it.label) { app.cardTarget = null } }
+        Composer(
+            placeholder = tr("Message the Chief…"),
+            files = files,
+            busy = boxStops(busy, features),
+            outbox = vm.outbox,
+            onSend = { t, a -> send(t, a) },
+            focusOn = pointed,
+            onStop = { vm.stop() },
+            onError = { scope.launch { snack.showError(it) } },
+            initialText = sharedText,
+            onSignIn = onSignIn.takeIf { signedOut },
+            backAt = backAt,
+            backAtName = backAtName,
+            held = heldLines,
+            onSignInHeld = onSignIn,
+        )
+    }
     var ownJobs by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
     LaunchedEffect(empty, features) {
         if (empty && ChiefJobs.shows(features)) ownJobs = runCatching { app.api.value?.chiefJobs() }.getOrNull()?.let { EmptyChatJobs.chiefJobs(it) } ?: emptyList()
@@ -337,7 +346,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
 private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, lineSaysIt: Boolean, draft: String = "", plan: dev.botdot.app.data.Plan? = null, onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
     val p = LocalPaper.current
     when {
-        m.role == "user" -> MyBubble(m.text, m.attachments)
+        m.role == "user" -> MyBubble(m.text, m.attachments, about = m.card)
         m.role == "suggestion" -> Suggestion(m, onBuild, onDismiss)
         m.role == "report" -> Report(m)
         // A reply still being written: the working line under the chat says it ([lineSaysIt]), and only what it

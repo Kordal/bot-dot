@@ -185,24 +185,33 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     val runSteps by app.store.lines.runSteps.collectAsState()
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
-    fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments, replyTo = vm.reply?.runId) }
+    // The board tile the owner pointed at with its pencil (ADR 273) while this is the project's chat: the message carries it, and sending clears it.
+    val pointed = app.cardTarget?.takeIf { it.isIn(dev.botdot.app.data.ProjectChats.Open(dev.botdot.app.data.ProjectChats.BOT, botId)) }
+    fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) {
+        val sent = vm.send(text, attachments, replyTo = vm.reply?.runId, card = pointed)
+        if (pointed != null) scope.launch { if (sent.await() && app.cardTarget == pointed) app.cardTarget = null }
+    }
     // An empty chat (#727): the box in the middle, under its head and name, and its jobs under it. Gone with the first message.
     val empty = loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null && vm.queued.isEmpty() && vm.started.isEmpty()
-    @Composable fun box() = Composer(
-        placeholder = tr("Message"),
-        files = files,
-        busy = boxStops(running != null, features),
-        outbox = vm.outbox,
-        onSend = { text, attachments -> sendText(text, attachments) },
-        onStop = { vm.stop() },
-        onError = { scope.launch { snack.showError(it) } },
-        initialText = sharedText,
-        onSignIn = onSignIn.takeIf { signedOut },
-        backAt = backAt,
-        backAtName = backAtName,
-        held = heldLines,
-        onSignInHeld = onSignIn,
-    )
+    @Composable fun box() {
+        pointed?.let { CardChip(it.label) { app.cardTarget = null } }
+        Composer(
+            placeholder = tr("Message"),
+            files = files,
+            busy = boxStops(running != null, features),
+            outbox = vm.outbox,
+            onSend = { text, attachments -> sendText(text, attachments) },
+            focusOn = pointed,
+            onStop = { vm.stop() },
+            onError = { scope.launch { snack.showError(it) } },
+            initialText = sharedText,
+            onSignIn = onSignIn.takeIf { signedOut },
+            backAt = backAt,
+            backAtName = backAtName,
+            held = heldLines,
+            onSignInHeld = onSignIn,
+        )
+    }
     // A job's chip: "Run now", the jobs screen's own.
     fun runJob(jobId: String) = scope.launch {
         val r = runCatching { app.api.value!!.runJob(botId, jobId) }
@@ -367,7 +376,7 @@ private fun YourSide(r: Run, open: Boolean = false, quote: AnswerQuote.Quote? = 
         Unread.Asked.WATCH -> Chip("${r.watchName.orEmpty()} · ${shortTime(r.startedAt)}")
         Unread.Asked.CARRIED_ON -> {} // it goes on after your OK: your request stands once, above the first reply
         Unread.Asked.USUAL -> Chip("▶ " + tr("Ran its main assignment"))
-        Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments, quote = quote?.text, onQuote = quote?.let { q -> { onQuote(q.runId) } })
+        Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments, quote = quote?.text, onQuote = quote?.let { q -> { onQuote(q.runId) } }, about = r.card)
     }
 }
 

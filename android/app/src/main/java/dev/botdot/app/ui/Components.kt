@@ -518,7 +518,7 @@ fun WordButton(word: String, color: Color, onClick: () -> Unit) {
 fun WaitingMessage(q: dev.botdot.app.data.Queued, who: String, onSteer: (() -> Unit)? = null, onTakeBack: () -> Unit) {
     // Steered (ADR 040): "Steering…" until the run read it, and Take back alone; else "Steer" beside Take back, where the server has it.
     val steering = onSteer != null && q.steering
-    WaitingMessage(q.text, q.attachments, if (steering) STEERING else waitsUntil(who), onSteer.takeUnless { steering }, onTakeBack)
+    WaitingMessage(q.text, q.attachments, if (steering) STEERING else waitsUntil(who), onSteer.takeUnless { steering }, about = q.card, onTakeBack = onTakeBack)
 }
 
 /**
@@ -533,10 +533,10 @@ fun SentBubble(m: SentMessage, above: Boolean, modifier: Modifier = Modifier) {
 
 /** A waiting message with its words given: [waits] says what it waits for (in a group: for which members). */
 @Composable
-fun WaitingMessage(text: String, attachments: List<Attachment>, waits: String, onSteer: (() -> Unit)? = null, onTakeBack: () -> Unit) {
+fun WaitingMessage(text: String, attachments: List<Attachment>, waits: String, onSteer: (() -> Unit)? = null, about: dev.botdot.app.data.TileRef? = null, onTakeBack: () -> Unit) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-        Box(Modifier.alpha(0.5f)) { MyBubble(text, attachments) }
+        Box(Modifier.alpha(0.5f)) { MyBubble(text, attachments, about = about) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(waits, color = p.faint, fontSize = Type.s12)
             if (onSteer != null) WordButton(tr("Steer"), p.muted, onSteer)
@@ -625,11 +625,13 @@ suspend fun LazyListState.showFromTop(index: () -> Int?) {
 // ---------- bubbles ----------
 
 @Composable
-fun MyBubble(text: String, files: List<Attachment>? = null, quote: String? = null, onQuote: (() -> Unit)? = null) {
+fun MyBubble(text: String, files: List<Attachment>? = null, quote: String? = null, onQuote: (() -> Unit)? = null, about: dev.botdot.app.data.TileRef? = null) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth().padding(start = Space.s48), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s4)) {
     // The question this answers (AnswerQuote): one quiet line over the bubble, a tap goes to the reply that asked.
     if (quote != null) AnswerQuoteLine(quote, onQuote)
+    // The board tile it was about (ADR 273), small above it.
+    CardAbout(about)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Column(
             Modifier.clip(Radius.mine).holdToCopy(text).background(p.ink).padding(horizontal = Space.s16, vertical = Space.s12),
@@ -843,6 +845,7 @@ fun Composer(
     backAtName: String? = null, // whose limit it is when not Claude's: the account default is a provider that reached its own
     held: List<ClaudeHeld> = emptyList(), // the other connections botdot holds (#1668): a line each
     onSignInHeld: (() -> Unit)? = null, // the way to sign in to Claude, for a held line that says it is signed out
+    focusOn: Any? = null, // a board tile's pencil was pressed (ADR 273): the box takes the focus when this changes to something
 ) {
     val p = LocalPaper.current
     // Kept when the phone turns. With the cursor: a mention is what's typed before it.
@@ -895,6 +898,7 @@ fun Composer(
         outbox.edited()
         runCatching { focus.requestFocus() }
     }
+    LaunchedEffect(focusOn) { if (focusOn != null) runCatching { focus.requestFocus() } }
     // It floats over the messages, which fade out behind it.
     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(p.bg.copy(alpha = 0f), p.bg.copy(alpha = 0.85f), p.bg)))
         .navigationBarsPadding().imePadding().padding(start = Space.s12, end = Space.s12, top = Space.s12, bottom = Space.s8)) {

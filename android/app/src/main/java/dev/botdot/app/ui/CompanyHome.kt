@@ -112,9 +112,25 @@ private val GOLD = Color(0xFFE8B44A)
  * opens its chat, held it opens the team as a sheet, with Make lead; a key opens its bot's chat. The Chief has no
  * key here: it is Home's.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview: Boolean = false, teamView: Boolean = false, onTeamView: () -> Unit = {}, onBoard: () -> Unit = {}, onOverview: () -> Unit = {}) {
+    // The pencil on a board tile (ADR 273): the project's own chat it opens, and the tile it points at now.
+    val app = ui.app
+    val bots = ui.bots.collectAsState().value.orEmpty()
+    val server by app.store.version.value.collectAsState()
+    val features = server?.features.orEmpty()
+    val chat = dev.botdot.app.data.CardEdit.chatOf(c, features, bots)?.takeIf { it.kind == dev.botdot.app.data.ProjectChats.BOT || ways.onChiefChat != null }
+    val pointed = app.cardTarget?.takeIf { it.project == c.id && chat != null && it.chat == chat }
+    val handle = if (chat == null) null else CardEditHandle(pointed) { id, label ->
+        app.cardTarget = dev.botdot.app.data.CardEdit.Target(c.id, id, label, chat)
+        if (chat.kind == dev.botdot.app.data.ProjectChats.BOT) ways.onBot(chat.id) else ways.onChiefChat?.invoke(chat.id)
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalCardEdit provides handle) { CompanyHomeBody(ui, c, ways, overview, teamView, onTeamView, onBoard, onOverview) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompanyHomeBody(ui: CompanyUi, c: Company, ways: CompanyWays, overview: Boolean = false, teamView: Boolean = false, onTeamView: () -> Unit = {}, onBoard: () -> Unit = {}, onOverview: () -> Unit = {}) {
     val p = LocalPaper.current
     val bots = ui.bots.collectAsState().value.orEmpty()
     val waiting by ui.app.store.waiting.collectAsState(initial = emptyList())

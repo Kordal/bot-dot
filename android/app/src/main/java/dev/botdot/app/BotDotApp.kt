@@ -5,6 +5,8 @@ import dev.botdot.app.data.interceptor
 import dev.botdot.app.data.CLIENT
 import dev.botdot.app.data.onPhone
 import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
@@ -73,6 +75,9 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
 
     /** The search match to show when its chat opens (set by the home screen's search). */
     var jump: dev.botdot.app.data.ChatHit? = null
+
+    /** The board tile the owner pointed at with its pencil (ADR 273): the chip in the project's chat and the ring on the tile, until it is sent or taken off. */
+    var cardTarget by androidx.compose.runtime.mutableStateOf<dev.botdot.app.data.CardEdit.Target?>(null)
 
     /** Words to start a new Chief chat with, taken once by the chat that opens (the Company's "Change direction"). */
     var chiefWords: String? = null

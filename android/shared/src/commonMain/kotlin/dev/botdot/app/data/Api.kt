@@ -420,13 +420,14 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * The answer is a run, or, from a busy bot with `message-waits`, the message that waits its turn: the same
      * fields with `status: "queued"` ([Run.isQueued]). Both are a message that went.
      */
-    suspend fun runBot(botId: String, prompt: String, attachments: List<Attachment>, key: String? = null, replyTo: String? = null, answers: String? = null): Run = json.decodeFromString(
+    suspend fun runBot(botId: String, prompt: String, attachments: List<Attachment>, key: String? = null, replyTo: String? = null, answers: String? = null, card: CardEdit.Target? = null): Run = json.decodeFromString(
         send("POST", "/bots/${enc(botId)}/run", buildJsonObject {
             if (prompt.isNotBlank()) put("prompt", prompt)
             put("attachments", json.encodeToJsonElement(attachments))
             if (key != null) put("key", key)
             if (replyTo != null) put("replyTo", replyTo) // a run the owner picked Reply on (#627)
             if (answers != null) put("answers", answers) // the run whose question a tapped answer or a sent card answers (#1380)
+            card?.let { put("card", it.id); put("project", it.project) } // the tile of the project's board it points at (ADR 273)
         }),
     )
 
@@ -1102,11 +1103,12 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * chat: with `message-waits` and a reply going on, the message is in its `queued` and not yet in its messages.
      * null when the answer is not a chat this app can read: the message went all the same.
      */
-    suspend fun sendToChief(chatId: String, text: String, attachments: List<Attachment>, key: String? = null): ChiefChat? {
+    suspend fun sendToChief(chatId: String, text: String, attachments: List<Attachment>, key: String? = null, card: CardEdit.Target? = null): ChiefChat? {
         val answer = send("POST", "/chief/chats/${enc(chatId)}/messages", buildJsonObject {
             put("text", text)
             put("attachments", json.encodeToJsonElement(attachments))
             if (key != null) put("key", key)
+            card?.let { put("card", it.id); put("project", it.project) } // the tile of the project's board it points at (ADR 273)
         })
         return runCatching { json.decodeFromString<ChiefChat>(answer) }.getOrNull()
     }

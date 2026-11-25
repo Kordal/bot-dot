@@ -165,8 +165,11 @@ internal fun overviewOpener(ui: CompanyUi, c: Company, ways: CompanyWays): (Over
 internal fun OverviewTile(key: String, feed: OverviewState, bots: List<Bot>?, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPaper.current
     val title = when (key) { "work" -> tr("Current work"); "blockers" -> tr("Blockers"); else -> tr("Latest replies") }
-    Column(modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16).testTag("overview-$key"), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        Text(title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16, modifier = Modifier.semantics { heading() })
+    Column(modifier.fillMaxWidth().cardRing(key).raised(Radius.card).padding(Space.s16).testTag("overview-$key"), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16, modifier = Modifier.weight(1f).semantics { heading() })
+            CardPencil(key, title)
+        }
         feed.problem?.let { Text(it, color = p.err) }
         val d = feed.snapshot
         when {
