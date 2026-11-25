@@ -74,6 +74,16 @@
 }
 
 * { box-sizing: border-box; }
+/* No scroll bar is drawn anywhere: every pane still scrolls by wheel, trackpad, touch and keys.
+   Scripts and code blocks wrap their long lines instead, so no script an owner approves runs off unseen.
+   Wide tables and diagrams keep a thin bar, since it is the only sign more columns are there, and so do
+   height-capped boxes of a script or instructions an owner approves (job approval, tool, skill, pick).
+   Chip rows (the board filter, the settings tabs, recent chats) scroll sideways without one. */
+html, body, * { scrollbar-width: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.md-table, .md .diagram-svg, .dv-table, .script-out, .tool pre, .skill-preview, .pick-instructions { scrollbar-width: thin; }
+.md-table::-webkit-scrollbar, .md .diagram-svg::-webkit-scrollbar, .dv-table::-webkit-scrollbar, .script-out::-webkit-scrollbar, .tool pre::-webkit-scrollbar, .skill-preview::-webkit-scrollbar, .pick-instructions::-webkit-scrollbar { display: block; height: 6px; width: 6px; }
+.md-table::-webkit-scrollbar-thumb, .md .diagram-svg::-webkit-scrollbar-thumb, .dv-table::-webkit-scrollbar-thumb, .script-out::-webkit-scrollbar-thumb, .tool pre::-webkit-scrollbar-thumb, .skill-preview::-webkit-scrollbar-thumb, .pick-instructions::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r-pill); }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font: var(--fs-14)/1.5 var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -246,8 +256,7 @@ a.more-btn { text-decoration: none; }
 .back-btn { display: none; }
 .chat-thread { flex: 1; overflow-y: auto; padding: var(--sp-8) var(--sp-32) var(--sp-24); display: flex; flex-direction: column; gap: var(--sp-16); }
 /* The Chief's three latest earlier chats, one line under its header (chief.js, renderRecentChats). */
-.chief-recent { display: flex; gap: var(--sp-8); padding: 0 var(--sp-32) var(--sp-12); overflow-x: auto; scrollbar-width: none; flex: none; }
-.chief-recent::-webkit-scrollbar { display: none; }
+.chief-recent { display: flex; gap: var(--sp-8); padding: 0 var(--sp-32) var(--sp-12); overflow-x: auto; flex: none; }
 .chief-recent[hidden] { display: none; }
 .chief-recent-chip { flex: 0 1 auto; min-width: 0; max-width: 220px; display: inline-flex; align-items: baseline; gap: var(--sp-8); border: 0; background: var(--raise-2); box-shadow: var(--lift); border-radius: var(--r-pill); padding: var(--sp-4) var(--sp-12); font: inherit; font-size: var(--fs-12); color: var(--muted); white-space: nowrap; cursor: pointer; transition: background var(--t1) var(--out), color var(--t1) var(--out); }
 .chief-recent-chip:hover, .chief-recent-chip:focus-visible { background: var(--fill); color: var(--text); }
@@ -793,7 +802,7 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md blockquote { margin: .5em 0; padding-left: .8em; border-left: 3px solid var(--line); color: var(--muted); }
 .md hr { border: 0; border-top: 1px solid var(--line); margin: .9em 0; }
 .md code { background: var(--sunk); padding: 1px var(--sp-4); border-radius: var(--r-8); }
-.md pre { background: var(--sunk); padding: var(--sp-12) var(--sp-12); border-radius: var(--r-8); overflow: auto; }
+.md pre { background: var(--sunk); padding: var(--sp-12) var(--sp-12); border-radius: var(--r-8); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .md pre code { background: none; padding: 0; }
 /* A code block's Copy button (#285): in its top-right corner, in a column of its own that the code scrolls beside and
    a diagram is drawn beside; always there on a touch screen; with a mouse it shows on hover, and on a keyboard's
@@ -986,7 +995,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .need-card:not(.open) .need-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .need-card:not(.open) .need-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .need-body .nb { line-height: 1.5; margin: 0; font: inherit; white-space: pre-wrap; }
-.need-body pre.nb { font-family: var(--mono); font-size: var(--fs-12); white-space: pre; overflow-x: auto; }
+.need-body pre.nb { font-family: var(--mono); font-size: var(--fs-12); white-space: pre-wrap; overflow-wrap: anywhere; }
 .need-card:not(.open) .need-body div.nb, .need-card:not(.open) .need-body pre.nb { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .need-card:not(.open) .need-body div.nb { white-space: normal; }
 .need-card:not(.open) .need-body ~ .need-body, .need-card:not(.open) .job-why { display: none; }
@@ -1203,7 +1212,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .tile.suggested .tile-head, .tile.suggested .tile-why { opacity: .7; }
 .tile-why { font-size: var(--fs-12); color: var(--muted); line-height: 1.45; }
 .tile-script summary { font-size: var(--fs-12); color: var(--muted); cursor: pointer; }
-.tile-script pre { font-size: var(--fs-12); background: var(--sunk); border-radius: var(--r-8); padding: var(--sp-8) var(--sp-8); overflow-x: auto; margin: var(--sp-8) 0 0; }
+.tile-script pre { font-size: var(--fs-12); background: var(--sunk); border-radius: var(--r-8); padding: var(--sp-8) var(--sp-8); white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--sp-8) 0 0; }
 .tile-actions { display: flex; align-items: center; gap: var(--sp-8); margin-top: auto; }
 .tile-actions { justify-content: flex-end; }
 .tile-why b { font-weight: 600; color: var(--text); }
@@ -3406,7 +3415,7 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
   .ps-page { display: block; padding-top: var(--sp-16); }
   .ps-top { margin-bottom: var(--sp-12); }
   .ps-top h1 { font-size: var(--fs-24); }
-  .ps-nav { flex-direction: row; overflow-x: auto; position: static; margin: 0 calc(-1 * var(--sp-16)) var(--sp-16); padding: 0 var(--sp-16); scrollbar-width: none; }
+  .ps-nav { flex-direction: row; overflow-x: auto; position: static; margin: 0 calc(-1 * var(--sp-16)) var(--sp-16); padding: 0 var(--sp-16); }
   .ps-nav button { flex: none; border: 1px solid var(--line-2); border-radius: var(--r-pill); }
   .ps-row { flex-wrap: wrap; gap: var(--sp-8); }
   .ps-label { flex: 1 0 auto; }
@@ -3536,7 +3545,7 @@ dialog.co-delete .modal-foot { border-top: 0; }
    stand at its foot. The space on screen has a short bar at the rail's left edge. Narrower windows keep the switch. */
 .rail { display: none; }
 @media (min-width: 1001px) {
-  .app.has-rail .rail { position: relative; z-index: 2; flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-12); padding: var(--sp-16) 0; background: var(--bg); border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; }
+  .app.has-rail .rail { position: relative; z-index: 2; flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-12); padding: var(--sp-16) 0; background: var(--bg); border-right: 1px solid var(--line); overflow-y: auto; }
   .app.has-rail:not(.place-company) .side-head { width: auto; }
   /* The top bar keeps only what stands in it for a while: a notice, or the open search field. */
   .app.has-rail .sidebar:not(.search-open):not(.searching) .side-head:not(.noted) { display: none; }
