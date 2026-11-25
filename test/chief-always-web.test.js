@@ -73,7 +73,7 @@ test('web: nothing granted, or a server without either, leaves the row hidden; a
 
 test("web: the row is in the Chief's settings and asked again each time they open", () => {
   const draw = cut('function renderChiefSettings()', "// The Chief's lasting grants");
-  assert.match(draw, /id="chief-always"[\s\S]*id="chief-always-picks"[\s\S]*\$\{CHECKUP_HTML\}/);
+  assert.match(draw, /id="chief-always"[\s\S]*id="chief-always-picks"[\s\S]*id="chief-chats-row"/);
   assert.match(draw, /if \(root\.dataset\.ready && !root\.dataset\.always\) loadChiefAlways\(root\);/);
   assert.match(cut('function render()', 'drawPanelHead();'), /else delete \$\('#view-chiefsettings'\)\.dataset\.always/);
 });

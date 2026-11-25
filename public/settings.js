@@ -175,45 +175,8 @@ function catalogTip() {
   return c.source === 'docs' ? tr("Model list from Anthropic's docs, checked {ago}. Reasoning levels from your Claude Code.", { ago: ago(c.checkedAt) }) : tr('Built-in model list, not checked online yet.');
 }
 
-// The checkup's two switches in the Chief's settings (docs/api.md, The Chief's checkup), from a server that has
-// it. Its days and its time have no control: the row shows them in the server's words, and the Chief changes them.
-const CHECKUP_HTML = `
-      <div class="bs-group hidden" id="chief-checkup">
-        <label class="bs-row" title="${esc(tr('Ask the Chief to change when.'))}"><b>${tr('Checkup')}</b><span class="bs-val" data-checkup-when></span>
-          <span class="switch"><input type="checkbox" data-checkup="on" aria-label="${esc(tr('Checkup'))}"><span></span></span></label>
-        <label class="bs-row"${tipAttrs(tr('Lets a checkup search the web to check a proposal. It never opens a page.'))}><b>${tr('Web search')}</b>
-          <span class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="${esc(tr('Web search'))}"><span></span></span></label>
-      </div>`;
-
-// The switches as the server has them; Web search is there but can't be used while checkups are off.
-function drawCheckup() {
-  const box = $('#chief-checkup');
-  if (!box) return;
-  const c = state.features.includes('checkup') ? state.checkup : null;
-  box.classList.toggle('hidden', !c);
-  if (!c) return;
-  const [on, web] = ['on', 'webSearch'].map((k) => $(`[data-checkup="${k}"]`, box));
-  on.checked = !!c.on;
-  web.checked = !!c.webSearch;
-  web.disabled = !c.on;
-  $('[data-checkup-when]', box).textContent = c.when;
-}
-
-async function loadCheckup() {
-  if (!state.features.includes('checkup')) return;
-  try { state.checkup = (await api('/settings/checkup')).checkup; } catch { /* the switches stay as they were, or away */ }
-  drawCheckup();
-}
-
-// A refused or failed change puts the switch back: it is drawn again from what the server last said.
-async function setCheckup(key, value) {
-  try { state.checkup = (await api('/settings/checkup', { method: 'PUT', body: { [key]: value } })).checkup; flashSaved($('#view-chiefsettings')); }
-  catch (err) { toast(err.message, true); }
-  drawCheckup();
-}
-
-// The Chief's settings (its figure and name in its chat): its name, its model and reasoning, your rules for it, the
-// checkup's switches, its previous chats. Its instructions and tools are botdot's.
+// The Chief's settings (its figure and name in its chat): its name, its model and reasoning, your rules for it, its
+// previous chats. Its instructions and tools are botdot's.
 function renderChiefSettings() {
   const root = $('#view-chiefsettings');
   if (root.dataset.ready) renderChatList();
@@ -250,7 +213,7 @@ function renderChiefSettings() {
           <summary${tipAttrs(tr('Reports, memos and overviews it made for you. Open one to keep it up to date.'))}><b>${tr('Pages')}</b><span class="bs-val" id="chief-pages-val"></span>${CHEV}</summary>
           <div class="bs-body pg-list" id="chief-page-list"><span class="faint">${tr('Loading…')}</span></div>
         </details>` : ''}${state.features.includes('chief-files') ? `
-        <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files><b>${tr('Files')}</b>${CHEV}</button>` : ''}${CHECKUP_HTML}
+        <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files><b>${tr('Files')}</b>${CHEV}</button>` : ''}
         <details class="bs-row bs-more" id="chief-chats-row">
           <summary><b>${tr('Previous chats')}</b>${CHEV}</summary>
           <div class="bs-body settings-links" id="chief-chats"></div>
@@ -263,8 +226,6 @@ function renderChiefSettings() {
   if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefTitle() }, $('#chief-page-list', root), $('#chief-pages-val', root)); // public/pages.js (#384)
   drawChiefFiles(root);
   drawChiefJobs();
-  $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
-  loadCheckup();
   const rename = $('#chief-rename', root);
   if (rename) rename.onchange = () => renameChief(rename);
   const form = $('#chief-form', root);

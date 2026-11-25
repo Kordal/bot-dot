@@ -66,7 +66,7 @@ test('a download is encrypted, small, made once at its address and kept nowhere 
   fs.writeFileSync(path.join(a.data, 'looks.json'), JSON.stringify({ ...looks, day: '2026-10-01', posted: 2, look: 29323253 }));
   assert.equal((await a.api('/chief/look', { method: 'POST' })).status, 404, 'a look by hand is for test environments only');
   // The checkup (ADR 023): when it runs, and its record of proposals with how the owner answered.
-  assert.equal((await a.api('/settings/checkup', { method: 'PUT', body: { days: [1, 4], time: '07:30', webSearch: true } })).data.checkup.when, 'Mondays and Thursdays at 07:30');
+  assert.equal((await a.api('/settings/checkup', { method: 'PUT', body: { days: [1, 4], time: '07:30' } })).data.checkup.when, 'Mondays and Thursdays at 07:30');
   fs.writeFileSync(path.join(a.data, 'checkups.json'), JSON.stringify({ day: '2026-10-01', ranAt: '2026-10-01T07:30:00.000Z', proposals: [{ id: 'p1', kind: 'rule', bot: 'Shopper', change: 'Ask once.', evidence: 'said twice', day: '2026-09-30', at: '2026-10-01T07:30:00.000Z', shown: 1, status: 'declined', decidedAt: '2026-10-01T08:00:00.000Z', chatId: 'gone', n: 1 }] }));
   assert.equal((await a.api('/chief/checkup/now', { method: 'POST' })).status, 404, 'a checkup by hand is for test environments only');
 

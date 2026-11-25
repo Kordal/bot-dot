@@ -53,10 +53,10 @@ const setting = async (body) => srv.api('/settings/checkup', body ? { method: 'P
 
 let chatId;
 
-test('the server announces the checkup, and it is on, on weekdays at 08:00, without web search', async () => {
-  assert.ok((await srv.api('/version')).data.features.includes('checkup'));
+test('the checkup is on, on weekdays at 08:00, with web search, and no longer announced for apps to show switches for', async () => {
+  assert.ok(!(await srv.api('/version')).data.features.includes('checkup'), 'an app from before this shows no switches against this server');
   const { on, days, time, webSearch, when, timeZone, lastRanAt } = (await setting()).data.checkup;
-  assert.deepEqual([on, days, time, webSearch, when, lastRanAt], [true, [1, 2, 3, 4, 5], '08:00', false, 'Weekdays at 08:00', null]);
+  assert.deepEqual([on, days, time, webSearch, when, lastRanAt], [true, [1, 2, 3, 4, 5], '08:00', true, 'Weekdays at 08:00', null]);
   assert.ok(timeZone);
 });
 
@@ -99,16 +99,17 @@ test('a checkup\'s message cannot be rated', async () => {
   assert.ok(!('rating' in (await chatOf(chatId)).messages[0]));
 });
 
-test('a checkup is its own session with botdot\'s reading tools only: no web, no fetch, no bot is messaged', async () => {
+test('a checkup is its own session with botdot\'s reading tools and web search, always: no fetch, no bot is messaged', async () => {
   const run = checkupRuns().at(-1);
-  assert.deepEqual(flagged(run.args, '--allowedTools'), checkup.tools(false));
-  assert.deepEqual(flagged(run.args, '--tools'), [''], 'no built-in tool at all');
-  for (const t of flagged(run.args, '--allowedTools')) assert.match(t, /^mcp__botdot__(recall|list_bots|get_bot|list_runs|get_run)$/);
+  assert.deepEqual(flagged(run.args, '--allowedTools'), checkup.tools);
+  assert.deepEqual(flagged(run.args, '--tools'), ['WebSearch'], 'web search is the one built-in tool, with nothing switched on');
+  assert.ok(![...flagged(run.args, '--tools'), ...flagged(run.args, '--allowedTools')].some((a) => /fetch/i.test(a)));
+  for (const t of flagged(run.args, '--allowedTools').filter((t) => t !== 'WebSearch')) assert.match(t, /^mcp__botdot__(recall|list_bots|get_bot|list_runs|get_run)$/);
   assert.equal(run.botdot.env.BOT_DOT_LOOK, '1', 'the tools server offers the reading tools only');
   assert.ok(!run.args.includes('--resume') && run.args.includes('--no-session-persistence') && !run.args.includes('--plugin-dir'));
   assert.deepEqual(flagged(run.args, '--permission-mode'), ['dontAsk']);
   assert.match(run.system, /At most three proposals/);
-  assert.doesNotMatch(run.system, /search the web/);
+  assert.match(run.system, /You may search the web, only to check that a proposal can work/);
   assert.equal(chiefRuns().length, 0, 'no turn of a chat ran');
   assert.equal(srv.runs().length, checkupRuns().length, 'and no bot ran: none was asked anything');
 });
@@ -169,23 +170,32 @@ test('no checkup while the Chief is answering the owner', async () => {
   await replyDone(c.id);
 });
 
-// ---------- the switches ----------
+// ---------- the days and the time: the only setting there is ----------
 
-test('the setting is changed through its route, announced on the feed, and kept across what it does not name', async () => {
-  let r = await setting({ on: false });
+test('the days and the time are changed through the route, kept across what it does not name, and no feed event is sent', async () => {
+  const events = f.events.length;
+  let r = await setting({ days: ['Monday', 'Thursday'], time: '07:30' });
   assert.equal(r.status, 200);
-  assert.deepEqual([r.data.checkup.on, r.data.checkup.when], [false, 'Weekdays at 08:00']);
-  assert.equal((await f.wait('checkup', (d) => d.on === false)).data.when, 'Weekdays at 08:00');
-  r = await setting({ days: ['Monday', 'Thursday'], time: '07:30' });
-  assert.deepEqual([r.data.checkup.on, r.data.checkup.days, r.data.checkup.time, r.data.checkup.when], [false, [1, 4], '07:30', 'Mondays and Thursdays at 07:30']);
-  await f.wait('checkup', (d) => d.time === '07:30');
-  r = await setting({ on: true, webSearch: true });
-  assert.deepEqual([r.data.checkup.on, r.data.checkup.webSearch, r.data.checkup.days], [true, true, [1, 4]]);
-  assert.deepEqual((await srv.api('/settings')).data.settings.checkup, { on: true, days: [1, 4], time: '07:30', webSearch: true });
+  assert.deepEqual([r.data.checkup.on, r.data.checkup.webSearch, r.data.checkup.days, r.data.checkup.time, r.data.checkup.when], [true, true, [1, 4], '07:30', 'Mondays and Thursdays at 07:30']);
+  r = await setting({ time: '07:45' });
+  assert.deepEqual([r.data.checkup.days, r.data.checkup.time], [[1, 4], '07:45']);
+  assert.ok(!f.events.slice(events).some((e) => e.type === 'checkup'), 'nothing shows the setting in an app, so nothing is announced');
+  assert.deepEqual((await srv.api('/settings')).data.settings.checkup, { on: true, days: [1, 4], time: '07:45', webSearch: true });
+  await setting({ time: '07:30' });
+});
+
+test('"on" and "webSearch" are refused with the reason, whatever their value, and change nothing: an older app\'s switch is put back', async () => {
+  for (const body of [{ on: false }, { on: true }, { webSearch: false }, { webSearch: true }, { on: 'yes' }, { days: [2], webSearch: false }]) {
+    const r = await setting(body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.match(r.data.error, /The checkup always runs and always may search the web: only its days and time can change\./);
+  }
+  const now = (await setting()).data.checkup;
+  assert.deepEqual([now.on, now.webSearch, now.days, now.time], [true, true, [1, 4], '07:30'], 'what was refused changed nothing');
 });
 
 test('a setting it cannot keep is refused in words, and a time inside the quiet hours with the nearest that works', async () => {
-  for (const [body, why] of [[{ time: '8am' }, /time must be HH:MM/], [{ days: [] }, /days must be/], [{ on: 'yes' }, /on must be true or false/]]) {
+  for (const [body, why] of [[{ time: '8am' }, /time must be HH:MM/], [{ days: [] }, /days must be/]]) {
     const r = await setting(body);
     assert.equal(r.status, 400);
     assert.match(r.data.error, why);
@@ -198,15 +208,16 @@ test('a setting it cannot keep is refused in words, and a time inside the quiet 
   assert.equal((await setting()).data.checkup.time, '07:30', 'what was refused changed nothing');
 });
 
-test('with web search switched on a checkup may search, and never fetch', async () => {
+test('a checkup an older version saved as switched off, without web search, runs with web search all the same', async () => {
+  fs.writeFileSync(path.join(srv.data, 'settings.json'), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(srv.data, 'settings.json'), 'utf8')), checkup: { on: false, days: [1, 4], time: '07:30', webSearch: false } }));
+  const saved = (await setting()).data.checkup;
+  assert.deepEqual([saved.on, saved.webSearch], [true, true]);
   srv.reply('NOTHING');
-  await checkupNow();
+  assert.deepEqual((({ ran, posted }) => ({ ran, posted }))(await checkupNow()), { ran: true, posted: false });
   const run = checkupRuns().at(-1);
   assert.deepEqual(flagged(run.args, '--tools'), ['WebSearch']);
-  assert.deepEqual(flagged(run.args, '--allowedTools'), checkup.tools(true));
-  assert.ok(![...flagged(run.args, '--tools'), ...flagged(run.args, '--allowedTools')].some((a) => /fetch/i.test(a)));
-  assert.match(run.system, /You may search the web, only to check that a proposal can work/);
-  await setting({ webSearch: false });
+  assert.deepEqual(flagged(run.args, '--allowedTools'), checkup.tools);
+  await setting({ days: [1, 4], time: '07:30' });
 });
 
 // ---------- a checkup the owner asks for, in a chat ----------
@@ -235,18 +246,17 @@ test('the Chief reads the checkup\'s setting any time, changes it only in a turn
   });
 });
 
-test('the Chief switches web search on only before its turn read anything that is not the owner\'s', async () => {
+test('the Chief cannot switch the checkup off or its web search either, in a turn the owner started', async () => {
   const c = (await srv.api('/chief/chats', { method: 'POST' })).data;
-  await inOwnersTurn(c.id, 'Let checkups search the web', async (turn) => {
-    assert.equal((await srv.asChief('/settings/checkup', { method: 'PUT', ...turn, body: { webSearch: true } })).data.checkup.webSearch, true);
-    await srv.asChief('/settings/checkup', { method: 'PUT', ...turn, body: { webSearch: false } });
-    await srv.asChief('/chief/checkup', turn); // the bots' runs: not the owner's words
-    const r = await srv.asChief('/settings/checkup', { method: 'PUT', ...turn, body: { webSearch: true } });
-    assert.equal(r.status, 403);
-    assert.match(r.data.error, /can't switch a checkup's web search on/);
-    assert.equal((await srv.asChief('/settings/checkup', { method: 'PUT', ...turn, body: { webSearch: false } })).status, 200, 'switching it off is always allowed');
+  await inOwnersTurn(c.id, 'Stop the checkups and no web search', async (turn) => {
+    for (const body of [{ on: false }, { webSearch: false }]) {
+      const r = await srv.asChief('/settings/checkup', { method: 'PUT', ...turn, body });
+      assert.equal(r.status, 400);
+      assert.match(r.data.error, /always runs and always may search the web/);
+    }
   });
-  assert.equal((await setting()).data.checkup.webSearch, false);
+  const now = (await setting()).data.checkup;
+  assert.deepEqual([now.on, now.webSearch], [true, true]);
 });
 
 test('the owner\'s general settings route leaves the checkup alone: it has its own, which announces a change', async () => {
@@ -254,8 +264,7 @@ test('the owner\'s general settings route leaves the checkup alone: it has its o
   assert.deepEqual([(await setting()).data.checkup.on, (await setting()).data.checkup.time], [true, '08:00']);
 });
 
-test('asked for a checkup in a chat, the Chief is handed the same records, with the switch off too, and its proposals are kept for that chat', async () => {
-  await setting({ on: false });
+test('asked for a checkup in a chat, the Chief is handed the same records, and its proposals are kept for that chat', async () => {
   const c = (await srv.api('/chief/chats', { method: 'POST' })).data;
   const kept = record();
   fs.writeFileSync(path.join(srv.data, 'checkups.json'), JSON.stringify({ ...kept, ranAt: undefined })); // as before any checkup ran: the whole window
@@ -266,7 +275,7 @@ test('asked for a checkup in a chat, the Chief is handed the same records, with 
     assert.match(got.records, /## The owner's chats with you\n[\s\S]*Owner: Hello/, 'the chats with the Chief in the window');
     assert.doesNotMatch(got.records, /bank card|4111/);
     assert.ok(got.proposedBefore.some((l) => /the owner picked it: done, never again/.test(l)));
-    assert.deepEqual([got.on, got.when], [false, 'Weekdays at 08:00']);
+    assert.deepEqual([got.on, got.when], [true, 'Weekdays at 08:00']);
     const made = (await srv.asChief('/chief/checkup/proposals', { method: 'POST', ...turn, body: { proposals: [{ kind: 'tile', bot: '', change: 'A tile with today\'s 06:25 train.', day: today(), evidence: 'you asked about the train twice' }, { kind: 'rule', bot: 'Nobody', change: 'x', day: today(), evidence: 'y' }, { ...RULE() }] } })).data;
     assert.deepEqual(made.proposals, [{ n: 1, kind: 'tile', bot: '', change: 'A tile with today\'s 06:25 train.', evidence: 'you asked about the train twice', day: today() }], 'not one for a bot that does not exist, nor the one the owner already picked');
     assert.match(made.text, /^One thing I would change after this checkup:\n\n1\. \*\*Tile:\*\* A tile with today's 06:25 train\./);
@@ -284,7 +293,6 @@ test('asked for a checkup in a chat, the Chief is handed the same records, with 
   const late = await srv.asChief('/chief/checkup/outcome', { method: 'POST', headers: { 'X-Chief-Chat': c.id }, body: { declined: [1] } });
   assert.equal(late.status, 403);
   fs.writeFileSync(path.join(srv.data, 'checkups.json'), JSON.stringify({ ...record(), ranAt: kept.ranAt }));
-  await setting({ on: true });
 });
 
 test('proposals and their outcome need the chat they belong to', async () => {
