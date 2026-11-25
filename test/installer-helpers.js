@@ -114,11 +114,11 @@ function installer(t, { osRelease = null, dotenv = ANSWERED, given = {}, bins = 
   -u|-g) [ -z "\${2:-}" ] && { echo 0; exit 0; }; line="$(grep "^$2:" "${users}")" || exit 1; [ "$1" = -u ] && echo "$line" | cut -d: -f2 || echo "$line" | cut -d: -f3 ;;
   -un) echo root ;;
 esac`);
-  // useradd: a system user gets a low UID; any other one also sub-IDs, as Ubuntu's useradd gives them.
+  // useradd: a system user gets a low UID, counting down from 990 (the front door's, then the embedding server's); any other one counts up from 1002 and also gets sub-IDs, as Ubuntu's useradd gives them.
   stand('useradd', `${said('useradd')}
-name="$(eval echo "\\\${$#}")"; n="$(wc -l < "${users}" | tr -d ' ')"
+name="$(eval echo "\\\${$#}")"; n="$(awk -F: '$2 < 1000' "${users}" | wc -l | tr -d ' ')"; m="$(awk -F: '$2 >= 1000' "${users}" | wc -l | tr -d ' ')"
 case " $* " in *" --create-home "*) h="$(echo " $* " | sed 's/.* --home-dir \\([^ ]*\\) .*/\\1/')"; mkdir -p "$h" ;; esac
-case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${users}" ;; *) echo "$name:$((1001 + n)):$((1001 + n))" >> "${users}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subuid')}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subgid')}" ;; esac
+case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${users}" ;; *) echo "$name:$((1002 + m)):$((1002 + m))" >> "${users}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subuid')}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subgid')}" ;; esac
 h=''; prev=''; for a in "$@"; do [ "$prev" = --home-dir ] && h="$a"; prev="$a"; done
 echo "$name:x:$(grep "^$name:" "${users}" | cut -d: -f2-3):botdot:$h:/usr/sbin/nologin" >> "${path.join(etc, 'passwd')}"`);
   for (const name of ['chown', 'setfacl', 'apparmor_parser', 'gpg', 'nohup', 'umount', 'mkfs.ext4', 'resize2fs', 'fstrim', 'iptables', 'ip6tables']) stand(name, said(name));

@@ -208,6 +208,48 @@ function accountIsWalledOff(machine) {
   assert.equal(machine.exec('su', '-s', '/bin/sh', 'mallory', '-c', `test -e ${sock} && echo in || echo out`), 'out', 'another user of the machine doesn\'t');
 }
 
+// ADR 273: the machine's one embedding server, in the machine's own Docker with no network, and the account's way into
+// it: a folder only its botdot server's user (UID 60000 in the container) and the service's user can enter, with the
+// service's socket in it. The images are stand-ins without llama-server, so the service answers its socket with 502
+// ("not running"): that the answer comes back through gVisor, the mount and the folder's permissions is what is checked.
+function sharedEmbeddingServer(machine) {
+  const service = machine.inner('ps', '-q', '--filter', 'label=com.docker.compose.service=embed');
+  assert.match(service, /^[0-9a-f]{12,64}$/, 'the shared embedding server runs in the machine\'s own Docker');
+  const { Config, HostConfig } = JSON.parse(machine.inner('inspect', service))[0];
+  assert.equal(HostConfig.NetworkMode, 'none', 'it has no network');
+  assert.equal(HostConfig.ReadonlyRootfs, true);
+  assert.deepEqual(HostConfig.CapDrop, ['ALL']);
+  const embedUser = machine.exec('sh', '-c', 'echo "$(id -u botdot-embed):$(id -g botdot-embed)"');
+  assert.equal(Config.User, embedUser, 'as its own user of the machine, which is not the front door\'s');
+  assert.notEqual(embedUser.split(':')[0], machine.exec('id', '-u', 'botdot-door'));
+
+  // The folder is the account's: its server's user owns it, nobody else enters but the service's user, and the front
+  // door is not let in.
+  const folder = `${DIR}/embed/${ADMIN}`;
+  const serverUid = machine.exec('stat', '-c', '%u', folder);
+  assert.equal(machine.exec('stat', '-c', '%a', folder), '700');
+  const subStart = Number(machine.exec('sh', '-c', `awk -F: '$1 == "botdot-${ADMIN}" { print $2 }' /etc/subuid`));
+  assert.equal(Number(serverUid), subStart + 59999, 'owned by the user the account\'s server runs as');
+  assert.match(machine.exec('getfacl', '-p', folder), /^user:botdot-embed:rwx$/m);
+  assert.equal(machine.exec('su', '-s', '/bin/sh', 'botdot-embed', '-c', `test -d ${folder} && echo in`), 'in', 'the service reaches it');
+  machine.exec('useradd', '--create-home', 'eve');
+  assert.equal(machine.exec('su', '-s', '/bin/sh', 'eve', '-c', `ls ${folder} >/dev/null 2>&1 && echo in || echo out`), 'out', 'another user of the machine does not');
+  assert.equal(machine.exec('su', '-s', '/bin/sh', 'botdot-door', '-c', `ls ${folder} >/dev/null 2>&1 && echo in || echo out`), 'out', 'nor does the front door');
+  assert.match(machine.exec('cat', `${HOME}/.env`), /^EMBED_SOCKET=\/run\/embed\/embed\.sock$/m);
+
+  // From inside the account's botdot server: its own user reaches the socket, another user of its sandbox does not.
+  const server = machine.account(ADMIN, 'compose', '--project-directory', HOME, 'ps', '-q', 'bot-dot');
+  const askSocket = (user) => machine.account(ADMIN, 'exec', '--user', user, server, 'node', '-e',
+    "const r = require('http').request({ socketPath: '/run/embed/embed.sock', path: '/health' }, (res) => { res.resume(); console.log('status ' + res.statusCode); });"
+    + "r.on('error', (e) => console.log('error ' + e.code)); r.end();");
+  assert.equal(machine.exec('sh', '-c', `ls ${folder}`), 'embed.sock', 'the service made the socket in the folder');
+  assert.match(askSocket('60000:60000'), /^status (200|502|503)$/, 'the account\'s botdot server reaches the shared server over its socket');
+  assert.match(askSocket('61000:61000'), /^error E(ACCES|PERM|NOENT)$/, 'another user of the same sandbox, such as a bot, does not');
+  // The server's own embedding says "shared", and starts no llama-server of its own.
+  const memory = machine.api('GET', '/api/memory/semantic');
+  assert.equal(memory.body.server, 'shared', JSON.stringify(memory.body));
+}
+
 // The docker-helper holds the account's Docker socket, so a flaw in it should give as little as possible: it runs
 // with no-new-privileges and without any capability.
 function helperHasNoPrivileges(machine) {
@@ -315,6 +357,8 @@ const cases = [
       machine.signUp(said);
       const status = answers(machine);
       assert.equal(status.docker.image, true, 'botdot sees the bots\' computer image');
+      stage.step('the shared embedding server, and the account\'s socket to it (ADR 273)');
+      sharedEmbeddingServer(machine);
       const { id, container } = startComputer(machine, computer);
       computerKeepsItsFiles(machine, id, container);
 
@@ -376,6 +420,8 @@ const cases = [
       assert.equal(said.split(key).length, 2, 'the setup key is on the screen in that line alone');
       assert.match(machine.exec('stat', '-c', '%a %U', `${DIR}/front-door/.env`), /^600 root$/, 'and kept where only root reads it');
       assert.ok(!machine.inner('ps', '--format', '{{.Names}}').includes('caddy'), 'no Caddy runs');
+      assert.equal(machine.inner('ps', '-q', '--filter', 'label=com.docker.compose.service=embed'), '', 'no shared embedding server: the one account runs its own (ADR 273)');
+      assert.match(machine.exec('cat', `${HOME}/.env`), /^EMBED_SOCKET=$/m);
       assert.match(machine.exec('iptables', '-S', 'BOTDOT-LOCAL'), /-d 192\.168\.0\.0\/16 -j REJECT/, 'the VM keeps away from the computer and its network');
 
       stage.step('the passkey, made with the setup key on localhost');

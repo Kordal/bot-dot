@@ -1,6 +1,6 @@
 # ADR-028: botdot serves several accounts on one machine, each walled off
 
-- **Status:** Accepted (2026-10-16, the owner's decision). Supersedes [ADR 027](027-botdot-trusts-one-owner-on-a-server-of-its-own-reached-through-tailscale.md). Its parts about a computer per bot (a gVisor container for each bot, at most a set number running at once) are superseded by [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md): the account has one computer. Amended by [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md): on a managed machine there is no admin page, and its admin is the fleet console. Amended by [ADR 165](165-a-phone-sends-files-to-the-owners-place-on-a-ten-minute-code.md): a phone's Upload from phone, on a ten-minute code, is passed on without a session too.
+- **Status:** Accepted (2026-10-16, the owner's decision). Supersedes [ADR 027](027-botdot-trusts-one-owner-on-a-server-of-its-own-reached-through-tailscale.md). Its parts about a computer per bot (a gVisor container for each bot, at most a set number running at once) are superseded by [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md): the account has one computer. Amended by [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md): on a managed machine there is no admin page, and its admin is the fleet console. Amended by [ADR 165](165-a-phone-sends-files-to-the-owners-place-on-a-ten-minute-code.md): a phone's Upload from phone, on a ten-minute code, is passed on without a session too. Amended by [ADR 273](273-one-embedding-server-is-shared-by-every-account-on-a-botdot-machine.md): the embedding model is the machine's, one for every account, not one in each.
 - **Owning task:** the spec [#463](https://github.com/ladrok/bot-dot/issues/463)
 
 ## Context
@@ -104,7 +104,7 @@ What must change:
    - `--net-raw`: gVisor turns on its iptables only with raw sockets. Only a process with `CAP_NET_RAW` gets one, and no botdot container keeps it.
 4. **Each account stores its own images.** Every account has its own rootless Docker, so botdot's two images are unpacked once per account.
 
-**One account's footprint** (memory in MiB, from the machine's cgroup and from gVisor's own count per sandbox):
+**One account's footprint** (memory in MiB, from the machine's cgroup and from gVisor's own count per sandbox). *This is the footprint of the spike, when each account ran its own embedding model. Since [ADR 273](273-one-embedding-server-is-shared-by-every-account-on-a-botdot-machine.md) the embedding row below is the machine's, once, not each account's: an idle account holds about 1.1 GB less than the table's totals say, and the machine pays that once.*
 
 | | Idle | One computer running, Camoufox open |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ What must change:
 | Embedding model, llama-server with bge-m3 (resident, mostly the mapped model file) | 1,131 | 1,131 |
 | Claude Code idle as the Chief's user, the cost of one Chief turn at rest | 391 | not running |
 
-- **RAM.** Plan on about 2 GB for an idle account: the memory it holds, plus the model file, which must stay in the page cache to be fast. Add about 0.4 GB while the Chief replies, and about 1 to 2 GB per running computer.
+- **RAM.** Plan on about 2 GB for an idle account as measured here: the memory it holds, plus the model file, which must stay in the page cache to be fast. With the shared embedding server of ADR 273, roughly 1 GB for an idle account, plus roughly 1.1 GB once for the machine (the table's figures less the embedding row, not measured again). Add about 0.4 GB while the Chief replies, and about 1 to 2 GB per running computer.
 - **Disk.** The account's Docker holds 7.2 GB: the server image is 2.2 GB and the computer image 4.5 GB, unpacked. Docker reports about 1 GB written by each running container. Ten accounts need about 72 GB before any data.
 
 **Not verified.**
@@ -141,7 +141,7 @@ What must change:
 
 - botdot now has a login page on the internet. The front door, its sessions and its rate limits are the most security-critical code in botdot.
 - A botdot server must never be reachable except through the front door. The admin's root can still reach every account, and the sign-up page says so.
-- Each account runs its own botdot server, embedding model and Chief. How many accounts fit on a VPS is set by that footprint, not by the front door.
+- Each account runs its own botdot server and Chief ([ADR 273](273-one-embedding-server-is-shared-by-every-account-on-a-botdot-machine.md): the embedding model is shared, one for the machine, not one in each, which this ADR first had). How many accounts fit on a VPS is set by that footprint, not by the front door.
 - The apps learn to sign in with a passkey and keep a session. Android, which sends no credential today, changes the most.
 - The README's "One owner. botdot has no accounts and no login page" is replaced when this is built, and the install asks for a domain or a tailnet.
 - Tailscale becomes optional, and a call reaches a job from the internet when the install is public.
