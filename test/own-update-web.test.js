@@ -94,6 +94,9 @@ test('web: the card says what became of the last move, and that it moves now', (
   const { ctx } = page();
   assert.match(ctx.updateCardText({ autoUpdate: true, asked: true, last: null }), /^Moving to the new version/);
   assert.match(ctx.updateCardText({ autoUpdate: false, last: { state: 'kept', error: "Its new botdot server didn't start" } }), /didn't happen: Its new botdot server didn't start\./);
+  const none = ctx.updateCardText({ autoUpdate: false, last: { state: 'failed' } });
+  assert.equal(none, "The last move to a new version didn't happen: no reason was saved.");
+  assert.doesNotMatch(none, /admin/, 'there is no admin on a machine of one account');
   assert.equal(ctx.updateCardText({ autoUpdate: true, last: null, ready: null }), '', 'nothing waits or moves: the switch says it all');
   assert.equal(ctx.updateCardText({ autoUpdate: false, last: null, ready: null }), '');
 });

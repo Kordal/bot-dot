@@ -92,6 +92,7 @@ class OwnUpdateTest {
         assertFalse(u.ready)
         assertNull(u.readyVersion)
         assertEquals("The last move to a new version didn't happen: Its new botdot server didn't start.", u.text())
+        assertEquals("no admin on a machine of one account", "The last move to a new version didn't happen: no reason was saved.", OwnUpdate.of(obj("""{"last":{"state":"failed"}}""")).text())
         assertEquals("nothing waits or moves: the switch's own two lines say it all", "", OwnUpdate.of(obj("{}")).text())
     }
 

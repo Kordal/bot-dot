@@ -27,8 +27,6 @@ data class OwnUpdate(
     /** How the last switch went: `switching`, `updated`, `kept` or `failed`, and why when it didn't happen. */
     val last: String? = null,
     val error: String? = null,
-    /** The owner's `when` (ADR 271): `ready`, `night` or `manual`; null from a front door that doesn't have it. */
-    val updateWhen: String? = null,
     /** `night` when the owner chose "Tonight" for the version that waits. */
     val plan: String? = null,
 ) {
@@ -80,7 +78,6 @@ data class OwnUpdate(
                 deadline = text(ready, "deadline")?.takeIf { runCatching { Instant.parse(it) }.isSuccess },
                 last = text(last, "state"),
                 error = text(last, "error"),
-                updateWhen = text(j, "when")?.takeIf { it == "ready" || it == "night" || it == "manual" },
                 plan = text(j, "plan")?.takeIf { it == "night" },
             )
         }
