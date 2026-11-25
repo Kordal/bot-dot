@@ -12,13 +12,18 @@ const { waitFor } = require('./helpers');
 const { startFrontDoor, standIn, zoneWhere, updateAnswers } = require('./front-door-helpers');
 
 const DAY = 24 * 3600_000;
+// The front door tells each account its update on a timer too, first 5 s after it starts, and the tell asks each account that
+// waits whether it is idle, as the plan does (offerOf): a test that counts the idle questions would count that one, whenever
+// the tests before it took long enough for the timer to fire in it (#1717). Telling is tested in front-door-update-offer: here
+// its timers are a day away, and only what the plan asks is counted.
+const NEVER = String(DAY);
 let door, requests, status, ann, bob;
 // What the stand-in accounts answer now: bob's idle answer (true, false or null for "no such route") and quiet hours.
 const now = { idle: true, quietHours: { start: 22, end: 9, timeZone: 'UTC' } };
 before(async () => {
   requests = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-requests-'));
   status = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-status-'));
-  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_REQUESTS: requests, FRONT_DOOR_STATUS: status, FRONT_DOOR_SWITCH_EVERY_MS: '100' } });
+  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_REQUESTS: requests, FRONT_DOOR_STATUS: status, FRONT_DOOR_SWITCH_EVERY_MS: '100', FRONT_DOOR_UPDATE_TELL_FIRST_MS: NEVER, FRONT_DOOR_UPDATE_TELL_MS: NEVER } });
   ann = await standIn(door, 'ann', { answer: updateAnswers({ idle: () => now.idle, quietHours: () => now.quietHours }) });
   bob = await standIn(door, 'bob', { answer: updateAnswers({ idle: () => now.idle, quietHours: () => now.quietHours }) });
 });
@@ -70,7 +75,7 @@ test('"as soon as it\'s ready": switched at the first idle check; busy, it is as
   now.idle = true;
   await waitFor(() => asked().includes('SWITCH-bob'), { what: 'the switch asked' });
   assert.deepEqual(asked(), ['SWITCH-bob']);
-  assert.match(door.log.join(''), /asked to switch the account bob to the new version: idle\n/);
+  await door.logged(/asked to switch the account bob to the new version: idle\n/);
   const a = await admin();
   const entry = (await a.get('/admin/audit?action=update-switch')).data.entries[0];
   assert.deepEqual([entry.actor, entry.action, entry.account, entry.detail], ['front-door', 'update-switch', 'bob', 'idle']);
@@ -98,7 +103,7 @@ test('"at night, when idle" (the default): not by day, and by night when it is i
   assert.deepEqual(asked(), [], 'it is day in the owner\'s time zone');
   now.quietHours = { start: 22, end: 9, timeZone: zoneWhere(5, 7) };
   await waitFor(() => asked().includes('SWITCH-bob'), { what: 'switched in the night' });
-  assert.match(door.log.join(''), /to the new version: idle, at night\n/);
+  await door.logged(/to the new version: idle, at night\n/);
 });
 
 test('busy all night: not switched, and tried again', async () => {
@@ -157,13 +162,13 @@ test('past the deadline: the first idle check whatever the choice or the hour; a
   assert.deepEqual(asked(), [], 'busy, within the 24 hours');
   now.idle = true;
   await waitFor(() => asked().includes('SWITCH-bob'), { what: 'switched at the first idle check' });
-  assert.match(door.log.join(''), /to the new version: idle, past the deadline\n/);
+  await door.logged(/to the new version: idle, past the deadline\n/);
   clear();
   now.idle = false;
   const before = idleSeen().length;
   waits(Date.now() - 8.1 * DAY);
   await waitFor(() => asked().includes('SWITCH-bob'), { what: 'switched anyway' });
-  assert.match(door.log.join(''), /to the new version: past the deadline\n/);
+  await door.logged(/to the new version: past the deadline\n/);
   assert.equal(idleSeen().length, before, 'no one is asked: it switches whatever it answers');
 });
 
@@ -212,9 +217,9 @@ test('a suspended account is not asked, and an account that does not wait is not
   clear();
   await quiet(400);
   assert.equal(idleSeen().length, 0, 'nothing waits');
-  waits();
+  // Suspended before it waits: a tick that comes between the two would ask it, and the plan cannot be stopped half way.
   assert.equal((await a.post('/admin/accounts/bob/suspend', {})).status, 200);
-  clear();
+  clear(); // the suspend asked root's step too
   waits();
   const before = idleSeen().length;
   await quiet(400);

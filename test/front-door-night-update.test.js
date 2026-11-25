@@ -47,12 +47,16 @@ test('"as soon as it\'s ready" does not wait for the night hour; the others do',
 });
 
 // One account's machine: the requests and status folders, root's step's say of the version (and the newest it found), the
-// front door and the stand-in account. owner: what its entry says ({ updateWhen }); null leaves it unmade.
-async function oneAccount(t, { hour, when = null, answer = null, env = {}, newest = 'def5678' } = {}) {
+// front door and the stand-in account. when: what its entry says ({ updateWhen }); null leaves it unmade. account: what root's
+// step says of it (account-owner.json), written before the front door starts: its checks run every 100 ms from its first
+// moment, so a state the test writes after oneAccount returns may come after the first check (#1710). Whatever a test needs
+// to hold at its first check goes in an option; `said` is for what changes after.
+async function oneAccount(t, { hour, when = null, answer = null, env = {}, newest = 'def5678', account = null } = {}) {
   const requests = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-requests-'));
   const status = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-status-'));
   fs.writeFileSync(path.join(status, 'version.json'), JSON.stringify({ version: 'abc1234' }));
   if (newest) fs.writeFileSync(path.join(status, 'latest.json'), JSON.stringify({ version: newest, at: '2026-11-10T03:00:00Z' }));
+  if (account) fs.writeFileSync(path.join(status, 'account-owner.json'), JSON.stringify(account));
   const door = await startFrontDoor({ env: { FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY(), FRONT_DOOR_REQUESTS: requests, FRONT_DOOR_STATUS: status, FRONT_DOOR_NIGHT_EVERY_MS: '100', FRONT_DOOR_SWITCH_EVERY_MS: '100', ...(hour === undefined ? {} : { FRONT_DOOR_NIGHT_HOUR: String(hour) }), ...env } });
   if (when) store.open(door.data).importAccount('owner', { updateWhen: when });
   const owner = await standIn(door, 'owner', { answer: answer || updateAnswers() });
@@ -75,7 +79,7 @@ test("step one: the download is asked once, in the owner's night hour, and not a
   const m = await oneAccount(t, { hour: hourIn(timeZone), answer: updateAnswers({ quietHours: { start: 22, end: 7, timeZone } }) });
   await waitFor(() => m.asked().includes('UPDATE'), { what: 'the update asked' });
   assert.equal(fs.readFileSync(path.join(m.requests, 'UPDATE'), 'utf8'), '', 'the newest, as the admin page asks');
-  assert.match(m.door.log.join(''), /botdot downloads its update at night: abc1234 to def5678/);
+  await m.door.logged(/botdot downloads its update at night: abc1234 to def5678/);
   // Root's step takes the request and the update fails: not asked again tonight.
   fs.rmSync(path.join(m.requests, 'UPDATE'));
   m.said('update.json', { state: 'failed', at: new Date().toISOString(), from: 'abc1234', to: 'def5678', error: 'no' });
@@ -110,7 +114,7 @@ test('step one: not in another hour of the owner\'s, and never on a machine of s
 test('step one: "as soon as it\'s ready" asks for the download as soon as root\'s step found the release, at any hour', async (t) => {
   const m = await oneAccount(t, { when: 'ready', hour: (hourIn('UTC') + 12) % 24 });
   await waitFor(() => m.asked().includes('UPDATE'), { what: 'the update asked, not at night' });
-  assert.match(m.door.log.join(''), /botdot downloads its update: abc1234 to def5678/);
+  await m.door.logged(/botdot downloads its update: abc1234 to def5678/);
 });
 
 test('step one: "when I say" downloads at night too, so that the owner has the version to switch to', async (t) => {
@@ -125,8 +129,7 @@ test('step one: "when I say" downloads at night too, so that the owner has the v
 test('step one: never while the account waits for a version already, whatever the owner chose', async (t) => {
   for (const when of ['ready', 'night']) {
     const timeZone = 'UTC';
-    const m = await oneAccount(t, { when, hour: hourIn(timeZone), answer: updateAnswers({ idle: () => false, quietHours: { start: 22, end: 7, timeZone } }) });
-    m.said('account-owner.json', waiting());
+    const m = await oneAccount(t, { when, hour: hourIn(timeZone), account: waiting(), answer: updateAnswers({ idle: () => false, quietHours: { start: 22, end: 7, timeZone } }) });
     await m.quiet();
     assert.ok(!m.asked().includes('UPDATE'), `${when}: root's step would switch it, two versions behind`);
     fs.rmSync(path.join(m.status, 'account-owner.json'));
@@ -136,14 +139,14 @@ test('step one: never while the account waits for a version already, whatever th
 
 test('step two: the account left waiting is switched by the same plan: "as soon as it\'s ready" at the first idle check', async (t) => {
   let idle = false;
-  const m = await oneAccount(t, { when: 'ready', newest: null, answer: updateAnswers({ idle: () => idle }) });
-  m.said('account-owner.json', waiting());
+  const m = await oneAccount(t, { when: 'ready', newest: null, account: waiting(), answer: updateAnswers({ idle: () => idle }) });
+  // Asked as the front door, as the account's server needs: waited for, as the front door may start asking before the stand-in listens.
+  await waitFor(() => m.owner.seen.some((r) => r.url === '/api/update/idle' && r.headers['x-botdot-room'] === '1' && r.headers['x-botdot-account'] === 'owner'), { what: 'the account asked whether it is idle' });
   await m.quiet(400);
   assert.deepEqual(m.asked(), [], 'busy: it tries again later');
-  assert.ok(m.owner.seen.some((r) => r.url === '/api/update/idle' && r.headers['x-botdot-room'] === '1' && r.headers['x-botdot-account'] === 'owner'), 'asked as the front door, as the account\'s server needs');
   idle = true;
   await waitFor(() => m.asked().includes('SWITCH-owner'), { what: 'the switch asked' });
-  assert.match(m.door.log.join(''), /the machine is asked to switch the account owner to the new version: idle\n/);
+  await m.door.logged(/the machine is asked to switch the account owner to the new version: idle\n/);
   assert.equal(m.asked().includes('UPDATE'), false);
 });
 
@@ -155,8 +158,7 @@ test('step two: "at night" switches in the night, and "when I say" never, on a m
     ['night', night, true], ['night', day, false], ['manual', night, false], ['manual', day, false],
   ];
   for (const [when, timeZone, switches] of cases) {
-    const m = await oneAccount(t, { when, newest: null, answer: updateAnswers({ quietHours: quietHours(timeZone) }) });
-    m.said('account-owner.json', waiting());
+    const m = await oneAccount(t, { when, newest: null, account: waiting(), answer: updateAnswers({ quietHours: quietHours(timeZone) }) });
     if (switches) await waitFor(() => m.asked().includes('SWITCH-owner'), { what: `${when} in ${timeZone}: switched` });
     else { await m.quiet(); assert.deepEqual(m.asked(), [], `${when} in ${timeZone}`); }
   }
@@ -166,22 +168,18 @@ test('step two: past its deadline, 7 days there, an account that waits is switch
   const quiet = { start: 22, end: 9, timeZone: zoneWhere(13, 19) };
   const late = (days) => new Date(Date.now() - days * 24 * 3600_000).toISOString();
   // 7 days and a few hours: idle, then switched at the first idle check, at any hour.
-  let m = await oneAccount(t, { when: 'manual', newest: null, answer: updateAnswers({ quietHours: quiet }) });
-  m.said('account-owner.json', waiting(late(7.1)));
+  let m = await oneAccount(t, { when: 'manual', newest: null, account: waiting(late(7.1)), answer: updateAnswers({ quietHours: quiet }) });
   await waitFor(() => m.asked().includes('SWITCH-owner'), { what: 'switched past the deadline' });
   // Busy: it waits for an idle moment, up to 24 hours after the deadline.
-  m = await oneAccount(t, { when: 'manual', newest: null, answer: updateAnswers({ idle: () => false, quietHours: quiet }) });
-  m.said('account-owner.json', waiting(late(7.1)));
+  m = await oneAccount(t, { when: 'manual', newest: null, account: waiting(late(7.1)), answer: updateAnswers({ idle: () => false, quietHours: quiet }) });
   await m.quiet();
   assert.deepEqual(m.asked(), [], 'busy within the 24 hours');
   // A day past the deadline it switches anyway.
-  m = await oneAccount(t, { when: 'manual', newest: null, answer: updateAnswers({ idle: () => false, quietHours: quiet }) });
-  m.said('account-owner.json', waiting(late(8.1)));
+  m = await oneAccount(t, { when: 'manual', newest: null, account: waiting(late(8.1)), answer: updateAnswers({ idle: () => false, quietHours: quiet }) });
   await waitFor(() => m.asked().includes('SWITCH-owner'), { what: 'switched anyway' });
-  assert.match(m.door.log.join(''), /to the new version: past the deadline\n/);
+  await m.door.logged(/to the new version: past the deadline\n/);
   // Within 7 days on this machine: the deadline is the default, there is no admin page to set it.
-  m = await oneAccount(t, { when: 'manual', newest: null });
-  m.said('account-owner.json', waiting(late(6)));
+  m = await oneAccount(t, { when: 'manual', newest: null, account: waiting(late(6)) });
   await m.quiet();
   assert.deepEqual(m.asked(), []);
 });
@@ -212,8 +210,7 @@ test('its owner has the setting: the one account of a machine reaches /front-doo
 });
 
 test('a managed machine of one account plans no switch: nothing is pinned, nothing asked, `updates` stays false', async (t) => {
-  const m = await oneAccount(t, { when: 'night', env: { FRONT_DOOR_MANAGED: '1' } });
-  m.said('account-owner.json', waiting());
+  const m = await oneAccount(t, { when: 'night', account: waiting(), env: { FRONT_DOOR_MANAGED: '1' } });
   await m.quiet(1000);
   assert.deepEqual(m.asked().filter((f) => f.startsWith('SWITCH-')), [], 'the fleet console is its admin: no one asks for a switch');
   const accounts = JSON.parse(fs.readFileSync(path.join(m.door.data, 'front-door.json'), 'utf8')).accounts;

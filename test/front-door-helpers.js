@@ -86,6 +86,9 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   const door = {
     port, origin, rpId: new URL(origin).hostname, data, sockets, log, browser, request, upgrade,
     firstLink: null,
+    // Waits until the front door's output says `pattern`. What it prints comes on a pipe of its own, and may reach the test
+    // after the request file or the answer that came of the same step: a test that checks the log reads it with this.
+    logged: (pattern) => waitFor(() => pattern.test(log.join('')), { what: `the front door to say ${pattern}` }),
     // A new sign-up link, made `ageDays` ago.
     newLink({ ageDays = 0 } = {}) {
       const { url } = store.open(data).newSignUpLink({ origin, now: Date.now() - ageDays * DAY });
