@@ -150,3 +150,33 @@ test('a message to the busy manager keeps its tile while it waits: in the bot, i
   srv.unhold();
   await waitFor(async () => (await srv.api(`/runs?botId=${lead.id}`)).data.every((r) => r.status !== 'running' && r.status !== 'queued'), { timeout: 30_000, what: 'both waiting messages ran' });
 });
+
+test('a bot that manages two projects must say which one the card is on: never the first by default', async (t) => {
+  const two = await startServer({ env: { BOT_DOT_GROUP_ROUTER: 'off', BOT_DOT_LEAD_DELAY_MS: 'off' } });
+  t.after(() => two.stop());
+  const at = (p, id) => `${p}?project=${encodeURIComponent(id)}`;
+  const pm = await makeBot(two, { name: 'Planner', emoji: '🗂️', prompt: 'Plans the launches.' });
+  const first = (await two.api('/company', { method: 'POST', body: { empty: true, name: 'Launch' } })).data.id;
+  const second = (await two.api('/company', { method: 'POST', body: { empty: true, name: 'Garden' } })).data.id;
+  assert.notEqual(first, second);
+  for (const id of [first, second]) assert.equal((await two.api(at('/company', id), { method: 'PATCH', body: { lead: pm.id, board: ['needs', 'work', 'blockers', 'replies'] } })).status, 200);
+  const runs = () => two.runs().length;
+  const before = runs();
+
+  const none = await two.api(`/bots/${pm.id}/run`, { method: 'POST', body: { prompt: 'Sort the replies', card: 'replies' } });
+  assert.equal(none.status, 400, JSON.stringify(none.data));
+  assert.match(none.data.error, /This bot runs 2 projects: say which one the card is on \(project\)\./);
+  const stranger = await two.api(`/bots/${pm.id}/run`, { method: 'POST', body: { prompt: 'Sort the replies', card: 'replies', project: 'nope' } });
+  assert.equal(stranger.status, 400, 'a project the bot does not manage is refused, not read as the first');
+  assert.match(stranger.data.error, /does not manage that project/);
+  assert.equal((await two.api(`/runs?botId=${pm.id}`)).data.length, 0, 'nothing kept');
+  assert.equal(runs(), before, 'nothing sent');
+
+  const named = await two.api(`/bots/${pm.id}/run`, { method: 'POST', body: { prompt: 'Sort the replies', card: 'replies', project: second } });
+  assert.equal(named.status, 201, JSON.stringify(named.data));
+  assert.deepEqual(named.data.card, { id: 'replies', label: 'Latest replies' });
+  const turn = await two.nextRun((x) => (x.stdin + x.system).includes('Sort the replies'), "the Project Manager's run");
+  assert.match(turn.stdin + turn.system, /This message is about the board tile "Latest replies" \(replies\)/);
+  await waitFor(async () => !(await two.api(`/bots/${pm.id}`)).data.running, { what: 'the run ends' });
+  assert.equal((await two.api(`/runs?botId=${pm.id}`)).data.find((r) => r.id === named.data.id).card.id, 'replies');
+});
