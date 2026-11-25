@@ -139,7 +139,9 @@ test('six review scenarios, each with a name of its own, seeded notes and runs, 
     assert.equal(new Set(r.notes.map((n) => n.key)).size, r.notes.length, `${r.name}: a key for each note`);
     assert.ok(r.notes.every((n) => n.key && n.text), r.name);
   }
-  assert.equal(review('r06').bot.useSkills, true, 'only the skills scenario needs a bot that writes skills');
+  // Skills are on for every bot unless switched off, so r01 to r05 say so: with them on the review also puts how-tos
+  // in skills, and a lesson saved as a skill would be graded as unwanted. Only r06 keeps them on, on purpose.
+  for (const r of REVIEW_SCENARIOS) assert.equal(r.bot.useSkills, r.name.startsWith('r06') ? true : false, `${r.name}: skills ${r.name.startsWith('r06') ? 'on' : 'off'}`);
   // Seeded as the store would hold them: the owner's note is the owner's and pinned by them.
   assert.ok(review('r03').notes.some((n) => n.owner));
   // Each one is graded as the unchanged store first: seeded and left alone ends well only where nothing is to be done.
@@ -222,6 +224,27 @@ test('r06: a how-to note ends as a skill that holds it, with the note removed', 
   assert.equal(gradeReview(r, after(r, { drop: ['deploy'], skills: [{ ...skill, instructions: 'Build it and upload it.' }] })).wanted, false, 'a skill that lost the steps');
   assert.equal(gradeReview(r, after(r, { drop: ['facts'], skills: [skill] })).wanted, false, 'the fact note went but the how-to stayed');
   assert.equal(gradeReview(r, after(r, { drop: ['deploy'], add: ['To deploy the blog run rsync -av dist/ web:/var/www/blog/.'], skills: [] })).wanted, false, 'moved into a note again, not a skill');
+});
+
+// What the review is handed, by scenario: the skill step (2) and the skills it may write are there only for r06.
+test('the review prompt has the skill step for r06 alone, so r01 to r05 measure notes only', async (t) => {
+  let srv = await startServer();
+  const { dir } = srv;
+  t.after(async () => { await srv.stop(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const bots = [];
+  for (const sc of REVIEW_SCENARIOS) bots.push({ sc, bot: await makeBot(srv, { ...sc.bot, name: sc.name }) });
+  await srv.stop();
+  for (const { sc, bot } of bots) { seedNotes(srv.data, bot.id, sc.notes); for (const r of sc.runs) seedRun(srv.data, bot, { prompt: r.prompt, result: r.result, days: r.days }); }
+  srv = await startServer({ dir });
+  for (const { sc, bot } of bots) {
+    const withSkills = sc.name.startsWith('r06');
+    assert.equal((await srv.api(`/bots/${bot.id}`)).data.useSkills, withSkills, `${sc.name}: the bot as stored`);
+    const started = await srv.api(`/memory/review/${bot.id}`, { method: 'POST' });
+    const run = await srv.nextRun((x) => x.stdin.includes('This run is your memory review') && x.stdin.includes(sc.notes[0].text), `the review of ${sc.name}`);
+    assert.equal(/2\. Look for how-tos/.test(run.stdin), withSkills, `${sc.name}: the skill step`);
+    assert.equal(run.stdin.includes('<your-skills>'), withSkills, `${sc.name}: the skills it may update`);
+    await srv.finished(started.data.run.id);
+  }
 });
 
 // The seeding is what the review is handed: the notes with who said them, the runs in "your runs", nothing else.

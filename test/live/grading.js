@@ -124,10 +124,15 @@ function grounded(text, source) {
 const flat = (t) => String(t || '').replace(/\s+/g, ' ').trim();
 
 const REVIEWER = { name: 'Home Helper', emoji: '🏠', prompt: "Help the owner run their home: shopping, repairs and the garden. Save what you learn about the owner's home, devices and suppliers." };
+// Skills are on for every bot unless its owner switches them off, and a bot with skills on gets step 2 in its review
+// ("put how-tos in a skill", lib/bots.js reviewPrompt) and may write skills. r01 to r05 grade what the review does with
+// notes, so their bot has skills off: with them on, a lesson saved as a skill instead of a note would be graded as
+// unwanted in r02, and an extra skill as a change in r04. Only r06, about skills, keeps them on.
+const NOTES_ONLY = { ...REVIEWER, useSkills: false };
 
 const REVIEW_SCENARIOS = [
   {
-    name: 'r01-duplicates', says: 'two notes that say the same thing in other words', bot: REVIEWER,
+    name: 'r01-duplicates', says: 'two notes that say the same thing in other words', bot: NOTES_ONLY,
     notes: [
       { key: 'bins-a', text: 'Recycling bins go out on Thursday evening, for the Friday pickup.', topic: 'bins' },
       { key: 'bins-b', text: 'Pickup of the recycling is Friday morning, so the bins are put out the night before, on Thursday.', topic: 'recycling' },
@@ -138,7 +143,7 @@ const REVIEW_SCENARIOS = [
     wanted: (g) => g.about === 1 && g.kept.includes('boiler'), // one is left, and the note that was no duplicate is still there
   },
   {
-    name: 'r02-lesson-in-runs', says: 'a run whose reply holds a lesson that was never saved', bot: REVIEWER,
+    name: 'r02-lesson-in-runs', says: 'a run whose reply holds a lesson that was never saved', bot: NOTES_ONLY,
     notes: [{ key: 'coffee', text: 'The owner drinks the dark roast of Kawiarnia Pod Lipą.', topic: 'coffee' }, { key: 'plants', text: 'The ficus in the hall is watered on Sundays.', topic: 'plants' }],
     runs: [
       { prompt: 'Order the usual coffee beans for this week.', result: 'I tried to order the usual dark roast, but Kawiarnia Pod Lipą delivers only on Tuesdays and Fridays, so an order placed on a Wednesday waits until Friday. I placed it for Friday delivery.', days: 3 },
@@ -148,13 +153,13 @@ const REVIEW_SCENARIOS = [
     wanted: (g) => g.writtenAbout >= 1, // a note, new or updated, holds it
   },
   {
-    name: 'r03-owner-said-untouched', says: 'a note marked "the owner said" that looks outdated', bot: REVIEWER,
+    name: 'r03-owner-said-untouched', says: 'a note marked "the owner said" that looks outdated', bot: NOTES_ONLY,
     notes: [{ key: 'gym', text: 'The gym is open until 22:00 on weekdays.', topic: 'gym', owner: true }, { key: 'locker', text: 'The gym locker number is 114.', topic: 'gym' }],
     runs: [{ prompt: 'When does the gym close today?', result: 'According to the gym\'s website it closes at 20:00 on weekdays now.', days: 2 }],
     wanted: (g) => g.kept.includes('gym') && !g.edited.includes('gym') && !g.repinned.includes('gym'), // as it was, still pinned by the owner
   },
   {
-    name: 'r04-nothing-to-do', says: 'a tidy memory', bot: REVIEWER,
+    name: 'r04-nothing-to-do', says: 'a tidy memory', bot: NOTES_ONLY,
     notes: [
       { key: 'wifi', text: 'The guest Wi-Fi network is called Casa-Guest.', topic: 'wifi' },
       { key: 'vet', text: 'The cat, Pepper, goes to the vet on Długa Street.', topic: 'cat' },
@@ -167,7 +172,7 @@ const REVIEW_SCENARIOS = [
     wanted: (g) => g.untouched,
   },
   {
-    name: 'r05-no-invention', says: 'runs that hold nothing to learn: no note whose words are in neither the notes nor the runs', bot: REVIEWER,
+    name: 'r05-no-invention', says: 'runs that hold nothing to learn: no note whose words are in neither the notes nor the runs', bot: NOTES_ONLY,
     notes: [{ key: 'garden', text: 'The garden hose is kept in the shed.', topic: 'garden' }],
     runs: [
       { prompt: 'Suggest a name for a new kitten.', result: 'How about Biscuit, Mango or Pepper? Any of them suits a ginger kitten.', days: 3 },
@@ -177,7 +182,7 @@ const REVIEW_SCENARIOS = [
     wanted: (g) => g.invented === 0,
   },
   {
-    name: 'r06-how-to-into-skill', says: 'a how-to note, for a bot with skills on', bot: { ...REVIEWER, useSkills: true },
+    name: 'r06-how-to-into-skill', says: 'a how-to note, for a bot with skills on', bot: { ...REVIEWER, useSkills: true }, // on is the default; said so that it stays on if the default changes
     notes: [
       { key: 'deploy', text: 'To deploy the blog: run npm run build, copy the dist folder with rsync -av dist/ web:/var/www/blog/, then open the blog and check that it loads.', topic: 'deploy blog' },
       { key: 'facts', text: 'The blog is written by the owner and is called Slow Mornings.', topic: 'blog' },
@@ -220,4 +225,4 @@ function gradeReview(scenario, store) {
   return { ...g, wanted: !!scenario.wanted(g) };
 }
 
-module.exports = { conversationOf, heldIn, valuesOf, realDate, grade, WRITE_SCENARIOS, WRITER, REVIEW_SCENARIOS, REVIEWER, gradeReview, keyWords, grounded };
+module.exports = { conversationOf, heldIn, valuesOf, realDate, grade, WRITE_SCENARIOS, WRITER, REVIEW_SCENARIOS, REVIEWER, NOTES_ONLY, gradeReview, keyWords, grounded };
