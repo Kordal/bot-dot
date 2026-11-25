@@ -7,7 +7,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, restartServer, readData, makeBot, sleep, waitFor } = require('./helpers');
+const { startServer, restartServer, readData, makeBot, sleep, waitFor, self } = require('./helpers');
 
 const isRunOf = (bot) => (x) => x.args.includes(`${bot.emoji} ${bot.name}`);
 const runsOf = async (srv, bot) => (await srv.api(`/runs?botId=${bot.id}`)).data;
@@ -59,5 +59,31 @@ test('after botdot was off for longer than an hour a run that was cut off stays 
     await sleep(500);
     assert.equal(srv.runs().filter((x) => isRunOf(bot)(x) && carriesOn(x)).length, 0);
     assert.equal((await runsOf(srv, bot)).length, 1);
+  } finally { srv.unhold(); await srv.stop(); }
+});
+
+// ADR 276: the owner's own request, carried on after a restart, is still their words; a main assignment's text is not.
+test('after a restart the run that carries on holds the owner\'s typed request as theirs, and a main assignment as no one\'s', async () => {
+  let srv = await startServer();
+  try {
+    const bot = await makeBot(srv, { name: 'Remember', emoji: '🧠', prompt: 'Keep every list meat free: the owner is vegan.', mayMessage: [] });
+    const note = (rec, text, quote) => self(srv, rec.self.env.RUN_TOKEN, 'memory', { action: 'add', text, quote }).then((r) => r.data.note.source);
+    srv.hold();
+    await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Remember that I live in Gdansk.' } });
+    await srv.nextRun((x) => isRunOf(bot)(x) && /Remember that I live in Gdansk/.test(x.stdin), 'the owner\'s run');
+    srv = await restartServer(srv);
+    const typed = await srv.nextRun((x) => isRunOf(bot)(x) && carriesOn(x), 'the owner\'s run, carried on');
+    assert.equal(await note(typed, 'Lives in Gdansk', 'I live in Gdansk'), 'owner');
+    srv.release(typed);
+    await waitFor(async () => (await runsOf(srv, bot)).every((r) => r.status !== 'running'), { what: 'the carried-on run to end' });
+
+    // "Run" with no request: the main assignment fills in, and it is cut off and carried on the same way.
+    srv.hold();
+    await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: {} });
+    await srv.nextRun((x) => isRunOf(bot)(x) && !carriesOn(x) && x.n !== typed.n && /Keep every list meat free/.test(x.stdin), 'the main assignment\'s run');
+    srv = await restartServer(srv);
+    const assigned = await srv.nextRun((x) => isRunOf(bot)(x) && carriesOn(x) && /Keep every list meat free/.test(x.stdin), 'the main assignment, carried on');
+    assert.equal(await note(assigned, 'The owner is vegan', 'the owner is vegan'), 'bot');
+    srv.release(assigned);
   } finally { srv.unhold(); await srv.stop(); }
 });

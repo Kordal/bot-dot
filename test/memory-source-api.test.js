@@ -657,6 +657,29 @@ test('ADR 276: a quote does not make a note the owner\'s where ADR 015 says it i
   assert.equal((await mem(review, { action: 'add', text: 'A reviewed note', quote: 'Check the mail' })).note.source, 'bot');
 });
 
+test('ADR 276: a main assignment and a Board tile\'s message are not the owner\'s words, though the owner started the run', async (t) => {
+  const assignment = 'Keep every list meat free: the owner is vegan.';
+  const b = await bot({ prompt: assignment });
+  // "Run": the main assignment fills in for a request, usually written by the Chief.
+  const ran = await held(t, b, () => srv.api(`/bots/${b.id}/run`, { method: 'POST', body: {} }).then((r) => r.data));
+  const fromAssignment = await mem(ran, { action: 'add', text: 'The owner is vegan', quote: 'the owner is vegan' });
+  assert.deepEqual([fromAssignment.result, fromAssignment.note.source], ['saved', 'bot']);
+  assert.match(fromAssignment.say, NOT_QUOTED);
+  srv.release(ran.rec);
+  await srv.finished(ran.run.id);
+  // A tile's message, written when the tile was made: the owner only tapped it.
+  const tile = (await srv.asChief('/dashboard/tiles', { method: 'POST', body: { bot: b.id, kind: 'button', title: 'Vegan list', do: { type: 'bot', message: 'Make the vegan list: the owner is vegan.' } } })).data;
+  const tapped = await held(t, b, async () => ({ id: (await srv.api(`/dashboard/tiles/${tile.id}/tap`, { method: 'POST', body: {} })).data.runId }));
+  const fromTile = await mem(tapped, { action: 'add', text: 'Lists for the owner come without meat', quote: 'Make the vegan list' });
+  assert.deepEqual([fromTile.result, fromTile.note.source], ['saved', 'bot']);
+  assert.match(fromTile.say, NOT_QUOTED);
+  srv.release(tapped.rec);
+  await srv.finished(tapped.run.id);
+  // What the owner typed in their own request is theirs, in the same bot.
+  const typedRun = await held(t, b, startedBy(b, 'Please remember that I am vegan.'));
+  assert.equal((await mem(typedRun, { action: 'add', text: 'Eats no meat or fish', quote: 'I am vegan' })).note.source, 'owner');
+});
+
 test('ADR 276: the owner\'s words are the task and their lines of the chat; a quote of anything else is not found', async (t) => {
   const b = await bot();
   // An earlier exchange of the chat, asked by the owner, stays in the block of the next run.

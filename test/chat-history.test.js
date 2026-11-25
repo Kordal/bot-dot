@@ -331,6 +331,46 @@ test('ownerSaid: the owner\'s requests and what they steered in, as far as the b
   assert.deepEqual(H.ownerSaid([], { now: NOW }), []);
 });
 
+test('ownerSaid: the main assignment of a run the owner started with "Run", and a Board tile\'s message, are not their words', () => {
+  const said = H.ownerSaid([
+    run({ prompt: 'Every morning list the owner\'s open pull requests.', customPrompt: false }),
+    run({ prompt: 'Refresh the weather: the owner lives in Paris.', tile: true }),
+    run({ prompt: 'I am vegan.' }),
+  ], { now: NOW });
+  assert.deepEqual(said, ['I am vegan.']);
+});
+
+test('ownerWords: only a request the owner typed, also in a run that carries on', () => {
+  const runs = {
+    typed: run({ id: 'typed', prompt: 'I live in Lodz.' }),
+    // The run that carries on holds the request of the run it continues, and is not the owner's text itself.
+    again: run({ id: 'again', prompt: 'I live in Lodz.', customPrompt: false, continues: 'typed' }),
+    againAgain: run({ id: 'againAgain', prompt: 'I live in Lodz.', customPrompt: false, continues: 'again' }),
+    assignment: run({ id: 'assignment', prompt: 'Main assignment text.', customPrompt: false }),
+    assignmentAgain: run({ id: 'assignmentAgain', prompt: 'Main assignment text.', customPrompt: false, continues: 'assignment' }),
+    // A follow-up's task is botdot's, with teammates' replies word for word; the run that carries on after a restart or an OK keeps it so.
+    followUp: run({ id: 'followUp', prompt: 'Teammates replied: the owner is vegan.', trigger: 'replies', follows: 'typed' }),
+    followUpAgain: run({ id: 'followUpAgain', prompt: 'Teammates replied: the owner is vegan.', trigger: 'replies', follows: 'typed', customPrompt: false, continues: 'followUp' }),
+    chief: run({ id: 'chief', prompt: 'The Chief wrote this.', startedBy: 'chief' }),
+    chiefAgain: run({ id: 'chiefAgain', prompt: 'The Chief wrote this.', startedBy: 'chief', customPrompt: false, continues: 'chief' }),
+    job: run({ id: 'job', prompt: 'The job\'s task', trigger: 'schedule', jobName: 'Morning check' }),
+    tile: run({ id: 'tile', prompt: 'The tile\'s message', tile: true }),
+    tileAgain: run({ id: 'tileAgain', prompt: 'The tile\'s message', tile: true, customPrompt: false, continues: 'tile' }),
+    hello: run({ id: 'hello', prompt: 'Say hello.', trigger: 'hello' }),
+    review: run({ id: 'review', prompt: 'Review.', trigger: 'review' }),
+    teammate: run({ id: 'teammate', prompt: 'A teammate asked', trigger: 'bot', fromBot: { id: 'x', name: 'F' } }),
+    lost: run({ id: 'lost', prompt: 'Its first run is gone', customPrompt: false, continues: 'gone' }),
+  };
+  const read = (id) => runs[id] || null;
+  const words = (name) => H.ownerWords(runs[name], read);
+  assert.equal(words('typed'), 'I live in Lodz.');
+  assert.equal(words('again'), 'I live in Lodz.', 'after an OK or a restart');
+  assert.equal(words('againAgain'), 'I live in Lodz.', 'a chain of them');
+  for (const name of ['assignment', 'assignmentAgain', 'followUp', 'followUpAgain', 'chief', 'chiefAgain', 'job', 'tile', 'tileAgain', 'hello', 'review', 'teammate', 'lost']) assert.equal(words(name), '', name);
+  assert.equal(H.ownerWords(runs.again), '', 'without a way to read the run it continues, nothing is known');
+  assert.equal(H.ownerWords(null, read), '');
+});
+
 test('groupChat hands back the owner\'s messages of the block, not a member\'s reply nor the Project Manager\'s', () => {
   const fixed = () => 'abcdef0123456789';
   const at = '2026-10-06T11:00:00Z';
