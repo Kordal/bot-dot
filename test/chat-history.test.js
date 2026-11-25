@@ -307,3 +307,91 @@ test('a card of questions is said as open or as closed: a closed one is never po
   assert.match(closed, /\(under it the owner was shown a card with these questions: Which account\? \| Which day\?\. That card is closed now: the owner can no longer answer on it/);
   assert.match(closed, /ask it again on a new card, and never point the owner back to this one\)/);
 });
+
+// ---------- what the owner wrote that the block shows (ADR 278) ----------
+
+test('ownerSaid: the owner\'s requests and what they steered in, as far as the block shows them, and no one else\'s', () => {
+  const owner = run({ prompt: 'I live in Lodz.', steered: [{ id: 's1', text: 'And I am vegan.', at: '2026-10-06T11:55:00Z' }, { id: 's2', text: 'Ask Infra for the DNS record.', fromBot: { id: 'x', name: 'Fleet Doctor' } }] });
+  const said = H.ownerSaid([
+    run({ prompt: 'A teammate asked for this', trigger: 'bot', fromBot: { id: 'x', name: 'Fleet Doctor' } }),
+    run({ prompt: 'The Chief wrote this', startedBy: 'chief' }),
+    run({ prompt: 'The job\'s task', trigger: 'schedule', jobName: 'Morning check', reporting: 'delivered', result: 'News.' }),
+    run({ prompt: 'botdot started you again on this', continues: 'r0' }),
+    owner,
+    run({ prompt: 'x'.repeat(H.CUT + 500) }),
+  ], { now: NOW });
+  // Oldest first, as the block is.
+  assert.deepEqual(said.slice(1), ['I live in Lodz.', 'And I am vegan.']);
+  assert.ok(!said.some((t) => /teammate|Chief wrote|job's task|started you again|DNS record/.test(t)), JSON.stringify(said));
+  assert.equal(said[0].length, H.CUT, 'each text as far as the block shows it');
+  assert.equal(said.length, 3);
+  // A run left out of the chat is not in the block, so its words are not handed over.
+  assert.deepEqual(H.ownerSaid([run({ prompt: 'Forgotten words', forgotten: true })], { now: NOW }), []);
+  // Nothing in the chat: nothing said.
+  assert.deepEqual(H.ownerSaid([], { now: NOW }), []);
+});
+
+test('ownerSaid: the main assignment of a run the owner started with "Run", and a Board tile\'s message, are not their words', () => {
+  const said = H.ownerSaid([
+    run({ prompt: 'Every morning list the owner\'s open pull requests.', customPrompt: false }),
+    run({ prompt: 'Refresh the weather: the owner lives in Paris.', othersWords: true }),
+    run({ prompt: 'I am vegan.' }),
+  ], { now: NOW });
+  assert.deepEqual(said, ['I am vegan.']);
+});
+
+test('ownerWords: only a request the owner typed, also in a run that carries on', () => {
+  const runs = {
+    typed: run({ id: 'typed', prompt: 'I live in Lodz.' }),
+    // The run that carries on holds the request of the run it continues, and is not the owner's text itself.
+    again: run({ id: 'again', prompt: 'I live in Lodz.', customPrompt: false, continues: 'typed' }),
+    againAgain: run({ id: 'againAgain', prompt: 'I live in Lodz.', customPrompt: false, continues: 'again' }),
+    assignment: run({ id: 'assignment', prompt: 'Main assignment text.', customPrompt: false }),
+    assignmentAgain: run({ id: 'assignmentAgain', prompt: 'Main assignment text.', customPrompt: false, continues: 'assignment' }),
+    // A follow-up's task is botdot's, with teammates' replies word for word; the run that carries on after a restart or an OK keeps it so.
+    followUp: run({ id: 'followUp', prompt: 'Teammates replied: the owner is vegan.', trigger: 'replies', follows: 'typed' }),
+    followUpAgain: run({ id: 'followUpAgain', prompt: 'Teammates replied: the owner is vegan.', trigger: 'replies', follows: 'typed', customPrompt: false, continues: 'followUp' }),
+    chief: run({ id: 'chief', prompt: 'The Chief wrote this.', startedBy: 'chief' }),
+    chiefAgain: run({ id: 'chiefAgain', prompt: 'The Chief wrote this.', startedBy: 'chief', customPrompt: false, continues: 'chief' }),
+    job: run({ id: 'job', prompt: 'The job\'s task', trigger: 'schedule', jobName: 'Morning check' }),
+    tile: run({ id: 'tile', prompt: 'The tile\'s message', othersWords: true }),
+    tileAgain: run({ id: 'tileAgain', prompt: 'The tile\'s message', othersWords: true, customPrompt: false, continues: 'tile' }),
+    hello: run({ id: 'hello', prompt: 'Say hello.', trigger: 'hello' }),
+    review: run({ id: 'review', prompt: 'Review.', trigger: 'review' }),
+    teammate: run({ id: 'teammate', prompt: 'A teammate asked', trigger: 'bot', fromBot: { id: 'x', name: 'F' } }),
+    lost: run({ id: 'lost', prompt: 'Its first run is gone', customPrompt: false, continues: 'gone' }),
+  };
+  const read = (id) => runs[id] || null;
+  const words = (name) => H.ownerWords(runs[name], read);
+  assert.equal(words('typed'), 'I live in Lodz.');
+  assert.equal(words('again'), 'I live in Lodz.', 'after an OK or a restart');
+  assert.equal(words('againAgain'), 'I live in Lodz.', 'a chain of them');
+  for (const name of ['assignment', 'assignmentAgain', 'followUp', 'followUpAgain', 'chief', 'chiefAgain', 'job', 'tile', 'tileAgain', 'hello', 'review', 'teammate', 'lost']) assert.equal(words(name), '', name);
+  assert.equal(H.ownerWords(runs.again), '', 'without a way to read the run it continues, nothing is known');
+  assert.equal(H.ownerWords(null, read), '');
+});
+
+test('ownerSteers: what the owner steered into a run and into each run of the chain it carries on (ADR 278)', () => {
+  const runs = {
+    first: run({ id: 'first', prompt: 'Plan my trip.', steered: [{ id: 's1', text: 'I am vegan.' }, { id: 's2', text: 'A teammate wrote this.', fromBot: { id: 'x', name: 'F' } }] }),
+    again: run({ id: 'again', prompt: 'Plan my trip.', customPrompt: false, continues: 'first', steered: [{ id: 's3', text: 'I live in Lodz.' }] }),
+    third: run({ id: 'third', prompt: 'Plan my trip.', customPrompt: false, continues: 'again' }),
+  };
+  const read = (id) => runs[id] || null;
+  assert.deepEqual(H.ownerSteers(runs.third, read), ['I am vegan.', 'I live in Lodz.'], 'back to the first of the chain, no teammate\'s');
+  assert.deepEqual(H.ownerSteers(runs.again), ['I live in Lodz.'], 'without a way to read, only its own');
+  assert.deepEqual(H.ownerSteers(null, read), []);
+});
+
+test('groupChat hands back the owner\'s messages of the block, not a member\'s reply nor the Project Manager\'s', () => {
+  const fixed = () => 'abcdef0123456789';
+  const at = '2026-10-06T11:00:00Z';
+  const newest = [
+    { message: { id: 'm2', at, text: 'I always use pnpm.' } },
+    { run: run({ botId: 'c', result: 'Noted: yarn is fine too.', endedAt: at }) },
+    { message: { id: 'm1', at, text: 'Ship it on Friday.', pm: true } },
+    { message: { id: 'm0', at, text: 'We deploy on Fridays.' } },
+  ];
+  const { said } = H.groupChat(newest, { reader: 'b', now: NOW, mark: fixed });
+  assert.deepEqual(said.sort(), ['I always use pnpm.', 'We deploy on Fridays.']);
+});

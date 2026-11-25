@@ -156,3 +156,20 @@ test("the owner's message is not steered into a run a teammate started", async (
   await waitFor(async () => (await runsOf(helper)).length === 2 && (await going(helper)).length === 0, { what: 'both runs of the helper' });
   await ended(asker);
 });
+
+test('ADR 278: what a teammate steered into an owner\'s run is no word of the owner\'s: a note quoting it is not theirs', async () => {
+  const manager = await makeBot(srv, { name: 'Quote Manager', emoji: '🪞' });
+  const admin = await makeBot(srv, { name: 'Quote Infra', emoji: '🧯' });
+  srv.reply('Done.');
+  const work = await heldRun(srv, admin, 'Prepare the DNS records');
+  const m = await heldRun(srv, manager, 'Ask Infra to add the www record');
+  const remember = (text, quote) => self(srv, work.token, 'memory', { action: 'add', text, quote }).then((r) => r.data);
+  sorts('{"decision":"steer","run":1}');
+  assert.equal((await message(m.token, admin, 'Bart wants the TTL set to 300 seconds.')).delivered, 'steered');
+  assert.match(await toolCall(work.token), /TTL set to 300 seconds/);
+  assert.notEqual((await remember('The TTL is 300 seconds', 'wants the TTL set to 300 seconds')).note.source, 'owner');
+  assert.equal((await remember('Prepares the DNS records', 'Prepare the DNS records')).note.source, 'owner', 'the owner\'s own task still counts, a teammate\'s message having been read or not');
+  srv.release(m.rec);
+  srv.release(work.rec);
+  unsorted();
+});

@@ -6,7 +6,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, self, sharedByBot, waitFor, readData, writeData } = require('./helpers');
+const { startServer, makeBot, self, sharedByBot, waitFor, readData, writeData, hookCall } = require('./helpers');
 const { rpcClient, scratchMemory } = require('./memory-helpers');
 const { TOOLS } = require('../lib/mcp-server');
 const { MEMORY_WRITES, READS, CLEAN, readKind } = require('../lib/chief-tools');
@@ -107,15 +107,15 @@ test('a turn the owner started records it, is given the tools that write memory,
   assert.equal((await turn.going()).startedBy, 'owner');
   for (const name of [...MEMORY_WRITES, 'list_notes', 'recall']) assert.ok((await names(turn.tools)).includes(name), name);
 
-  const bots = await turn.call('remember', { note: 'BotDot uses PostgreSQL (decided 2026-10-07)', place: 'bots', bots: ['coder', reviewer.id, 'Ghost'], topic: 'database' });
+  const bots = await turn.call('remember', { note: 'BotDot uses PostgreSQL (decided 2026-10-07)', place: 'bots', bots: ['coder', reviewer.id, 'Ghost'], topic: 'database', quote: 'We decided to use PostgreSQL for BotDot' });
   assert.equal(bots.result, 'saved');
   assert.deepEqual(bots.saved.map((x) => [x.bot, x.saidBy, x.pinned]), [['Coder', 'owner', true], ['Reviewer', 'owner', true]]);
   assert.deepEqual(bots.notSaved.map((x) => x.bot), ['Ghost'], 'a bot that does not exist: nothing is saved for it, and the answer says so');
   assert.match(bots.say, /^Saved with Coder as \[\w+\], with Reviewer as \[\w+\]\. It is in that bot's instructions from its next run; nothing was started\. It is recorded as the user's own word\.\nNot saved for "Ghost": no bot has the name or id "Ghost"; it may have been deleted\. Nothing was saved for it\.$/);
   assert.equal(bots.chip, 'Remembered for Coder and Reviewer: BotDot uses PostgreSQL (decided 2026-10-07)');
-  const all = await turn.call('remember', { note: 'The owner lives in Gdansk', place: 'everyone' });
+  const all = await turn.call('remember', { note: 'The owner lives in Gdansk', place: 'everyone', quote: 'I live in Gdansk' });
   assert.equal(all.chip, 'Remembered for all bots: The owner lives in Gdansk');
-  const mine = await turn.call('remember', { note: 'Ask the owner before creating a bot', place: 'me' });
+  const mine = await turn.call('remember', { note: 'Ask the owner before creating a bot', place: 'me', quote: 'ask me before you create a bot' });
   assert.equal(mine.chip, 'Noted for myself: Ask the owner before creating a bot');
 
   // The store: whose note, who said it, who wrote it.
@@ -128,7 +128,7 @@ test('a turn the owner started records it, is given the tools that write memory,
   assert.deepEqual([again.result, again.chip, again.already.length], ['already', undefined, 1]);
   assert.match(again.say, /^Already there, nothing new was saved: for everyone as \[\w+\]\.$/);
   const third = await makeBot(srv, { name: 'Deployer', mayMessage: [] });
-  const more = await turn.call('remember', { note: 'BotDot uses PostgreSQL (decided 2026-10-07)', place: 'bots', bots: ['Coder', 'Deployer'], topic: 'database' });
+  const more = await turn.call('remember', { note: 'BotDot uses PostgreSQL (decided 2026-10-07)', place: 'bots', bots: ['Coder', 'Deployer'], topic: 'database', quote: 'We decided to use PostgreSQL for BotDot' });
   assert.equal(more.chip, 'Remembered for Deployer: BotDot uses PostgreSQL (decided 2026-10-07)');
   // Nobody was started for it.
   assert.ok(!srv.runs().some((r) => r.self), 'no bot ran');
@@ -167,7 +167,7 @@ test('a turn the owner started records it, is given the tools that write memory,
 
 test('after the turn read a bot\'s reply, a note is not the owner\'s, and a change or a forget of what the owner said waits on a card', async (t) => {
   const said = await ownerTurn(t, 'Remember for Coder: deploys go out on Fridays.');
-  const first = await said.call('remember', { note: 'Deploys go out on Fridays', place: 'bots', bots: ['Coder'] });
+  const first = await said.call('remember', { note: 'Deploys go out on Fridays', place: 'bots', bots: ['Coder'], quote: 'deploys go out on Fridays' });
   assert.equal(first.saved[0].saidBy, 'owner');
   await said.end();
 
@@ -225,7 +225,7 @@ test('the Chief lists a bot\'s notes in pages with the total, and corrects, remo
   assert.equal((await turn.going()).read, undefined, 'notes the owner said are not a bot\'s text');
   const id = (text) => every.notes.find((n) => n.text === text).id;
 
-  const fixed = await turn.call('update_note', { id: id('Shelf 2 holds the atlases'), note: 'Shelf 2 holds the maps', reason: 'the owner corrected it' });
+  const fixed = await turn.call('update_note', { id: id('Shelf 2 holds the atlases'), note: 'Shelf 2 holds the maps', reason: 'the owner corrected it', quote: 'Shelf 2 holds the maps' });
   assert.deepEqual([fixed.result, fixed.chip], ['saved', 'Updated for Librarian: Shelf 2 holds the maps']);
   const same = await turn.call('update_note', { id: id('Shelf 2 holds the atlases'), note: 'Shelf 2 holds the maps' });
   assert.deepEqual([same.result, same.chip], ['already', undefined], 'an edit that changed nothing makes no chip');
@@ -262,7 +262,7 @@ test('a forget told to the Chief reaches the shared notes, its own and every bot
   await srv.finished(run.id);
   const saying = await ownerTurn(t, 'I am planning a ZANZIBAR trip: note it everywhere.');
   const ids = [];
-  for (const args of [{ place: 'everyone' }, { place: 'me' }, { place: 'bots', bots: ['Diarist'] }]) ids.push((await saying.call('remember', { note: 'The owner plans a ZANZIBAR trip', ...args })).notes[0]);
+  for (const args of [{ place: 'everyone' }, { place: 'me' }, { place: 'bots', bots: ['Diarist'] }]) ids.push((await saying.call('remember', { note: 'The owner plans a ZANZIBAR trip', quote: 'I am planning a ZANZIBAR trip', ...args })).notes[0]);
   await saying.end();
 
   const turn = await ownerTurn(t, 'Forget the ZANZIBAR trip.');
@@ -294,14 +294,14 @@ test('a forget told to the Chief reaches the shared notes, its own and every bot
 test('reading counts by what is handed over: a past run or a note that is not the owner\'s, a file, the Board; not the owner\'s own notes, nor the bots\' settings', async (t) => {
   const b = await makeBot(srv, { name: 'Gardener', mayMessage: [] });
   await srv.api('/memory/notes', { method: 'POST', body: { owner: b.id, text: 'The MAGNOLIA is watered on Mondays' } });
-  const clean = await ownerTurn(t, 'What do you know about the magnolia?');
+  const clean = await ownerTurn(t, 'What do you know about the magnolia? The magnolia stands by the gate.');
   await clean.call('list_bots');
   assert.ok(!JSON.stringify(await clean.call('list_bots')).includes('"asks"'), 'the bots\' settings alone');
   await clean.call('recall', { query: 'MAGNOLIA watered', in: 'notes' });
   await clean.call('list_notes', { of: 'Gardener', saidBy: 'owner' });
   await clean.uses('Skill', { skill: 'chief:memory-setup' });
   assert.equal((await clean.going()).read, undefined);
-  assert.equal((await clean.call('remember', { note: 'The magnolia stands by the gate', place: 'bots', bots: ['Gardener'] })).saved[0].saidBy, 'owner');
+  assert.equal((await clean.call('remember', { note: 'The magnolia stands by the gate', place: 'bots', bots: ['Gardener'], quote: 'The magnolia stands by the gate' })).saved[0].saidBy, 'owner');
   // Its own note of before is now a note said after... no: it is the owner's; a later one, saved after a file, is not.
   await clean.uses('Read', { file_path: 'uploads/plan.txt' });
   assert.deepEqual((await clean.going()).read, ['file']);
@@ -430,7 +430,7 @@ test('a turn botdot started is given no tool that writes memory, and the route r
 test('before a turn the owner started, the Chief is given the lookup over its own notes and its past chats; a turn botdot started gets none', async (t) => {
   // An unpinned note of its own, and a past chat.
   const first = await ownerTurn(t, 'When I say OKAPI I mean the staging server.');
-  const noted = await first.call('remember', { note: 'OKAPI is the staging server', place: 'me' });
+  const noted = await first.call('remember', { note: 'OKAPI is the staging server', place: 'me', quote: 'When I say OKAPI I mean the staging server' });
   const chat = await first.end('Noted: OKAPI is staging.');
   const note = (await srv.api(`/memory/notes/${noted.notes[0]}`, { method: 'PUT', body: { pinned: false } })).data;
   assert.equal(note.pinned, false);
@@ -500,7 +500,7 @@ test('a done memory change is no row under a Chief reply, live or after a reload
     }
   })().catch(() => {});
   await waitFor(() => turn.going(), { what: 'the reply to be going' });
-  const done = await turn.call('remember', { note: 'The owner likes tea', place: 'everyone' });
+  const done = await turn.call('remember', { note: 'The owner likes tea', place: 'everyone', quote: 'the owner likes tea' });
   assert.equal(done.chip, 'Remembered for all bots: The owner likes tea');
   await turn.answered(await turn.asks('mcp__botdot__create_bot'), JSON.stringify({ id: 'gardener', name: 'Gardener' }));
   // After a bot's text, a forget of what the owner said waits for them.
@@ -536,4 +536,98 @@ test('a done memory change is no row under a Chief reply, live or after a reload
   assert.deepEqual((await chatNow(turn.chat)).messages.at(-1).actions, old.slice(3));
   assert.deepEqual((await chatNow(turn.chat)).messages.at(-2).actions, undefined, 'a message without actions is as it was');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).messages.at(-1).actions, old);
+});
+
+// ---------- a note is the owner's only when it holds the owner's own words (ADR 278) ----------
+
+test('ADR 278: the Chief files a note as the owner\'s word only with a quote found in what the owner wrote in the chat; otherwise as its own conclusion, and nothing is refused', async (t) => {
+  const chat = await newChat();
+  const earlier = await ownerTurn(t, 'My cat is called Pixel, and I live in Lodz.', chat);
+  const first = await earlier.call('remember', { note: 'The owner lives in Lodz', place: 'everyone', quote: 'I live in Lodz.' });
+  assert.deepEqual([first.result, first.saved[0].saidBy, first.chip], ['saved', 'owner', 'Remembered for all bots: The owner lives in Lodz']);
+  assert.doesNotMatch(first.say, /not quoted/);
+  await earlier.end();
+
+  const turn = await ownerTurn(t, 'Find me a vegan lasagne recipe.', chat);
+  // The owner's earlier line of the same chat counts: the Chief's session holds it.
+  assert.equal((await turn.call('remember', { note: 'The cat is Pixel', place: 'me', quote: 'My cat is called PIXEL' })).saved[0].saidBy, 'owner');
+  // A task is no fact about them; a quote that is nowhere, none, one word, or the Chief's own words do not count.
+  for (const [note, quote] of [['The owner is vegan', undefined], ['The owner is vegetarian', 'I am vegetarian'], ['The owner eats vegan food', 'vegan'], ['The owner likes lasagne', ''], ['The owner is a cook', 'I said']]) {
+    const r = await turn.call('remember', { note, place: 'bots', bots: ['coder'], quote });
+    assert.deepEqual([r.result, r.saved[0].saidBy], ['saved', 'bot'], `${note} / ${quote}`);
+    assert.match(r.say, /It is recorded as your own conclusion, not as the user's own word, because the user's words were not quoted\. When the user did say it, save it again with "quote"/);
+    assert.match(r.chip, /^Remembered for Coder, its own conclusion: /);
+  }
+  assert.equal((await notesOf(coder.id)).find((n) => n.text === 'The owner is vegan').source, 'bot');
+  // The quote is checked and thrown away.
+  assert.ok(!JSON.stringify([(await srv.api('/memory')).data, await chatNow(turn.chat)]).includes('"quote"'));
+  // The task itself is found: "Find me a vegan lasagne recipe" quoted is the owner's words, as the instruction forbids and a live scenario grades.
+  assert.equal((await turn.call('remember', { note: 'The owner wants a lasagne recipe', place: 'me', quote: 'a vegan lasagne recipe' })).saved[0].saidBy, 'owner');
+
+  // update_note too: with the words found the note stays the owner's word; without them it is the Chief's conclusion.
+  const note = (await turn.call('remember', { note: 'Lives in Lodz', place: 'everyone', quote: 'I live in Lodz' })).notes[0];
+  const change = await turn.call('update_note', { id: note, note: 'Lives in Lodz, Poland' });
+  assert.equal(change.result, 'saved');
+  assert.match(change.say, /because the user's words were not quoted/);
+  assert.equal((await notesOf('_shared')).find((n) => n.id === note).source, 'bot');
+  const again = await turn.call('update_note', { id: note, note: 'Lives in Lodz, in Poland', quote: 'My cat is called Pixel, and I live in Lodz' });
+  assert.equal((await notesOf('_shared')).find((n) => n.id === note).source, 'owner');
+  assert.doesNotMatch(again.say, /not quoted/);
+  // The tools say so.
+  const listed = (await turn.tools.request('tools/list')).tools;
+  for (const name of ['remember', 'update_note']) assert.equal(listed.find((x) => x.name === name).inputSchema.properties.quote.type, 'string', name);
+  await turn.end();
+});
+
+test('ADR 278: a change of a note\'s end or topic alone leaves who said it; a new text without a quote is the Chief\'s', async (t) => {
+  const turn = await ownerTurn(t, 'I am in Berlin this week.');
+  const note = (await turn.call('remember', { note: 'The owner is in Berlin this week', place: 'everyone', quote: 'I am in Berlin this week' })).notes[0];
+  const savedBy = async () => (await notesOf('_shared')).find((n) => n.id === note).source;
+  assert.equal(await savedBy(), 'owner');
+  const until = await turn.call('update_note', { id: note, until: '2099-01-01' });
+  assert.equal(until.result, 'saved');
+  assert.equal(await savedBy(), 'owner', 'a new end puts no new words in their mouth');
+  await turn.call('update_note', { id: note, note: '  The owner is in  Berlin this week ', topic: 'travel' });
+  assert.equal(await savedBy(), 'owner', 'the same text once cleaned, a new topic');
+  await turn.call('update_note', { id: note, note: 'The owner is in Berlin this week, then Rome' });
+  assert.equal(await savedBy(), 'bot', 'new words without a quote');
+  await turn.end();
+});
+
+test('ADR 278: what the owner steered into the turn is their words too, and a quote of it is found', async (t) => {
+  srv.hold();
+  const chat = await newChat();
+  await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Plan my week.' } });
+  const rec = await srv.nextRun((r) => isChief(r) && r.stdin.includes('Plan my week.'), "the Chief's turn");
+  const turn = await turnOf(t, rec, chat);
+  const w = (await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Note that I work from Gdansk on Mondays.' } })).data.queued[0];
+  assert.equal((await srv.api(`/chief/chats/${chat.id}/queued/${w.id}/steer`, { method: 'POST' })).status, 200);
+  const read = (await hookCall(rec.settings, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_response: 'x' })).hookSpecificOutput;
+  assert.ok(read.additionalContext.includes('Gdansk'), 'the turn read it');
+  const r = await turn.call('remember', { note: 'The owner works from Gdansk on Mondays', place: 'me', quote: 'I work from Gdansk on Mondays' });
+  assert.equal(r.saved[0].saidBy, 'owner');
+  assert.doesNotMatch(r.say, /not quoted/);
+  await turn.end();
+});
+
+test('ADR 278: a message of files alone makes no words of the owner: the line botdot puts for it is not quotable', async (t) => {
+  srv.hold();
+  const chat = await newChat();
+  const file = (await srv.api('/uploads?to=chief', { method: 'POST', raw: Buffer.from('a list'), headers: { 'X-File-Name': 'list.txt' } })).data;
+  assert.equal((await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: '', attachments: [file] } })).status, 201);
+  const rec = await srv.nextRun((r) => isChief(r) && r.stdin.includes('attached files'), "the Chief's turn");
+  const turn = await turnOf(t, rec, chat);
+  const r = await turn.call('remember', { note: 'The owner wants the files looked at', place: 'me', quote: 'look at the attached files' });
+  assert.equal(r.saved[0].saidBy, 'bot');
+  assert.match(r.say, /not quoted/);
+  await turn.end();
+});
+
+test('ADR 278: after the turn read a bot\'s text a quoted note is outside, as before', async (t) => {
+  const turn = await ownerTurn(t, 'I always deploy on Fridays. What did Coder do last?');
+  await turn.uses('mcp__botdot__list_runs', { botId: coder.id });
+  const late = await turn.call('remember', { note: 'Deploys on Fridays', place: 'bots', bots: ['Coder'], quote: 'I always deploy on Fridays' });
+  assert.equal(late.saved[0].saidBy, 'outside');
+  assert.doesNotMatch(late.say, /not quoted/);
+  await turn.end();
 });

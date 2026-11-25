@@ -223,3 +223,18 @@ test('after a restart a message the run read stays read: it starts nothing, and 
     assert.equal((await runsOf(s2, bot)).length, 1);
   } finally { s2.unhold(); await s2.stop(); }
 });
+
+test('ADR 278: what the owner steered into a run is among the words a note of it may quote', async () => {
+  const bot = await makeBot(srv, { name: 'Steered Quote', emoji: '🗣️' });
+  srv.reply('Done.');
+  const h = await heldRun(srv, bot, 'Move the build to staging');
+  const remember = (text, quote) => self(srv, h.token, 'memory', { action: 'add', text, quote }).then((r) => r.data);
+  const w = (await send(srv, bot, { prompt: 'From now on I only use the Fish shell.', key: 'steer-quote-1' })).data;
+  // Not read yet: the run was not handed it.
+  assert.equal((await remember('Uses Fish', 'I only use the Fish shell')).note.source, 'bot');
+  assert.equal((await steer(srv, bot, w.id)).status, 200);
+  assert.match(await toolCall(srv, h.token), /Fish shell/);
+  const kept = await remember('Only uses the Fish shell', 'From now on I only use the Fish shell');
+  assert.equal(kept.note.source, 'owner');
+  assert.equal((await remember('Moves the build', 'Move the build to staging')).note.source, 'owner', 'its task, as before');
+});

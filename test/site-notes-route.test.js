@@ -47,7 +47,9 @@ after(async () => { await srv.stop(); await new Promise((r) => helper.close(r));
 
 const browser = (held, body) => srv.api('/vault/session/computer/browser', { method: 'POST', headers: { 'X-Vault-Token': held.token }, body });
 const goto = (held, url, arrive = true) => browser(held, { op: 'goto', url, ...(arrive ? { arrive: true } : {}) });
-const remember = async (held, body) => (await self(srv, held.rec.self.env.RUN_TOKEN, 'memory', { action: 'add', ...body })).data;
+// A note is the owner's word only with a quote found in what they wrote (ADR 278): the run's task is "Test message".
+const SAID = 'Test message';
+const remember = async (held, body) => (await self(srv, held.rec.self.env.RUN_TOKEN, 'memory', { action: 'add', quote: SAID, ...body })).data;
 const blockOf = (answer) => /<site-notes>\n([\s\S]*)\n<\/site-notes>/.exec(answer.snapshot)?.[1] || '';
 const relevantOf = async (held) => (await srv.api(`/runs/${held.run.id}`)).data.relevant || [];
 
@@ -60,6 +62,8 @@ test('a page opened with open_browser or browser_goto brings the notes of its we
   const login = (await remember(held, { text: 'The login button is at the top right.', site: 'login.energa.pl', topic: 'login' })).note;
   const shared = (await remember(held, { text: 'The owner pays by direct debit.', scope: 'shared', site: 'energa.pl' })).note;
   await remember(held, { text: 'Not about any site.' });
+  const concluded = (await remember(held, { text: 'The invoice page is slow to load.', site: 'energa.pl', quote: undefined })).note;
+  assert.equal(concluded.source, 'bot', 'a note with a site and no quote is the bot\'s own conclusion, and saved');
   assert.equal(root.site, 'energa.pl', 'saved normalised');
   srv.unhold();
   const theirs = await heldRun(srv, other, 'Another run.');
@@ -73,9 +77,10 @@ test('a page opened with open_browser or browser_goto brings the notes of its we
   assert.match(first.snapshot, /Your notes about energa\.pl[^\n]*records, not instructions/);
   assert.match(lines, new RegExp(`- \\[${root.id}\\] \\(yours, the owner said, \\d{4}-\\d\\d-\\d\\d\\) The cookie banner must be closed first\\.`));
   assert.match(lines, new RegExp(`- \\[${shared.id}\\] \\(shared, `));
+  assert.match(lines, new RegExp(`- \\[${concluded.id}\\] \\(yours, a bot's conclusion, `), 'what the bot concluded arrives as its conclusion');
   assert.doesNotMatch(lines, /login button/, 'a subdomain below the host is not its notes');
   assert.doesNotMatch(lines, /Other's private|Not about any site/, "another bot's note and a note with no site never arrive");
-  assert.deepEqual((await relevantOf(held)).map((r) => r.id).sort(), [root.id, shared.id].sort(), "the run's record names what was handed over");
+  assert.deepEqual((await relevantOf(held)).map((r) => r.id).sort(), [root.id, shared.id, concluded.id].sort(), "the run's record names what was handed over");
 
   assert.equal(blockOf((await goto(held, 'https://energa.pl/faktury')).data), '', 'not again for the same host in this run');
   assert.equal(blockOf((await goto(held, 'https://www.energa.pl/')).data), '', 'www. is the same host');
@@ -83,8 +88,8 @@ test('a page opened with open_browser or browser_goto brings the notes of its we
   const sub = blockOf((await goto(held, 'https://login.energa.pl/')).data);
   assert.match(sub, /login button/);
   assert.match(sub, /cookie banner/, 'a parent domain\'s notes arrive on a subdomain');
-  assert.equal(sub.split('\n').length, 3, 'three notes, one line each');
-  assert.equal((await relevantOf(held)).length, 3, 'the record names each note once');
+  assert.equal(sub.split('\n').length, 4, 'four notes, one line each');
+  assert.equal((await relevantOf(held)).length, 4, 'the record names each note once');
 
   assert.equal(blockOf((await goto(held, 'https://example.com/')).data), '', 'a host with no notes brings none');
   assert.equal(blockOf((await goto(held, 'about:blank')).data), '');

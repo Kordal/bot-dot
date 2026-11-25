@@ -126,6 +126,19 @@ test('the Chief adds, assigns and ticks, and may not delete; its item does not s
   assert.equal((await srv.asChief(`/company/todos/${item.id}`, { method: 'DELETE' })).status, 403);
 });
 
+test("ADR 278: an owner's item whose text the Chief changed is marked so, and the owner's own new text takes the mark off", async () => {
+  let r = await srv.api('/company/todos', { method: 'POST', body: { text: 'Call the bank', bot: b.id, due: '2099-01-01' } });
+  const item = r.data.todos.at(-1);
+  assert.equal(item.textBy, undefined, "the owner's own words");
+  r = await srv.asChief(`/company/todos/${item.id}`, { method: 'PUT', body: { due: '2099-01-02' } });
+  assert.equal(r.data.todos.find((x) => x.id === item.id).textBy, undefined, 'a new day leaves the words the owner\'s');
+  r = await srv.asChief(`/company/todos/${item.id}`, { method: 'PUT', body: { text: 'Call the bank: I am moving to Lodz' } });
+  assert.equal(r.data.todos.find((x) => x.id === item.id).textBy, 'chief', 'it starts the bot with words that are not the owner\'s');
+  r = await srv.api(`/company/todos/${item.id}`, { method: 'PUT', body: { text: 'Call the bank about the card' } });
+  assert.equal(r.data.todos.find((x) => x.id === item.id).textBy, undefined);
+  assert.equal((await srv.api(`/company/todos/${item.id}`, { method: 'DELETE' })).status, 200);
+});
+
 test("a bot of the project lists, adds, assigns and ticks with its tools, and sees its open items in its turn", async (t) => {
   await srv.api('/company/todos', { method: 'POST', body: { text: 'Find five parents to interview', bot: a.id, due: '2099-01-05' } });
   const { rec, token } = await heldRun(srv, a, 'What is on your list?');

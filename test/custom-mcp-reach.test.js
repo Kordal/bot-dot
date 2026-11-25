@@ -113,11 +113,11 @@ test("what a remote server answers is outside content, as a connected app's answ
     const rec = await srv.nextRun((x) => x.self?.env && x.args.includes(`${b.emoji} ${b.name}`), `a run of ${b.name}`);
     const self = (what, body) => srv.api(`/self/session/${what}`, { method: 'POST', body, headers: { 'X-Run-Token': rec.self.env.RUN_TOKEN } }).then((r) => r.data);
     const job = (name) => self('jobs', { action: 'add', kind: 'ai', name, cron: '0 3 * * *', prompt: 'Check the notes.', assessment: 'Needs AI' });
-    const first = await self('memory', { action: 'add', text: `Said before ${tool}` });
+    const first = await self('memory', { action: 'add', text: `Said before ${tool}`, quote: 'what I tell you' });
     assert.equal(first.note.source, 'owner', `before ${tool}`);
     const before = await job('Before');
     await asked(rec, started.data.id, tool);
-    const second = await self('memory', { action: 'add', text: `Said after ${tool}` });
+    const second = await self('memory', { action: 'add', text: `Said after ${tool}`, quote: 'what I tell you' });
     const after = await job('After');
     seen[tool] = [second.note.source, before.needsApproval, after.needsApproval];
     srv.release(rec);

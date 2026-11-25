@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** MEM-003
+- **Amended by:** [ADR 278](278-a-note-is-the-owners-only-when-it-holds-the-owners-own-words.md) (a note is the owner's only when it also holds the owner's own words, quoted)
 
 ## Context
 
@@ -22,7 +23,7 @@ OpenClaw sets a note's origin in code from a closed set and never defaults it to
 ## Decision
 
 - **Every note has a source: the owner, the bot, or outside.** The botdot server sets it when the note is saved. No model sets it and it is never read out of a note's text. Versions and waiting changes keep it.
-- **The owner:** saved in a run the owner started, before that run read outside content; or typed by the owner; or filed by the Chief in a turn the owner started ([ADR 017](017-the-chief-files-a-note-with-a-bot-in-the-owners-turns.md)). **Outside:** saved after the run read outside content. **The bot:** everything else, which includes a job's run, a run a teammate or the Chief started, and the review. What cannot be told is never the owner.
+- **The owner:** saved in a run the owner started, before that run read outside content, with the owner's own words quoted ([ADR 278](278-a-note-is-the-owners-only-when-it-holds-the-owners-own-words.md)); or typed by the owner; or filed by the Chief in a turn the owner started ([ADR 017](017-the-chief-files-a-note-with-a-bot-in-the-owners-turns.md)). **Outside:** saved after the run read outside content. **The bot:** everything else, which includes a job's run, a run a teammate or the Chief started, and the review. What cannot be told is never the owner.
 - **"A run the owner started" is one function of the server** over what a run already records. A carry-on and a follow-up answer as the run they continue, and keep what that run had read.
 - **The outside mark says what was read:** the bot's own commands only, or content from others (the web, a connected app, the bot's computer, a file or message from someone else). Any of it makes a note "outside". Only content from others makes a new skill wait for the owner. (Superseded by [ADR 050](050-a-bot-saves-a-skill-it-wrote-without-an-ok.md): a bot's skill is saved at once in every run.)
 - **Only the bot's and outside notes are unpinned automatically,** outside ones first, then the oldest. A note of the owner's never is. When the pinned set holds only the owner's, a new note is kept searchable. Every unpin is in the tool's answer.

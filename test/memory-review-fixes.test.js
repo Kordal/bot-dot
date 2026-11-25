@@ -189,9 +189,9 @@ async function ownerTurn(t, text, chat = null) {
 // leave: saved after outside content. Returns { id, outside }: the removed note's id and that note's.
 async function fullPinnedSet(t, b) {
   const h = await held(t, b, 'Remember where I park, then forget it again.');
-  const id = (await mem(h, { action: 'add', text: 'The parking spot is number 14' })).note.id;
+  const id = (await mem(h, { action: 'add', text: 'The parking spot is number 14', quote: 'where I park' })).note.id;
   await mem(h, { action: 'remove', id, reason: 'moved house' });
-  for (let i = 1; i < LIMIT; i++) assert.equal((await mem(h, { action: 'add', text: `House rule ${i} holds` })).note.source, 'owner');
+  for (let i = 1; i < LIMIT; i++) assert.equal((await mem(h, { action: 'add', text: `House rule ${i} holds`, quote: 'Remember where I park' })).note.source, 'owner');
   await uses(h, 'WebSearch');
   const outside = (await mem(h, { action: 'add', text: 'A page says the garage is closed' })).note;
   assert.deepEqual([outside.source, outside.pinned], ['outside', true]);
@@ -336,7 +336,7 @@ test('a turn that quotes a reminder which went off has read something: a note sa
   const next = await ownerTurn(t, 'Remember that I pay invoices on the 2nd.', chat);
   assert.doesNotMatch(next.rec.stdin, /reminder you set/);
   assert.equal((await next.going()).read, undefined);
-  assert.equal((await next.call('remember', { note: 'Invoices are paid on the 2nd', place: 'everyone' })).saved[0].saidBy, 'owner');
+  assert.equal((await next.call('remember', { note: 'Invoices are paid on the 2nd', place: 'everyone', quote: 'I pay invoices on the 2nd' })).saved[0].saidBy, 'owner');
   await next.end();
 });
 

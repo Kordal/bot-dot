@@ -178,7 +178,7 @@ test('what the owner tells a bot to keep in one run reaches its other runs that 
     await send(bot, 'Always write in English, whatever the language of the video.');
     rec2 = await srv.nextRun(isRunOf(bot), 'the owner\'s message');
     const token2 = rec2.self.env.RUN_TOKEN;
-    const saved = (await self(srv, token2, 'memory', { action: 'add', scope: 'self', text: 'Always write replies in English, whatever the language of the video.', topic: 'language' })).data;
+    const saved = (await self(srv, token2, 'memory', { action: 'add', scope: 'self', text: 'Always write replies in English, whatever the language of the video.', topic: 'language', quote: 'Always write in English' })).data;
     assert.equal(saved.result, 'saved');
     assert.equal(saved.note.source, 'owner');
 

@@ -102,7 +102,7 @@ test("the group's block says of every line who wrote it: the owner, the reader i
   const other = groupBlock(lines, { reader: 'r', current: 'm2', now: AT, mark: fixed });
   assert.ok(other.includes(`· a teammate's reply · `) && /:57\] 🤖 Coder, a teammate \(a bot, not the owner\), replied:\nOn feature\/dark-mode\./.test(other));
   assert.match(other, /· your reply, run r3 · [\d-]+ \d\d:59\] You replied:/);
-  assert.deepEqual(H.groupChat([], { reader: 'c', mark: fixed }), { block: '', mark: K });
+  assert.deepEqual(H.groupChat([], { reader: 'c', mark: fixed }), { block: '', mark: K, said: [] });
   // Its last line is botdot's too: the chat ends there.
   assert.ok(H.groupChat(lines, { reader: 'c', current: 'm2', now: AT, mark: fixed }).block.endsWith(`answering now:\nLooks fine to me.\n\n[botdot ${K} · end of the chat]`));
   // What the reader is told of the mark, before the block and after it: both name it, and where the chat ends.
@@ -379,7 +379,7 @@ test("a note saved in a turn that answers the owner's message is the owner's wor
   const sent = (await send(srv, group, { text: 'I always use pnpm. Remember it.' })).data;
   const turn = await heldTurn(srv, coder);
   assert.ok(between(turn.rec.system, 'group-chat').includes('I use npm, by the way.'), 'it has read the member before it');
-  const saved = (await self(srv, turn.token, 'memory', { action: 'add', scope: 'self', text: 'The owner always uses pnpm.' })).data;
+  const saved = (await self(srv, turn.token, 'memory', { action: 'add', scope: 'self', text: 'The owner always uses pnpm.', quote: 'I always use pnpm' })).data;
   assert.equal(saved.note.source, 'owner', JSON.stringify(saved));
   letGo(srv, coder);
   srv.release(turn.rec);
@@ -388,7 +388,7 @@ test("a note saved in a turn that answers the owner's message is the owner's wor
   hold(srv, coder);
   const named = (await send(srv, group, { text: '@NoteCoder and yarn never.' })).data;
   const second = await heldTurn(srv, coder);
-  assert.equal((await self(srv, second.token, 'memory', { action: 'add', scope: 'self', text: 'The owner never uses yarn.' })).data.note.source, 'owner');
+  assert.equal((await self(srv, second.token, 'memory', { action: 'add', scope: 'self', text: 'The owner never uses yarn.', quote: 'and yarn never' })).data.note.source, 'owner');
   letGo(srv, coder);
   srv.release(second.rec);
   await settled(srv, group, named.id);

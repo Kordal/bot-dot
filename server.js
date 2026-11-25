@@ -124,7 +124,7 @@ async function runTileSource(tile, source, where, extra = {}) {
     return B.runTileScript(bot, tile.id, source, env);
   }
   // A busy bot is asked all the same: the request waits its turn among the owner's messages (ADR 011).
-  if (source.type === 'bot') { const asked = B.askBot(bot, { prompt: source.message }); return asked.run ? { runId: asked.run.id } : { runId: asked.queued.id, queued: true }; }
+  if (source.type === 'bot') { const asked = B.askBot(bot, { prompt: source.message, othersWords: true }); return asked.run ? { runId: asked.run.id } : { runId: asked.queued.id, queued: true }; }
   if (!(await readyForSecrets(bot.id))) throw new Error('Bitwarden is locked');
   const creds = store().credentials(bot.id, source.login);
   let r;

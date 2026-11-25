@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#290](https://github.com/ladrok/bot-dot/issues/290)
+- **Amended by:** [ADR 278](278-a-note-is-the-owners-only-when-it-holds-the-owners-own-words.md) (a changed note is the owner's only with the owner's words quoted)
 - **Changes:** [ADR 015](015-the-server-records-who-said-a-note.md) (a change to what the owner said, and a shared addition or change after outside content, waited on a card)
 - **Supersedes:** the shared-notes part of [ADR 055](055-always-allow-on-more-cards.md) ("Always allow for this bot")
 - **Widens:** [ADR 025](025-what-a-run-did-is-no-row-under-a-reply.md), as [ADR 050](050-a-bot-saves-a-skill-it-wrote-without-an-ok.md) did for skills (a note that once waited is a row under the reply)
