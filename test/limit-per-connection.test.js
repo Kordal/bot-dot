@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
-const { startServer, makeBot, heldRun, feed, waitFor } = require('./helpers');
+const { startServer, makeBot, heldRun, feed, waitFor, readData } = require('./helpers');
 const claudeKeyLib = require('../lib/claude-key');
 
 const SUBSCRIPTION = 'subscription-token-AAAA';
@@ -179,4 +179,37 @@ test('each connection has its credential: the Claude key, and a provider\'s addr
     assert.notEqual(key.credentials().custom, one.custom, 'another address is another credential');
     assert.equal(key.credentials().claude, one.claude);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// An account that runs on a provider only, and never signed in to Claude, holds nothing on Claude: the apps say nothing of
+// its sign-out until a bot (or the Chief) is on a Claude model (#1668).
+test('a provider-only account that never signed in to Claude shows no Claude line until something runs on Claude', async (t) => {
+  const own = await startServer({});
+  t.after(() => own.stop());
+  assert.equal((await own.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'custom', url: `http://127.0.0.1:${providerStand.address().port}`, key: KEY_A, big: 'model-a', small: 'model-b' } })).status, 200);
+  assert.equal((await own.api('/settings', { method: 'PUT', body: { defaultModel: 'provider:custom:model-a', chiefModel: 'provider:custom:model-a' } })).status, 200);
+  await makeBot(own, { name: 'Only provider', model: 'provider:custom:model-a' });
+  fs.writeFileSync(path.join(own.out, 'signed-out'), '');
+  assert.equal((await own.api('/setup?fresh')).data.claude.subscription, false);
+  const hello = async () => { const g = await feed(own); try { return g.events.find((e) => e.type === 'hello').data.claude; } finally { g.close(); } };
+  assert.equal((await hello())?.held, undefined, 'nothing runs on Claude: no line');
+
+  await makeBot(own, { name: 'On Claude', model: 'opus' });
+  assert.deepEqual((await hello()).held.map((h) => [h.connection, h.signedOut]), [['claude', true]], 'a bot on Claude: the line stands');
+});
+
+// The sign-out that failed with the account default on a provider: the account default's sign-in is true whatever the
+// subscription is, so the release is decided by the subscription's own state (#1668).
+test('a failed sign-out releases the Claude hold when the account default is a provider and the check cannot tell', async (t) => {
+  const own = await startServer({});
+  t.after(() => own.stop());
+  assert.equal((await own.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'custom', url: `http://127.0.0.1:${providerStand.address().port}`, key: KEY_A, big: 'model-a', small: 'model-b' } })).status, 200);
+  assert.equal((await own.api('/settings', { method: 'PUT', body: { defaultModel: 'provider:custom:model-a' } })).status, 200);
+  await makeBot(own, { name: 'On Claude', model: 'opus' });
+  const kept = () => (fs.existsSync(path.join(own.data, 'scheduler.json')) ? readData(own.data, 'scheduler.json').signedOut : undefined);
+  fs.writeFileSync(path.join(own.out, 'auth-fails-next'), ''); // the check inside the sign-out answers (still signed in), the ones after it cannot tell
+  const out = await own.api('/setup/claude', { method: 'DELETE' });
+  assert.deepEqual([out.status === 200, out.data.error], [false, "Couldn't sign out of Claude."]);
+  assert.equal(fs.existsSync(path.join(own.out, 'auth-fails')), true, 'the check after the failed sign-out could not tell');
+  assert.notEqual(kept(), true, 'Claude is still signed in: nothing is held');
 });
