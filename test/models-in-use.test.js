@@ -158,3 +158,9 @@ test('the group router, the wake gate and the busy-bot call report the model the
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("the Chief's own tool reaches the route (it is on the Chief's routes)", async () => {
+  const r = await srv.asChief('/settings/models-in-use');
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.data.bots));
+});
