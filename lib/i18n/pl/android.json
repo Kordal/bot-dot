@@ -1304,6 +1304,8 @@
   "A new bot for {project}:": "Nowy bot dla projektu {project}:",
   "Remove {name}": "Usuń: {name}",
   "Claude's usage limit is reached: bots carry on at {time}.": "Limit użycia Claude wyczerpany: boty wrócą do pracy o {time}.",
+  "{name}'s usage limit is reached: its bots carry on at {time}.": "Limit użycia {name} wyczerpany: jego boty wrócą do pracy o {time}.",
+  "Claude is signed out: bots that use it can't work.": "Claude jest wylogowany: boty, które z niego korzystają, nie mogą pracować.",
   "Turn off “{title}”?": "Wyłączyć „{title}”?",
   "Turn on “{title}”?": "Włączyć „{title}”?",
   "Turn off": "Wyłącz",

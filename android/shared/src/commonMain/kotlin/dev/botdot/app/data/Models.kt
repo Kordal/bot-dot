@@ -351,6 +351,35 @@ fun claudeBackAt(v: JsonElement?, now: kotlin.time.Instant = kotlin.time.Clock.S
     return at.takeIf { runCatching { kotlin.time.Instant.parse(it) > now }.getOrDefault(false) }
 }
 
+/**
+ * Whose limit `backAt` is, when it is not Claude's (`backAtName` of a `claude`, docs/api.md): the account default is a provider
+ * that reached its own. null when it does not say, as a botdot from before does: the line then says Claude's.
+ */
+fun claudeBackAtName(v: JsonElement?): String? =
+    ((v as? JsonObject)?.get("backAtName") as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+
+/**
+ * A connection other than the account default's that botdot holds ([claudeHeld]): a provider's usage limit, or Claude's
+ * sign-out or limit while the account default runs on a provider (#1668). One line each, beside the default's own.
+ */
+data class ClaudeHeld(val name: String, val signedOut: Boolean, val backAt: String?)
+
+/**
+ * `held` of a `claude` (docs/api.md): each connection that is signed out, or whose usage limit has still to end. Empty
+ * when it does not say, which is what a botdot from before does.
+ */
+fun claudeHeld(v: JsonElement?, now: kotlin.time.Instant = kotlin.time.Clock.System.now()): List<ClaudeHeld> {
+    val list = (v as? JsonObject)?.get("held") as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+    return list.mapNotNull { e ->
+        val h = e as? JsonObject ?: return@mapNotNull null
+        val name = (h["name"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
+        if (((h["signedOut"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull) == true) return@mapNotNull ClaudeHeld(name, true, null)
+        val at = (h["backAt"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?.takeIf { runCatching { kotlin.time.Instant.parse(it) > now }.getOrDefault(false) } ?: return@mapNotNull null
+        ClaudeHeld(name, false, at)
+    }
+}
+
 /** What botdot newly announces with Milestone 7, "busy and stopped": a message waits, a run says who ended it, a job has its line. */
 private val BUSY_AND_STOPPED = setOf("message-waits", "ended-by", "job-line")
 

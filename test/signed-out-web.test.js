@@ -18,7 +18,7 @@ function page() {
   const hidden = () => element({}, { classes: ['hidden'] });
   const el = { away: hidden(), awayLine: hidden(), out: hidden(), outLine: hidden() };
   const doc = element({ '#away': el.away, '.away-line': [el.awayLine], '#signed-out': el.out, '.claude-line': [el.outLine] });
-  const ctx = vm.createContext({ ...words, ...finders(doc), esc, fetch: async () => { throw new TypeError('Failed to fetch'); }, console: { warn() {} }, setTimeout: (f) => { f(); return 0; }, clearTimeout() {} });
+  const ctx = vm.createContext({ ...words, ...finders(doc), esc, msgTime: (at) => at.slice(11, 16), fetch: async () => { throw new TypeError('Failed to fetch'); }, console: { warn() {} }, setTimeout: (f) => { f(); return 0; }, clearTimeout() {} });
   vm.runInContext(`${cut('const AWAY_AFTER_MS', 'function esc(s)')}
     Object.assign(this, { api, away, setAway, signedOut, setSignedOut, signedOutHTML, SIGNED_OUT });`, ctx);
   const shows = (x) => !x.classList.contains('hidden');
@@ -75,7 +75,7 @@ test('web: the line is on the page in both places, drawn as Claude is at that mo
   assert.equal(ctx.SIGNED_OUT, LINE);
   assert.equal(ctx.signedOutHTML(), 'Claude is signed out: bots can&#39;t work. <button type="button" data-sign-in>Sign in</button>');
   const composer = cut('function composerHTML(placeholder', '// Files attached in a composer');
-  assert.match(composer, /<div class="claude-line\$\{\(signedOut\.on \|\| signedOut\.backAt\) && !away\.shown \? '' : ' hidden'\}" role="status">\$\{signedOutHTML\(\)\}<\/div>/);
+  assert.match(composer, /<div class="claude-line\$\{\(signedOut\.on \|\| signedOut\.backAt \|\| signedOut\.held\.length\) && !away\.shown \? '' : ' hidden'\}" role="status">\$\{signedOutHTML\(\)\}<\/div>/);
   assert.ok(composer.indexOf('away-line') < composer.indexOf('claude-line') && composer.indexOf('claude-line') < composer.indexOf('composer-box'), 'above the box');
 });
 
@@ -136,4 +136,43 @@ test('web: over Claude\'s usage limit the same line says when the bots carry on,
   ctx.setSignedOut({ loggedIn: true, backAt: new Date(Date.now() - 1000).toISOString() });
   assert.equal(shows(el.out), false, 'a time gone by is no line');
   timers.at(-1)?.f();
+});
+
+// #1668: the account default is a provider that reached its limit: `backAtName` names it, and the line is not Claude's.
+test('web: the limit of a provider that is the account default is named, not called Claude\'s; without a name it is Claude\'s', () => {
+  const { ctx, shown } = page();
+  const at = new Date(Date.now() + 3600_000).toISOString();
+  ctx.setSignedOut({ loggedIn: true, backAt: at, backAtName: 'DeepSeek' });
+  assert.deepEqual(shown().out, [true, true]);
+  assert.equal(ctx.signedOutHTML(), `DeepSeek&#39;s usage limit is reached: its bots carry on at ${at.slice(11, 16)}.`);
+  assert.doesNotMatch(ctx.signedOutHTML(), /Claude/);
+  ctx.setSignedOut({ loggedIn: true, backAt: at });
+  assert.match(ctx.signedOutHTML(), /^Claude&#39;s usage limit is reached: bots carry on at /, 'an older server names nobody: Claude\'s');
+  ctx.setSignedOut({ loggedIn: true, backAt: at, backAtName: 'DeepSeek', held: [{ connection: 'claude', name: 'Claude', backAt: at }] });
+  const lines = ctx.signedOutHTML().split('<br>');
+  assert.deepEqual(lines.map((l) => l.split('&#39;')[0]), ['DeepSeek', 'Claude'], 'the default\'s line and Claude\'s held one are two lines');
+  ctx.setSignedOut({ loggedIn: true, backAtName: 'DeepSeek' });
+  assert.deepEqual(shown().out, [false, false], 'a name without a limit is no line');
+});
+
+// #1668: a connection other than the account default's that botdot holds is a line of its own (`held` of `claude`).
+test('web: a provider\'s usage limit is a line of its own beside the account default\'s, and goes with its reset', () => {
+  const { ctx, shown } = page();
+  const at = new Date(Date.now() + 3600_000).toISOString();
+  ctx.setSignedOut({ loggedIn: true, held: [{ connection: 'custom', name: 'DeepSeek', backAt: at }] });
+  assert.deepEqual(shown().out, [true, true], 'the account default is signed in, a provider is limited: the line stands');
+  assert.equal(ctx.signedOutHTML(), `DeepSeek&#39;s usage limit is reached: its bots carry on at ${at.slice(11, 16)}.`);
+  // Beside the default's own limit, and Claude's sign-out while the default is a provider.
+  ctx.setSignedOut({ loggedIn: true, backAt: at, held: [{ connection: 'claude', name: 'Claude', signedOut: true }, { connection: 'custom', name: 'DeepSeek', backAt: at }] });
+  const lines = ctx.signedOutHTML().split('<br>');
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /^Claude&#39;s usage limit is reached: bots carry on at /);
+  assert.match(lines[1], /^Claude is signed out: bots that use it can&#39;t work\. <button type="button" data-sign-in>Sign in<\/button>$/);
+  assert.match(lines[2], /^DeepSeek&#39;s usage limit is reached/);
+  // A limit that has passed, or a line that says nothing of a connection, shows nothing.
+  ctx.setSignedOut({ loggedIn: true, held: [{ connection: 'custom', name: 'DeepSeek', backAt: new Date(Date.now() - 1000).toISOString() }, { connection: 'x' }, null] });
+  assert.deepEqual(shown().out, [false, false]);
+  // An older server says no `held`: the line is the default's alone.
+  ctx.setSignedOut({ loggedIn: true });
+  assert.deepEqual(shown().out, [false, false]);
 });
