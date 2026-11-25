@@ -538,9 +538,9 @@ test('a done memory change is no row under a Chief reply, live or after a reload
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).messages.at(-1).actions, old);
 });
 
-// ---------- a note is the owner's only when it holds the owner's own words (ADR 276) ----------
+// ---------- a note is the owner's only when it holds the owner's own words (ADR 278) ----------
 
-test('ADR 276: the Chief files a note as the owner\'s word only with a quote found in what the owner wrote in the chat; otherwise as its own conclusion, and nothing is refused', async (t) => {
+test('ADR 278: the Chief files a note as the owner\'s word only with a quote found in what the owner wrote in the chat; otherwise as its own conclusion, and nothing is refused', async (t) => {
   const chat = await newChat();
   const earlier = await ownerTurn(t, 'My cat is called Pixel, and I live in Lodz.', chat);
   const first = await earlier.call('remember', { note: 'The owner lives in Lodz', place: 'everyone', quote: 'I live in Lodz.' });
@@ -579,7 +579,7 @@ test('ADR 276: the Chief files a note as the owner\'s word only with a quote fou
   await turn.end();
 });
 
-test('ADR 276: a change of a note\'s end or topic alone leaves who said it; a new text without a quote is the Chief\'s', async (t) => {
+test('ADR 278: a change of a note\'s end or topic alone leaves who said it; a new text without a quote is the Chief\'s', async (t) => {
   const turn = await ownerTurn(t, 'I am in Berlin this week.');
   const note = (await turn.call('remember', { note: 'The owner is in Berlin this week', place: 'everyone', quote: 'I am in Berlin this week' })).notes[0];
   const savedBy = async () => (await notesOf('_shared')).find((n) => n.id === note).source;
@@ -594,7 +594,7 @@ test('ADR 276: a change of a note\'s end or topic alone leaves who said it; a ne
   await turn.end();
 });
 
-test('ADR 276: a message of files alone makes no words of the owner: the line botdot puts for it is not quotable', async (t) => {
+test('ADR 278: a message of files alone makes no words of the owner: the line botdot puts for it is not quotable', async (t) => {
   srv.hold();
   const chat = await newChat();
   const file = (await srv.api('/uploads?to=chief', { method: 'POST', raw: Buffer.from('a list'), headers: { 'X-File-Name': 'list.txt' } })).data;
@@ -607,7 +607,7 @@ test('ADR 276: a message of files alone makes no words of the owner: the line bo
   await turn.end();
 });
 
-test('ADR 276: after the turn read a bot\'s text a quoted note is outside, as before', async (t) => {
+test('ADR 278: after the turn read a bot\'s text a quoted note is outside, as before', async (t) => {
   const turn = await ownerTurn(t, 'I always deploy on Fridays. What did Coder do last?');
   await turn.uses('mcp__botdot__list_runs', { botId: coder.id });
   const late = await turn.call('remember', { note: 'Deploys on Fridays', place: 'bots', bots: ['Coder'], quote: 'I always deploy on Fridays' });

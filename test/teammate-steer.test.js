@@ -157,7 +157,7 @@ test("the owner's message is not steered into a run a teammate started", async (
   await ended(asker);
 });
 
-test('ADR 276: what a teammate steered into an owner\'s run is no word of the owner\'s: a note quoting it is not theirs', async () => {
+test('ADR 278: what a teammate steered into an owner\'s run is no word of the owner\'s: a note quoting it is not theirs', async () => {
   const manager = await makeBot(srv, { name: 'Quote Manager', emoji: '🪞' });
   const admin = await makeBot(srv, { name: 'Quote Infra', emoji: '🧯' });
   srv.reply('Done.');

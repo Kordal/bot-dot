@@ -62,7 +62,7 @@ test('after botdot was off for longer than an hour a run that was cut off stays 
   } finally { srv.unhold(); await srv.stop(); }
 });
 
-// ADR 276: the owner's own request, carried on after a restart, is still their words; a main assignment's text is not.
+// ADR 278: the owner's own request, carried on after a restart, is still their words; a main assignment's text is not.
 test('after a restart the run that carries on holds the owner\'s typed request as theirs, and a main assignment as no one\'s', async () => {
   let srv = await startServer();
   try {

@@ -1,4 +1,4 @@
-// A note is the owner's only when it holds the owner's own words (ADR 276): the quote check on its own.
+// A note is the owner's only when it holds the owner's own words (ADR 278): the quote check on its own.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { found, normalize, words } = require('../lib/owner-quote');

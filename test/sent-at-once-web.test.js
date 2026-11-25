@@ -278,7 +278,7 @@ test('web: a quick answer is there at once like a typed message, and one that fa
   assert.deepEqual(p.bot.names(), ['run-row', 'run-row']);
   assert.equal(p.said.bodies[1].key, p.said.bodies[0].key);
   // Every answer, card and plan approval goes through the two senders, which draw it (test/failed-send-web.test.js).
-  const calls = [...app.matchAll(/(?<!function )\b(sendToChief|runBot)\(/g)];
+  const calls = [...app.matchAll(/(?<!function )\b(sendToChief|runBot)(About)?\(/g)];
   assert.ok(calls.length >= 5);
 });
 

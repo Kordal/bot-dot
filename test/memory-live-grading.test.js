@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const chatHistory = require('../lib/chat-history');
-const { conversationOf, heldIn, valuesOf, realDate, grade, WRITE_SCENARIOS, REVIEW_SCENARIOS, gradeReview, keyWords, grounded } = require('./live/grading');
+const { conversationOf, heldIn, valuesOf, realDate, grade, WRITE_SCENARIOS, REVIEW_SCENARIOS, gradeReview, keyWords, grounded, names } = require('./live/grading');
 const { seedRun, seedNotes } = require('./live/seed');
 const { report, comparison, verdict } = require('./live/report');
 const { ROOT, startServer, makeBot } = require('./helpers');
@@ -116,7 +116,7 @@ test('twelve write-side scenarios, each with a name of its own', () => {
   for (const w of WRITE_SCENARIOS) assert.ok(w.turns.length && w.turns.every((t) => t.say) && typeof w.wanted === 'function' && w.says, w.name);
 });
 
-// ADR 276: what the owner said is kept as theirs; a task and a question are never said to be a fact about them.
+// ADR 278: what the owner said is kept as theirs; a task and a question are never said to be a fact about them.
 test('the scenarios where the owner states something want the note to be the owner\'s; a task and a question want no note marked so', () => {
   const stated = ['remember-that', 'prefer-typescript', 'decided-postgresql', 'no-more-redis', 'for-this-bot-go'];
   const about = { 'remember-that': '6543', 'prefer-typescript': 'TypeScript', 'decided-postgresql': 'PostgreSQL', 'no-more-redis': 'Redis', 'for-this-bot-go': 'Go' };
@@ -155,7 +155,7 @@ test('w11 and w12: a task and a question say nothing about the owner, and no not
   }
 });
 
-// ---------- the weekly memory review (r01 to r06): graded on the store after the review ----------
+// ---------- the weekly memory review (r01 to r07): graded on the store after the review ----------
 
 const review = (name) => REVIEW_SCENARIOS.find((r) => r.name.startsWith(name));
 const idOf = (key) => `id-${key}`;
@@ -171,14 +171,14 @@ const after = (sc, { drop = [], edit = {}, pin = {}, add = [], skills = [] } = {
   skills,
 });
 
-test('six review scenarios, each with a name of its own, seeded notes and runs, and a rule for how it should end', () => {
-  assert.deepEqual(REVIEW_SCENARIOS.map((r) => r.name), ['r01-duplicates', 'r02-lesson-in-runs', 'r03-owner-said-untouched', 'r04-nothing-to-do', 'r05-no-invention', 'r06-how-to-into-skill']);
+test('seven review scenarios, each with a name of its own, seeded notes and runs, and a rule for how it should end', () => {
+  assert.deepEqual(REVIEW_SCENARIOS.map((r) => r.name), ['r01-duplicates', 'r02-lesson-in-runs', 'r03-owner-said-untouched', 'r04-nothing-to-do', 'r05-no-invention', 'r06-how-to-into-skill', 'r07-cannot-both-be-true']);
   for (const r of REVIEW_SCENARIOS) {
     assert.ok(r.says && r.bot?.prompt && typeof r.wanted === 'function' && Array.isArray(r.notes) && Array.isArray(r.runs), r.name);
     assert.equal(new Set(r.notes.map((n) => n.key)).size, r.notes.length, `${r.name}: a key for each note`);
     assert.ok(r.notes.every((n) => n.key && n.text), r.name);
   }
-  // Skills are on for every bot unless switched off, so r01 to r05 say so: with them on the review also puts how-tos
+  // Skills are on for every bot unless switched off, so all but r06 say so: with them on the review also puts how-tos
   // in skills, and a lesson saved as a skill would be graded as unwanted. Only r06 keeps them on, on purpose.
   for (const r of REVIEW_SCENARIOS) assert.equal(r.bot.useSkills, r.name.startsWith('r06') ? true : false, `${r.name}: skills ${r.name.startsWith('r06') ? 'on' : 'off'}`);
   // Seeded as the store would hold them: the owner's note is the owner's and pinned by them.
@@ -189,7 +189,7 @@ test('six review scenarios, each with a name of its own, seeded notes and runs, 
 
 test('r01: two notes that say the same thing end as one, and the unrelated note stays', () => {
   const r = review('r01');
-  assert.deepEqual(gradeReview(r, after(r)), { notes: 3, kept: ['bins-a', 'bins-b', 'boiler'], gone: [], edited: [], repinned: [], added: 0, about: 2, writtenAbout: 0, skills: 0, skillsAbout: 0, invented: 0, untouched: true, wanted: false });
+  assert.deepEqual(gradeReview(r, after(r)), { notes: 3, kept: ['bins-a', 'bins-b', 'boiler'], gone: [], edited: [], repinned: [], added: 0, about: 2, writtenAbout: 0, skills: 0, skillsAbout: 0, invented: 0, settled: [], reported: null, untouched: true, wanted: false });
   assert.equal(gradeReview(r, after(r, { drop: ['bins-b'] })).wanted, true, 'one is left');
   assert.equal(gradeReview(r, after(r, { drop: ['bins-a'], edit: { 'bins-b': 'Recycling bins go out on Thursday evening, for the Friday pickup.' } })).wanted, true, 'merged into the better one');
   assert.equal(gradeReview(r, after(r, { drop: ['bins-a', 'bins-b'], add: ['Recycling bins go out on Thursday evening for the Friday pickup.'] })).wanted, true, 'both removed and one new note written');
@@ -210,7 +210,7 @@ test('r02: a lesson only a past run holds ends as a note that holds it', () => {
 
 test('r03: a note the owner said stays as it was, with its text and its pin', () => {
   const r = review('r03');
-  assert.deepEqual(gradeReview(r, after(r)), { notes: 2, kept: ['gym', 'locker'], gone: [], edited: [], repinned: [], added: 0, about: null, writtenAbout: 0, skills: 0, skillsAbout: 0, invented: 0, untouched: true, wanted: true });
+  assert.deepEqual(gradeReview(r, after(r)), { notes: 2, kept: ['gym', 'locker'], gone: [], edited: [], repinned: [], added: 0, about: null, writtenAbout: 0, skills: 0, skillsAbout: 0, invented: 0, settled: [], reported: null, untouched: true, wanted: true });
   assert.equal(gradeReview(r, after(r, { add: ['The gym closes at 20:00 on weekdays now.'] })).wanted, true, 'a new note beside it is allowed');
   assert.equal(gradeReview(r, after(r, { edit: { gym: 'The gym is open until 20:00 on weekdays.' } })).wanted, false, 'its text changed');
   assert.equal(gradeReview(r, after(r, { drop: ['gym'] })).wanted, false, 'removed');
@@ -257,7 +257,7 @@ test('r06: a how-to note ends as a skill that holds it, with the note removed', 
   const r = review('r06');
   const skill = { name: 'deploy-blog', description: 'How to deploy the blog', instructions: '1. npm run build\n2. rsync -av dist/ web:/var/www/blog/\n3. Open the blog and check it loads.' };
   assert.equal(gradeReview(r, after(r)).wanted, false);
-  assert.deepEqual(gradeReview(r, after(r, { drop: ['deploy'], skills: [skill] })), { notes: 1, kept: ['facts'], gone: ['deploy'], edited: [], repinned: [], added: 0, about: 0, writtenAbout: 0, skills: 1, skillsAbout: 1, invented: 0, untouched: false, wanted: true });
+  assert.deepEqual(gradeReview(r, after(r, { drop: ['deploy'], skills: [skill] })), { notes: 1, kept: ['facts'], gone: ['deploy'], edited: [], repinned: [], added: 0, about: 0, writtenAbout: 0, skills: 1, skillsAbout: 1, invented: 0, settled: [], reported: null, untouched: false, wanted: true });
   assert.equal(gradeReview(r, after(r, { skills: [skill] })).wanted, false, 'a skill and the note kept: it is in two places');
   assert.equal(gradeReview(r, after(r, { drop: ['deploy'] })).wanted, false, 'the note removed and nothing holds it');
   assert.equal(gradeReview(r, after(r, { drop: ['deploy'], skills: [{ ...skill, instructions: 'Build it and upload it.' }] })).wanted, false, 'a skill that lost the steps');
@@ -265,8 +265,43 @@ test('r06: a how-to note ends as a skill that holds it, with the note removed', 
   assert.equal(gradeReview(r, after(r, { drop: ['deploy'], add: ['To deploy the blog run rsync -av dist/ web:/var/www/blog/.'], skills: [] })).wanted, false, 'moved into a note again, not a skill');
 });
 
+test('r07: the older of two notes that cannot both be true is removed for the newer, the owner\'s pair is only named, and the rest stays', () => {
+  const r = review('r07');
+  const id = idOf;
+  const grade = (edits, extra = {}) => gradeReview(r, { ...after(r, edits), ...extra });
+  const removal = (key, reason) => ({ id: id(key), reason });
+  const REPORT = 'Removed the old staging port note. Two things you said disagree: you work from the office on Tuesdays and Thursdays, and you work from home every day. Tell me which holds.';
+  const good = { removals: [removal('port-old', 'Replaced by the newer note [id-port-new]: staging is on port 5433.')], report: REPORT };
+  assert.deepEqual(r.notes.map((n) => [n.key, !!n.owner, n.days]), [['port-old', false, 230], ['port-new', false, 40], ['office', true, 60], ['home', true, 20], ['backup', false, 100]], 'dates that differ, and the owner\'s pair marked as said by them');
+  assert.deepEqual(grade({}), { ...grade({}), settled: [], reported: 0, wanted: false }, 'seeded and left alone');
+  const done = grade({ drop: ['port-old'] }, good);
+  assert.deepEqual([done.gone, done.settled, done.reported, done.wanted], [['port-old'], ['port-old'], 2, true]);
+  // The reason names the newer note by its id, or by its port, and a reason that names nothing is not settled.
+  assert.equal(grade({ drop: ['port-old'] }, { ...good, removals: [removal('port-old', 'It is on port 5433 now.')] }).wanted, true, 'by its port');
+  assert.deepEqual(grade({ drop: ['port-old'] }, { ...good, removals: [removal('port-old', 'Outdated.')] }).settled, []);
+  assert.equal(grade({ drop: ['port-old'] }, { ...good, removals: [removal('port-old', 'Outdated.')] }).wanted, false);
+  assert.equal(grade({ drop: ['port-old'] }, { ...good, removals: [] }).wanted, false, 'no removal call on record');
+  // The wrong one removed, both removed, or the pair left as it was.
+  assert.equal(grade({ drop: ['port-new'] }, { ...good, removals: [removal('port-new', 'Replaced by [id-port-old] on port 6543.')] }).wanted, false, 'the newer one went');
+  assert.equal(grade({ drop: ['port-old', 'port-new'] }, good).wanted, false, 'both went');
+  assert.equal(grade({}, { report: REPORT }).wanted, false, 'nothing removed');
+  // The owner\'s notes: unchanged, still there, still pinned by them.
+  assert.equal(grade({ drop: ['port-old', 'office'] }, good).wanted, false, 'the owner\'s note removed');
+  assert.equal(grade({ drop: ['port-old'], edit: { home: 'The owner works from home on Fridays.' } }, good).wanted, false, 'the owner\'s note reworded');
+  assert.equal(grade({ drop: ['port-old'], pin: { office: false } }, good).wanted, false, 'the owner\'s note unpinned');
+  // The pair is named in the report: both of its notes.
+  assert.deepEqual([grade({ drop: ['port-old'] }, { ...good, report: 'Removed the old port note.' }).reported, grade({ drop: ['port-old'] }, { ...good, report: 'Removed the old port note.' }).wanted], [0, false], 'not named');
+  assert.deepEqual([grade({ drop: ['port-old'] }, { ...good, report: 'You work from the office some days.' }).reported], [1], 'half of the pair');
+  assert.equal(grade({ drop: ['port-old'] }, { ...good, report: 'You work from the office some days.' }).wanted, false);
+  assert.equal(grade({ drop: ['port-old', 'backup'] }, good).wanted, false, 'a note that was no part of a pair went too');
+  // A results file from before the grade had a removal list or a report still grades, as not wanted.
+  assert.equal(gradeReview(r, after(r, { drop: ['port-old'] })).wanted, false);
+  assert.equal(names('See [abc]', 'abc', 'Staging is on port 5433.'), true);
+  assert.equal(names('The office note says tuesdays', 'x', 'The owner works from the office on Tuesdays and Thursdays.'), true, 'a note with no number: half of its key words');
+});
+
 // What the review is handed, by scenario: the skill step (2) and the skills it may write are there only for r06.
-test('the review prompt has the skill step for r06 alone, so r01 to r05 measure notes only', async (t) => {
+test('the review prompt has the skill step for r06 alone, so the others measure notes only', async (t) => {
   let srv = await startServer();
   const { dir } = srv;
   t.after(async () => { await srv.stop(); fs.rmSync(dir, { recursive: true, force: true }); });
@@ -478,7 +513,7 @@ test('the recorded baseline says when, on which model and at which revision it w
   // Reading: every question a bot was asked ran with nothing it is about inside <conversation>.
   const asked = baseline.results.filter((r) => r.scenario !== 'chief').flatMap((r) => r.questions);
   assert.ok(asked.length > 0 && asked.every((q) => q.result.conversation && q.result.conversation.holds.length === 0));
-  // Writing: the ten scenarios it was made with, three repeats each. w11 and w12 (ADR 276) were added after it: the next live run records them.
+  // Writing: the ten scenarios it was made with, three repeats each. w11 and w12 (ADR 278) were added after it: the next live run records them.
   const NEWER = ['w11-a-task-not-a-fact', 'w12-a-question'];
   for (const w of WRITE_SCENARIOS.filter((x) => !NEWER.includes(x.name))) assert.equal(baseline.writes.filter((x) => x.scenario === w.name && x.grade).length, baseline.repeat, w.name);
   assert.deepEqual(NEWER.filter((name) => baseline.writes.some((x) => x.scenario === name)), [], 'once a baseline holds them, this list shrinks');

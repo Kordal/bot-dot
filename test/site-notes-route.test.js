@@ -47,7 +47,7 @@ after(async () => { await srv.stop(); await new Promise((r) => helper.close(r));
 
 const browser = (held, body) => srv.api('/vault/session/computer/browser', { method: 'POST', headers: { 'X-Vault-Token': held.token }, body });
 const goto = (held, url, arrive = true) => browser(held, { op: 'goto', url, ...(arrive ? { arrive: true } : {}) });
-// A note is the owner's word only with a quote found in what they wrote (ADR 276): the run's task is "Test message".
+// A note is the owner's word only with a quote found in what they wrote (ADR 278): the run's task is "Test message".
 const SAID = 'Test message';
 const remember = async (held, body) => (await self(srv, held.rec.self.env.RUN_TOKEN, 'memory', { action: 'add', quote: SAID, ...body })).data;
 const blockOf = (answer) => /<site-notes>\n([\s\S]*)\n<\/site-notes>/.exec(answer.snapshot)?.[1] || '';

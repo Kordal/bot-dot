@@ -343,10 +343,11 @@ private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas
     var sent by remember(k.id) { mutableStateOf(0) }
     val d = LocalDensity.current
     val scaled = Density(d.density, d.fontScale * size.toFloat())
-    Column(modifier.heightIn(min = 148.dp).cardBox(p, if (fresh) p.ok else null).padding(start = Space.s16, end = Space.s8, top = Space.s8, bottom = Space.s16),
+    Column(modifier.heightIn(min = 148.dp).cardRing("card:${k.id}").cardBox(p, if (fresh) p.ok else null).padding(start = Space.s16, end = Space.s8, top = Space.s8, bottom = Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CompositionLocalProvider(LocalDensity provides scaled) { Text(k.name, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)) }
+            CardPencil("card:${k.id}", k.name)
             val spin by rememberInfiniteTransition(label = "refresh").animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing)), label = "r")
             Box(Modifier.rotate(if (k.building) spin else 0f)) { CardIcon(Icons.Filled.Refresh, tr("Refresh")) { if (!k.building) onRefresh() } }
             Box {

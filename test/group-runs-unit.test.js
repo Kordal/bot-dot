@@ -203,7 +203,7 @@ test('a turn a member handed on is a run a teammate started: what it saves is no
   // While it is going: a save is "after outside content", and a forget or a change to the owner's word waits on a card (server.js).
   hold();
   const going = B.startRun(bot, { prompt: 'Go on', groupId: dev.id, groupMessageId: 'm9', handedBy: by });
-  assert.deepEqual(B.runStanding(going.id), { startedBy: 'teammate', outside: ['teammate'], fromOthers: true, waits: true, said: [] }); // a member's hand-on is no word of the owner's (ADR 276)
+  assert.deepEqual(B.runStanding(going.id), { startedBy: 'teammate', outside: ['teammate'], fromOthers: true, waits: true, said: [] }); // a member's hand-on is no word of the owner's (ADR 278)
   letGo();
   const stopped = await ended(going.id);
   // The run that carries on from it is handed on as it was.

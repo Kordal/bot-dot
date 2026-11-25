@@ -135,11 +135,12 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
     }
     LaunchedEffect(s.noticeCount) { if (s.noticeCount > 0) ui.tell(s.notice) }
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().raised(shape).clickable(onClickLabel = tr("Calendar")) { desk.open(s.today) }.padding(Space.s12),
+    Column(Modifier.fillMaxWidth().cardRing("calendar").raised(shape).clickable(onClickLabel = tr("Calendar")) { desk.open(s.today) }.padding(Space.s12),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(PROJECT_COLOR)
-            Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
+            Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = Space.s8))
+            CardPencil("calendar", tr("Calendar"))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
             s.week.forEach { d ->

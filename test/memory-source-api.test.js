@@ -38,7 +38,7 @@ async function uses(h, name, server = srv) {
   await waitFor(async () => toolUses((await server.api(`/runs/${h.run.id}`)).data.events || []).length >= list.length, { what: `the run to have asked for ${name}` });
 }
 const mem = (h, body) => self(srv, h.token, 'memory', body).then((r) => r.data);
-// What the default run of `held` was asked, and so the owner's words a note can quote (ADR 276).
+// What the default run of `held` was asked, and so the owner's words a note can quote (ADR 278).
 const SAID = 'what I tell you';
 const remember = (h, text, extra = {}) => mem(h, { action: 'add', text, quote: SAID, ...extra });
 const typed = async (owner, text, extra = {}) => (await srv.api('/memory/notes', { method: 'POST', body: { owner, text, ...extra } })).data.note;
@@ -597,12 +597,12 @@ test('the first start after this change says who said the notes from before, by 
   assert.doesNotMatch(own.log.join(''), /from before now say who said them/);
 });
 
-// ---------- a note is the owner's only when it holds the owner's own words (ADR 276) ----------
+// ---------- a note is the owner's only when it holds the owner's own words (ADR 278) ----------
 
 const NOT_QUOTED = /Kept as your own conclusion, not as what the owner said, because the owner's words were not quoted\./;
 const startedBy = (b, prompt) => () => srv.api(`/bots/${b.id}/run`, { method: 'POST', body: { prompt } }).then((r) => r.data);
 
-test('ADR 276: a note of a run the owner started is the owner\'s when its quote is found in what they wrote, and the bot\'s otherwise, with nothing refused', async (t) => {
+test('ADR 278: a note of a run the owner started is the owner\'s when its quote is found in what they wrote, and the bot\'s otherwise, with nothing refused', async (t) => {
   const b = await bot();
   const h = await held(t, b, startedBy(b, 'I am vegan. Find me a lasagne recipe, and mind the Gdansk market on Fridays.'));
   const save = (text, quote) => mem(h, { action: 'add', text, ...(quote === undefined ? {} : { quote }) });
@@ -632,7 +632,7 @@ test('ADR 276: a note of a run the owner started is the owner\'s when its quote 
   assert.ok(!everything.includes('"quote"'));
 });
 
-test('ADR 276: a quote does not make a note the owner\'s where ADR 015 says it is not', async (t) => {
+test('ADR 278: a quote does not make a note the owner\'s where ADR 015 says it is not', async (t) => {
   const b = await bot();
   // After outside content: outside, quoted or not.
   const web = await held(t, b, startedBy(b, 'I always use pnpm. Check the docs.'));
@@ -657,7 +657,7 @@ test('ADR 276: a quote does not make a note the owner\'s where ADR 015 says it i
   assert.equal((await mem(review, { action: 'add', text: 'A reviewed note', quote: 'Check the mail' })).note.source, 'bot');
 });
 
-test('ADR 276: a main assignment and a Board tile\'s message are not the owner\'s words, though the owner started the run', async (t) => {
+test('ADR 278: a main assignment and a Board tile\'s message are not the owner\'s words, though the owner started the run', async (t) => {
   const assignment = 'Keep every list meat free: the owner is vegan.';
   const b = await bot({ prompt: assignment });
   // "Run": the main assignment fills in for a request, usually written by the Chief.
@@ -680,7 +680,7 @@ test('ADR 276: a main assignment and a Board tile\'s message are not the owner\'
   assert.equal((await mem(typedRun, { action: 'add', text: 'Eats no meat or fish', quote: 'I am vegan' })).note.source, 'owner');
 });
 
-test('ADR 276: the owner\'s words are the task and their lines of the chat; a quote of anything else is not found', async (t) => {
+test('ADR 278: the owner\'s words are the task and their lines of the chat; a quote of anything else is not found', async (t) => {
   const b = await bot();
   // An earlier exchange of the chat, asked by the owner, stays in the block of the next run.
   const earlier = await held(t, b, startedBy(b, 'My cat is called Pixel.'));
@@ -698,7 +698,7 @@ test('ADR 276: the owner\'s words are the task and their lines of the chat; a qu
   assert.equal((await mem(next, { action: 'add', text: 'The reply said so', quote: 'You replied' })).note.source, 'bot');
 });
 
-test('ADR 276: update_memory too: a changed note is the owner\'s with a quote found, and the bot\'s without one', async (t) => {
+test('ADR 278: update_memory too: a changed note is the owner\'s with a quote found, and the bot\'s without one', async (t) => {
   const b = await bot();
   const h = await held(t, b, startedBy(b, 'I moved to Krakow. I write my reports in Polish now.'));
   const note = (await remember(h, 'The owner lives in Gdansk', { quote: 'I moved to Krakow' })).note;
@@ -721,7 +721,7 @@ test('ADR 276: update_memory too: a changed note is the owner\'s with a quote fo
   assert.match(await tools.text('remember', { note: 'Reports are in Polish', quote: 'my reports in Polish' }), /^Saved to your memory as \[\w+\], pinned\./);
 });
 
-test('ADR 276: a bot\'s change of a note\'s topic or end alone leaves who said it', async (t) => {
+test('ADR 278: a bot\'s change of a note\'s topic or end alone leaves who said it', async (t) => {
   const b = await bot();
   const h = await held(t, b, startedBy(b, 'I moved to Krakow.'));
   const note = (await remember(h, 'The owner lives in Krakow', { quote: 'I moved to Krakow' })).note;
@@ -733,7 +733,7 @@ test('ADR 276: a bot\'s change of a note\'s topic or end alone leaves who said i
   assert.equal(worded.note.source, 'bot');
 });
 
-test('ADR 276: saving a bot\'s own conclusion again with the owner\'s words makes it the owner\'s, the duplicate key of ADR 015', async (t) => {
+test('ADR 278: saving a bot\'s own conclusion again with the owner\'s words makes it the owner\'s, the duplicate key of ADR 015', async (t) => {
   const b = await bot();
   const h = await held(t, b, startedBy(b, 'I prefer tabs to spaces.'));
   const guess = await mem(h, { action: 'add', text: 'Prefers tabs' });

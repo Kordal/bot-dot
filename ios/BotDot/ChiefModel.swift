@@ -73,7 +73,7 @@ final class ChiefModel: MessageBox {
     func stopFromBox() { desk.stopReply() }
 
     func send(_ text: String) async -> Bool {
-        (try? await desk.send(text: text))?.boolValue ?? false
+        (try? await desk.send(text: text, card: nil))?.boolValue ?? false
     }
 
     func takeFailed(typed: String) -> String? {

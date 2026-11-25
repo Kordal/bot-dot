@@ -397,7 +397,7 @@ class ChiefDesk(
      * chat stays for the next try, and the message waits in [ChiefState.back] for the box.
      */
     @Throws(Exception::class)
-    suspend fun send(text: String): Boolean {
+    suspend fun send(text: String, card: CardEdit.Target? = null): Boolean {
         // Out of the box with the message, as Android's box takes them (BotChat.send).
         val attachments = files
         files = emptyList()
@@ -408,7 +408,7 @@ class ChiefDesk(
                 api.newChiefChat().id.also { chatId = it; outbox.sentIn(it) }
             } catch (e: CancellationException) { throw e } catch (e: Exception) { throw notSent(e) }
             // The answer is the chat: the message is in it at once, or in its list while it waits for the reply to end.
-            api.sendToChief(id, text, attachments, k)?.takeIf { it.id == chatId }?.let { now ->
+            api.sendToChief(id, text, attachments, k, card)?.takeIf { it.id == chatId }?.let { now ->
                 withAnswer(chat?.takeIf { it.id == now.id }, now)?.let { chat = it; follow() }
             }
         }

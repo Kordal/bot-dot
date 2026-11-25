@@ -129,7 +129,7 @@ test("a bot reads of the owner's Board: in its run, in its weekly review, and in
   // Its weekly memory review.
   const started = await srv.api(`/memory/review/${bot.id}`, { method: 'POST' });
   const review = await srv.nextRun((x) => x.stdin.includes('memory review'), 'the review run');
-  assert.match(review.stdin, /\n\n5\. The owner's Board: if the runs show them asking you for the same action or the same value 3 times or more \(a light switched, a reading checked\), suggest a tile for it with suggest_tile, /);
+  assert.match(review.stdin, /\n\n6\. The owner's Board: if the runs show them asking you for the same action or the same value 3 times or more \(a light switched, a reading checked\), suggest a tile for it with suggest_tile, /);
   assert.match(review.stdin, /<\/api-calls>\nYour tiles already on the Board: "Today"\.\nYour suggestions still waiting: "Shopping"\./);
   assert.doesNotMatch(review.stdin, OLD);
   assert.doesNotMatch(review.system, OLD);

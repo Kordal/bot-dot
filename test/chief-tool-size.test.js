@@ -38,6 +38,6 @@ test("the Chief's tools are about 25k characters shorter", () => {
   // 115.7k: around on add_job, update_job, add_my_job and update_my_job, a job the owner named no clock time for (#1667).
   // 116.3k: models_in_use, which model and provider each bot, the Chief and the background calls run on (#1684).
   // 116.6k: site on remember and update_note, a note about one website that arrives with the page (ADR 274).
-  // 117.3k: quote on remember and update_note, the user's words a note rests on (ADR 276).
+  // 117.3k: quote on remember and update_note, the user's words a note rests on (ADR 278).
   assert.ok(size < 117_300, `${size} characters`);
 });

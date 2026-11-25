@@ -229,7 +229,7 @@ Of a note: in every prompt of its bot. A note that is not pinned is searchable: 
 _Avoid_: active, core, always-on
 
 **Source**:
-Who said a note: the user (shown as "you said"), the bot itself, or the bot after it read outside content. The botdot server sets it; a bot never does. A note is the user's only when it also holds the user's own words: the bot quotes them, and the server looks for them in what the user wrote (ADR 276).
+Who said a note: the user (shown as "you said"), the bot itself, or the bot after it read outside content. The botdot server sets it; a bot never does. A note is the user's only when it also holds the user's own words: the bot quotes them, and the server looks for them in what the user wrote (ADR 278).
 _Avoid_: author (who last wrote the note), confidence, trust level
 
 **Quote**:
