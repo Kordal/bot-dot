@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -150,7 +151,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         },
         snackbarHost = { BotSnackbarHost(snack) },
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
+        Column(Modifier.padding(pad).fillMaxSize().imePadding()) { // the phone's keyboard (the viewer's Keyboard button, #1735) lifts the screen, not covers it
             // The bot's old computer of its own, kept and stopped until its files are copied and it is erased (#107).
             info?.old?.let { old ->
                 Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = Space.s16, vertical = Space.s12)) {
