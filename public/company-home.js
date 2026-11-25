@@ -440,7 +440,7 @@
     const n = filter === 'done' ? 0 : waits.length + asking.length + items.length + (asks ? standupAsks(c).length : 0);
     const who = pick.bot && botById(pick.bot);
     const when = pick.repeat ? rhythmLabel(pick.repeat) : pick.due ? dueLabel(pick.due) : '';
-    return `<div class="cf-panel-head"><h2>${tr('To-do')}</h2>${n ? `<span class="cf-count">${n}</span>` : ''}</div>
+    return `<div class="cf-panel-head" data-cf-todo-head><h2>${tr('To-do')}</h2>${n ? `<span class="cf-count">${n}</span>` : ''}</div>
       <div class="kit-seg cf-filters" role="tablist">${CompanyTodo.FILTERS.map((k) => `<button type="button" role="tab" class="${filter === k ? 'on' : ''}" aria-selected="${filter === k}" data-cf-filter="${k}">${FILTER[k]()}</button>`).join('')}</div>
       ${asks ? planHTML(c) + standupHTML(c) : ''}
       <div class="cf-rows">${rows}</div>
@@ -555,6 +555,7 @@
       $('[data-po-back]', root).onclick = () => { boardFor = null; root.scrollTop = 0; Company.redraw(); };
     }
     window.BoardView?.apply(root, c); // the tiles where the owner put them (#783, board-canvas-view.js)
+    window.BoardEdit?.apply(root, c); // the pencil on each tile (ADR 273, board-edit.js)
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
     wire(root, c);
   }

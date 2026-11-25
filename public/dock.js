@@ -32,6 +32,7 @@ const Dock = (() => {
 
   function draw() {
     if (!$('#chat-row')) return;
+    queueMicrotask(() => window.BoardEdit?.sync()); // the chip of a tile the owner pointed at stands in the project's chat only
     if (state.view !== 'chief' || !shows()) chiefHere = false;
     if (!shows() || failedDefault !== state.company?.id || state.company?.chiefChat || defaultChat()?.kind === 'bot') failedDefault = null;
     if (drawColumn()) return;
