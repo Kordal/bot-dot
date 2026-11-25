@@ -206,6 +206,26 @@ function vncServer(sock, got, ext) {
     };
     const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
     const hex = (cp) => cp.toString(16);
+    // A host that is not a Mac has no ⌘+V paste, and Chromium has no Ctrl+V paste on a Mac: the browser's paste event is then
+    // made as the owner's browser makes it.
+    const pasteEventIfNone = async (owner) => {
+      await page.waitForTimeout(100);
+      if (await page.evaluate(() => window.pastes)) return;
+      await page.evaluate((t) => {
+        const data = new DataTransfer();
+        data.setData('text/plain', t);
+        document.activeElement.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+      }, owner);
+    };
+    // The keys the computer has down after the log so far (what was pressed and not let go of).
+    const downAfter = (log, until = log.length) => {
+      const down = new Set();
+      for (const e of log.slice(0, until)) {
+        const m = /^key (down|up) ([0-9a-f]+)$/.exec(e);
+        if (m) { if (m[1] === 'down') down.add(m[2]); else down.delete(m[2]); }
+      }
+      return [...down].sort();
+    };
 
     for (const mode of ['extended', 'latin1']) {
       ext = mode === 'extended';
@@ -248,6 +268,23 @@ function vncServer(sock, got, ext) {
       assert.ok(ctrlDown >= 0 && ctrlDown < vDown && vDown < vUp, `Ctrl is held for the V: ${seq.join(', ')}`);
       assert.equal(got.log.some((e) => /^key down ffe[bc]$/.test(e)), false, 'no Super key reaches the computer');
 
+      // The owner holds Ctrl through the paste and presses S: the computer still has Ctrl down when S arrives (the paste
+      // does not let go of what the owner holds, because noVNC would not press it again), and nothing is left held after.
+      reset();
+      await page.evaluate(() => { window.pastes = 0; });
+      await page.keyboard.down('ControlLeft');
+      await waitFor(() => got.log.includes('key down ffe3'), { what: `[${mode}] the held Ctrl to reach the computer` });
+      await page.keyboard.press('KeyV');
+      await pasteEventIfNone(pasted);
+      await waitFor(() => got.log.includes('key up 76'), { what: `[${mode}] the paste with Ctrl held` });
+      await page.keyboard.press('KeyS');
+      await waitFor(() => got.log.includes('key down 73'), { what: `[${mode}] the S after the paste` });
+      assert.deepEqual(downAfter(got.log, got.log.indexOf('key down 73') + 1), ['73', 'ffe3'], `[${mode}] Ctrl is down on the computer when S arrives: ${got.log.join(', ')}`);
+      await page.keyboard.up('ControlLeft');
+      await waitFor(() => downAfter(got.log).length === 0, { what: `[${mode}] Ctrl to be let go of on the computer: ${got.log.join(', ')}` });
+      await page.waitForTimeout(100);
+      assert.deepEqual(downAfter(got.log), [], `[${mode}] nothing is left held: ${got.log.join(', ')}`);
+
       // Type it: Polish letters, capitals and a new line, key by key.
       reset();
       await page.locator('#type-open').click();
@@ -287,15 +324,7 @@ function vncServer(sock, got, ext) {
       await page.keyboard.down(cmd);
       await waitFor(() => got.log.includes(`key down ${held}`), { what: `[${cmd}] the held ⌘ to reach the computer as ${held}` });
       await page.keyboard.press('KeyV');
-      // A host that is not a Mac has no ⌘+V paste: the browser's paste event is then made as the owner's browser makes it.
-      await page.waitForTimeout(100);
-      if (!(await page.evaluate(() => window.pastes))) {
-        await page.evaluate((t) => {
-          const data = new DataTransfer();
-          data.setData('text/plain', t);
-          document.activeElement.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
-        }, owner);
-      }
+      await pasteEventIfNone(owner);
       await waitFor(() => got.log.includes('key up 76'), { what: `[${cmd}] the paste to reach the computer` });
       assert.equal(got.clipboard, owner, `[${cmd}] the owner's text arrived`);
       // Replay the keys the computer got: what is held when V goes down, and what the paste itself sent.
@@ -308,9 +337,15 @@ function vncServer(sock, got, ext) {
         if (e === 'key down 76') atV = [...down].sort();
       }
       assert.deepEqual(atV, ['76', 'ffe3'], `[${cmd}] only Ctrl is held for the V, no Alt and no Super: ${got.log.join(', ')}`);
-      assert.deepEqual(got.log.filter((e) => e.startsWith('key')).slice(-4), ['key down ffe3', 'key down 76', 'key up 76', 'key up ffe3'], `[${cmd}] the paste is Ctrl down, V, V up, Ctrl up`);
+      assert.deepEqual(got.log.filter((e) => e.startsWith('key')).slice(-5), ['key down ffe3', 'key down 76', 'key up 76', 'key up ffe3', `key down ${held}`], `[${cmd}] the paste is Ctrl down, V, V up, Ctrl up, and the ⌘ the owner holds is pressed again`);
+      // The owner still holds ⌘ and presses S: the computer has the ⌘ keys down when S arrives, with no Ctrl.
+      await page.keyboard.press('KeyS');
+      await waitFor(() => got.log.includes('key down 73'), { what: `[${cmd}] the S after the paste` });
+      assert.deepEqual(downAfter(got.log, got.log.indexOf('key down 73') + 1), ['73', held].sort(), `[${cmd}] ⌘ is down on the computer when S arrives: ${got.log.join(', ')}`);
       await page.keyboard.up(cmd);
+      await waitFor(() => downAfter(got.log).length === 0, { what: `[${cmd}] ⌘ to be let go of on the computer: ${got.log.join(', ')}` });
       await page.waitForTimeout(100);
+      assert.deepEqual(downAfter(got.log), [], `[${cmd}] nothing is left held: ${got.log.join(', ')}`);
       assert.equal(got.log.filter((e) => e === 'key down 76').length, 1, `[${cmd}] one V press`);
     }
     await page.evaluate(() => { window.fakeMac = false; });

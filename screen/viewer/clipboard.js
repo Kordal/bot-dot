@@ -66,15 +66,22 @@ export function initClipboard({ words, viewOnly, transport: current }) {
   // then the paste. The browser's own paste event carries the text without asking for permission.
   const isPasteKey = (e) => (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'v' || e.key === 'V');
   const inField = (e) => e.target instanceof Element && e.target.closest('input, textarea');
+  // What the owner holds right now (the DOM codes of Ctrl and ⌘): noVNC has these down on the computer, and the paste,
+  // which lets go of them for a moment, puts them back.
+  const HOLDABLE = new Set(['ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight']);
+  const held = new Set();
   document.addEventListener('keydown', (e) => {
-    if (viewOnly || inField(e) || !isPasteKey(e)) return;
-    e.stopPropagation();
+    if (viewOnly || inField(e)) return;
+    if (HOLDABLE.has(e.code)) held.add(e.code);
+    if (isPasteKey(e)) e.stopPropagation();
   }, true);
+  document.addEventListener('keyup', (e) => { held.delete(e.code); }, true);
+  addEventListener('blur', () => held.clear());
   document.addEventListener('paste', (e) => {
     if (viewOnly || inField(e)) return;
     const text = e.clipboardData?.getData('text/plain');
     e.preventDefault();
-    if (text) transport().pasteText(text);
+    if (text) transport().pasteText(text, () => [...held]);
   });
 
   // Type it.
