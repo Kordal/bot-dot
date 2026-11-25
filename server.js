@@ -246,7 +246,7 @@ const changeTrials = require('./lib/change-trials').create({
 // The Chief's memory review of its own and the shared notes (#117): proposals on cards, done on the owner's yes.
 const chiefReview = require('./lib/chief-review').create({
   dataDir: B.DATA_DIR, memory: B.memory, skills: B.skills, bots: B.bots, asks, chiefHas: shared.chiefHas, attachSkill: (name, ids) => shared.attachSkill(name, ids),
-  settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId), test: tryProposal,
+  settings: () => B.settings.get(), removalLimit: B.reviewRemovalLimit, run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId), test: tryProposal,
   changes: (since) => B.bots.list().flatMap((b) => B.learn.proposalsSince(b.id, since).map((c) => ({ ...c, name: b.name, effect: chief.changeEffects.effectAt(b.id, c.at) }))),
 });
 B.onChiefReview(() => chiefReview.due());

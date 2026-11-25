@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { startServer, makeBot, waitFor } = require('./helpers');
+const { startServer, makeBot, waitFor, sharedByBot } = require('./helpers');
 const review = require('../lib/chief-review');
 
 // ---------- what an answer proposes ----------
@@ -101,6 +101,110 @@ test('a proposal is tried on past tasks before its card; one worse on more is dr
   assert.deepEqual([saved.testing, saved.declined.map((d) => d.key)], [[], ['skill:ordering']], 'not proposed again');
 });
 
+// ---------- notes that cannot both be true (#1714) ----------
+
+const dated = (id, text, at, source = 'bot', owner = '_shared') => ({ id, owner, text, at, source });
+const PAIRS = [
+  dated('old', 'The staging database listens on port 6543.', '2026-03-02'),
+  dated('new', 'Staging is on port 5433.', '2026-10-09'),
+  dated('o1', 'The owner works from the office on Tuesdays.', '2026-05-01', 'owner', 'chief'),
+  dated('o2', 'The owner works from home every day.', '2026-09-01', 'owner', 'chief'),
+  dated('plain', 'Bart lives in Kraków.', '2026-01-01'),
+];
+const settle = (raw, limit = 3, notes = PAIRS) => review.settledOf(JSON.stringify(raw), { notes, limit });
+
+test('its prompt holds the step and the limit: pairs that cannot both be true, the newer one kept, the owner\'s pair only named', () => {
+  const s = review.systemPrompt({ limit: 3 });
+  assert.match(s, /cannot both be true now/);
+  assert.match(s, /Keep the newer one unless the older one is clearly the correction/);
+  assert.match(s, /"settle"/);
+  assert.match(s, /both are marked "the owner said"[^\n]*neither[^\n]*"owner_pairs"/);
+  assert.match(s, /at most 3 notes/);
+  assert.doesNotMatch(s, /You have no tools here, and you change nothing:/, 'it no longer changes nothing');
+  assert.doesNotMatch(review.systemPrompt({ limit: 0 }), /cannot both be true now/, 'no step where there is no room for a removal');
+});
+
+test('an answer settles a pair by removing the older note for the newer; each is checked against the notes it was handed', () => {
+  const got = settle({ settle: [{ remove: 'old', keep: 'new', reason: 'the port moved' }] });
+  assert.deepEqual(got.removed.map((r) => [r.note.id, r.keep.id]), [['old', 'new']]);
+  assert.match(got.removed[0].reason, /^lost to \[new\] “Staging is on port 5433\.”: the port moved$/, 'the reason names the note it lost to');
+  assert.deepEqual([got.pairs, got.over], [[], 0]);
+  for (const bad of [{ remove: 'ghost', keep: 'new' }, { remove: 'old', keep: 'ghost' }, { remove: 'old', keep: 'old' }, { remove: 'old' }, 'old']) {
+    assert.deepEqual(settle({ settle: [bad] }).removed, [], JSON.stringify(bad));
+  }
+  assert.deepEqual(review.settledOf('NOTHING', { notes: PAIRS, limit: 3 }), { removed: [], pairs: [], over: 0 });
+  assert.deepEqual(review.settledOf('{"proposals": []}', { notes: PAIRS, limit: 3 }), { removed: [], pairs: [], over: 0 });
+  assert.deepEqual(review.settledOf('not json {', { notes: PAIRS, limit: 3 }), { removed: [], pairs: [], over: 0 });
+  // Not one note twice, and not a note that lost in one pair and wins in another.
+  const chain = [...PAIRS, dated('newest', 'Staging is on port 5434.', '2026-11-01')];
+  const twice = settle({ settle: [{ remove: 'old', keep: 'new' }, { remove: 'old', keep: 'newest' }, { remove: 'new', keep: 'newest' }] }, 3, chain);
+  assert.deepEqual(twice.removed.map((r) => [r.note.id, r.keep.id]), [['old', 'new']]);
+});
+
+test('what the owner said is never removed: a pair of theirs is named, and a note of theirs that lost to a bot\'s is left', () => {
+  const got = settle({ settle: [{ remove: 'o1', keep: 'o2' }, { remove: 'o2', keep: 'old' }], owner_pairs: [['o1', 'o2']] });
+  assert.deepEqual(got.removed, []);
+  assert.deepEqual(got.pairs.map((p) => p.map((n) => n.id)), [['o1', 'o2']], 'the pair, once');
+  // The pair is named whether the model listed it or tried to settle it; and only a pair that are both the owner's.
+  assert.deepEqual(settle({ settle: [{ remove: 'o1', keep: 'o2' }] }).pairs.map((p) => p.map((n) => n.id)), [['o1', 'o2']]);
+  assert.deepEqual(settle({ owner_pairs: [['o1', 'plain']] }).pairs, []);
+  assert.deepEqual(settle({ owner_pairs: [['o1', 'o1']] }).pairs, []);
+  assert.deepEqual(settle({ settle: [{ remove: 'o1', keep: 'plain' }] }).removed, [], 'a bot\'s note does not replace the owner\'s');
+});
+
+test('a review removes at most a quarter of the notes it reads, at least 3; the rest is said as left for the next', () => {
+  const many = Array.from({ length: 6 }, (_, i) => [dated(`a${i}`, `Port is ${i}0.`, '2026-01-01'), dated(`b${i}`, `Port is ${i}1.`, '2026-06-01')]).flat();
+  const all = { settle: Array.from({ length: 6 }, (_, i) => ({ remove: `a${i}`, keep: `b${i}` })) };
+  const got = settle(all, 3, many);
+  assert.deepEqual([got.removed.map((r) => r.note.id), got.over], [['a0', 'a1', 'a2'], 3]);
+  assert.deepEqual(settle(all, 1, many).removed.length, 1);
+  assert.deepEqual(settle(all, 0, many), { removed: [], pairs: [], over: 0 }, 'no room for a removal, and nothing said of it');
+});
+
+test('its report says each removal with the note it lost to, the owner\'s pair as one line, and what is left for the next review', () => {
+  const got = settle({ settle: [{ remove: 'old', keep: 'new', reason: 'the port moved' }], owner_pairs: [['o1', 'o2']] });
+  const text = review.reportOf([], [], { ...got, over: 2, limit: 3 });
+  assert.match(text, /^Memory review of my notes and the shared notes\./);
+  assert.doesNotMatch(text, /nothing to change/);
+  assert.match(text, /- Removed the note “The staging database listens on port 6543\.”: it lost to “Staging is on port 5433\.”\. It can be brought back for 30 days\./);
+  assert.match(text, /- Two things you said cannot both be true: “The owner works from the office on Tuesdays\.” and “The owner works from home every day\.”\. Tell me which holds\./);
+  assert.match(text, /- Left for the next review: 2 more removals \(a review removes at most 3 notes\)\./);
+  assert.match(review.reportOf([], [], { removed: [], pairs: [], over: 0 }), /nothing to change/);
+  assert.match(review.reportOf([], [{ name: 'Cook', fields: ['prompt'] }], got), /Removed the note[^]*Changed since the last review:/);
+});
+
+test('a review removes what it settled, as the Chief and at once, and says so in its chat; nothing for an answer with nothing to settle', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chief-review-'));
+  after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const removed = [];
+  let posted = '';
+  let prompted = null;
+  let answer = JSON.stringify({ settle: [{ remove: 'old', keep: 'new', reason: 'the port moved' }, { remove: 'o1', keep: 'o2' }] });
+  const make = () => review.create({
+    dataDir: dir, removalLimit: (n) => Math.max(3, Math.floor(n / 4)),
+    memory: { lastReview: () => null, setLastReview: () => {}, notesOf: (o) => PAIRS.filter((n) => n.owner === o), removeNote: (owner, id, opts) => { removed.push([owner, id, opts]); }, reviewSettings: () => ({ model: 'opus' }) },
+    skills: { list: () => [] }, bots: { list: () => BOTS, get: (id) => BOTS.find((b) => b.id === id) },
+    asks: { list: () => [], add: () => {} }, attachSkill: () => {}, post: (t) => { posted = t; return 'c1'; },
+    run: async ({ system, prompt }) => { prompted = { system, prompt }; return answer; },
+  });
+  const done = await make().review();
+  assert.deepEqual(removed.map(([owner, id, o]) => [owner, id, o.by, /^lost to \[new\]/.test(o.reason)]), [['_shared', 'old', 'chief', true]]);
+  assert.deepEqual(done.proposals, []);
+  assert.match(prompted.system, /at most 3 notes/, 'a quarter of the 5 notes it reads is under the least, 3');
+  assert.match(posted, /Removed the note “The staging database listens on port 6543\.”/);
+  assert.match(posted, /Two things you said cannot both be true/);
+  removed.length = 0;
+  answer = 'NOTHING';
+  await make().review();
+  assert.deepEqual(removed, []);
+  assert.match(posted, /nothing to change/);
+  // A removal that fails is left out of the report and does not stop the review.
+  answer = JSON.stringify({ settle: [{ remove: 'old', keep: 'new' }] });
+  const broken = review.create({ ...{ dataDir: dir, removalLimit: () => 3, memory: { lastReview: () => null, setLastReview: () => {}, notesOf: (o) => PAIRS.filter((n) => n.owner === o), removeNote: () => { throw new Error('No note with id old'); }, reviewSettings: () => ({}) }, skills: { list: () => [] }, bots: { list: () => BOTS, get: () => null }, asks: { list: () => [], add: () => {} }, attachSkill: () => {}, post: (t) => { posted = t; return 'c1'; }, run: async () => answer } });
+  await broken.review();
+  assert.match(posted, /nothing to change/);
+});
+
 // ---------- on a real botdot ----------
 
 let srv, cook, shopper;
@@ -183,4 +287,22 @@ test('"Review now" for the Chief reports in its chat, and what was turned down i
   const report = await waitFor(async () => { const l = await notices(); return l.length > before ? l.at(-1) : null; }, { what: 'the report' });
   assert.match(report, /nothing to change/);
   assert.deepEqual(await asks(), []);
+});
+
+test('on a real botdot the Chief\'s review removes the older shared note of a pair that cannot both be true, and the report names it', async () => {
+  // Two notes a bot concluded (what the owner typed is theirs, and the review leaves it).
+  const older = await sharedByBot(srv, cook, 'The staging database listens on port 6543.');
+  const newer = await sharedByBot(srv, cook, 'Staging is on port 5433.');
+  srv.unhold();
+  srv.reply(JSON.stringify({ settle: [{ remove: older.id, keep: newer.id, reason: 'the port moved' }] }));
+  const before = (await notices()).length;
+  const runs = reviewRuns().length;
+  assert.equal((await srv.asChief('/memory/review/chief', { method: 'POST' })).status, 200);
+  const run = await waitFor(() => reviewRuns()[runs], { what: 'the review' });
+  const system = fs.readFileSync(run.args[run.args.indexOf('--append-system-prompt-file') + 1], 'utf8');
+  assert.match(system, /cannot both be true now[^]*at most 3 notes/);
+  const report = await waitFor(async () => { const l = await notices(); return l.length > before ? l.at(-1) : null; }, { what: 'the report' });
+  assert.match(report, /Removed the note “The staging database listens on port 6543\.”: it lost to “Staging is on port 5433\.”/);
+  const shared = (await srv.api('/memory')).data.shared.map((n) => n.id);
+  assert.ok(!shared.includes(older.id) && shared.includes(newer.id), 'the older is removed, the newer stays');
 });

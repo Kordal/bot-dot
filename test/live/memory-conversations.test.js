@@ -6,7 +6,7 @@
 // - writing: what a bot saves after one short conversation (WRITE_SCENARIOS in grading.js), graded on the store
 //   afterwards: a note or none, for whom, how many.
 // - the weekly review: what the bot's memory review (lib/bots.js reviewPrompt, startReview) does to its notes.
-//   REVIEW_SCENARIOS (r01 to r06, in grading.js) seed a bot with notes and past runs, start its review as "Review
+//   REVIEW_SCENARIOS (r01 to r07, in grading.js) seed a bot with notes and past runs, start its review as "Review
 //   now" does, and grade the notes and skills afterwards: duplicates merged, a lesson in the runs saved, a note the
 //   owner said left alone, nothing changed in a tidy memory, nothing invented, a how-to moved into a skill. No model
 //   judges. The report has a section of its own, and report.js --compare a verdict per scenario.
@@ -518,7 +518,9 @@ async function reviewSide(s, scenario) {
   const library = (await s.api('/skills')).data.library.filter((k) => k.createdBy === `bot:${bot.id}`);
   const skills = [];
   for (const k of library) { const x = (await s.api(`/skills/${encodeURIComponent(k.name)}`)).data; skills.push({ name: x.name, description: x.description, instructions: x.instructions }); }
-  const store = { seeded, after, skills };
+  // What the review removed and why (its remove_note calls), and what it told the owner: a pair it was to leave is named there.
+  const removals = run.calls.filter((c) => c.name === 'remove_note').map((c) => ({ id: c.input?.id, reason: c.input?.reason || '', answer: c.result || '' }));
+  const store = { seeded, after, skills, removals, report: run.text };
   return { says: scenario.says, store, report: run.text, calls: run.calls, model: run.model, grade: gradeReview(scenario, store) };
 }
 
