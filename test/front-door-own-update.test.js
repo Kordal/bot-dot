@@ -289,8 +289,8 @@ test('every account the front door already has is written `autoUpdate: false` wh
   const created = '2026-10-01T10:00:00.000Z';
   const accounts = { ann: { created }, bob: { created, autoUpdate: false }, cat: { created, updateWhen: 'ready' }, dan: { created, updateWhen: 'night', autoUpdate: false }, eve: { created, updateWhen: 'sometime' } };
   fs.writeFileSync(path.join(dir, 'front-door.json'), JSON.stringify({ accounts, passkeys: {}, sessions: {}, signUpLinks: {}, deleted: {} }));
-  // A front door of one account (a setup key to start with) over data that holds several: what it has is what it settles.
-  const old = await startFrontDoor({ env: { FRONT_DOOR_DATA: dir, FRONT_DOOR_ONE_ACCOUNT: 'ann', FRONT_DOOR_SETUP_KEY: 'k'.repeat(40) } });
+  // A front door of one account (a setup key to start with, root's step taking requests: it plans the switches) over data that holds several: what it has is what it settles.
+  const old = await startFrontDoor({ env: { FRONT_DOOR_DATA: dir, FRONT_DOOR_ONE_ACCOUNT: 'ann', FRONT_DOOR_SETUP_KEY: 'k'.repeat(40), FRONT_DOOR_REQUESTS: requests } });
   try {
     const now = JSON.parse(fs.readFileSync(path.join(dir, 'front-door.json'), 'utf8')).accounts;
     assert.deepEqual(Object.fromEntries(Object.entries(now).map(([n, a]) => [n, [a.updateWhen, a.autoUpdate]])), {

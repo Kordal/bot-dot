@@ -140,14 +140,21 @@ if (FIRST_ACCOUNT !== null && !store.ACCOUNT_NAME.test(FIRST_ACCOUNT)) {
 }
 // A managed machine has no admin: the fleet console is (ADR 154).
 const ADMIN = MANAGED ? null : process.env.FRONT_DOOR_ADMIN || null;
+const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
+// Whether the owner of an account chooses when it switches to a new version, the front door planning the switch: on a
+// machine of one account its owner, on a machine of several accounts root's step serves, every account, the admin's own
+// too (#274), and on one with no admin (a managed machine; one that names none) no one (ADR 271, #1689).
+const choosesUpdates = () => !!REQUESTS && (!!ONE_ACCOUNT || !!ADMIN);
 // The account the setup key makes: the one account, or a managed machine's first.
 const SETUP_ACCOUNT = ONE_ACCOUNT || FIRST_ACCOUNT;
 const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
 // The machine's RAM sizes the default share (#126): the last root's step measured, kept while its file is stale.
 let machineRam = null;
-const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null });
-// Root's step leaves every account waiting and the front door switches each one when its owner chose and it is idle (ADR 271,
-// #1689): every account it has already says `autoUpdate: false` from the first start, each keeping its "when" in words.
+const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null, plansSwitches: choosesUpdates() });
+// Where the front door plans the switches (choosesUpdates) root's step leaves every account waiting and the front door
+// switches each one when its owner chose and it is idle (ADR 271, #1689): every account it has already says
+// `autoUpdate: false` from the first start, each keeping its "when" in words. Elsewhere the old rule, `false` for `manual`
+// alone, and an account pinned before is let go.
 doors.pinUpdates();
 
 // A review code is enabled only on an explicitly configured, dedicated managed one-account machine.
@@ -430,7 +437,6 @@ setInterval(() => {
   for (const map of [challenges, handoffs, agreements]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
 const socketOf = (account) => path.join(SOCKETS, account, 'botdot.sock');
-const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
 const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DOOR_STATUS) : null;
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
 // Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin. A managed machine's
@@ -718,9 +724,6 @@ function askForUpdate() {
 const SWITCH = (name) => `SWITCH-${name}`;
 const ACCOUNT_STATES = ['waiting', 'switching', 'updated', 'kept', 'failed'];
 const DAY = 24 * 3600_000;
-// Whether the owner of an account chooses when it switches: on a machine of several accounts root's step serves, every
-// account, the admin's own too (#274), and on a machine of one account its owner (ADR 271, #1689).
-const choosesUpdates = () => !!REQUESTS && (!!ONE_ACCOUNT || !!ADMIN);
 const switchAsked = (name) => !!REQUESTS && fs.existsSync(path.join(REQUESTS, SWITCH(name)));
 // What root's step said of the account, checked field by field: { state, at, since?, version?, from?, error? } or null.
 function accountStatus(name) {
