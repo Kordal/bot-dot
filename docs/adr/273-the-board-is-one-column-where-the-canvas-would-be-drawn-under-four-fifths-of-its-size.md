@@ -10,7 +10,7 @@ A project's board is a canvas 1200 units wide (ADR 124), scaled to the width it 
 ## Decision
 
 - The rule is a scale, not a width: `BoardCanvas.MIN_SCALE` is 0.8, and `BoardCanvas.column(width)` is true where the canvas would be drawn under it, that is under 960 pixels (960 dp on Android). There the board is drawn as ADR 147 says: one column, every tile full width at its own height, in the canvas's reading order, tiles not moved. At 960 and wider the canvas is drawn, at 0.8 of its size at the smallest. `BoardCanvas.NARROW` is gone: the web page and Android share `MIN_SCALE` and `column`, checked against the same cases (test/board-canvas.test.js, BoardCanvasTest).
-- On an arranged board an overview tile shows the whole rows that fit its height, one at least, and a muted "+N more" for the rest, as a card does (`ProjectCards.fit`). It no longer scrolls. Made taller, it shows more. In the column every row is shown.
+- On an arranged board an overview tile shows the whole rows that fit its height, one at least, and a muted line for the rest, as a card does (`ProjectCards.fit`): "+N more" on the web page (`ProjectOverview.fit`, public/project-overview.js), "N more" on Android, which already had that string for Needs you (`OverviewRowsFit` measures each row; the count is the shared `Overviews.fit`, so it is tested once). It no longer scrolls. Made taller, it shows more. In the column every row is shown, on both.
 - The layout, the API and the server's rules are unchanged.
 
 ## Alternatives

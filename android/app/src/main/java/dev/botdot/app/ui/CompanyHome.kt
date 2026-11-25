@@ -222,7 +222,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
                 .filterNot { it.startsWith("goal:") && it.removePrefix("goal:") in ui.removingGoals }
             val tiles = ids.mapNotNull { id ->
                 when {
-                    id == "work" || id == "blockers" || id == "replies" -> feed?.let { f -> Tile(id) { m, _ -> OverviewTile(id, f, bots, openEntry, m) } }
+                    id == "work" || id == "blockers" || id == "replies" -> feed?.let { f -> Tile(id) { m, fixed -> OverviewTile(id, f, bots, openEntry, m, fixed) } }
                     id == "days" -> if (on("days")) c.day?.let { day -> Tile(id) { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } } }
                         // An ongoing project's monthly review (#925) stands where the 90-day line would.
                         else c.checkin?.let { k -> Tile(id) { m, _ -> Box(m) { CheckinCard(ui, k, ways, c.name.ifBlank { c.start }, ongoing = true) } } }
