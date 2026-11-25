@@ -1,4 +1,4 @@
-# ADR-273: One embedding server is shared by every account on a botdot machine
+# ADR-275: One embedding server is shared by every account on a botdot machine
 
 - **Status:** Accepted (the owner's decision, spec in [#1704](https://github.com/ladrok/bot-dot/issues/1704)). Amends [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md): its line that each account runs its own botdot server, embedding model and Chief is changed to "its own botdot server and Chief; the embedding model is the machine's, shared".
 - **Owning task:** [#1704](https://github.com/ladrok/bot-dot/issues/1704)

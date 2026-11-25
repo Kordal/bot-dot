@@ -1,4 +1,4 @@
-// install.sh on a stand-in machine (test/installer-helpers.js): the machine's one shared embedding server (ADR 273) and
+// install.sh on a stand-in machine (test/installer-helpers.js): the machine's one shared embedding server (ADR 275) and
 // each account's way into it, a folder of its own with a Unix socket in it, the mirror of the front door's socket folder.
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;

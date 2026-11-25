@@ -1,4 +1,4 @@
-// lib/embed.js with EMBED_SOCKET (ADR 273): an account's botdot server on a machine with several reaches the machine's one
+// lib/embed.js with EMBED_SOCKET (ADR 275): an account's botdot server on a machine with several reaches the machine's one
 // shared embedding server through a Unix socket, and starts no llama-server of its own. A stub embedder listens on a
 // socket in place of lib/embed-share.js and bge-m3.
 const { test } = require('node:test');
