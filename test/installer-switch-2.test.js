@@ -5,27 +5,8 @@ const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const { PIN, SIGNED, status } = require('./installer-helpers');
+const { PIN, status } = require('./installer-helpers');
 const { onOlderVersion } = require('./installer-switch-helpers');
-
-test('"Update now" switches that account alone to the version the front door pins, with its way back', (t) => {
-  const { update, request } = onOlderVersion(t, { ann: {}, bob: { autoUpdate: false } });
-  update();
-  const done = request('SWITCH-bob');
-  assert.ok(done.up('bob'), 'bob is started on the new version');
-  assert.ok(!done.up('ann'), 'ann is left as it is');
-  assert.ok(!done.docker.some((c) => c.host === 'machine' && /^compose .* up/.test(c.call)), 'and the front door');
-  assert.deepEqual(done.checks, [], 'no new release is looked for: it is the one the admin installed');
-  assert.equal(done.accountEnv('bob').BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${SIGNED}`);
-  assert.ok(done.calls('bob').some((c) => /update-install\.js --clean/.test(c)), 'what it replaced goes');
-  assert.equal(status(done, 'account-bob.json').state, 'updated');
-  assert.match(done.said, /Switching the account bob to the new version, as asked/);
-
-  // Asked again: it runs it already, and nothing restarts.
-  const again = request('SWITCH-bob');
-  assert.ok(!again.up('bob'));
-  assert.match(again.said, /The account bob runs the newest version already/);
-});
 
 test('a switch whose new server doesn\'t start puts the account back, and says why to its owner', (t) => {
   const { first, update, request } = onOlderVersion(t, { ann: {}, bob: { autoUpdate: false } });

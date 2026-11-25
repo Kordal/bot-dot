@@ -1,9 +1,11 @@
-// What the off-site backup's installer tests (installer-offsite-N.test.js) share: a stand-in restic, and a machine with ann and bob and their data.
+// What the off-site backup installer tests (installer-offsite-N.test.js) share.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { withBob, installer } = require('./installer-helpers');
+
+const volume = (home, name) => path.join(home, '.local', 'share', 'docker', 'volumes', name, '_data');
 
 // restic: `cat config` finds the repository once `init` made it, `backup --stdin-from-command` keeps the command's
 // output as the part its --stdin-filename names (with its tags beside it), and a part named in STAND_IN_RESTIC_FAIL
@@ -122,8 +124,6 @@ function machine(t, { repo = null } = {}) {
   return { ...m, dir, store, parts: path.join(store, 'parts'), offsite, restoreTest, secrets: path.join(dir, 'offsite') };
 }
 
-const volume = (home, name) => path.join(home, '.local', 'share', 'docker', 'volumes', name, '_data');
-
 const resticCalls = (done) => done.system.split('\n').filter((l) => l.startsWith('restic ')).map((l) => l.slice(7));
 
 const keygen = '#!/bin/sh\necho "ssh-keygen $*" >> "$STAND_IN_LOG"\nwhile [ "$1" != -f ]; do shift; done\necho key > "$2"; echo "ssh-ed25519 AAAA botdot" > "$2.pub"\n';
@@ -211,4 +211,4 @@ function elsewhere(m) {
   fs.writeFileSync(path.join(m.home, 'data', 'vault.json'), 'fresh');
 }
 
-module.exports = { restic, machine, volume, resticCalls, keygen, ssh, withBobsData, scratch, doorData, instanceOf, ask, holdLock, fresh, moveDoor, elsewhere };
+module.exports = { volume, restic, machine, resticCalls, keygen, ssh, withBobsData, scratch, doorData, instanceOf, ask, holdLock, fresh, moveDoor, elsewhere };

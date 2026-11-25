@@ -1,169 +1,151 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): the off-site backup (#1016, ADR 157), root's step that
 // streams a backup set's parts into a restic repository. A stand-in restic on PATH keeps each part it is given in a
 // folder of its own, as the repository holds it, and writes down what it was asked.
-// Part 6 of 6 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 6 of 9 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { status, extracts } = require('./installer-helpers');
-const { restic, machine, resticCalls, instanceOf, ask, holdLock, moveDoor, elsewhere } = require('./installer-offsite-helpers');
+const { status, extracts, code } = require('./installer-helpers');
+const { machine, resticCalls, withBobsData, scratch, doorData, instanceOf, ask, holdLock, fresh } = require('./installer-offsite-helpers');
 
-// HOLD-<account> (ADR 254): the account held still on the machine it leaves, and backed up off-site from then on.
-const holdDoor = (m) => {
-  const data = path.join(m.dir, 'front-door', 'data', 'front-door.json');
-  return [
-    'case "$*" in',
-    `  *"front-door.js hold-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{},"bob":{"suspended":"2026-11-16T12:00:00.000Z","held":"2026-11-16T12:00:00.000Z"}}}' > ${data}; echo '{"state":"held","account":"bob","changed":true}'; exit 0 ;;`,
-    `  *"front-door.js release-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{},"bob":{}}}' > ${data}; echo '{"state":"released","account":"bob","changed":true}'; exit 0 ;;`,
-    'esac',
-  ];
-};
-
-test('IMPORT-bob waits while an off-site backup runs, and asks nothing of the front door', (t) => {
+test('OFFSITE-RESTORE reads another instance\'s backups when its second line names it, and the machine takes its instance', (t) => {
   const m = machine(t);
   m.offsite();
   const old = instanceOf(m);
-  elsewhere(m);
-  const release = holdLock(t, m);
-  const done = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...moveDoor(m), ...extracts] });
-  release();
-  const said = status(done, 'import-bob.json');
-  assert.deepEqual([said.state, said.error], ['failed', 'An off-site backup runs now: import the account when it is done.']);
-  assert.ok(!done.docker.some((c) => / import-account /.test(c.call)));
+  // A new machine of its own instance, given the old one's repository.
+  const env = path.join(m.dir, 'front-door', '.env');
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^BOT_DOT_INSTANCE=.*$/m, 'BOT_DOT_INSTANCE=0badcafe'));
+  fresh(m);
+  const own = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  const none = status(own, 'restore.json');
+  assert.deepEqual({ state: none.state, from: none.from, snapshot: none.snapshot, phase: none.phase }, { state: 'failed', from: 'offsite', snapshot: 'latest', phase: 'download' });
+  assert.equal(none.error, 'The off-site repository holds no backup of the machine 0badcafe.');
+  assert.ok(!fs.existsSync(scratch(m)), 'the scratch folder is removed after a failure');
+
+  const done = ask(m, 'OFFSITE-RESTORE', `latest\n${old}\n`, { dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, instance: said.instance }, { state: 'restored', from: 'offsite', instance: old }, done.said);
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
+  assert.ok(resticCalls(done).some((c) => c.endsWith(` snapshots --json --host ${old} --tag instance=${old},part=manifest --latest 1`)));
+  assert.equal(instanceOf(m), old, 'the backup\'s instance, as a set\'s');
+  assert.equal(fs.readFileSync(path.join(m.home, 'data', 'vault.json'), 'utf8'), '[]');
+  assert.ok(!fs.existsSync(scratch(m)));
 });
 
-test('IMPORT-bob reads the repository and password it names, puts the key on the sub-account, and keeps neither password', (t) => {
+test('OFFSITE-RESTORE fails without an off-site repository, or with no room for the backup, or a request that names none, and changes nothing', (t) => {
   const m = machine(t);
+  const noRepo = ask(m, 'OFFSITE-RESTORE', 'latest\n');
+  assert.deepEqual(status(noRepo, 'restore.json'), { ...status(noRepo, 'restore.json'), state: 'failed', from: 'offsite', snapshot: 'latest', phase: 'download', error: 'This machine has no off-site repository: give it one with OFFSITE-SET.' });
+  assert.deepEqual(resticCalls(noRepo), []);
+
   m.offsite();
-  const old = instanceOf(m);
-  elsewhere(m);
-  const repo = 'sftp://u1-sub3@u1.your-storagebox.de:23/botdot';
-  const ssh = '#!/bin/sh\necho "ssh $*" >> "$STAND_IN_LOG"\ncat > /dev/null\n';
-  const log = path.join(m.first.top, 'system.log');
-  const before = fs.readFileSync(log, 'utf8').length;
-  const done = m.step('IMPORT-bob', { body: `${old}\n${repo}\nold-restic-password\nsub-password\n`, dockerFirst: [...moveDoor(m), ...extracts], bins: { restic: restic(m.store), ssh, 'ssh-keygen': '#!/bin/sh\nf=""; p=""; for a; do [ "$p" = -f ] && f="$a"; p="$a"; done; echo key > "$f"; echo pub > "$f.pub"\n' } });
-  const system = fs.readFileSync(log, 'utf8').slice(before);
-  assert.equal(status(done, 'import-bob.json').state, 'imported', done.said);
-  assert.match(system, new RegExp(`^restic-env ${repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\S+/offsite/import-password `, 'm'));
-  assert.match(system, /^ssh -p 23 .* u1-sub3@u1\.your-storagebox\.de install-ssh-key$/m);
-  for (const f of ['import-password', 'subpass', 'askpass']) assert.ok(!fs.existsSync(path.join(m.secrets, f)), `${f} is gone`);
+  fresh(m);
+  const before = doorData(m);
+  const full = ask(m, 'OFFSITE-RESTORE', 'latest\n', { given: { STAND_IN_ROOT_FREE: '1024' }, dockerFirst: extracts });
+  const said = status(full, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, phase: said.phase }, { state: 'failed', from: 'offsite', phase: 'download' });
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/, 'the manifest it found');
+  assert.match(said.error, /^It needs 0\.5 GB free in \S+ \(the backup, its data put back, and 512 MB to spare\), and has 0\.0 GB\.$/);
+  assert.equal(resticCalls(full).filter((c) => / restore /.test(c)).length, 1, 'only the manifest is restored');
+  assert.ok(!fs.existsSync(scratch(m)));
+  assert.equal(doorData(m), before, 'nothing is put back');
+
+  const bad = ask(m, 'OFFSITE-RESTORE', '../../etc\n');
+  assert.equal(status(bad, 'restore.json').state, 'failed');
+  assert.match(status(bad, 'restore.json').error, /named no snapshot/);
+  const badInstance = ask(m, 'OFFSITE-RESTORE', 'latest\nnot-one\n');
+  assert.match(status(badInstance, 'restore.json').error, /named no instance/);
+  assert.deepEqual([...resticCalls(bad), ...resticCalls(badInstance)], []);
 });
 
-test('IMPORT-bob is refused for an account the machine has, a request that names no instance, or one the front door refuses, and changes nothing', (t) => {
+test('an OFFSITE-RESTORE whose part can\'t be restored fails, puts nothing back and removes the scratch folder', (t) => {
   const m = machine(t);
   m.offsite();
-  const old = instanceOf(m);
-  const has = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: moveDoor(m) });
-  assert.deepEqual([status(has, 'import-bob.json').state, status(has, 'import-bob.json').error], ['refused', 'This machine has an account bob already.']);
-  assert.deepEqual(resticCalls(has), [], 'nothing is read');
-  elsewhere(m);
-  const bad = ask(m, 'IMPORT-bob', 'not-one\n', { dockerFirst: moveDoor(m) });
-  assert.equal(status(bad, 'import-bob.json').error, 'The request named no instance: an instance id is 8 hex digits.');
-  const noPass = ask(m, 'IMPORT-bob', `${old}\nsftp://u1-sub3@u1.your-storagebox.de:23/botdot\n`, { dockerFirst: moveDoor(m) });
-  assert.equal(status(noPass, 'import-bob.json').error, 'The request named a repository without its password.');
-  const refused = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...moveDoor(m, { refuse: true }), ...extracts] });
-  assert.deepEqual([status(refused, 'import-bob.json').state, status(refused, 'import-bob.json').error], ['refused', 'This machine holds one account, ann, and takes no other.']);
-  assert.equal(fs.readFileSync(path.join(m.home, 'data', 'vault.json'), 'utf8'), 'fresh', 'nothing is put back');
-  assert.ok(!fs.existsSync(path.join(m.dir, 'account-import')));
+  fresh(m);
+  const before = doorData(m);
+  const done = ask(m, 'OFFSITE-RESTORE', 'latest\n', { given: { STAND_IN_RESTIC_RESTORE_FAIL: 'accounts/bob/workspace.tar' }, dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, phase: said.phase }, { state: 'failed', from: 'offsite', phase: 'download' });
+  assert.equal(said.error, "Couldn't restore accounts/bob/workspace.tar: Fatal: failed to load pack 3f1a: ciphertext verification failed");
+  assert.ok(!fs.existsSync(scratch(m)), 'the scratch folder is removed');
+  assert.equal(doorData(m), before);
+  assert.ok(!done.docker.some((c) => /compose .* (stop|down)$/.test(c.call)), 'nothing was stopped');
 });
 
-test('IMPORT-bob of a machine with no backup, or of another version, fails in its download, and makes no account', (t) => {
+test('an OFFSITE-RESTORE of a backup of another version is refused by the set\'s checks, and fails while an off-site backup runs', (t) => {
   const m = machine(t);
   m.offsite();
-  const old = instanceOf(m);
-  elsewhere(m);
-  const none = ask(m, 'IMPORT-bob', 'deadbeef\n', { dockerFirst: moveDoor(m) });
-  assert.deepEqual([status(none, 'import-bob.json').state, status(none, 'import-bob.json').phase, status(none, 'import-bob.json').error], ['failed', 'download', 'The off-site repository holds no backup of the machine deadbeef.']);
+  fresh(m);
+  const before = doorData(m);
   fs.writeFileSync(path.join(m.dir, 'front-door', 'status', 'version.json'), '{"version":"def5678","selfBuilt":false}\n');
-  const other = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: moveDoor(m) });
-  assert.equal(status(other, 'import-bob.json').error, 'The backup is of version abc1234, and this machine runs def5678: install version abc1234 here first.');
-  for (const done of [none, other]) assert.ok(!done.docker.some((c) => / import-account /.test(c.call)), 'the front door is asked nothing');
-  assert.ok(!fs.existsSync(path.join(m.dir, 'account-import')));
+  const other = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  const said = status(other, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from }, { state: 'refused', from: 'offsite' });
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
+  assert.match(said.error, /The set is of version abc1234, and this machine runs def5678/);
+  assert.ok(!fs.existsSync(scratch(m)));
+  assert.equal(doorData(m), before);
+
+  holdLock(t, m);
+  const locked = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  assert.deepEqual(status(locked, 'restore.json'), { ...status(locked, 'restore.json'), state: 'failed', from: 'offsite', snapshot: 'latest', error: 'An off-site backup runs now: restore from it when it is done.' });
+  assert.deepEqual(resticCalls(locked), []);
 });
 
-test('DELETE-bob has the front door delete bob and erases it from the machine at once', (t) => {
-  const m = machine(t);
-  const done = ask(m, 'DELETE-bob', '', { dockerFirst: moveDoor(m) });
-  assert.ok(done.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js delete-account --account bob --by console')));
-  assert.match(done.system, /^userdel botdot-bob$/m);
-  const said = status(done, 'delete-bob.json');
-  assert.deepEqual({ state: said.state, account: said.account }, { state: 'deleted', account: 'bob' });
+test('an account\'s Docker, which an off-site restore may start, is started without the off-site lock\'s descriptor', () => {
+  // Started with it, it would hold the lock after the restore, and every nightly backup would find one running.
+  const docker = code.split('\n').filter((line) => /nohup '\$ROOTLESS'/.test(line));
+  assert.equal(docker.length, 1);
+  assert.match(docker[0], /9>&- 8>&-/, docker[0].trim());
 });
 
-test('DELETE-bob the front door is still deleting fails, to be asked again, and erases nothing yet', (t) => {
+test('RESTORE-TEST on a machine whose repository was never opened makes no repository and no password', (t) => {
   const m = machine(t);
-  const slow = ['case "$*" in', `  *"front-door.js delete-account --account bob --by console"*) echo '{"state":"deleting","account":"bob"}'; exit 0 ;;`, 'esac'];
-  const done = ask(m, 'DELETE-bob', '', { dockerFirst: [...slow, ...moveDoor(m)] });
-  assert.doesNotMatch(done.system, /userdel botdot-bob/);
-  const said = status(done, 'delete-bob.json');
-  assert.deepEqual([said.state, said.error], ['failed', 'The front door is still deleting the account: ask again in a few minutes.']);
+  withBobsData(m);
+  const done = ask(m, 'RESTORE-TEST', 'bob\n', { given: { BOT_DOT_OFFSITE_REPO: m.store } });
+  const said = status(done, 'restore-test.json');
+  assert.deepEqual({ state: said.state, account: said.account }, { state: 'failed', account: 'bob' });
+  assert.match(said.error, /^This machine has no password of the off-site repository \S+: give it with OFFSITE-SET\.$/);
+  assert.ok(!fs.existsSync(path.join(m.secrets, 'password')), 'no password that nobody is shown');
+  assert.ok(!resticCalls(done).some((c) => / init /.test(c)), 'no repository is made');
 });
 
-test('HOLD-bob on suspends bob and backs the machine up off-site from then on; off lets go of it', (t) => {
+test('a part whose size restic doesn\'t say stops an off-site restore and a restore test before anything is restored', (t) => {
   const m = machine(t);
-  const given = { BOT_DOT_OFFSITE_REPO: m.store };
-  const held = ask(m, 'HOLD-bob', 'on\n', { given, dockerFirst: holdDoor(m) });
-  assert.ok(held.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js hold-account --account bob --by console')));
-  assert.ok(resticCalls(held).some((c) => / backup /.test(c)), 'backed up');
-  const said = status(held, 'hold-bob.json');
-  assert.equal(said.state, 'held', JSON.stringify(said));
-  assert.match(said.lastSuccess, /^\d{4}-\d\d-\d\dT/);
-  assert.equal(said.lastSuccess, status(held, 'offsite.json').lastSuccess);
-  const let_go = ask(m, 'HOLD-bob', 'off\n', { given, dockerFirst: holdDoor(m) });
-  assert.ok(let_go.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js release-account --account bob --by console')));
-  assert.equal(status(let_go, 'hold-bob.json').state, 'released');
-});
-
-test('HOLD-bob on is not held when the off-site run after the hold fails', (t) => {
-  const m = machine(t);
-  const given = { BOT_DOT_OFFSITE_REPO: m.store };
-  // A success from before the hold, which the failed run keeps as its lastSuccess.
-  ask(m, 'HOLD-bob', 'on\n', { given, dockerFirst: holdDoor(m) });
-  const failed = ask(m, 'HOLD-bob', 'on\n', { given: { ...given, STAND_IN_RESTIC_FAIL: 'accounts/bob/workspace.tar' }, dockerFirst: holdDoor(m) });
-  assert.equal(status(failed, 'offsite.json').state, 'failed');
-  assert.ok(status(failed, 'offsite.json').lastSuccess, 'the earlier success is still named');
-  const said = status(failed, 'hold-bob.json');
-  assert.equal(said.state, 'failed', JSON.stringify(said));
-  assert.match(said.error, /^The off-site backup since the account was held failed/);
-  assert.equal(said.lastSuccess, undefined);
-});
-
-test('HOLD- is refused for the first account, without an off-site repository, and when another backup runs', (t) => {
-  const m = machine(t);
-  const first = ask(m, 'HOLD-ann', 'on\n', { given: { BOT_DOT_OFFSITE_REPO: m.store }, dockerFirst: holdDoor(m) });
-  assert.deepEqual([status(first, 'hold-ann.json').state, status(first, 'hold-ann.json').error], ['refused', "The account ann is the machine's first account, which stays on it."]);
-  const none = ask(m, 'HOLD-bob', 'on\n', { dockerFirst: holdDoor(m) });
-  assert.equal(status(none, 'hold-bob.json').state, 'refused');
-  assert.ok(!none.docker.some((c) => c.call.includes('hold-account')), 'nothing held');
-  const release = holdLock(t, m);
-  const busy = ask(m, 'HOLD-bob', 'on\n', { given: { BOT_DOT_OFFSITE_REPO: m.store }, dockerFirst: holdDoor(m) });
-  release();
-  const said = status(busy, 'hold-bob.json');
-  assert.deepEqual([said.state, said.error], ['failed', 'Another off-site backup was running, so none was made since the account was held: ask again.']);
-});
-
-test("DELETE- of the machine's first account is refused before the front door is asked", (t) => {
-  const m = machine(t);
-  const done = ask(m, 'DELETE-ann', '', { dockerFirst: moveDoor(m) });
-  assert.ok(!done.docker.some((c) => c.call.includes('front-door.js delete-account')), 'the front door is not asked');
-  assert.doesNotMatch(done.system, /userdel/);
-  const said = status(done, 'delete-ann.json');
-  assert.deepEqual({ state: said.state, error: said.error }, { state: 'refused', error: "The account ann is the machine's first account, which stays on it." });
-});
-
-test('IMPORT- and DELETE- requests the front door made are refused, and nothing is read or deleted', { skip: process.getuid?.() !== 0 && 'chowning needs root' }, (t) => {
-  const m = machine(t);
+  withBobsData(m);
   m.offsite();
-  const requests = path.join(m.dir, 'front-door', 'requests');
-  for (const name of ['IMPORT-carl', 'DELETE-bob']) {
-    fs.writeFileSync(path.join(requests, name), 'deadbeef\n');
-    fs.chownSync(path.join(requests, name), 990, 990);
-  }
-  const done = ask(m, 'ann', '', { dockerFirst: moveDoor(m) });
-  assert.equal(status(done, 'import-carl.json').error, 'Only root asks for this.');
-  assert.equal(status(done, 'delete-bob.json').error, 'Only root asks for this.');
-  assert.doesNotMatch(done.system, /^userdel botdot-bob$/m);
-  assert.deepEqual(resticCalls(done), []);
+  fresh(m);
+  const before = doorData(m);
+  const done = ask(m, 'OFFSITE-RESTORE', 'latest\n', { given: { STAND_IN_RESTIC_NO_SIZE: '1' }, dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, phase: said.phase }, { state: 'failed', phase: 'download' });
+  assert.equal(said.error, 'Couldn\'t read the size of front-door/data.tar: restic said no total_size.');
+  assert.equal(resticCalls(done).filter((c) => / restore /.test(c)).length, 1, 'only the manifest is restored');
+  assert.equal(doorData(m), before);
+  assert.ok(!fs.existsSync(scratch(m)));
+
+  const test = m.restoreTest('bob', { given: { STAND_IN_RESTIC_NO_SIZE: '1' } });
+  assert.notEqual(test.status, 0);
+  assert.match(status(test, 'restore-test.json').error, /^Couldn't read the size of accounts\/bob\/\S+: restic said no total_size\.$/);
+  assert.ok(!resticCalls(test).some((c) => / dump \S+ accounts\//.test(c)), 'nothing of the account is restored');
+});
+
+test('an OFFSITE-RESTORE gives each account the born stamp its snapshots carry, so that its erase forgets them', (t) => {
+  const m = machine(t);
+  const born = path.join(m.dir, 'born');
+  fs.mkdirSync(born, { recursive: true });
+  fs.writeFileSync(path.join(born, 'bob'), '20260101T000000Z\n');
+  m.offsite();
+  const annBorn = fs.readFileSync(path.join(born, 'ann'), 'utf8');
+  // The new machine: stamps of its own, made by its first backup.
+  fs.writeFileSync(path.join(born, 'ann'), '20261106T000000Z\n');
+  fs.writeFileSync(path.join(born, 'bob'), '20261106T000000Z\n');
+  fresh(m);
+  const done = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  assert.equal(status(done, 'restore.json').state, 'restored', done.said);
+  assert.equal(fs.readFileSync(path.join(born, 'bob'), 'utf8'), '20260101T000000Z\n', 'bob\'s, as his snapshots are tagged');
+  assert.equal(fs.readFileSync(path.join(born, 'ann'), 'utf8'), annBorn);
+  assert.ok(!fs.existsSync(scratch(m)));
 });

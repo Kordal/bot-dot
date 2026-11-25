@@ -1,4 +1,4 @@
-// install.sh on a stand-in machine (test/installer-helpers.js): a managed install becomes ready before its computers are downloaded, and the image handoff and preparation that follow.
+// install.sh on a stand-in machine (test/installer-helpers.js): image provisioning.
 // Part 1 of 2 of the image provisioning tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
@@ -35,5 +35,16 @@ test('managed image handoff streams when runtime storage cannot hold an archive'
   assert.equal(done.status, 0, done.said + done.stderr);
   assert.match(done.said, /BOTDOT_READY /);
   assert.ok(!done.calls.some((c) => c.startsWith('save -o ')));
+  assert.ok(!fs.readdirSync(done.run).some((n) => n.startsWith('image-transfer.')));
+});
+
+test('a partial export cannot report readiness even when the importer exits successfully', (t) => {
+  const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann' }, dockerFirst: [
+    'if [ "$1" = save ]; then printf partial; echo "content digest missing" >&2; exit 23; fi',
+    'if [ "$1" = load ]; then cat >/dev/null; exit 0; fi',
+  ] });
+  assert.notEqual(done.status, 0);
+  assert.match(done.stderr, /Couldn't export .*exit 23.*content digest missing/);
+  assert.doesNotMatch(done.said, /BOTDOT_READY /);
   assert.ok(!fs.readdirSync(done.run).some((n) => n.startsWith('image-transfer.')));
 });

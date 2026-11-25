@@ -1,20 +1,41 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): the off-site backup (#1016, ADR 157), root's step that
 // streams a backup set's parts into a restic repository. A stand-in restic on PATH keeps each part it is given in a
 // folder of its own, as the repository holds it, and writes down what it was asked.
-// Part 3 of 6 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 3 of 9 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { withBob, status } = require('./installer-helpers');
-const { machine, resticCalls, withBobsData, doorData, ask, holdLock } = require('./installer-offsite-helpers');
+const { status } = require('./installer-helpers');
+const { machine, resticCalls, withBobsData } = require('./installer-offsite-helpers');
 
-// An erased account's snapshots (#1019): what the stand-in repository keeps of the account NAME, as "part born".
-const kept = (m, name) => fs.readFileSync(path.join(m.store, 'snaps'), 'utf8').split('\n').filter(Boolean).map((l) => l.split(' '))
-  .filter(([, tags]) => tags.split(',').includes(`account=${name}`)).map(([, tags, part]) => `${part} ${(tags.match(/born=(\S+)/) || [])[1] || '-'}`).sort();
+// The restore drills (#1018): a weekly check of a rotating twentieth, and a restore test of one account.
+test('once a week a run checks the next twentieth of the repository, and says so in its status', (t) => {
+  const m = machine(t);
+  m.offsite();
+  assert.equal(fs.readFileSync(path.join(m.store, 'checked'), 'utf8'), '--read-data-subset=1/20\n');
+  let said = status(m.offsite(), 'offsite.json');
+  assert.equal(fs.readFileSync(path.join(m.store, 'checked'), 'utf8').split('\n').filter(Boolean).length, 1, 'not again within the week');
+  assert.deepEqual({ subset: said.check.subset, ok: said.check.ok }, { subset: '1/20', ok: true }, 'the last check stays in the status');
+  // A week later, the next twentieth; after the twentieth, the first again.
+  fs.utimesSync(path.join(m.secrets, 'checked'), new Date(Date.now() - 8 * 86400_000), new Date(Date.now() - 8 * 86400_000));
+  fs.writeFileSync(path.join(m.secrets, 'check-next'), '20\n');
+  said = status(m.offsite(), 'offsite.json');
+  assert.equal(said.check.subset, '20/20');
+  assert.equal(fs.readFileSync(path.join(m.secrets, 'check-next'), 'utf8').trim(), '1');
+});
 
-const DAY = 86400;
+test('a check that finds damage fails the run, as a part that fails does', (t) => {
+  const m = machine(t);
+  const done = m.offsite({ given: { STAND_IN_RESTIC_DAMAGED: '1' } });
+  const said = status(done, 'offsite.json');
+  assert.equal(said.state, 'failed');
+  assert.equal(said.part, 'integrity');
+  assert.match(said.error, /^check 1\/20: Pack 3f1a: hash mismatch/);
+  assert.deepEqual({ ok: said.check.ok, error: said.check.error }, { ok: false, error: 'Pack 3f1a: hash mismatch' });
+  assert.ok(!fs.existsSync(path.join(m.secrets, 'checked')), 'checked again at the next run');
+});
 
 test('a restore test restores one account\'s parts of the latest backup, checks them, counts its bots and leaves nothing', (t) => {
   const m = machine(t);
@@ -55,143 +76,4 @@ test('a restore test the disk has no room for is refused before anything is rest
   assert.equal(said.state, 'refused');
   assert.match(said.error, /^It needs 0\.5 GB free in \S+ and has 0\.0 GB\.$/);
   assert.ok(!resticCalls(done).some((c) => / dump \S+ accounts\//.test(c)), 'nothing of the account is restored');
-});
-
-test('a restore test of an account the backup lacks, or with no name, says so', (t) => {
-  const m = machine(t);
-  m.offsite();
-  const none = m.restoreTest('carol');
-  assert.notEqual(none.status, 0);
-  assert.match(status(none, 'restore-test.json').error, /holds no data of the account carol/);
-  const bad = m.restoreTest('');
-  assert.notEqual(bad.status, 0);
-  assert.match(bad.stderr, /Name the account to test the restore of/);
-});
-
-test('an erased account\'s off-site snapshots are forgotten after the grace period and pruned, and one made again under its name is untouched', (t) => {
-  const m = machine(t);
-  fs.mkdirSync(path.join(m.dir, 'born'), { recursive: true });
-  fs.writeFileSync(path.join(m.dir, 'born', 'bob'), '20260101T000000Z\n');
-  m.offsite();
-  // A part of bob's from before born stamps, as an earlier version kept it.
-  const instance = fs.readFileSync(path.join(m.parts, 'front-door', 'data.tar.tags'), 'utf8').match(/instance=(\w+)/)[1];
-  fs.appendFileSync(path.join(m.store, 'snaps'), `${'e'.repeat(64)} instance=${instance},part=env,account=bob accounts/bob/env\n`);
-  assert.deepEqual(kept(m, 'bob').filter((k) => / -$/.test(k)), ['accounts/bob/env -']);
-
-  m.door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
-  const erased = m.step('bob');
-  assert.match(erased.said, /The account bob is erased/);
-  const [name, born, epoch] = fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8').trim().split(' ');
-  assert.deepEqual([name, born], ['bob', '20260101T000000Z'], 'the erase is written down with its born stamp');
-  assert.ok(Math.abs(Number(epoch) - Date.now() / 1000) < 60);
-  assert.ok(!fs.existsSync(path.join(m.dir, 'born', 'bob')), 'its stamp goes with it');
-
-  // Made again under the same name, and backed up, before the grace period ends: nothing of bob's is forgotten yet.
-  m.door({ accounts: { ann: {}, bob: {} } });
-  m.step('bob');
-  const inGrace = m.offsite();
-  assert.equal(inGrace.status, 0, inGrace.stderr);
-  assert.ok(!resticCalls(inGrace).some((c) => / forget --quiet [0-9a-f]{64}/.test(c)), 'nothing forgotten in the grace period');
-  const newBorn = fs.readFileSync(path.join(m.dir, 'born', 'bob'), 'utf8').trim();
-  assert.notEqual(newBorn, '20260101T000000Z', 'the new bob has a stamp of its own');
-
-  // The grace period over.
-  fs.writeFileSync(path.join(m.secrets, 'erased'), `bob 20260101T000000Z ${Math.floor(Date.now() / 1000) - 15 * DAY} 2026-10-21T12:00:00Z\n`);
-  const after = m.offsite();
-  assert.equal(after.status, 0, after.stderr);
-  assert.match(after.said, /The off-site snapshots of the account bob, erased 2026-10-21T12:00:00Z, are forgotten: 7/);
-  const calls = resticCalls(after);
-  assert.match(calls.find((c) => / snapshots /.test(c) && /account=bob/.test(c)), /--host [0-9a-f]{8} --tag instance=[0-9a-f]{8},account=bob$/);
-  assert.match(calls.find((c) => / forget --quiet [0-9a-f]{64}/.test(c)), /forget --quiet( [0-9a-f]{64}){7}$/);
-  assert.match(calls.find((c) => / forget --quiet --host /.test(c)), /--prune$/, 'pruned in the same run');
-  assert.deepEqual(kept(m, 'bob').map((k) => k.split(' ')[1]).filter((b, i, a) => a.indexOf(b) === i), [newBorn], 'only the new bob\'s are kept');
-  assert.ok(kept(m, 'ann').length > 0, "ann's are untouched");
-  assert.equal(fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8'), '', 'the erase is done');
-  const forgotten = status(after, 'offsite-forgotten.json').forgotten;
-  assert.equal(forgotten.length, 1);
-  assert.deepEqual({ ...forgotten[0], at: null }, { account: 'bob', erased: '2026-10-21T12:00:00Z', at: null, snapshots: 7 });
-  assert.equal(status(after, 'offsite.json').state, 'done');
-
-  const later = m.offsite();
-  assert.ok(!resticCalls(later).some((c) => / forget --quiet [0-9a-f]{64}/.test(c)), 'forgotten once');
-});
-
-test('a forget that fails keeps the erase for the next run, and fails this one', (t) => {
-  const m = machine(t);
-  m.offsite();
-  m.door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
-  m.step('bob');
-  const line = fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8').trim().split(' ');
-  line[2] = String(Math.floor(Date.now() / 1000) - 15 * DAY);
-  fs.writeFileSync(path.join(m.secrets, 'erased'), `${line.join(' ')}\n`);
-  const done = m.offsite({ given: { STAND_IN_RESTIC_NO_FORGET: '1' } });
-  assert.match(done.stderr + done.said, /The off-site snapshots of the erased account bob weren't forgotten: .*already locked/);
-  const said = status(done, 'offsite.json');
-  assert.equal(said.state, 'failed');
-  assert.match(said.error, /^forget bob: /);
-  assert.equal(fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8'), `${line.join(' ')}\n`, 'kept for the next run');
-  const again = m.offsite();
-  assert.match(again.said, /The off-site snapshots of the account bob, .* are forgotten: 6/);
-});
-
-test('a machine without the off-site backup writes no erase down', (t) => {
-  const { first, door, step } = withBob(t);
-  door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
-  step('bob');
-  assert.ok(!fs.existsSync(path.join(first.dir, 'offsite', 'erased')));
-});
-
-test('RESTORE-TEST from root runs the restore test of its account, and says it passed or failed as the command line does', (t) => {
-  const m = machine(t);
-  withBobsData(m);
-  m.offsite();
-  const passed = ask(m, 'RESTORE-TEST', 'bob\n');
-  const said = status(passed, 'restore-test.json');
-  assert.deepEqual({ state: said.state, account: said.account, bots: said.bots }, { state: 'passed', account: 'bob', bots: 2 }, passed.said);
-  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
-  assert.ok(said.bytes > 4096);
-  assert.ok(resticCalls(passed).some((c) => / dump \S+ accounts\/bob\/data\.tar$/.test(c)), 'bob\'s data is read back');
-  assert.ok(!fs.existsSync(path.join(m.dir, 'restore-test')), 'the scratch folder is removed');
-
-  const failed = ask(m, 'RESTORE-TEST', 'bob\n', { given: { STAND_IN_RESTIC_SHORT: 'accounts/bob/workspace.tar' } });
-  const why = status(failed, 'restore-test.json');
-  assert.deepEqual({ state: why.state, account: why.account }, { state: 'failed', account: 'bob' });
-  assert.match(why.error, /^accounts\/bob\/workspace.tar came back with 3 bytes, and restic recorded \d+\.$/);
-  assert.match(failed.said + failed.stderr, /The restore test of bob didn't pass: accounts\/bob\/workspace.tar came back with 3 bytes/);
-  assert.ok(!fs.existsSync(path.join(m.dir, 'restore-test')));
-
-  const none = ask(m, 'RESTORE-TEST', 'Bob; rm -rf /\n');
-  assert.deepEqual(status(none, 'restore-test.json').state, 'refused');
-  assert.equal(status(none, 'restore-test.json').error, 'The request named no account.');
-  assert.ok(!resticCalls(none).length, 'nothing is read');
-});
-
-test('RESTORE-TEST is refused while an off-site backup holds the lock, and nothing is restored', (t) => {
-  const m = machine(t);
-  withBobsData(m);
-  m.offsite();
-  holdLock(t, m);
-  const done = ask(m, 'RESTORE-TEST', 'bob\n');
-  const said = status(done, 'restore-test.json');
-  assert.deepEqual({ state: said.state, account: said.account }, { state: 'refused', account: 'bob' });
-  assert.equal(said.error, 'An off-site backup runs now: test the restore when it is done.');
-  assert.deepEqual(resticCalls(done), [], 'the repository isn\'t touched');
-});
-
-test('RESTORE-TEST and OFFSITE-RESTORE the front door made are refused, and neither touches the repository', { skip: process.getuid?.() !== 0 && 'chowning needs root' }, (t) => {
-  const m = machine(t);
-  m.offsite();
-  const before = doorData(m);
-  const requests = path.join(m.dir, 'front-door', 'requests');
-  for (const [name, body] of [['RESTORE-TEST', 'bob\n'], ['OFFSITE-RESTORE', 'latest\n']]) {
-    fs.writeFileSync(path.join(requests, name), body);
-    fs.chownSync(path.join(requests, name), 990, 990);
-  }
-  const done = ask(m, 'bob', '');
-  assert.deepEqual(status(done, 'restore-test.json'), { ...status(done, 'restore-test.json'), state: 'refused', error: 'Only root asks for this.' });
-  // What the front door wrote is never read: it could be a pipe by then, which a read would wait on for ever.
-  assert.ok(!('account' in status(done, 'restore-test.json')), 'the front door\'s file is not read');
-  assert.deepEqual(status(done, 'restore.json'), { ...status(done, 'restore.json'), state: 'refused', from: 'offsite', error: 'Only root asks for this.' });
-  assert.deepEqual(resticCalls(done), []);
-  assert.equal(doorData(m), before);
 });

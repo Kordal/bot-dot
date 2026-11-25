@@ -1,7 +1,7 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): the off-site backup (#1016, ADR 157), root's step that
 // streams a backup set's parts into a restic repository. A stand-in restic on PATH keeps each part it is given in a
 // folder of its own, as the repository holds it, and writes down what it was asked.
-// Part 2 of 6 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 2 of 9 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
@@ -15,19 +15,6 @@ const { restic, machine, resticCalls, keygen, ssh } = require('./installer-offsi
 const BOX = 'sftp://u1-sub1@u1-sub1.your-storagebox.de:23/botdot';
 
 const setUp = (m, { body = `${BOX}\n\nsub-secret-1\n`, given = {} } = {}) => m.step('OFFSITE-SET', { body, given: { OFFSITE_KEY_WAIT: '0', ...given }, bins: { restic: restic(m.store), ssh, 'ssh-keygen': keygen } });
-
-test('restic is the pinned release, checked by its sha256: a download that doesn\'t match is refused', (t) => {
-  const m = machine(t);
-  const curl = '#!/bin/sh\necho "curl $*" >> "$STAND_IN_LOG"\nwhile [ "$1" != -o ]; do shift; done\necho "not restic" > "$2"\n';
-  const done = m.offsite({ bins: { curl, restic: null } });
-  assert.notEqual(done.status, 0);
-  assert.match(done.system, /curl .*https:\/\/github\.com\/restic\/restic\/releases\/download\/v0\.19\.1\/restic_0\.19\.1_linux_amd64\.bz2/);
-  assert.match(status(done, 'offsite.json').error, /Couldn't download restic 0\.19\.1 with its checksum \(its download did not match its sha256\), and this machine has no restic of 0\.17 or newer/);
-  assert.ok(!fs.existsSync(path.join(m.dir, 'bin', 'restic')), 'nothing unchecked is kept');
-  // An older restic of the machine's own isn't taken either.
-  const old = m.offsite({ bins: { curl, restic: '#!/bin/sh\necho "restic 0.16.4 compiled with go1.22.2 on linux/amd64"\n' } });
-  assert.match(status(old, 'offsite.json').error, /no restic of 0\.17 or newer/);
-});
 
 test('a restic download that fails is tried again over IPv4, and the error says GitHub could not be reached', (t) => {
   const m = machine(t);
@@ -140,31 +127,4 @@ test('an OFFSITE-SET the front door made may name only a Storage Box, and gives 
   assert.equal(status(done, 'offsite.json').state, 'off');
   assert.match(status(done, 'offsite.json').error, /Only a Hetzner Storage Box/);
   assert.doesNotMatch(fs.readFileSync(path.join(m.dir, 'front-door', '.env'), 'utf8'), /BOT_DOT_OFFSITE_REPO/);
-});
-
-// The restore drills (#1018): a weekly check of a rotating twentieth, and a restore test of one account.
-test('once a week a run checks the next twentieth of the repository, and says so in its status', (t) => {
-  const m = machine(t);
-  m.offsite();
-  assert.equal(fs.readFileSync(path.join(m.store, 'checked'), 'utf8'), '--read-data-subset=1/20\n');
-  let said = status(m.offsite(), 'offsite.json');
-  assert.equal(fs.readFileSync(path.join(m.store, 'checked'), 'utf8').split('\n').filter(Boolean).length, 1, 'not again within the week');
-  assert.deepEqual({ subset: said.check.subset, ok: said.check.ok }, { subset: '1/20', ok: true }, 'the last check stays in the status');
-  // A week later, the next twentieth; after the twentieth, the first again.
-  fs.utimesSync(path.join(m.secrets, 'checked'), new Date(Date.now() - 8 * 86400_000), new Date(Date.now() - 8 * 86400_000));
-  fs.writeFileSync(path.join(m.secrets, 'check-next'), '20\n');
-  said = status(m.offsite(), 'offsite.json');
-  assert.equal(said.check.subset, '20/20');
-  assert.equal(fs.readFileSync(path.join(m.secrets, 'check-next'), 'utf8').trim(), '1');
-});
-
-test('a check that finds damage fails the run, as a part that fails does', (t) => {
-  const m = machine(t);
-  const done = m.offsite({ given: { STAND_IN_RESTIC_DAMAGED: '1' } });
-  const said = status(done, 'offsite.json');
-  assert.equal(said.state, 'failed');
-  assert.equal(said.part, 'integrity');
-  assert.match(said.error, /^check 1\/20: Pack 3f1a: hash mismatch/);
-  assert.deepEqual({ ok: said.check.ok, error: said.check.error }, { ok: false, error: 'Pack 3f1a: hash mismatch' });
-  assert.ok(!fs.existsSync(path.join(m.secrets, 'checked')), 'checked again at the next run');
 });

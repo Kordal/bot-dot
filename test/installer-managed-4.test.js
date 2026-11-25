@@ -1,6 +1,6 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): a managed machine (BOT_DOT_MANAGED=1, ADR 154, #983),
 // one account or several, on a public or tailnet reach, with no admin page and a guaranteed share per account.
-// Part 4 of 4 of the managed machine tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 4 of 5 of the managed machine tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
@@ -80,22 +80,4 @@ test("a managed machine's Docker gets its security updates by itself, each packa
   const gone = installer(t, { again: done, dotenv: '', args: ['--uninstall'], input: 'yes\nn\n' });
   assert.equal(gone.status, 0, `${gone.said}\n${gone.stderr}`);
   assert.ok(!fs.existsSync(origin) && !fs.existsSync(pins));
-});
-
-test("a machine that isn't managed, or whose Docker isn't Docker's own packages, keeps its own update policy", (t) => {
-  const server = installer(t, { dotenv: '', given: { ...PUBLIC, BOT_DOT_ADMIN: 'ann' }, bins: { 'dpkg-query': dpkg(DOCKER_CE) } });
-  assert.equal(server.status, 0, server.stderr);
-  const ubuntu = installer(t, { dotenv: '', given: MANAGED, bins: { 'dpkg-query': dpkg({ 'docker.io': '27.5.1-0ubuntu3' }) } });
-  assert.equal(ubuntu.status, 0, ubuntu.stderr);
-  // Nor does a run that is refused: a machine that isn't managed asked to be, or a managed one on this computer only.
-  const late = installer(t, { dotenv: dotenvOf(server), again: server, given: { BOT_DOT_MANAGED: '1' }, bins: { 'dpkg-query': dpkg(DOCKER_CE) } });
-  assert.equal(late.status, 1);
-  assert.match(late.stderr, /This machine isn't managed, and that is chosen at its first install, so nothing was changed\./);
-  const local = installer(t, { dotenv: '', given: { BOT_DOT_MANAGED: '1', BOT_DOT_REACH: 'local' }, bins: { 'dpkg-query': dpkg(DOCKER_CE) } });
-  assert.equal(local.status, 1);
-  assert.match(local.stderr, /not on this computer only/);
-  for (const done of [server, ubuntu, late, local]) {
-    assert.ok(!fs.existsSync(path.join(done.etc, 'apt', 'apt.conf.d', '51botdot-docker')));
-    assert.ok(!fs.existsSync(path.join(done.etc, 'apt', 'preferences.d', 'botdot-docker')));
-  }
 });

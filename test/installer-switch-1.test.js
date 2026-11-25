@@ -46,3 +46,22 @@ test("the admin's own account waits by the same rule as any other, and the other
   assert.equal(now.accountEnv('ann').BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${SIGNED}`);
   assert.equal(status(now, 'account-ann.json').state, 'updated');
 });
+
+test('"Update now" switches that account alone to the version the front door pins, with its way back', (t) => {
+  const { update, request } = onOlderVersion(t, { ann: {}, bob: { autoUpdate: false } });
+  update();
+  const done = request('SWITCH-bob');
+  assert.ok(done.up('bob'), 'bob is started on the new version');
+  assert.ok(!done.up('ann'), 'ann is left as it is');
+  assert.ok(!done.docker.some((c) => c.host === 'machine' && /^compose .* up/.test(c.call)), 'and the front door');
+  assert.deepEqual(done.checks, [], 'no new release is looked for: it is the one the admin installed');
+  assert.equal(done.accountEnv('bob').BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${SIGNED}`);
+  assert.ok(done.calls('bob').some((c) => /update-install\.js --clean/.test(c)), 'what it replaced goes');
+  assert.equal(status(done, 'account-bob.json').state, 'updated');
+  assert.match(done.said, /Switching the account bob to the new version, as asked/);
+
+  // Asked again: it runs it already, and nothing restarts.
+  const again = request('SWITCH-bob');
+  assert.ok(!again.up('bob'));
+  assert.match(again.said, /The account bob runs the newest version already/);
+});

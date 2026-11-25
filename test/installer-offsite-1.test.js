@@ -1,7 +1,7 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): the off-site backup (#1016, ADR 157), root's step that
 // streams a backup set's parts into a restic repository. A stand-in restic on PATH keeps each part it is given in a
 // folder of its own, as the repository holds it, and writes down what it was asked.
-// Part 1 of 6 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
+// Part 1 of 9 of the off-site backup tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
@@ -146,4 +146,17 @@ test('a Storage Box over SFTP gets a key of this machine\'s own, which restic si
   // Made once.
   const next = m.offsite({ bins: { 'ssh-keygen': keygen, ssh: '#!/bin/sh\nexit 0\n' } });
   assert.doesNotMatch(next.system, /ssh-keygen/);
+});
+
+test('restic is the pinned release, checked by its sha256: a download that doesn\'t match is refused', (t) => {
+  const m = machine(t);
+  const curl = '#!/bin/sh\necho "curl $*" >> "$STAND_IN_LOG"\nwhile [ "$1" != -o ]; do shift; done\necho "not restic" > "$2"\n';
+  const done = m.offsite({ bins: { curl, restic: null } });
+  assert.notEqual(done.status, 0);
+  assert.match(done.system, /curl .*https:\/\/github\.com\/restic\/restic\/releases\/download\/v0\.19\.1\/restic_0\.19\.1_linux_amd64\.bz2/);
+  assert.match(status(done, 'offsite.json').error, /Couldn't download restic 0\.19\.1 with its checksum \(its download did not match its sha256\), and this machine has no restic of 0\.17 or newer/);
+  assert.ok(!fs.existsSync(path.join(m.dir, 'bin', 'restic')), 'nothing unchecked is kept');
+  // An older restic of the machine's own isn't taken either.
+  const old = m.offsite({ bins: { curl, restic: '#!/bin/sh\necho "restic 0.16.4 compiled with go1.22.2 on linux/amd64"\n' } });
+  assert.match(status(old, 'offsite.json').error, /no restic of 0\.17 or newer/);
 });

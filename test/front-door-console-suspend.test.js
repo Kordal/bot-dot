@@ -1,5 +1,5 @@
 // The whole machine paused by the fleet console through root's step (install.sh's SUSPEND and RESUME, in
-// test/installer-suspend.test.js): `node front-door.js suspend|resume --by console` suspends or resumes every account in
+// test/installer-suspend-*.test.js): `node front-door.js suspend|resume --by console` suspends or resumes every account in
 // the front door's data, as the admin page does for one, with an audit entry by the console for each.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
