@@ -240,3 +240,28 @@ test('a failed sign-out releases the Claude hold when the account default is a p
   assert.equal(fs.existsSync(path.join(own.out, 'auth-fails')), true, 'the check after the failed sign-out could not tell');
   assert.notEqual(kept(), true, 'Claude is still signed in: nothing is held');
 });
+
+// A paused member is skipped, not waited for: its connection being held must not stop the line (#1668 review).
+test('a paused member on a held connection is skipped in a group\'s line, and the member on a provider after it gets its turn', async (t) => {
+  const own = await startServer({ env: { CLAUDE_CODE_OAUTH_TOKEN: SUBSCRIPTION } });
+  t.after(() => own.stop());
+  assert.equal((await own.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'custom', url: `http://127.0.0.1:${providerStand.address().port}`, key: KEY_A, big: 'model-a', small: 'model-b' } })).status, 200);
+  const claude = await makeBot(own, { name: 'Claude One' });
+  const provider = await makeBot(own, { name: 'Provider One', model: 'provider:custom:model-a' });
+  const paused = await makeBot(own, { name: 'Paused One' });
+  const job = (await own.api(`/bots/${paused.id}/jobs`, { method: 'POST', body: { name: 'Nightly', kind: 'ai', cron: '0 3 * * *', prompt: 'Do it.' } })).data;
+  await own.api(`/bots/${paused.id}/jobs/${job.id}`, { method: 'PUT', body: { enabled: false } });
+  assert.equal((await own.api(`/bots/${paused.id}`)).data.state, 'paused');
+  const group = (await own.api('/group-chats', { method: 'POST', body: { name: 'Mixed line', members: [paused.id, provider.id] } })).data;
+  const g = await feed(own);
+  t.after(() => g.close());
+  // Claude reaches its limit.
+  const said = path.join(own.out, 'error-result.txt');
+  fs.writeFileSync(said, `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+  try { await own.finished((await own.api(`/bots/${claude.id}/run`, { method: 'POST', body: { prompt: 'hit the limit' } })).data.id); } finally { fs.rmSync(said, { force: true }); }
+  await g.wait('claude', (d) => !!d.backAt);
+  const sent = await own.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'the line while claude waits' } });
+  assert.equal(sent.status, 201);
+  assert.ok(await own.nextRun((x) => x.stdin.includes('the line while claude waits'), 'the provider member\'s turn'));
+  assert.ok(!own.runs().some((x) => x.who === 'Paused One' && x.stdin?.includes('the line while claude waits')), 'the paused member had no turn');
+});
