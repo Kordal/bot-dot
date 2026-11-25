@@ -76,9 +76,14 @@
 * { box-sizing: border-box; }
 /* No scroll bar is drawn anywhere: every pane still scrolls by wheel, trackpad, touch and keys.
    Scripts and code blocks wrap their long lines instead, so no script an owner approves runs off unseen.
-   Wide tables, diagrams and chip rows still scroll sideways, with no bar to show there is more. */
+   Wide tables and diagrams keep a thin bar, since it is the only sign more columns are there, and so do
+   height-capped boxes of a script or instructions an owner approves (job approval, tool, skill, pick).
+   Chip rows (the board filter, the settings tabs, recent chats) scroll sideways without one. */
 html, body, * { scrollbar-width: none; }
 html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.md-table, .md .diagram-svg, .dv-table, .script-out, .tool pre, .skill-preview, .pick-instructions { scrollbar-width: thin; }
+.md-table::-webkit-scrollbar, .md .diagram-svg::-webkit-scrollbar, .dv-table::-webkit-scrollbar, .script-out::-webkit-scrollbar, .tool pre::-webkit-scrollbar, .skill-preview::-webkit-scrollbar, .pick-instructions::-webkit-scrollbar { display: block; height: 6px; width: 6px; }
+.md-table::-webkit-scrollbar-thumb, .md .diagram-svg::-webkit-scrollbar-thumb, .dv-table::-webkit-scrollbar-thumb, .script-out::-webkit-scrollbar-thumb, .tool pre::-webkit-scrollbar-thumb, .skill-preview::-webkit-scrollbar-thumb, .pick-instructions::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r-pill); }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font: var(--fs-14)/1.5 var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
 button, input, select, textarea { font: inherit; color: inherit; }

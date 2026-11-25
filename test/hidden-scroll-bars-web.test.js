@@ -23,3 +23,9 @@ test('web: scripts and code blocks wrap long lines rather than scroll them out o
     assert.doesNotMatch(r, /overflow-x: auto/, `${selector} does not hide lines sideways`);
   }
 });
+
+test('web: wide tables, diagrams and capped script boxes keep a thin bar, the only sign more is there', () => {
+  const at = css.indexOf('.md-table, .md .diagram-svg, .dv-table, .script-out, .tool pre, .skill-preview, .pick-instructions { scrollbar-width: thin; }');
+  assert.ok(at > css.indexOf('html, body, * { scrollbar-width: none; }'), 'it comes after the global rule, so it wins');
+  assert.match(css, /\.dv-table::-webkit-scrollbar, \.script-out::-webkit-scrollbar, \.tool pre::-webkit-scrollbar, \.skill-preview::-webkit-scrollbar, \.pick-instructions::-webkit-scrollbar \{ display: block;/);
+});
