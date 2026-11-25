@@ -1528,5 +1528,6 @@
   "Connect another provider": "Połącz innego dostawcę",
   "Connect a provider": "Połącz dostawcę",
   "Connected. Its models are in the Model list.": "Połączono. Jego modele są na liście modeli.",
-  "Bots on its models will run on the default model instead.": "Boty na jego modelach będą działać na modelu domyślnym."
+  "Bots on its models will run on the default model instead.": "Boty na jego modelach będą działać na modelu domyślnym.",
+  "Remove {name} from this message": "Usuń „{name}” z tej wiadomości"
 }

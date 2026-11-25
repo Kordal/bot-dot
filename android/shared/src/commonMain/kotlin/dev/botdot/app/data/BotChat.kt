@@ -346,12 +346,12 @@ class BotChat(
      * for the box, and the line says why. The request outlives the chat's screen.
      */
     @Throws(Exception::class)
-    suspend fun send(text: String): Boolean {
+    suspend fun send(text: String, card: CardEdit.Target? = null): Boolean {
         // Out of the box with the message, as Android's box takes them: a failed send gives them back (takeFailed),
         // and a file picked meanwhile stays for the next message.
         val attachments = files
         files = emptyList()
-        return submit(text, attachments, replyTo = replying?.runId)
+        return submit(text, attachments, replyTo = replying?.runId, card = card)
     }
 
     /**
@@ -361,12 +361,12 @@ class BotChat(
      * answers, so that with two questions open it ends that one alone (#1380).
      */
     @Throws(Exception::class)
-    suspend fun submit(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, replyTo: String? = null, answers: String? = null): Boolean {
+    suspend fun submit(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, replyTo: String? = null, answers: String? = null, card: CardEdit.Target? = null): Boolean {
         var waits = false // the answer was a message that waits its turn: it is in the bot's list, not among its runs
         val known = ownWords(all, queued).mapTo(HashSet()) { it.id }
         val went = outbox.send(text, attachments, box, key, once = takesOnce(store.version.value.value?.features), known = known) { k ->
             publish() // the message on its way is drawn at once
-            val run = api.runBot(botId, text, attachments, k, replyTo, answers)
+            val run = api.runBot(botId, text, attachments, k, replyTo, answers, card)
             if (replyTo != null && replying?.runId == replyTo) replying = null
             waits = run.isQueued
             took(run, text, attachments)

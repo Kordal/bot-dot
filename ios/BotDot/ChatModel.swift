@@ -73,7 +73,7 @@ final class ChatModel: MessageBox {
 
     /// Sends what is typed; false when it didn't go (it comes back to the box with the line saying why).
     func send(_ text: String) async -> Bool {
-        (try? await chat.send(text: text))?.boolValue ?? false
+        (try? await chat.send(text: text, card: nil))?.boolValue ?? false
     }
 
     /// A failed message the box takes back, in front of what was typed since ([withFailed], as on Android).

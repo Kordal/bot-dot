@@ -265,7 +265,7 @@ data class Asks(val text: String, val runId: String? = null, val at: String? = n
  * owner wrote it, its files, and when it was sent. [id] is what "Take back" and "Steer" name. [steering]: the owner
  * steered it into the run that is going, which has not read it yet (`steer`, ADR 040).
  */
-data class Queued(val id: String, val text: String = "", val attachments: List<Attachment> = emptyList(), val at: String? = null, val steering: Boolean = false) {
+data class Queued(val id: String, val text: String = "", val attachments: List<Attachment> = emptyList(), val at: String? = null, val steering: Boolean = false, val card: TileRef? = null) {
     companion object {
         /** The list as the server sent it, each entry read by itself: one without an id cannot be taken back, and is left out. */
         fun list(v: JsonElement?): List<Queued> = (v as? JsonArray).orEmpty().mapNotNull { e ->
@@ -276,6 +276,7 @@ data class Queued(val id: String, val text: String = "", val attachments: List<A
                 attachments(o["attachments"]),
                 o["at"].textOrNull(),
                 isTrue(o["steering"]),
+                (o["card"] as? JsonObject)?.let { c -> TileRef(c["id"].textOrNull().orEmpty(), c["label"].textOrNull().orEmpty()) }?.takeIf { it.label.isNotEmpty() },
             )
         }
 
@@ -457,6 +458,7 @@ data class Run(
     val notificationAudience: String? = null, // "owner" when its reply addresses the owner, a teammate's request too
     val inbox: List<InboxNote>? = null, // notes other bots left, read at its start
     val replyTo: String? = null, // the run the owner replied to (#627): this run is a further round of its block
+    val card: TileRef? = null, // the tile of the project's board the owner's message pointed at (ADR 276)
     val answers: String? = null, // the run whose question this message of the owner answers (a tapped answer, or words that are one of its choices)
     val groupMessageId: String? = null, // a turn in a group: the owner's message there it belongs to (ADR 018)
     val sentTo: SentTo? = null, // the latest teammate this run messaged
@@ -720,6 +722,7 @@ data class ChiefMessage(
     val from: BotRef? = null, // role "suggestion" or "report": the bot that sent it
     val files: List<Attachment>? = null, // report, and a Chief reply about a bot's result: files the bot attached to its reply
     val status: String? = null, // suggestion: pending | answered | dismissed
+    val card: TileRef? = null, // the owner's message: the tile of the project's board it pointed at (ADR 276)
     val cards: List<String>? = null, // the cards in Needs you it names, drawn under it while they wait (ADR 252)
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
