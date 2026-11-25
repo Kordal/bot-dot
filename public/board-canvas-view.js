@@ -5,8 +5,8 @@
 // pixels (a click without a move still clicks) and resizes from its edges and corners; on a touch screen a long press
 // picks it up, then it drags; the focused tile moves with the arrows and resizes with Shift and the arrows. A tile it
 // would cover slides down. Each drop is saved at once; the first starts from where the tiles stood in the flow.
-// Narrower than BoardCanvas.NARROW (a phone, ADR 147) the tiles stand in one column in the canvas's reading order,
-// at their own height, and are not moved there.
+// Where the canvas would be drawn under BoardCanvas.MIN_SCALE (a phone, or a window with the chat open; ADR 147, ADR 273)
+// the tiles stand in one column in the canvas's reading order, at their own height, and are not moved there.
 (() => {
   const B = window.BoardCanvas;
   const STEP = 8;
@@ -117,8 +117,9 @@
   }
 
   const scaleOf = (wrap) => wrap.clientWidth / B.W;
-  // A phone's width (ADR 147): the tiles one under another, full width, in the canvas's reading order.
-  const narrow = (el) => el.clientWidth > 0 && el.clientWidth < B.NARROW;
+  // A width the canvas would be drawn too small at (ADR 147, ADR 273): the tiles one under another, full width, in the
+  // canvas's reading order.
+  const narrow = (el) => B.column(el.clientWidth);
   function place(wrap, layout = shown?.layout) {
     if (!layout) return;
     const canvas = $('.bc-canvas', wrap);
@@ -130,6 +131,7 @@
       canvas.style.width = '';
       wrap.style.height = '';
       for (const t of $$('.bc-tile', canvas)) Object.assign(t.style, { left: '', top: '', width: '', height: '', order: String(at.get(t.dataset.tile) ?? at.size) });
+      if (typeof ProjectOverview === 'object') ProjectOverview.fit(canvas, false);
       return;
     }
     const s = scaleOf(wrap);
@@ -143,6 +145,7 @@
       Object.assign(t.style, { left: `${r[0]}px`, top: `${r[1]}px`, width: `${r[2]}px`, height: `${r[3]}px`, order: '' });
     }
     window.ProjectCards?.fit(canvas);
+    if (typeof ProjectOverview === 'object') ProjectOverview.fit(canvas);
   }
 
   // New card opened into its ask field: its tile at least a card's width and the ask's own height, what is under it

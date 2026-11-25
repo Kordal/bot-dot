@@ -15,6 +15,7 @@ const path = require('node:path');
     const bot = await makeBot(srv, { name: 'Writer' });
     writeData(path.join(srv.data, 'company.json'), { projects: [
       { id: 'p1', name: 'Launch', start: 'Site', phase: 'running', bots: [bot.id], board: ['needs', 'work', 'blockers', 'replies', 'todo'], filesOn: true, overviewOn: true, layout: { replies: [0, 0, 1200, 300] } },
+      { id: 'p3', name: 'Dense', start: 'Dense', phase: 'running', bots: [bot.id], board: ['needs', 'work', 'blockers', 'replies'], filesOn: true, overviewOn: true, layout: { work: [0, 0, 592, 260] } },
       { id: 'p2', name: 'Garden', start: 'Garden', phase: 'running', board: ['needs', 'work', 'blockers', 'replies'], filesOn: true, overviewOn: true },
     ] });
     browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
@@ -61,6 +62,50 @@ const path = require('node:path');
       assert.deepEqual(errors, []);
       await page.close();
     }
+    // An arranged board's overview tile shows whole rows and "+N more", never a row sliced in half (ADR 273); where the
+    // canvas would be drawn under 0.8 of its size the tiles stand in one column and show every row.
+    const dense = await browser.newPage({ viewport: { width: 2200, height: 900 } });
+    const errs = [];
+    dense.on('pageerror', (e) => errs.push(e.message));
+    await dense.route('**/api/company/files?*', (r) => r.fulfill({ json: { state: 'off', files: [] } }));
+    await dense.route('**/api/company/overview?project=p3', (r) => r.fulfill({ json: {
+      projectId: 'p3', at: new Date().toISOString(), blockers: [], replies: [],
+      work: Array.from({ length: 8 }, (_, i) => ({ id: `w${i}`, botId: bot.id, name: 'Writer', state: 'working', text: `Step ${i + 1} of the launch`, at: new Date().toISOString() })),
+    } }));
+    await dense.goto(`${srv.base}/#company`);
+    await dense.locator('#rail [data-space="p3"]').click();
+    await dense.locator('[data-cf-ov="work"] .po-row').first().waitFor();
+    const tileState = () => dense.evaluate(() => {
+      const sec = document.querySelector('[data-cf-ov="work"]');
+      const rows = [...sec.querySelectorAll('.po-row')];
+      const more = sec.querySelector('.po-more');
+      const box = sec.getBoundingClientRect();
+      const shown = rows.filter((r) => getComputedStyle(r).display !== 'none');
+      const last = shown[shown.length - 1].getBoundingClientRect();
+      return { board: document.querySelector('.bc-wrap').clientWidth, column: document.querySelector('.bc-wrap').classList.contains('bc-column'), total: rows.length, shown: shown.length,
+        inside: last.bottom <= box.bottom + 0.5, scrolls: sec.scrollHeight > sec.clientHeight, more: more && !more.hidden ? more.textContent : null, overflow: getComputedStyle(sec).overflowY };
+    });
+    let st = await tileState();
+    assert.ok(st.board >= 960, `a wide board is the canvas (${st.board})`);
+    assert.equal(st.column, false);
+    assert.ok(st.shown >= 1 && st.shown < st.total, `some rows hidden (${st.shown} of ${st.total})`);
+    assert.equal(st.more, `+${st.total - st.shown} more`);
+    assert.ok(st.inside && !st.scrolls, 'the last row shown is whole, and the tile has nothing to scroll');
+    assert.equal(st.overflow, 'hidden');
+    // With the chat open the board is narrower than 0.8 of the canvas: one column, every row, no "more".
+    await dense.setViewportSize({ width: 850, height: 900 });
+    await dense.waitForFunction(() => document.querySelector('.bc-wrap').classList.contains('bc-column'));
+    st = await tileState();
+    assert.ok(st.board < 960);
+    assert.equal(st.shown, st.total, 'every row in the column');
+    assert.equal(st.more, null);
+    // Wide again: the rows are fitted again.
+    await dense.setViewportSize({ width: 2200, height: 900 });
+    await dense.waitForFunction(() => !document.querySelector('.bc-wrap').classList.contains('bc-column'));
+    st = await tileState();
+    assert.ok(st.shown < st.total && st.more);
+    assert.deepEqual(errs, []);
+    await dense.close();
     // A slow p1 snapshot that lands after entering p2 neither paints over p2 nor switches spaces.
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.route('**/api/company/files?*', (r) => r.fulfill({ json: { state: 'off', files: [] } }));

@@ -57,6 +57,24 @@ const ProjectOverview = (() => {
           : rows(d.replies, tr('No replies yet.'));
     return `<section class="cf-ov" data-cf-ov="${key}"><h2>${title}</h2>${notice}${body}</section>`;
   }
+  // An overview tile on an arranged board (board-canvas-view.js) shows as many whole rows as its height holds, one at
+  // least, and says how many more there are; resized taller, it shows more. `on` false (the one-column flow) shows all.
+  function fit(root, on = true) {
+    for (const sec of root.querySelectorAll('[data-cf-ov="work"], [data-cf-ov="blockers"], [data-cf-ov="replies"]')) {
+      const rows = [...sec.children].filter((x) => x.classList.contains('po-row'));
+      let more = [...sec.children].find((x) => x.classList.contains('po-more'));
+      for (const r of rows) r.style.display = '';
+      if (more) more.hidden = true;
+      if (!on || rows.length < 2 || sec.scrollHeight <= sec.clientHeight) continue;
+      if (!more) { more = document.createElement('p'); more.className = 'po-more'; sec.append(more); }
+      more.hidden = false;
+      for (let n = rows.length - 1; n > 0; n--) {
+        rows[n].style.display = 'none';
+        more.textContent = tr('+{n} more', { n: rows.length - n });
+        if (sec.scrollHeight <= sec.clientHeight) break;
+      }
+    }
+  }
   function wire(root, c) {
     const folder = () => ({ folder: c.folder.name, name: c.name || c.start, color: c.color });
     root.querySelector('[data-po-refresh]')?.addEventListener('click', () => { refresh(c, true); Company.redraw(); });
@@ -74,5 +92,5 @@ const ProjectOverview = (() => {
   // The questions waiting for the owner (a bot's, a team chat's, the Chief's): they stand in Needs you, not under Blockers.
   // A question in a chat that already has a card in Needs you (the Chief's) is that card's: shown once, as the card.
   const questions = (c, cards = []) => (stateOf(c.id).data?.blockers || []).filter((x) => x.state === 'asks' && (!x.chatId || !cards.some((k) => k.a?.chatId === x.chatId)));
-  return { html, tile, refresh, wire, rows, questions, sig: (id) => snapshots.get(id) || null };
+  return { html, tile, refresh, wire, fit, rows, questions, sig: (id) => snapshots.get(id) || null };
 })();

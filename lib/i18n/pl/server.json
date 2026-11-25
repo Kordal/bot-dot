@@ -671,5 +671,15 @@
   "Checking your MCP servers": "Sprawdzam Twoje serwery MCP",
   "Asking to add an MCP server": "Proszę o dodanie serwera MCP",
   "Using one of your MCP servers": "Używam jednego z Twoich serwerów MCP",
-  "used one of the owner's MCP servers": "użył jednego z serwerów MCP właściciela"
+  "used one of the owner's MCP servers": "użył jednego z serwerów MCP właściciela",
+  "A new version is ready": "Nowa wersja jest gotowa",
+  "A new version of botdot is ready.": "Nowa wersja botdot jest gotowa.",
+  "What's new:": "Co nowego:",
+  "Moving to the new version": "Przechodzę na nową wersję",
+  "Your bots restart in a minute or two.": "Twoje boty uruchomią się ponownie za minutę lub dwie.",
+  "Your account moves to it as soon as your bots are idle.": "Twoje konto przejdzie na nią, gdy tylko boty nic nie robią.",
+  "Your account moves to it tonight, when your bots are idle.": "Twoje konto przejdzie na nią dziś w nocy, gdy boty nic nie robią.",
+  "Your account moves to it when you say, or by itself on {day}.": "Twoje konto przejdzie na nią, gdy powiesz, albo samo: {day}.",
+  "Now": "Teraz",
+  "Tonight": "Dziś w nocy"
 }
