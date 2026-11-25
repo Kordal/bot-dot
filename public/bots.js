@@ -315,7 +315,7 @@ function renderBotSettings(force = false) {
         ${state.features.includes('bot-hotkeys') ? hotkeyRow(b) : ''}
         <details class="bs-row bs-more" id="bs-model"${advanced() ? '' : ' hidden'}>
           <summary><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(b.model, b.effort))}</span>${CHEV}</summary>
-          <div class="bs-body">${llmFieldsHTML('bot', { model: b.model, effort: b.effort }, tr('Default ({model})', { model: llmSummary(state.settings?.defaultModel, state.settings?.defaultEffort) }))}</div>
+          <div class="bs-body">${llmFieldsHTML('bot', { model: b.model, effort: b.effort })}</div>
         </details>
         <details class="bs-row bs-more" id="bs-rules">
           <summary><b>${tr('Rules')}</b><span class="bs-val">${esc(b.systemPrompt.split('\n')[0])}</span>${CHEV}</summary>

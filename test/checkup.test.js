@@ -98,12 +98,18 @@ test('no checkup in the first hour after the botdot server started, and it start
   assert.equal((await w.tickAt('2026-10-12T08:50:00Z')).ran, true);
 });
 
-test('switched off, no checkup starts; switched on again within its two hours, the day\'s one does', async () => {
+test('a checkup an older version saved as switched off still starts: it always runs', async () => {
+  const w = make({ setting: { on: false, webSearch: false } });
+  assert.equal((await w.tickAt('2026-10-12T08:00:00Z')).ran, true);
+  assert.equal(w.runs.length, 1);
+});
+
+test('what the busy Chief, the quiet hours and the first hour hold back is the same for every checkup', async () => {
   const w = make({ setting: { on: false } });
-  assert.equal((await w.tickAt('2026-10-12T08:00:00Z')).reason, 'off');
-  assert.equal(w.runs.length, 0);
-  w.settings.checkup = { on: true };
-  assert.equal((await w.tickAt('2026-10-12T08:30:00Z')).ran, true);
+  w.busy = true;
+  assert.equal((await w.tickAt('2026-10-12T08:00:00Z')).reason, 'busy');
+  w.busy = false;
+  assert.equal((await w.tickAt('2026-10-12T08:30:00Z')).ran, true, 'freed from a busy Chief within its two hours, the day\'s one starts');
 });
 
 test('no checkup inside quiet hours, even when they were moved over its time after it was set', async () => {
@@ -142,12 +148,9 @@ test('Monday\'s checkup covers the weekend', async () => {
   assert.equal(w.inputs[1].since.toISOString(), '2026-10-09T08:00:00.000Z');
 });
 
-test('after weeks switched off a checkup reads one week, not all of them', async () => {
+test('after weeks with no checkup (the server was down) a checkup reads one week, not all of them', async () => {
   const w = make({ started: '2026-09-01T00:00:00Z' });
   await w.tickAt('2026-09-01T08:00:00Z');
-  w.settings.checkup = { on: false };
-  await w.tickAt('2026-09-21T08:00:00Z');
-  w.settings.checkup = { on: true };
   await w.tickAt('2026-10-12T08:00:00Z');
   assert.equal(w.inputs.at(-1).since.toISOString(), '2026-10-05T08:00:00.000Z');
 });
@@ -391,21 +394,29 @@ test('a second list in the same chat is what its numbers mean from then on', () 
 
 // ---------- its setting ----------
 
-test('the setting starts on, on weekdays at 08:00, without web search, and broken values are how it starts', () => {
-  assert.deepEqual(checkup.settingOf(undefined), { on: true, days: [1, 2, 3, 4, 5], time: '08:00', webSearch: false });
-  assert.deepEqual(checkup.settingOf({ on: 'yes', days: [9, 'x'], time: '25:00', webSearch: 1 }), checkup.DEFAULTS);
-  assert.deepEqual(checkup.settingOf({ on: false, days: [4, 1, 1], time: '07:30', webSearch: true }), { on: false, days: [1, 4], time: '07:30', webSearch: true });
+test('the setting starts on weekdays at 08:00, always on and always with web search, and broken values are how it starts', () => {
+  assert.deepEqual(checkup.settingOf(undefined), { on: true, days: [1, 2, 3, 4, 5], time: '08:00', webSearch: true });
+  assert.deepEqual(checkup.settingOf({ on: 'yes', days: [9, 'x'], time: '25:00', webSearch: 1 }), { ...checkup.DEFAULTS, on: true, webSearch: true });
+  // What an older version saved is not read: it ran with these two switched off.
+  assert.deepEqual(checkup.settingOf({ on: false, days: [4, 1, 1], time: '07:30', webSearch: false }), { on: true, days: [1, 4], time: '07:30', webSearch: true });
 });
 
 test('a change keeps what it does not name, takes days by number or name, and refuses what it cannot keep', () => {
   const quiet = { start: 22, end: 7, timeZone: 'UTC' };
-  assert.deepEqual(checkup.changed(undefined, { on: false }, quiet), { on: false, days: [1, 2, 3, 4, 5], time: '08:00', webSearch: false });
-  assert.deepEqual(checkup.changed({ on: false }, { days: ['Thursday', 'mon'], time: '07:30' }, quiet), { on: false, days: [1, 4], time: '07:30', webSearch: false });
-  assert.deepEqual(checkup.changed(undefined, { days: [0, 6], webSearch: true }, quiet).days, [0, 6]);
+  assert.deepEqual(checkup.changed(undefined, { time: '09:15' }, quiet), { on: true, days: [1, 2, 3, 4, 5], time: '09:15', webSearch: true });
+  assert.deepEqual(checkup.changed({ on: false }, { days: ['Thursday', 'mon'], time: '07:30' }, quiet), { on: true, days: [1, 4], time: '07:30', webSearch: true });
+  assert.deepEqual(checkup.changed(undefined, { days: [0, 6] }, quiet).days, [0, 6]);
   assert.throws(() => checkup.changed(undefined, { days: [] }, quiet), /days must be one or more days of the week/);
   assert.throws(() => checkup.changed(undefined, { days: ['someday'] }, quiet), /days must be/);
   assert.throws(() => checkup.changed(undefined, { time: '8am' }, quiet), /time must be HH:MM/);
-  assert.throws(() => checkup.changed(undefined, { on: 'yes' }, quiet), /on must be true or false/);
+});
+
+test('"on" and "webSearch" are no longer changes: whatever their value, they are refused and nothing changes', () => {
+  const quiet = { start: 22, end: 7, timeZone: 'UTC' };
+  const refused = /The checkup always runs and always may search the web: only its days and time can change\./;
+  for (const input of [{ on: false }, { on: true }, { webSearch: false }, { webSearch: true }, { on: 'yes' }, { days: [1], webSearch: true }]) {
+    assert.throws(() => checkup.changed(undefined, input, quiet), refused, JSON.stringify(input));
+  }
 });
 
 test('a time inside the quiet hours is refused, with the nearest time that is not', () => {
@@ -414,9 +425,7 @@ test('a time inside the quiet hours is refused, with the nearest time that is no
   assert.throws(() => checkup.changed(undefined, { time: '23:15' }, quiet), /nearest time is 21:59/); // nearer than the morning
   assert.equal(checkup.changed(undefined, { time: '07:00' }, quiet).time, '07:00');
   assert.equal(checkup.changed(undefined, { time: '03:00' }, { start: 0, end: 0, timeZone: 'UTC' }).time, '03:00'); // quiet hours switched off
-  assert.equal(checkup.changed({ time: '06:30' }, { on: false }, quiet).on, false); // switching it off is never refused
-  assert.equal(checkup.changed({ time: '06:30', on: false }, { webSearch: true }, quiet).webSearch, true); // nor is web search
-  assert.throws(() => checkup.changed({ time: '06:30', on: false }, { on: true }, quiet), /06:30 is inside the quiet hours/); // switched on, it would never start
+  assert.throws(() => checkup.changed({ time: '06:30' }, { days: [1] }, quiet), /06:30 is inside the quiet hours/); // a day set on a time that would never start
 });
 
 test('quiet hours moved over its time afterwards: the setting says that no checkup starts', () => {
@@ -450,36 +459,32 @@ test('when it runs, in words', () => {
 
 test('status is the setting with its words, its time zone and when the last one ran', async () => {
   const w = make();
-  assert.deepEqual(w.checkups.status(), { on: true, days: [1, 2, 3, 4, 5], time: '08:00', webSearch: false, when: 'Weekdays at 08:00', timeZone: 'UTC', lastRanAt: null });
+  assert.deepEqual(w.checkups.status(), { on: true, days: [1, 2, 3, 4, 5], time: '08:00', webSearch: true, when: 'Weekdays at 08:00', timeZone: 'UTC', lastRanAt: null });
   await w.tickAt('2026-10-12T08:00:00Z');
   assert.equal(w.checkups.status().lastRanAt, '2026-10-12T08:00:00.000Z');
 });
 
 // ---------- what it may use, and what it is told ----------
 
-test('a checkup has botdot\'s reading tools, web search only when it is switched on, and never a tool that fetches', async () => {
-  assert.deepEqual(checkup.builtIn(false), []);
-  assert.deepEqual(checkup.builtIn(true), ['WebSearch']);
-  assert.deepEqual(checkup.tools(false), ['mcp__botdot__recall', 'mcp__botdot__list_bots', 'mcp__botdot__get_bot', 'mcp__botdot__list_runs', 'mcp__botdot__get_run']);
-  assert.deepEqual(checkup.tools(true), ['WebSearch', ...checkup.tools(false)]);
-  for (const web of [false, true]) assert.ok(!checkup.tools(web).some((t) => /fetch|bash|write|edit|read$/i.test(t)), 'no tool that fetches, runs or writes');
-  const w = make({ setting: { webSearch: true } });
+test('a checkup has botdot\'s reading tools and web search, always, and never a tool that fetches', async () => {
+  assert.deepEqual(checkup.builtIn, ['WebSearch']);
+  assert.deepEqual(checkup.tools, ['WebSearch', 'mcp__botdot__recall', 'mcp__botdot__list_bots', 'mcp__botdot__get_bot', 'mcp__botdot__list_runs', 'mcp__botdot__get_run']);
+  assert.ok(!checkup.tools.some((t) => /fetch|bash|write|edit|read$/i.test(t)), 'no tool that fetches, runs or writes');
+  const w = make();
   await w.tickAt('2026-10-12T08:00:00Z');
-  assert.deepEqual([w.inputs[0].webSearch, w.runs[0].webSearch], [true, true]);
-  const off = make();
-  await off.tickAt('2026-10-12T08:00:00Z');
-  assert.deepEqual([off.inputs[0].webSearch, off.runs[0].webSearch], [false, false]);
+  assert.deepEqual(Object.keys(w.inputs[0]).sort(), ['before', 'since'], 'no switch is handed on: the run has the web tools whatever is saved');
+  assert.deepEqual(Object.keys(w.runs[0]).sort(), ['prompt', 'system']);
 });
 
-test('its instructions: read only, at most three, evidence, never cost, and web search only when it has it', () => {
+test('its instructions: read only, at most three, evidence, never cost, and web search always', () => {
   const s = checkup.systemPrompt({ rules: 'English only.' });
   assert.match(s, /At most three proposals/);
   assert.match(s, /No evidence, no proposal/);
   assert.match(s, /you change nothing and start nothing, and you message no bot/);
   assert.match(s, /Never say what anything cost/);
   assert.match(s, /<user-rules>\nEnglish only\.\n<\/user-rules>/);
-  assert.doesNotMatch(s, /search the web/);
-  assert.match(checkup.systemPrompt({ webSearch: true }), /You may search the web, only to check that a proposal can work/);
+  assert.match(s, /You may search the web, only to check that a proposal can work/);
+  assert.match(s, /Never put the owner's words, names or data in a search/);
 });
 
 test('what a checkup is told: the window, each bot\'s chats, failures, jobs and unread messages, the groups, the Board, and what was proposed before', () => {

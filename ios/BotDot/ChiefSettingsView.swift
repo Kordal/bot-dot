@@ -21,8 +21,8 @@ final class ChiefSettingsModel {
 
 /// The Chief's settings (Android's ChiefSettingsScreen, #379 #381 #384 #408 #636): its name, its model and reasoning
 /// (with Advanced), your rules for it and your skills for it, saved by themselves a moment after the last change;
-/// what you always approved, with Revoke; its own jobs, each with its switch and Remove; its pages; the checkup's
-/// switches; and its earlier chats, each opening in its chat.
+/// what you always approved, with Revoke; its own jobs, each with its switch and Remove; its pages; and its
+/// earlier chats, each opening in its chat.
 struct ChiefSettingsView: View {
     let home: HomeStore
     /// An earlier chat tapped: it opens in the Chief's chat.
@@ -139,18 +139,6 @@ struct ChiefSettingsView: View {
                     }
                     .tint(.primary)
                 }
-            }
-        }
-        if let c = s.checkup {
-            Section {
-                Toggle(isOn: Binding(get: { c.on }, set: { on in Task { try? await desk.setCheckup(field: "on", on: on) } })) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(Checkup.companion.LABEL)
-                        if !c.caption.isEmpty { Text(c.caption).font(.caption).foregroundStyle(.secondary) }
-                    }
-                }
-                Toggle(Checkup.companion.WEB_SEARCH, isOn: Binding(get: { c.webSearch }, set: { on in Task { try? await desk.setCheckup(field: "webSearch", on: on) } }))
-                    .disabled(!c.webSearchUsable)
             }
         }
         // Its files and workspace (#383), in Files (#603), as a bot's.

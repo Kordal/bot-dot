@@ -54,6 +54,7 @@ test("every account's owner chooses, the admin's own too (#274)", async () => {
   const own = await a.get('/front-door/update');
   assert.equal(own.status, 200, own.text);
   assert.equal(own.data.autoUpdate, true);
+  assert.equal(own.data.when, 'night', 'the default');
   clear();
   const off = await a.post('/front-door/update', { autoUpdate: false });
   assert.equal(off.data.autoUpdate, false);
@@ -74,16 +75,67 @@ test('"Update automatically" is on until its owner turns it off, and the front d
   const was = seen();
   let u = await b.get('/front-door/update');
   assert.equal(u.status, 200, u.text);
-  assert.deepEqual(u.data, { autoUpdate: true, asked: false, canUpdate: false, ready: null, last: null });
+  assert.deepEqual(u.data, { when: 'night', autoUpdate: true, asked: false, canUpdate: false, ready: null, last: null });
   u = await b.post('/front-door/update', { autoUpdate: false });
   assert.equal(u.status, 200, u.text);
   assert.equal(u.data.autoUpdate, false);
+  assert.equal(u.data.when, 'manual', 'the old false is "When I say"');
   assert.equal(kept().accounts.bob.autoUpdate, false, 'as root\'s step reads it');
   assert.equal((await b.post('/front-door/update', { autoUpdate: 'no' })).status, 400);
   assert.equal((await b.post('/front-door/update', { autoUpdate: true })).data.autoUpdate, true);
-  assert.equal(kept().accounts.bob.autoUpdate, undefined, 'on is no field');
+  assert.equal(kept().accounts.bob.autoUpdate, undefined, 'root\'s step reads no autoUpdate for an account that updates');
   await b.post('/front-door/update', { autoUpdate: false });
   assert.equal(seen(), was, 'no botdot server saw any of it');
+});
+
+test('"when" is as soon as it\'s ready, at night when idle (the default) or when its owner says; root\'s step reads `autoUpdate: false` for the last alone (ADR 271)', async () => {
+  const b = await bob();
+  const was = seen();
+  clear();
+  const set = async (when) => b.post('/front-door/update', { when });
+  let u = await set('ready');
+  assert.equal(u.status, 200, u.text);
+  assert.deepEqual([u.data.when, u.data.autoUpdate], ['ready', true]);
+  assert.equal(kept().accounts.bob.updateWhen, 'ready');
+  assert.equal(kept().accounts.bob.autoUpdate, undefined, 'root\'s step still switches it with the admin\'s update');
+  assert.equal((await b.get('/front-door/update')).data.when, 'ready');
+  u = await set('manual');
+  assert.deepEqual([u.data.when, u.data.autoUpdate], ['manual', false]);
+  assert.equal(kept().accounts.bob.autoUpdate, false, 'root\'s step leaves it waiting');
+  assert.equal(kept().accounts.bob.updateWhen, 'manual');
+  u = await set('night');
+  assert.deepEqual([u.data.when, u.data.autoUpdate], ['night', true]);
+  assert.equal(kept().accounts.bob.updateWhen, 'night', 'kept in words, so a later autoUpdate: false for every account cannot turn it into manual');
+  assert.equal(kept().accounts.bob.autoUpdate, undefined);
+  for (const wrong of ['soon', '', null, true, 1, ['night']]) assert.equal((await set(wrong)).status, 400, JSON.stringify(wrong));
+  assert.equal((await b.post('/front-door/update', { when: 'ready', autoUpdate: false })).data.when, 'ready', 'when wins over the old field');
+  assert.equal((await b.post('/front-door/update', {})).status, 400, 'one or the other');
+  assert.equal(kept().accounts.bob.updateWhen, 'ready', 'a refused one changes nothing');
+  assert.equal((await b.post('/front-door/update', { autoUpdate: true })).data.when, 'night', 'the old true is night');
+  assert.equal((await b.post('/front-door/update', { autoUpdate: false })).data.when, 'manual');
+  assert.equal(seen(), was, 'no botdot server saw any of it');
+});
+
+test('what an older front door kept reads as the new "when": autoUpdate false is manual, no field is night', async () => {
+  const b = await bob();
+  const file = path.join(door.data, 'front-door.json');
+  const doc = kept();
+  const original = fs.readFileSync(file, 'utf8');
+  try {
+    delete doc.accounts.bob.updateWhen;
+    doc.accounts.bob.autoUpdate = false;
+    fs.writeFileSync(file, JSON.stringify(doc));
+    assert.equal((await b.get('/front-door/update')).data.when, 'manual');
+    delete doc.accounts.bob.autoUpdate;
+    fs.writeFileSync(file, JSON.stringify(doc));
+    const u = (await b.get('/front-door/update')).data;
+    assert.deepEqual([u.when, u.autoUpdate], ['night', true]);
+    doc.accounts.bob.updateWhen = 'sometime';
+    fs.writeFileSync(file, JSON.stringify(doc));
+    assert.equal((await b.get('/front-door/update')).data.when, 'night', 'a value it does not know is the default');
+  } finally {
+    fs.writeFileSync(file, original);
+  }
 });
 
 test('a version that waits shows when it came and its deadline, and "Update now" asks the machine once', async () => {
@@ -166,6 +218,7 @@ test('the admin page lists what waits on each account, and its "Update now" asks
   assert.equal(accounts.find((x) => x.name === 'ann').update.autoUpdate, true, "the admin's own has one too (#274)");
   const listed = accounts.find((x) => x.name === 'bob').update;
   assert.equal(listed.autoUpdate, false);
+  assert.equal(listed.when, 'manual');
   assert.equal(listed.ready.version, 'abc1234');
   const now = await a.post('/admin/accounts/bob/update', {});
   assert.equal(now.status, 202, now.text);

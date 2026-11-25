@@ -100,7 +100,7 @@ test('web: a tap is sent to the server and rolled back with a toast when it is r
 });
 
 test('web: a rating made in another app shows from the feed, in the chat on screen only', () => {
-  const on = app.slice(app.indexOf("es.addEventListener('rating'"), app.indexOf("es.addEventListener('checkup'"));
+  const on = app.slice(app.indexOf("es.addEventListener('rating'"), app.indexOf("es.addEventListener('language'"));
   assert.ok(on.length > 0);
   assert.match(on, /thread\.dataset\.chat !== d\.chatId/);
   assert.match(on, /Ratings\.show\(\$\(`\.rate\[data-rate="\$\{d\.index\}"\]`, thread\), d\.rating\)/);

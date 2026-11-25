@@ -20,7 +20,7 @@ import kotlin.test.fail
 /** The Chief's settings for both phones (ChiefSettingsDesk): what shows from which botdot, the save after the last change, and what acts at once. */
 class ChiefSettingsDeskTest {
     private val settings = """{"settings":{"defaultModel":"sonnet","chiefRules":"Be brief","chiefSkills":["deploy"]},"models":[{"id":"sonnet","label":"Sonnet"},{"id":"haiku","label":"Haiku","effort":false}],"efforts":[{"id":"high","label":"High"}]}"""
-    private val all = listOf(ChiefName.FEATURE, ChiefSkills.FEATURE, ChiefJobs.FEATURE, Checkup.FEATURE)
+    private val all = listOf(ChiefName.FEATURE, ChiefSkills.FEATURE, ChiefJobs.FEATURE)
 
     /** Waits (the desk's timer on the test's clock, botdot's answers on real threads) until [done]. */
     private suspend fun TestScope.until(what: String, done: suspend () -> Boolean) {
@@ -37,8 +37,6 @@ class ChiefSettingsDeskTest {
             t.path == "/api/chief/jobs" -> 200 to """{"jobs":[{"id":"j1","name":"Digest","when":"Every morning","on":true}]}"""
             t.path.startsWith("/api/chief/jobs/") && t.method == "PUT" -> 200 to """{"id":"j1","name":"Digest","when":"Every morning","on":false}"""
             t.path.startsWith("/api/chief/jobs/") -> 200 to "{}"
-            t.path == "/api/settings/checkup" && t.method == "GET" -> 200 to """{"checkup":{"on":true,"webSearch":false,"when":"Weekdays at 08:00"}}"""
-            t.path == "/api/settings/checkup" -> 500 to """{"error":"No"}"""
             else -> 200 to "{}"
         }
     }
@@ -54,7 +52,6 @@ class ChiefSettingsDeskTest {
             assertEquals("Be brief", rules)
             assertEquals(listOf("deploy", "review"), skills?.map { it.name }, "the ones it has first")
             assertEquals("Digest", jobs?.single()?.name)
-            assertEquals("Weekdays at 08:00", checkup?.caption)
             assertNull(pages, "no chief-pages: no section")
             assertEquals(listOf("", "sonnet", "haiku"), models.map { it.id })
         }
@@ -71,7 +68,7 @@ class ChiefSettingsDeskTest {
         assertEquals(false, desk.state.value.thinks, "a model that doesn't reason: no Reasoning")
     }
 
-    @Test fun aRefusedNameIsPutBackAndARefusedSwitchToo() = runTest {
+    @Test fun aRefusedNameIsPutBack() = runTest {
         val s = server(refuseName = true)
         val store = Store(backgroundScope, MutableStateFlow(null))
         store.version.set(VersionInfo(features = all))
@@ -80,14 +77,27 @@ class ChiefSettingsDeskTest {
         desk.setName("Ada")
         until("put back") { desk.state.value.name == "" }
         assertEquals("A bot has that name", desk.state.value.notice)
-        desk.setCheckup("webSearch", true)
-        assertEquals(false, desk.state.value.checkup?.webSearch, "refused: back as it was")
         desk.setJobOn("j1", false)
         assertEquals(false, desk.state.value.jobs?.single()?.on)
         desk.removeJob("j1")
         assertTrue(desk.state.value.jobs.orEmpty().isEmpty())
         assertEquals("Removed.", desk.state.value.notice)
     }
+    @Test fun aBotdotThatStillAnnouncesTheCheckupHasNoSwitchesForItAndIsNotAskedAboutIt() = runTest {
+        val s = server()
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.version.set(VersionInfo(features = all + "checkup"))
+        val events = MutableSharedFlow<FeedEvent>(extraBufferCapacity = 4)
+        val desk = ChiefSettingsDesk(backgroundScope, s.api, store, events)
+        desk.load()
+        runCurrent()
+        events.emit(FeedEvent(null, "checkup", Api.JSON.parseToJsonElement("""{"on":false,"webSearch":false,"when":"Mondays"}""") as kotlinx.serialization.json.JsonObject))
+        runCurrent()
+        assertEquals("Digest", desk.state.value.jobs?.single()?.name, "the rest shows as before")
+        assertTrue(s.sent().none { "checkup" in it.path }, "the checkup is asked for and changed nowhere: the server runs it always")
+        desk.close()
+    }
+
     @Test fun itsFilesOpenInFilesFromABotdotThatHasBoth() = runTest {
         val store = Store(backgroundScope, MutableStateFlow(null))
         val desk = ChiefSettingsDesk(backgroundScope, server().api, store, MutableSharedFlow())
@@ -106,9 +116,9 @@ class ChiefSettingsDeskTest {
         val store = Store(backgroundScope, MutableStateFlow(null))
         val desk = ChiefSettingsDesk(backgroundScope, s.api, store, MutableSharedFlow())
         desk.load()
-        with(desk.state.value) { assertNull(name); assertNull(skills); assertNull(jobs); assertNull(checkup) }
+        with(desk.state.value) { assertNull(name); assertNull(skills); assertNull(jobs) }
         store.version.set(VersionInfo(features = all))
-        until("the sections") { desk.state.value.jobs != null && desk.state.value.checkup != null }
+        until("the sections") { desk.state.value.jobs != null }
         with(desk.state.value) {
             assertEquals("", name)
             assertEquals(listOf("deploy", "review"), skills?.map { it.name })
@@ -175,7 +185,7 @@ class ChiefSettingsDeskTest {
 
     private fun TestScope.actionDesk(a: Actions, events: MutableSharedFlow<FeedEvent> = MutableSharedFlow()): ChiefSettingsDesk {
         val store = Store(backgroundScope, MutableStateFlow(null))
-        store.version.set(VersionInfo(features = listOf(ChiefJobs.FEATURE, Checkup.FEATURE, ChiefGrant.Kind.APP.feature, Pages.FEATURE, DocumentView.FEATURE, Pages.FEATURE_CHIEF)))
+        store.version.set(VersionInfo(features = listOf(ChiefJobs.FEATURE, ChiefGrant.Kind.APP.feature, Pages.FEATURE, DocumentView.FEATURE, Pages.FEATURE_CHIEF)))
         return ChiefSettingsDesk(backgroundScope, a.server.api, store, events)
     }
 
@@ -212,15 +222,13 @@ class ChiefSettingsDeskTest {
         desk.close()
     }
 
-    @Test fun theFeedsCheckupAndJobsAreFollowedUntilItCloses() = runTest {
+    @Test fun theFeedsJobsAreFollowedUntilItCloses() = runTest {
         val events = MutableSharedFlow<FeedEvent>(extraBufferCapacity = 4)
         val desk = actionDesk(Actions(), events)
         desk.load()
         runCurrent()
-        events.emit(FeedEvent(null, Checkup.FEATURE, Api.JSON.parseToJsonElement("""{"on":false,"webSearch":true,"when":"Mondays"}""").let { it as kotlinx.serialization.json.JsonObject }))
         events.emit(FeedEvent(null, "chief_jobs", Api.JSON.parseToJsonElement("""{"jobs":[{"id":"j9","name":"New","when":"Daily","on":true}]}""") as kotlinx.serialization.json.JsonObject))
         runCurrent()
-        assertEquals("Mondays", desk.state.value.checkup?.caption)
         assertEquals(listOf("j9"), desk.state.value.jobs?.map { it.id })
         desk.close()
         runCurrent()

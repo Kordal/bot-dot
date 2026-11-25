@@ -32,11 +32,12 @@ function shownModel(id = '') {
   if (state.models?.some((model) => model.id === id)) return id;
   return id?.startsWith('provider:') ? '' : id;
 }
-// A model's name, and its provider's when it is not Claude's: "DeepSeek V4 Pro · DeepSeek" (docs/api.md, models[].provider).
+// A model's name, with its provider's first when it is not Claude's: "DeepSeek · DeepSeek V4 Pro". A row cuts a long
+// line at its end, and the provider is what tells two sources of one model apart (docs/api.md, models[].provider).
 const modelLabel = (id = '') => {
   const shown = shownModel(id);
   const info = state.models?.find((x) => x.id === shown);
-  return info ? (info.provider ? `${info.label} · ${info.group}` : info.label) : shown || tr("Claude Code's default");
+  return info ? (info.provider ? `${info.group} · ${info.label}` : info.label) : shown || tr("Claude Code's default");
 };
 const effortLabel = (id) => (!id ? tr("Claude Code's default") : state.efforts?.find((x) => x.id === id)?.label || id);
 const modelInfo = (id) => state.models?.find((x) => x.id === shownModel(id));
@@ -59,20 +60,37 @@ function llmValue(model, effort) {
   return llmSummary(shown, effort);
 }
 
+// The "use the default" choice of a bot's or the Chief's Model select: the account default's model.
+function modelInherit() {
+  const fallback = state.settings?.defaultModel;
+  return shownModel(fallback) ? tr('Default ({model})', { model: modelLabel(fallback) }) : tr("Claude Code's default");
+}
+// The "use the default" choice of a Reasoning select, for `model` (a bot's or the Chief's, '' = the account default's):
+// what a blank level comes to, as lib/settings.js pick decides it. A provider's model takes the account default's level
+// only when it offers it, else it runs on its own (no level is sent); Claude's takes the level the account has, if any.
+// The account default's own select keeps "Claude Code's default".
+function effortInherit(prefix, model = '') {
+  if (prefix === 'default') return tr("Claude Code's default");
+  const level = state.settings?.defaultEffort || '';
+  const info = modelInfo(model || state.settings?.defaultModel);
+  if (info?.provider && !(level && info.efforts?.includes(level))) return tr("{provider}'s own", { provider: info.group });
+  return level ? tr('Default ({level})', { level: effortLabel(level) }) : tr("Claude Code's default");
+}
+
 // Model + reasoning selects, the models in a group each: Claude's, then each connected provider's by name. One list,
-// searched by the box above it. inherit: label for the "use the default" choice ('' = Claude Code's default).
-function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
+// searched by the box above it. The "use the default" choices say what the default is for this model.
+function llmFieldsHTML(prefix, { model = '', effort = '' }) {
   const savedModel = model;
   model = shownModel(model);
   const models = state.models || [];
   const known = models.some((x) => x.id === model);
   const groups = [...new Set(models.map((x) => x.group))];
   const modelOpts = [
-    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || modelLabel())}</option>`,
+    `<option value="" ${!model ? 'selected' : ''}>${esc(prefix === 'default' ? modelLabel() : modelInherit())}</option>`,
     ...groups.map((g) => `<optgroup label="${esc(g)}">${models.filter((x) => x.group === g).map((x) => `<option value="${esc(x.id)}" ${x.id === model ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`),
     model && !known ? `<option value="${esc(model)}" selected>${esc(model)}</option>` : '',
   ].join('');
-  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || tr("Claude Code's default"))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
+  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(effortInherit(prefix, model))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
   return `
     <div class="llm-fields" data-llm="${prefix}">
       <input class="pick-search" type="search" data-model-search placeholder="${esc(tr('Search models'))}" aria-label="${esc(tr('Search models'))}"${models.length < 12 ? ' hidden' : ''}>
@@ -113,6 +131,7 @@ function wireLlmFields(form, prefix) {
       option.disabled = option.hidden = !!levels && !!option.value && !levels.includes(option.value);
       if (option.disabled && option.selected) e.value = '';
     }
+    e.options[0].textContent = effortInherit(prefix, id);
     const effort = state.efforts?.find((x) => x.id === e.value);
     describe(m, info?.note || '');
     describe(e, noEffort ? tr("{model} doesn't use reasoning levels.", { model: info?.label || id }) : effort?.note ? `${effort.label}: ${effort.note}` : '');
@@ -175,45 +194,8 @@ function catalogTip() {
   return c.source === 'docs' ? tr("Model list from Anthropic's docs, checked {ago}. Reasoning levels from your Claude Code.", { ago: ago(c.checkedAt) }) : tr('Built-in model list, not checked online yet.');
 }
 
-// The checkup's two switches in the Chief's settings (docs/api.md, The Chief's checkup), from a server that has
-// it. Its days and its time have no control: the row shows them in the server's words, and the Chief changes them.
-const CHECKUP_HTML = `
-      <div class="bs-group hidden" id="chief-checkup">
-        <label class="bs-row" title="${esc(tr('Ask the Chief to change when.'))}"><b>${tr('Checkup')}</b><span class="bs-val" data-checkup-when></span>
-          <span class="switch"><input type="checkbox" data-checkup="on" aria-label="${esc(tr('Checkup'))}"><span></span></span></label>
-        <label class="bs-row"${tipAttrs(tr('Lets a checkup search the web to check a proposal. It never opens a page.'))}><b>${tr('Web search')}</b>
-          <span class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="${esc(tr('Web search'))}"><span></span></span></label>
-      </div>`;
-
-// The switches as the server has them; Web search is there but can't be used while checkups are off.
-function drawCheckup() {
-  const box = $('#chief-checkup');
-  if (!box) return;
-  const c = state.features.includes('checkup') ? state.checkup : null;
-  box.classList.toggle('hidden', !c);
-  if (!c) return;
-  const [on, web] = ['on', 'webSearch'].map((k) => $(`[data-checkup="${k}"]`, box));
-  on.checked = !!c.on;
-  web.checked = !!c.webSearch;
-  web.disabled = !c.on;
-  $('[data-checkup-when]', box).textContent = c.when;
-}
-
-async function loadCheckup() {
-  if (!state.features.includes('checkup')) return;
-  try { state.checkup = (await api('/settings/checkup')).checkup; } catch { /* the switches stay as they were, or away */ }
-  drawCheckup();
-}
-
-// A refused or failed change puts the switch back: it is drawn again from what the server last said.
-async function setCheckup(key, value) {
-  try { state.checkup = (await api('/settings/checkup', { method: 'PUT', body: { [key]: value } })).checkup; flashSaved($('#view-chiefsettings')); }
-  catch (err) { toast(err.message, true); }
-  drawCheckup();
-}
-
-// The Chief's settings (its figure and name in its chat): its name, its model and reasoning, your rules for it, the
-// checkup's switches, its previous chats. Its instructions and tools are botdot's.
+// The Chief's settings (its figure and name in its chat): its name, its model and reasoning, your rules for it, its
+// previous chats. Its instructions and tools are botdot's.
 function renderChiefSettings() {
   const root = $('#view-chiefsettings');
   if (root.dataset.ready) renderChatList();
@@ -234,7 +216,7 @@ function renderChiefSettings() {
       <div class="set-list">
         <details class="bs-row bs-more" id="chief-model"${advanced() ? '' : ' hidden'}>
           <summary${tipAttrs(tr('What the Chief uses to plan, create and manage your bots.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(s.chiefModel, s.chiefEffort))}</span>${CHEV}</summary>
-          <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, tr('Same as the default'))}</div>
+          <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort })}</div>
         </details>
         <div class="bs-row" id="chief-skills"${tipAttrs(tr('From your library, beside its own. Only you change them.'))}>
           <div class="grow"><b>${tr('Skills')}</b><div id="chief-skill-picks"><span class="faint">${tr('Loading…')}</span></div></div>${CHEV}
@@ -250,7 +232,7 @@ function renderChiefSettings() {
           <summary${tipAttrs(tr('Reports, memos and overviews it made for you. Open one to keep it up to date.'))}><b>${tr('Pages')}</b><span class="bs-val" id="chief-pages-val"></span>${CHEV}</summary>
           <div class="bs-body pg-list" id="chief-page-list"><span class="faint">${tr('Loading…')}</span></div>
         </details>` : ''}${state.features.includes('chief-files') ? `
-        <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files><b>${tr('Files')}</b>${CHEV}</button>` : ''}${CHECKUP_HTML}
+        <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files><b>${tr('Files')}</b>${CHEV}</button>` : ''}
         <details class="bs-row bs-more" id="chief-chats-row">
           <summary><b>${tr('Previous chats')}</b>${CHEV}</summary>
           <div class="bs-body settings-links" id="chief-chats"></div>
@@ -263,8 +245,6 @@ function renderChiefSettings() {
   if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefTitle() }, $('#chief-page-list', root), $('#chief-pages-val', root)); // public/pages.js (#384)
   drawChiefFiles(root);
   drawChiefJobs();
-  $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
-  loadCheckup();
   const rename = $('#chief-rename', root);
   if (rename) rename.onchange = () => renameChief(rename);
   const form = $('#chief-form', root);

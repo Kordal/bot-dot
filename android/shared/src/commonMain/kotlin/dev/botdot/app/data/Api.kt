@@ -740,8 +740,6 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun refreshModels(): SettingsInfo = json.decodeFromString(send("POST", "/settings/refresh-models"))
     suspend fun discoverModels(): SettingsInfo = json.decodeFromString(send("POST", "/settings/refresh-models?catalog"))
     suspend fun saveSettings(s: AppSettings): SettingsInfo = json.decodeFromString(send("PUT", "/settings", json.encodeToJsonElement(s) as JsonObject))
-    /** The Chief's checkup; null from a server that answered without it. Only with `checkup` in its features. */
-    suspend fun checkup(): Checkup? = Checkup.answer(get("/settings/checkup"))
     /** The Chief's lasting grants of one kind (ChiefGrant), and Revoke of one: a refusal throws the server's words. */
     /** The Chief's own jobs (#408): only with `chief-jobs` in the server's features. */
     suspend fun chiefJobs(): List<ChiefJob> = json.decodeFromString<ChiefJobList>(get("/chief/jobs")).jobs
@@ -751,8 +749,6 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun runChiefJob(id: String) { send("POST", "/chief/jobs/${enc(id)}/run") }
     suspend fun chiefGrants(kind: ChiefGrant.Kind): List<ChiefGrant> = ChiefGrant.of(kind, get(kind.path))
     suspend fun revokeChiefGrant(g: ChiefGrant): List<ChiefGrant> = ChiefGrant.of(g.kind, send("DELETE", g.kind.path, buildJsonObject { put(g.kind.key, g.id) }))
-    /** Switches one of the checkup's two switches ([field]: "on" or "webSearch"); a refusal throws the server's words. */
-    suspend fun setCheckup(field: String, value: Boolean): Checkup? = Checkup.answer(send("PUT", "/settings/checkup", buildJsonObject { put(field, value) }))
     suspend fun setup(): SetupInfo = json.decodeFromString(get("/setup?fresh"))
     /** The owner's answer to the question for the Chief's name (ChiefName): "" keeps "Chief of Staff". A refusal throws the server's words. */
     /** This device's time zone for a botdot with none of its own (#756): it takes it once, so bots say times in the owner's time. */

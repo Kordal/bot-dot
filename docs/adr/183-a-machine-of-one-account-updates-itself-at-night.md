@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-11-10, the owner's go on "less heavy, less minding the bots")
 - **Changes:** ADR 136 (botdot on the owner's computer): it no longer waits for the menu's "Update botdot on this Mac"
+- **Amended by:** [ADR 271](271-an-account-switches-to-a-new-version-when-it-is-idle-at-the-time-its-owner-chose.md) (2026-11-25): the machine of one account updates in two steps (root's step downloads at night, the front door then switches the account when it is idle), by the owner's "when" like every account's, and gets a setting for it in Settings.
 - **Keeps:** the admin page's Update and each account's "Update automatically" on a machine of several accounts (ADR 053); root's step does every update (#473)
 
 ## Context

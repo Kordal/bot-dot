@@ -1412,15 +1412,39 @@ data class SettingsInfo(
     fun defaultModelLabel(): String = if (mixed) tr("Claude Code's default")
         else models.firstOrNull { it.id == provider?.main }?.let { tr("Default ({model})", "model" to it.label) } ?: tr("Claude Code's default")
 
-    /** A model's name, with its provider's when it is not Claude's: "DeepSeek V4 Pro · DeepSeek". */
+    /**
+     * A bot's or the Chief's "Default" Model choice: the account default's model, named ("Default (Claude Sonnet 5.5)").
+     * A row cuts a long line at its end, so a provider's model has its provider first (see [modelLabel]).
+     */
+    fun inheritedModelLabel(): String {
+        val model = shownModel(settings.defaultModel)
+        return if (mixed && model.isNotEmpty()) tr("Default ({model})", "model" to modelLabel(model)) else tr("Default")
+    }
+
+    /**
+     * A bot's or the Chief's "Default" Reasoning choice for [model] (blank: the account default's), as the server's
+     * `pick` decides it: a provider's model takes the account default's level only when it offers it and else runs on
+     * its own (no level is sent); Claude's takes the level the account has, if any.
+     */
+    fun inheritedEffortLabel(model: String): String {
+        if (!mixed) return tr("Default")
+        val level = settings.defaultEffort
+        val choice = models.firstOrNull { it.id == effectiveModel(model) }
+        if (choice?.provider != null && (level.isEmpty() || level !in choice.efforts.orEmpty())) {
+            return tr("{provider}'s own", "provider" to (choice.group?.takeIf { it.isNotBlank() } ?: choice.provider))
+        }
+        return if (level.isEmpty()) tr("Claude Code's default") else tr("Default ({level})", "level" to (efforts.firstOrNull { it.id == level }?.label ?: level))
+    }
+
+    /** A model's name, with its provider's first when it is not Claude's: "DeepSeek · DeepSeek V4 Pro". */
     fun modelLabel(id: String): String {
         val shown = shownModel(id)
         val choice = models.firstOrNull { it.id == shown } ?: return shown.ifEmpty { defaultModelLabel() }
         val name = choice.label.ifBlank { choice.id }
-        return if (choice.provider != null && !choice.group.isNullOrBlank()) "$name · ${choice.group}" else name
+        return if (choice.provider != null && !choice.group.isNullOrBlank()) "${choice.group} · $name" else name
     }
 
-    /** The one line a model and its reasoning level make: "DeepSeek V4 Pro · DeepSeek · High". */
+    /** The one line a model and its reasoning level make: "DeepSeek · DeepSeek V4 Pro · High". */
     fun summary(model: String, effort: String): String {
         val level = shownEffort(effort, model).takeIf { it.isNotEmpty() && canThink(model) }?.let { id -> efforts.firstOrNull { it.id == id }?.label ?: id }
         return modelLabel(model) + (level?.let { " · $it" } ?: "")
