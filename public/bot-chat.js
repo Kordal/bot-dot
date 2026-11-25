@@ -226,7 +226,7 @@ function runParts(bot, r, last, newest, canReply = false, quote = '') {
     : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
     : r.customPrompt === false
       ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} ${tr('Ran its main assignment')}</span></div>`
-      : (mine = true, `<div class="bubble-row from-me"><div class="stack mine">${quote}${window.BoardEdit?.aboutHTML(r.card) || ''}<div class="bubble from-me" data-expand data-text="${esc(r.prompt)}"><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta on-hover">${copyBtn(r.prompt)}</div></div></div>`));
+      : (mine = true, `<div class="bubble-row from-me"><div class="stack mine">${quote}${globalThis.BoardEdit?.aboutHTML(r.card) || ''}<div class="bubble from-me" data-expand data-text="${esc(r.prompt)}"><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta on-hover">${copyBtn(r.prompt)}</div></div></div>`));
   // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons. A
   // teammate's (#1278, `fromBot`) folds as a message from that bot does.
   const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => x.fromBot
@@ -463,7 +463,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
       ${composerHTML(tr('Message {name}', { name: bot.name }))}
       <div class="job-chips"${id('bot-job-chips')}></div>`;
     const form = $('form.composer', root);
-    wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key, replyingTo.get(bot.id)?.runId, null, window.BoardEdit?.cardFor('bot', bot.id)), () => `bot:${bot.id}`, bot.id);
+    wireComposer(form, (text, files, key) => runBotAbout(bot.id, text, files, key, replyingTo.get(bot.id)?.runId, null, globalThis.BoardEdit?.cardFor('bot', bot.id)), () => `bot:${bot.id}`, bot.id);
     $('.attach-list', form).insertAdjacentHTML('beforebegin', '<div class="reply-chip hidden"></div>');
     putCarried(form, `bot:${bot.id}`);
     drawReplyChip(bot.id);
@@ -578,7 +578,9 @@ function redrawBotChat(botId) {
 // before. A task botdot had already (again) answers the run it has, which the chat holds once.
 // To a working bot the answer is a run that waits (`status: "queued"`): it is no run yet, so nothing is followed
 // or opened for its id. It is drawn among the bot's `queued`, as every waiting message is.
-async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null, answers = null, card = null) {
+async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null, answers = null) { return runBotAbout(botId, text, attachments, key, replyTo, answers, null); }
+// The message box's send: the same, with the board tile the owner pointed at (board-edit.js), if any.
+async function runBotAbout(botId, text, attachments, key, replyTo, answers, card) {
   const at = `bot:${botId}`;
   sentAtOnce(at, { key, text, attachments, card });
   showSent(botThread(botId));
@@ -591,7 +593,7 @@ async function runBot(botId, text, attachments = [], key = messageKey(), replyTo
     throw e;
   }
   // The task went. Nothing from here on may reject: the caller would put a sent message back into the box.
-  window.BoardEdit?.sent(card); // the chip and the ring of the tile it was about are done
+  globalThis.BoardEdit?.sent(card); // the chip and the ring of the tile it was about are done
   try {
     if (replyTo && replyingTo.get(botId)?.runId === replyTo) { replyingTo.delete(botId); drawReplyChip(botId); }
     sentOver(at, key);

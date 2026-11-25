@@ -106,19 +106,19 @@ test("the tile's name above a message is drawn as text", () => {
 
 test('the chats send the tile, keep it on the waiting and the sent bubble, and clear it when the message went', () => {
   const bot = source('public/bot-chat.js');
-  assert.match(bot, /runBot\(bot\.id, text, files, key, replyingTo\.get\(bot\.id\)\?\.runId, null, window\.BoardEdit\?\.cardFor\('bot', bot\.id\)\)/);
+  assert.match(bot, /runBotAbout\(bot\.id, text, files, key, replyingTo\.get\(bot\.id\)\?\.runId, null, globalThis\.BoardEdit\?\.cardFor\('bot', bot\.id\)\)/);
   assert.match(bot, /\.\.\.\(card \? \{ card: card\.card, project: card\.project \} : \{\}\)/);
-  assert.match(bot, /window\.BoardEdit\?\.sent\(card\)/);
-  assert.match(bot, /window\.BoardEdit\?\.aboutHTML\(r\.card\)/);
+  assert.match(bot, /globalThis\.BoardEdit\?\.sent\(card\)/);
+  assert.match(bot, /globalThis\.BoardEdit\?\.aboutHTML\(r\.card\)/);
   const chief = source('public/chief.js');
-  assert.match(chief, /sendToChief\(text, attachments, key, window\.BoardEdit\?\.cardFor\('chief', state\.chatId\)\)/);
+  assert.match(chief, /sendToChiefAbout\(text, attachments, key, globalThis\.BoardEdit\?\.cardFor\('chief', state\.chatId\)\)/);
   assert.match(chief, /body: \{ text, attachments, key, \.\.\.\(card \? \{ card: card\.card, project: card\.project \} : \{\}\) \}/);
-  assert.match(chief, /window\.BoardEdit\?\.aboutHTML\(m\.card\)/);
+  assert.match(chief, /globalThis\.BoardEdit\?\.aboutHTML\(m\.card\)/);
   const replies = source('public/replies.js');
   assert.match(replies, /aboutHTML\(sent\.card\)/);
   assert.match(replies, /aboutHTML\(q\.card\)/);
   assert.match(source('public/index.html'), /<script src="\/board-edit\.js"><\/script>/);
-  assert.match(source('public/company-home.js'), /window\.BoardEdit\?\.apply\(root, c\)/);
+  assert.match(source('public/company-home.js'), /globalThis\.BoardEdit\?\.apply\(root, c\)/);
 });
 
 test('the styles follow the mockup: a 28px round pencil in the faint colour, a ring of the muted colour, a chip on --fill', () => {

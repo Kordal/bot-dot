@@ -555,7 +555,7 @@
       $('[data-po-back]', root).onclick = () => { boardFor = null; root.scrollTop = 0; Company.redraw(); };
     }
     window.BoardView?.apply(root, c); // the tiles where the owner put them (#783, board-canvas-view.js)
-    window.BoardEdit?.apply(root, c); // the pencil on each tile (ADR 273, board-edit.js)
+    globalThis.BoardEdit?.apply(root, c); // the pencil on each tile (ADR 273, board-edit.js)
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
     wire(root, c);
   }

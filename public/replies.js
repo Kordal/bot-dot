@@ -357,7 +357,7 @@ function queuedHTML(q, chat) {
   const line = steering ? tr('Steering…') : tr('Waits until {who} is free', { who });
   const steer = canSteer(kind) && !steering ? `<button type="button" data-steer="${esc(q.id)}">${tr('Steer')}</button>` : '';
   return `<div class="bubble-row from-me"><div class="stack mine">
-    ${window.BoardEdit?.aboutHTML(q.card) || ''}<div class="bubble from-me waits" data-text="${esc(text)}">${escMentions(text, kind === 'chief' ? CHIEF_BOT.id : id)}${files}</div>
+    ${globalThis.BoardEdit?.aboutHTML(q.card) || ''}<div class="bubble from-me waits" data-text="${esc(text)}">${escMentions(text, kind === 'chief' ? CHIEF_BOT.id : id)}${files}</div>
     <div class="bubble-meta"><span>${esc(line)}</span>${steer}<button type="button" data-take-back="${esc(q.id)}">${tr('Take back')}</button></div>
   </div></div>`;
 }
@@ -581,7 +581,7 @@ function ownWords(chat) {
 // mentions are matched in.
 function sentHTML(sent, mentions) {
   const [kind, id] = chatParts(mentions);
-  return `<div class="bubble-row from-me" data-sent><div class="stack mine">${window.BoardEdit?.aboutHTML(sent.card) || ''}<div class="bubble from-me waits" data-text="${esc(sent.text)}">${escMentions(sent.text, kind === 'chief' ? CHIEF_BOT.id : kind === 'group' ? mentions : id)}${filesHTML(sent.attachments)}</div></div></div>`;
+  return `<div class="bubble-row from-me" data-sent><div class="stack mine">${globalThis.BoardEdit?.aboutHTML(sent.card) || ''}<div class="bubble from-me waits" data-text="${esc(sent.text)}">${escMentions(sent.text, kind === 'chief' ? CHIEF_BOT.id : kind === 'group' ? mentions : id)}${filesHTML(sent.attachments)}</div></div></div>`;
 }
 // The bubble in a bot's chat or the Chief's while nothing is at work there: above the working line, where the
 // server's version will stand. Placed after the line is (placeStatusLines), which is then where a line stands:
