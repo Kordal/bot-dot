@@ -142,6 +142,9 @@ DIR="${BOT_DOT_DIR:-/var/lib/botdot}"
 DOOR="$DIR/front-door"
 ENV="$DOOR/.env"
 SOCKETS="$DIR/sockets"
+# The shared embedding server's way into each account (ADR 273): $EMBED/<account>, a folder each, the mirror of the
+# front door's: the account's botdot server and the embedding service's user alone may enter.
+EMBED="$DIR/embed"
 ACCOUNTS="$DIR/accounts"
 # Where each account's rootless Docker keeps its socket: $RUN/<account>/docker.sock.
 RUN="${BOT_DOT_RUN:-/run/botdot-accounts}"
@@ -159,6 +162,8 @@ PROC="${BOT_DOT_PROC:-/proc}"
 CGROUP="${BOT_DOT_CGROUP:-/sys/fs/cgroup}"
 # The front door's own user of the machine; its group alone is let into each account's socket folder.
 DOOR_USER=botdot-door
+# The shared embedding server's own user of the machine (ADR 273); its folder in each account is open to it alone.
+EMBED_USER=botdot-embed
 DOOR_PORT=4700
 # The sandbox's own address for bots' interactive pages (#399, ADR 072): the front door's second port, reached as the
 # same name on HTTPS port 8443, which is another origin than the front door's.
@@ -1413,7 +1418,7 @@ remove_account() {
   for f in "$ACCOUNTS/$1" "$RUN/$1"; do
     awk -v f="$f" '$2 == f || index($2, f "/") == 1 { print $2 }' "$PROC/mounts" 2>/dev/null | sort -r | while IFS= read -r m; do umount -l "$m" 2>/dev/null || true; done
   done
-  rm -rf -- "${ACCOUNTS:?}/$1" "${SOCKETS:?}/$1" "${RUN:?}/$1" "${RUN:?}/load/$1" "${DISKS:?}/$1.img" "${LOAD:?}/account-$1.json" "${DOOR:?}/status/account-$1.json"
+  rm -rf -- "${ACCOUNTS:?}/$1" "${SOCKETS:?}/$1" "${EMBED:?}/$1" "${RUN:?}/$1" "${RUN:?}/load/$1" "${DISKS:?}/$1.img" "${LOAD:?}/account-$1.json" "${DOOR:?}/status/account-$1.json"
   rm -rf -- "$ETC/systemd/system.control/botdot-account@$1.service.d"
   [ -z "$SYSTEMD" ] || systemctl daemon-reload </dev/null || true
   if id -u "$user" >/dev/null 2>&1; then userdel "$user" </dev/null || die "Couldn't remove the Linux user $user."; fi
@@ -1450,7 +1455,7 @@ erase_account() {
 # The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
 # for the accounts (step 1), beside gVisor's apt source.
 UNITS="botdot-computers.service botdot-computers.timer botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service botdot-offsite.timer botdot-offsite.service"
-OWN="front-door accounts sockets disks bin backup offsite update.log install.log requests.log computer-preparation computer-preparation.log demo-seeded"
+OWN="front-door accounts sockets embed disks bin backup offsite update.log install.log requests.log computer-preparation computer-preparation.log demo-seeded"
 PACKAGES="runsc docker-ce-rootless-extras"
 
 # installed_accounts: each account this machine has: its folder, its socket folder, its disk or its Linux user.
@@ -1473,6 +1478,8 @@ if [ "$MODE" = uninstall ]; then
   NAMES="$(installed_accounts)"
   door=''
   if [ -f "$DOOR/compose.yaml" ] || id -u "$DOOR_USER" >/dev/null 2>&1; then door=1; fi
+  embed_user=''
+  if id -u "$EMBED_USER" >/dev/null 2>&1; then embed_user=1; fi
   units=''
   for u in $UNITS; do [ ! -f "$ETC/systemd/system/$u" ] || units="$units${units:+, }$u"; done
   # What the list says of the accounts' shares, if any. Not an apostrophe inside ${…:+…}: bash 3.2, macOS's sh, misreads it (#1273).
@@ -1500,13 +1507,14 @@ if [ "$MODE" = uninstall ]; then
   # gVisor's files, when install_runsc put them there.
   gvisor_files=''
   [ ! -f "$GVISOR_MARK" ] || gvisor_files="$(grep -E '^/.*/(runsc|gvisor-bin)$' "$GVISOR_MARK" | tr '\n' ' ' | sed 's/ *$//')"
-  found="$NAMES$door$units$profile$serve$here"
+  found="$NAMES$door$embed_user$units$profile$serve$here"
 
   # What goes, and a typed yes.
   if [ -z "$found" ]; then ok "Nothing of botdot is on this machine."
   else
     say "This removes botdot from this machine for good:"
     [ -z "$door" ] || say "  - the front door: its containers and volumes in this machine's Docker, and its Linux user $DOOR_USER"
+    [ -z "$embed_user" ] || say "  - the shared embedding server's Linux user $EMBED_USER"
     for n in $NAMES; do say "  - the account $n: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-$n, its disk and its data"; done
     [ -z "$units" ] || say "  - botdot's systemd units: $units$shares"
     [ -z "$profile" ] || say "  - the AppArmor profile botdot-rootlesskit"
@@ -1579,6 +1587,7 @@ if [ "$MODE" = uninstall ]; then
       done
     fi
     if id -u "$DOOR_USER" >/dev/null 2>&1; then userdel "$DOOR_USER" </dev/null || left "the Linux user $DOOR_USER"; fi
+    if id -u "$EMBED_USER" >/dev/null 2>&1; then userdel "$EMBED_USER" </dev/null || left "the Linux user $EMBED_USER"; fi
     for u in $UNITS; do rm -f -- "$ETC/systemd/system/$u"; done
     rm -rf -- "$ETC"/systemd/system.control/botdot-account@*.service.d "$ETC"/systemd/system/*.wants/botdot-*
     if [ -n "$SYSTEMD" ]; then
@@ -1983,8 +1992,8 @@ fi
 # 2. The images: botdot's signed images from a registry, or ones built on this machine
 
 [ "$MODE" = install ] || [ -f "$ENV" ] || die "botdot isn't installed here ($ENV is missing)."
-mkdir -p "$DOOR/data" "$SOCKETS" "$ACCOUNTS"
-chmod 755 "$DIR" "$SOCKETS"
+mkdir -p "$DOOR/data" "$SOCKETS" "$EMBED" "$ACCOUNTS"
+chmod 755 "$DIR" "$SOCKETS" "$EMBED"
 chmod 711 "$ACCOUNTS"
 touch "$ENV"
 chmod 600 "$ENV"
@@ -2768,6 +2777,12 @@ if ! id -u "$DOOR_USER" >/dev/null 2>&1; then
 fi
 chown "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data"
 chmod 700 "$DOOR/data"
+# The machine's one shared embedding server (ADR 273) runs as a user of its own, which is let into each account's embedding
+# folder and nothing else. Every install has it but the desktop app's, whose one account runs its own server.
+if [ "$REACH" != local ] && ! id -u "$EMBED_USER" >/dev/null 2>&1; then
+  useradd --system --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin "$EMBED_USER" </dev/null \
+    || die "Couldn't make the shared embedding server's user, $EMBED_USER."
+fi
 # The keys the install took (above), the front door's to take.
 [ ! -f "$DOOR/data/install-keys.json" ] || { chown "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data/install-keys.json"; chmod 600 "$DOOR/data/install-keys.json"; }
 # Where the front door asks for new accounts: it may add and remove files there, and root's step reads their names.
@@ -2787,6 +2802,8 @@ chown "0:$(id -g "$DOOR_USER")" "$LOAD"
 chmod 750 "$LOAD"
 set_env "$ENV" FRONT_DOOR_USER "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")"
 set_env "$ENV" BOT_DOT_SOCKETS "$SOCKETS"
+set_env "$ENV" BOT_DOT_EMBED_SOCKETS "$EMBED"
+if id -u "$EMBED_USER" >/dev/null 2>&1; then set_env "$ENV" BOT_DOT_EMBED_USER "$(id -u "$EMBED_USER"):$(id -g "$EMBED_USER")"; fi
 set_env "$ENV" COMPOSE_PROJECT_NAME botdot
 # The Android app's signing keys, whose passkey sign-in the front door takes (docs/api.md): given once, kept.
 [ -z "${FRONT_DOOR_ANDROID_KEYS:-}" ] || set_env "$ENV" FRONT_DOOR_ANDROID_KEYS "$FRONT_DOOR_ANDROID_KEYS"
@@ -2805,8 +2822,11 @@ if [ "$REACH" = local ]; then set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "http://loc
 else set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "https://$NAME:$SITES_HTTPS"; fi
 set_env "$ENV" FRONT_DOOR_SITES_PORT "$SITES_PORT"
 CADDY_CHANGED=''
+# Compose's profiles: Caddy on a public domain, and the shared embedding server on every machine that has its user.
+PROFILES=''
+if [ "$REACH" != local ]; then PROFILES=embed; fi
 if [ "$REACH" = public ]; then
-  set_env "$ENV" COMPOSE_PROFILES public
+  set_env "$ENV" COMPOSE_PROFILES "public${PROFILES:+,$PROFILES}"
   TLS="${BOT_DOT_TLS:-$(get_env "$ENV" BOT_DOT_TLS)}"
   [ "$TLS" != internal ] || set_env "$ENV" BOT_DOT_TLS internal
   {
@@ -2825,7 +2845,7 @@ if [ "$REACH" = public ]; then
   cmp -s "$DOOR/Caddyfile.new" "$DOOR/Caddyfile" 2>/dev/null || CADDY_CHANGED=1
   mv -f "$DOOR/Caddyfile.new" "$DOOR/Caddyfile"
 else
-  set_env "$ENV" COMPOSE_PROFILES ''
+  set_env "$ENV" COMPOSE_PROFILES "$PROFILES"
 fi
 
 DOOR_COMPOSE="$D compose --project-directory $DOOR"
@@ -3162,6 +3182,10 @@ UNIT
   sh "$BIN/egress.sh" </dev/null || die "The firewall that keeps the accounts' computers from private addresses and SMTP didn't start, so no account was started. See: sh $BIN/egress.sh"
 }
 
+# embed_on: this machine has the shared embedding server (ADR 273), so its accounts start no llama-server of their own:
+# every install but the desktop app's (REACH local), whose one account would only add a second process.
+embed_on() { [ "${REACH:-}" != local ] && id -u "$EMBED_USER" >/dev/null 2>&1; }
+
 # account NAME [CPU RAM DISK]: makes or updates the account NAME with that share (DEFAULT_SHARE without one) and
 # starts its botdot server.
 account() {
@@ -3239,6 +3263,17 @@ JSON
   chown "$((sub_uid + 59999)):$((sub_gid + 59999))" "$folder"
   chmod 700 "$folder"
   setfacl -m "g:$DOOR_USER:x,m::x" "$folder" </dev/null || die "Couldn't let the front door into $folder."
+  # Its embedding folder (ADR 273), the same way round: botdot's server user owns it, and only the shared embedding
+  # server's user may enter it besides, to make the socket in it (write and search, not read: it never lists the folder, and its mask holds the same). Nobody else, and none of the account's bots, gets in,
+  # and no other account has its path. The chmod comes first: it would clear the mask the setfacl sets.
+  embed_folder=''
+  if embed_on; then
+    embed_folder="$EMBED/$name"
+    mkdir -p "$embed_folder"
+    chown "$((sub_uid + 59999)):$((sub_gid + 59999))" "$embed_folder"
+    chmod 700 "$embed_folder"
+    setfacl -m "u:$EMBED_USER:wx,m::wx" "$embed_folder" </dev/null || die "Couldn't let the shared embedding server into $embed_folder."
+  fi
 
   hand_images "$name"
 
@@ -3263,6 +3298,14 @@ JSON
   set_env "$aenv" BOT_DOT_ACCOUNT "$name"
   set_env "$aenv" BOT_DOT_INSTANCE "$INSTANCE"
   set_env "$aenv" BOT_DOT_FRONT_DOOR_FOLDER "$folder"
+  # The shared embedding server's socket, when the machine has one: the server then starts no llama-server of its own.
+  if [ -n "$embed_folder" ]; then
+    set_env "$aenv" BOT_DOT_EMBED_FOLDER "$embed_folder"
+    set_env "$aenv" EMBED_SOCKET /run/embed/embed.sock
+  else
+    set_env "$aenv" BOT_DOT_EMBED_FOLDER ''
+    set_env "$aenv" EMBED_SOCKET ''
+  fi
   set_env "$aenv" DOCKER_SOCKET "$run/docker.sock"
   # A disk of its own (disk below): what Storage shows in all is then what that disk uses.
   if mountpoint -q "$home" 2>/dev/null; then set_env "$aenv" BOT_DOT_OWN_DISK 1; else set_env "$aenv" BOT_DOT_OWN_DISK ''; fi
@@ -3270,6 +3313,12 @@ JSON
   # when the server starts, and that stays. Its Docker restarted the server already when this step starts it again
   # (a resume, a rerun), so changing the owner now would leave the server unable to write its data.
   [ -d "$home/data" ] || { mkdir -p "$home/data"; chown "$uid:$gid" "$home/data"; }
+  # The embedding server makes the socket in its folder within seconds of the folder being opened to it: waited for, so that
+  # it is there when the botdot server starts. (An update that brings the service starts it after the accounts.)
+  if [ -n "$embed_folder" ] && [ -n "$($D ps -q --filter label=com.docker.compose.service=embed --filter status=running </dev/null 2>/dev/null || true)" ]; then
+    i=0
+    until [ -S "$embed_folder/embed.sock" ] || [ "$i" -ge 15 ]; do i=$((i + 1)); sleep 1; done
+  fi
   # From here on what fails puts back what it ran (in an if, so that set -e doesn't end the account first).
   if ! { chown "$uid:$gid" "$home/compose.yaml" "$aenv" && compose_up "$home" && answers "$folder" "$home"; }; then
     [ -f "$home/compose.yaml.before" ] || die "The account $name's botdot server didn't start. See what went wrong with: sudo DOCKER_HOST=unix://$run/docker.sock docker compose --project-directory $home logs"

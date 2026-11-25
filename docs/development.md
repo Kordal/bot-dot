@@ -53,7 +53,8 @@ lib/learning.js      the history of bots' main assignment, rules and skill chang
 lib/memory.js        memory.db: notes and their history, the past-run index, reviews, meaning search
 lib/prompt-text.js   text quoted into a prompt made inert (no note or chat message is markup), and the prompt's date line
 chief-skills/        the Chief's own skills (e.g. memory-setup), loaded with --plugin-dir
-lib/embed.js         meaning search: runs llama.cpp's llama-server with bge-m3, or uses EMBED_URL
+lib/embed.js         meaning search: runs llama.cpp's llama-server with bge-m3, or uses EMBED_URL, or EMBED_SOCKET (the machine's shared server)
+lib/embed-share.js   the machine's one shared embedding server (ADR 273): llama-server and a Unix socket per account, the `embed` service of compose.front-door.yaml
 install.sh           installs or updates botdot on Linux: the front door and each account
 test/                the tests (npm test), with a stand-in Claude in test/fixtures
 docs/api.md          the API for clients (the Android app): version, the live feed, bots, runs, the Chief, uploads

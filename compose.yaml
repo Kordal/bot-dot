@@ -33,6 +33,9 @@ services:
       # The botdot machine's own id (install.sh makes it once): in the names of the account's machines on boat.dev.
       BOT_DOT_INSTANCE: ${BOT_DOT_INSTANCE:-}
       BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/botdot.sock
+      # The machine's one shared embedding server (ADR 273), when it has one (install.sh): the socket in the folder
+      # mounted below. Empty, this server starts llama-server itself.
+      EMBED_SOCKET: ${EMBED_SOCKET:-}
       # Optional instead of /login: a token from `claude setup-token`
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       # The bots' computer (install.sh sets it). On a registry it is downloaded the first time a bot needs
@@ -52,6 +55,9 @@ services:
       - bot-dot-helper:/run/botdot:ro                # connect only; helper owns directory and socket
       # The front door's way in: a folder only this server's user and the front door may enter (install.sh).
       - ${BOT_DOT_FRONT_DOOR_FOLDER:-./front-door}:/run/front-door
+      # The shared embedding server's way in: a folder only this server's user and that server may enter (install.sh).
+      # Empty on a machine without it.
+      - ${BOT_DOT_EMBED_FOLDER:-./embed}:/run/embed
     depends_on:
       - docker-helper
 

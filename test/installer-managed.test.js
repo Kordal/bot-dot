@@ -33,7 +33,7 @@ test('a managed machine of one account: no admin, its passkey from the setup key
   assert.equal(done.env.FRONT_DOOR_FIRST_ACCOUNT, '');
   assert.equal(done.env.FRONT_DOOR_ADMIN, 'owner', "the installer's name for its first account");
   assert.equal(done.env.FRONT_DOOR_ORIGIN, 'https://botdot.example.com');
-  assert.equal(done.env.COMPOSE_PROFILES, 'public', 'Caddy as on any public install');
+  assert.equal(done.env.COMPOSE_PROFILES, 'public,embed', 'Caddy as on any public install, and the shared embedding server');
   const key = done.env.FRONT_DOOR_SETUP_KEY;
   assert.match(key, /^[0-9a-f]{64}$/);
   assert.ok(!done.calls.some((c) => /sign-up-link/.test(c)), 'no sign-up link is made');
