@@ -28,6 +28,7 @@ Memory has no screen in the apps: the user asks you, and you answer and change i
 3. **How long past runs stay searchable.** Keep 12 months unless the user asks otherwise (`retentionDays`: 90, 180, 365, 730, or 0 for always).
 
 4. **Meaning-based search.** It uses llama.cpp's `llama-server` with the bge-m3 model, which covers over 100 languages (Polish included). botdot starts the server itself; nothing leaves the machine.
+   - **`server` is "shared":** the machine has one embedding server for all its accounts, run by the admin. Nothing to install or download here. If `state` is "unreachable", it isn't running or is still loading: search goes by words alone meanwhile, and only the admin of the machine can fix it.
    - **botdot runs from its Docker image:** llama.cpp and the model are already inside, and it is on unless the user switched it off. If it is off there, the user chose that: switch it on only when they ask for it.
    - **llama.cpp isn't installed** (`llamaServerInstalled` is false): you can't install software. Tell the user, then stop this part:
      - Easiest: run botdot from its Docker image (`docker compose up -d --build`).

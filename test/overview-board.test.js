@@ -125,3 +125,60 @@ test('web: Needs you stands first whenever something waits, above the arranged t
   assert.match(canvas, /target\.closest\('\.cf-top, \.cf-teamchips, \.sp-needs, \.cf-needs, \.sp-teams'\)/, 'and never dragged');
   assert.match(read('company.js'), /const OVERVIEW = \['work', 'blockers', 'replies'\];/, 'not offered as a piece');
 });
+
+// ADR 273: an overview tile on an arranged board shows whole rows and says how many more, never a row sliced in half.
+test('web: an overview tile shows the rows that fit its height, one at least, and "+N more" for the rest', () => {
+  const vm = require('node:vm');
+  const read = (f) => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', f), 'utf8');
+  const ctx = { tr: (s, v) => s.replace('{n}', v?.n), setInterval: () => 0, document: { createElement: () => fakeEl('p') } };
+  const HEAD = 40, ROW = 100, MORE = 20;
+  // A tile `height` tall holding a heading and `n` rows; a row hidden takes no height.
+  const fakeEl = (tag, classes = []) => ({ tag, classList: { contains: (c) => classes.includes(c) }, style: { display: '' }, hidden: false, textContent: '', set className(v) { classes.push(...v.split(' ')); } });
+  function tile(n, height) {
+    const rows = Array.from({ length: n }, () => fakeEl('div', ['po-row']));
+    const sec = { children: [fakeEl('h2'), ...rows], clientHeight: height, append(el) { this.children.push(el); }, querySelectorAll: () => [] };
+    const more = () => sec.children.find((x) => x.classList.contains('po-more'));
+    Object.defineProperty(sec, 'scrollHeight', { get: () => HEAD + rows.filter((r) => r.style.display !== 'none').length * ROW + (more() && !more().hidden ? MORE : 0) });
+    return { sec, rows, more };
+  }
+  const root = (...secs) => ({ querySelectorAll: () => secs });
+  vm.createContext(ctx);
+  vm.runInContext(`${read('project-overview.js')}\nthis.ProjectOverview = ProjectOverview;`, ctx);
+  const PO = ctx.ProjectOverview;
+  // 8 rows in 300: the heading, two rows and the line fit (40 + 200 + 20 = 260; three rows would be 360).
+  let t = tile(8, 300);
+  PO.fit(root(t.sec));
+  assert.deepEqual(t.rows.map((r) => r.style.display), ['', '', 'none', 'none', 'none', 'none', 'none', 'none']);
+  assert.equal(t.more().textContent, '+6 more');
+  assert.equal(t.more().hidden, false);
+  // Resized taller (500: four rows and the line): more rows, a shorter "more".
+  t.sec.clientHeight = 500;
+  PO.fit(root(t.sec));
+  assert.equal(t.rows.filter((r) => r.style.display === 'none').length, 4);
+  assert.equal(t.more().textContent, '+4 more');
+  // Tall enough for all of them: nothing hidden, no line.
+  t.sec.clientHeight = 900;
+  PO.fit(root(t.sec));
+  assert.equal(t.rows.some((r) => r.style.display === 'none'), false);
+  assert.equal(t.more().hidden, true);
+  // Too small for even one row: one stays.
+  t = tile(4, 50);
+  PO.fit(root(t.sec));
+  assert.equal(t.rows[0].style.display, '');
+  assert.equal(t.rows.filter((r) => r.style.display === 'none').length, 3);
+  // The one-column flow shows every row and no line.
+  t = tile(8, 300);
+  PO.fit(root(t.sec));
+  PO.fit(root(t.sec), false);
+  assert.equal(t.rows.some((r) => r.style.display === 'none'), false);
+  assert.equal(t.more().hidden, true);
+  // A tile with one row, or none, is left alone.
+  t = tile(1, 10);
+  PO.fit(root(t.sec));
+  assert.equal(t.more(), undefined);
+  // The page calls it with the canvas, and the flow with `false` (board-canvas-view.js); the tile never scrolls inside.
+  const canvas = read('board-canvas-view.js');
+  assert.match(canvas, /ProjectOverview\.fit\(canvas\);/);
+  assert.match(canvas, /ProjectOverview\.fit\(canvas, false\);/);
+  assert.match(read('style.css'), /\.bc-wrap:not\(\.bc-column\) \.bc-tile > \.cf-ov \{ overflow: hidden; \}/);
+});

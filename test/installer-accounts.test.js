@@ -320,6 +320,7 @@ test('the uninstaller lists what it removes, and removes nothing without a typed
     assert.ok(done.said.includes([
       'This removes botdot from this machine for good:',
       "  - the front door: its containers and volumes in this machine's Docker, and its Linux user botdot-door",
+      "  - the shared embedding server's Linux user botdot-embed",
       "  - the account ann: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-ann, its disk and its data",
       "  - the account bob: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-bob, its disk and its data",
       `  - botdot's systemd units: ${UNITS.join(', ')}, and the accounts' shares`,
@@ -352,6 +353,7 @@ test('a typed yes removes the front door, every account, root\'s step, the AppAr
     assert.match(done.said, new RegExp(`The account ${name} is erased: its data, containers and Linux user`));
   }
   assert.match(system, /^userdel botdot-door$/m);
+  assert.match(system, /^userdel botdot-embed$/m);
   assert.match(system, new RegExp(`^apparmor_parser -R ${profile}$`, 'm'));
   assert.ok(!fs.existsSync(profile));
   assert.ok(fs.existsSync(path.join(first.etc, 'apparmor.d', 'usr.bin.man')), 'another profile stays');
@@ -463,7 +465,7 @@ test("the uninstaller never touches what isn't botdot's, and says what it couldn
   assert.doesNotMatch(done.system.slice(before), /^userdel botdot-zed$/m);
   assert.match(done.system.slice(before), /^userdel botdot-bob$/m, 'the others go on');
   assert.ok(fs.existsSync(path.join(first.dir, 'notes.txt')), "a file botdot didn't make stays");
-  for (const gone of ['accounts', 'front-door', 'sockets', 'disks', 'bin']) assert.ok(!fs.existsSync(path.join(first.dir, gone)), `${gone} is gone`);
+  for (const gone of ['accounts', 'front-door', 'sockets', 'embed', 'disks', 'bin']) assert.ok(!fs.existsSync(path.join(first.dir, gone)), `${gone} is gone`);
   assert.ok(done.said.includes([
     "These couldn't be removed:",
     '  - the Linux user botdot-door',

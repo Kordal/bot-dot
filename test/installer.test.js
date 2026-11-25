@@ -55,7 +55,7 @@ test('the answers can be given beforehand, and a wrong one is asked again', (t) 
 
 test('a public install puts Caddy in front of the front door, on the domain alone', (t) => {
   const done = rerun(t);
-  assert.equal(done.env.COMPOSE_PROFILES, 'public', 'Caddy starts with the front door');
+  assert.equal(done.env.COMPOSE_PROFILES, 'public,embed', 'Caddy starts with the front door, and the shared embedding server beside it');
   assert.equal(done.read('front-door/Caddyfile'), '# botdot (install.sh): HTTPS for the front door on its public domain. Caddy fetches the certificate.\nbotdot.example.com {\n\treverse_proxy 127.0.0.1:4700\n\theader Strict-Transport-Security "max-age=31536000"\n}\nbotdot.example.com:8443 {\n\treverse_proxy 127.0.0.1:4701\n}\n', "and bots' interactive pages on its port 8443 (#399)");
   assert.equal(done.read('front-door/compose.yaml'), fs.readFileSync(path.join(ROOT, 'compose.front-door.yaml'), 'utf8'), 'the front door\'s compose file, from the image');
   assert.ok(done.calls.includes(`compose --project-directory ${done.dir}/front-door up -d --remove-orphans`));
@@ -108,7 +108,7 @@ test('a tailnet install gives the front door its Tailscale name with Serve, and 
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   assert.equal(done.env.BOT_DOT_REACH, 'tailnet');
   assert.equal(done.env.FRONT_DOOR_ORIGIN, 'https://vm.example.ts.net');
-  assert.equal(done.env.COMPOSE_PROFILES, '', 'no Caddy');
+  assert.equal(done.env.COMPOSE_PROFILES, 'embed', 'no Caddy, but the shared embedding server');
   assert.equal(done.read('front-door/Caddyfile'), '');
   assert.match(done.system, /^tailscale serve --bg 4700$/m, 'Serve passes the tailnet name\'s HTTPS to the front door on 127.0.0.1');
   assert.match(done.system, /^tailscale serve --bg --https=8443 4701$/m, "and its port 8443 to the front door's second port, for bots' interactive pages (#399)");

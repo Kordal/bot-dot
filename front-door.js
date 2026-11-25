@@ -828,6 +828,7 @@ async function switchOne(name, { now, quick }) {
   switchTold.set(name, { key: `${key}@${u.ready.since}`, at: new Date(now).toISOString() });
   console.log(`[front door] the machine is asked to switch the account ${name} to the new version: ${d.why}`);
   audited('update-switch', { account: name, detail: d.why, actor: 'front-door' });
+  tellAccountUpdate(name, { again: true });
 }
 // only: the one account to look at (its owner looks), else every account. quick: only what needs no question to an account
 // (an account a day past its deadline), for a look that must not wait for one: an owner's or the admin's page.
@@ -842,6 +843,58 @@ async function switchDue({ only = null, now = Date.now(), quick = false } = {}) 
   }));
 }
 setInterval(() => switchDue().catch((e) => console.error(`[front door] couldn't plan the switches: ${e.message}`)), SWITCH_EVERY_MS).unref();
+
+// ---------- the update said in the account's chat (#1690, ADR 271) ----------
+
+// The front door tells each account its update state, on a change and every minute, and again after a failure, as it tells
+// accounts what the off-site backups did (tellAccountsOffsite): POST /api/update/offer { state: "ready" | "moving" |
+// "none", version, from, when, plan, deadline, notes, busy? }. The account keeps one card in Needs you (Now, Tonight,
+// whose buttons are this front door's own routes) and says the version once in its Chief's chat (lib/update-offer.js).
+// `busy` is the account's own idle answer, `!idle`: left out when it couldn't be asked, or is older than that route (#1688).
+// Only where this front door plans the switches (plansSwitches), a machine of one account too.
+const OFFER_EVERY_MS = Number(process.env.FRONT_DOOR_UPDATE_TELL_MS) || 60_000;
+const OFFER_FIRST_MS = Number(process.env.FRONT_DOOR_UPDATE_TELL_FIRST_MS) || 5000;
+const NOTES_AGAIN_MS = 10 * 60_000; // a version whose notes came back empty (the account didn't say) asks for them again after this
+const offerTold = new Map(); // the account → the body it was told last, as text
+const offerLine = new Map(); // the account → the tell in flight, so that two never cross
+const offerNotes = new Map(); // the account → { key, at, notes }: the titles of the version that waits, asked once
+const busyOf = async (name) => { const idle = await idleOf(name); return idle === null ? null : !idle; };
+async function titlesOf(name, key) {
+  const kept = offerNotes.get(name);
+  if (kept && kept.key === key && (kept.notes.length || Date.now() - kept.at < NOTES_AGAIN_MS)) return kept.notes;
+  const notes = (await pendingNotes(name)).map(({ id, title }) => ({ id, title }));
+  offerNotes.set(name, { key, at: Date.now(), notes });
+  return notes;
+}
+async function offerOf(name) {
+  const u = ownUpdate(name);
+  const moving = u.asked || accountStatus(name)?.state === 'switching';
+  if (!u.ready && !moving) return { state: 'none' };
+  const about = u.ready ? { version: u.ready.version, from: u.ready.from, when: u.when, plan: u.plan, deadline: u.ready.deadline } : {};
+  if (moving) return { state: 'moving', ...about };
+  const [notes, busy] = await Promise.all([titlesOf(name, planKey(u.ready)), busyOf(name)]);
+  return { state: 'ready', ...about, notes, ...(busy === null ? {} : { busy }) };
+}
+// again: tell it though nothing changed (an owner pressed a button).
+function tellAccountUpdate(name, { again = false } = {}) {
+  if (!plansSwitches()) return Promise.resolve();
+  const run = async () => {
+    const body = JSON.stringify(await offerOf(name));
+    if (!again && offerTold.get(name) === body) return;
+    offerTold.set(name, body);
+    const r = await askAccount(name, 'POST', '/api/update/offer', JSON.parse(body), 10_000);
+    if (r.status !== 200 && offerTold.get(name) === body) offerTold.delete(name);
+  };
+  const line = (offerLine.get(name) || Promise.resolve()).then(run, run).catch((e) => console.error(`[front door] couldn't tell the account ${name} its update: ${e.message}`));
+  offerLine.set(name, line);
+  return line;
+}
+function tellAccountsUpdate() {
+  if (!plansSwitches()) return;
+  for (const { name } of doors.listAccounts()) if (doors.accountExists(name) && !doors.isSuspended(name)) tellAccountUpdate(name);
+}
+setTimeout(() => tellAccountsUpdate(), OFFER_FIRST_MS).unref();
+setInterval(() => tellAccountsUpdate(), OFFER_EVERY_MS).unref();
 
 // ---------- a machine of one account downloads its update by itself (ADR 183, ADR 271) ----------
 // No admin page and no one who presses Update: the front door asks root's step to download the newest signed release
@@ -1178,7 +1231,11 @@ async function signInRoutes(req, res, p) {
     if (!plansSwitches()) return send(res, 404, { error: 'Not found' });
     if (req.method === 'GET' && p === '/front-door/update') {
       await switchDue({ only: account, quick: true });
-      return send(res, 200, ownUpdate(account));
+      // busy (#1690): the account's own idle answer, `!idle`, so that "Now" asks first only when work would stop; none when
+      // it can't be asked, or nothing is there to switch to.
+      const u = ownUpdate(account);
+      const busy = u.canUpdate ? await busyOf(account) : null;
+      return send(res, 200, busy === null ? u : { ...u, busy });
     }
     // What's new in the version it waits for (#303): none while nothing waits.
     if (p === '/front-door/update/notes') return req.method === 'GET' ? send(res, 200, { entries: await pendingNotes(account) }) : send(res, 404, { error: 'Not found' });
@@ -1201,11 +1258,13 @@ async function signInRoutes(req, res, p) {
         doors.setUpdatePlan(account, planKey(ready), 'night');
         console.log(`[front door] the account ${account} chose to switch to the new version tonight`);
       }
+      tellAccountUpdate(account, { again: true }); // its card says what it is now (#1690)
       return send(res, 200, ownUpdate(account));
     }
     if (!ownUpdate(account).canUpdate) return send(res, 409, { error: 'There is no new version to switch to.' });
     askSwitch(account);
     console.log(`[front door] the account ${account} asked to switch to the new version now`);
+    tellAccountUpdate(account, { again: true }); // its card says it moves
     return send(res, 202, ownUpdate(account));
   }
   // A managed machine's owner answers "Send Feedback to botdot's developers?" for their own account (#1571, ADR 259): asked
@@ -2350,6 +2409,7 @@ async function accountAction(req, res, name, action) {
     askSwitch(name);
     console.log(`[front door] the admin asked to switch the account ${name} to the new version now`);
     audited('update-now', { account: name });
+    tellAccountUpdate(name, { again: true });
     return send(res, 202, { ok: true, update: ownUpdate(name) });
   }
   if (action === 'sign-in-link') {
