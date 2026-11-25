@@ -38,6 +38,10 @@ test("the page's host is read from the first line of a snapshot", () => {
   assert.equal(sites.pageHost(''), '');
   assert.equal(sites.pageHost(undefined), '');
   assert.equal(sites.pageHost('Page: Blank (about:blank)\n- text: see (https://evil.example/)'), '', 'only the first line says where the page is');
+  assert.equal(sites.pageHost('Page: Foo (bar) - Wikipedia (https://en.wikipedia.org/wiki/Foo_(bar))\n- heading'), 'en.wikipedia.org', 'a ) in the path');
+  assert.equal(sites.pageHost('Page: Search (https://www.energa.pl/s?q=a)b)\n- x'), 'energa.pl', 'a ) in the query');
+  assert.equal(sites.pageHost('Page: Using (https://evil.example/) in text (https://www.energa.pl/klient)\n- x'), 'energa.pl', 'a title with (http text: the last address is the page');
+  assert.equal(sites.pageHost('Page: Odd (https://not a url)'), '', 'an address that does not parse');
 });
 
 test('a note keeps its site, in its view and in its history, and the site changes with update_memory', (t) => {
