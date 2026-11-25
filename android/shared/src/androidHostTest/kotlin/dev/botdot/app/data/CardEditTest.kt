@@ -2,10 +2,13 @@ package dev.botdot.app.data
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import org.junit.After
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -16,6 +19,8 @@ class CardEditTest {
     private val running = Company(id = "p1", name = "Shop", phase = "running", chiefChat = "cc1", lead = "pm")
     private val pm = Bot("pm", "Planner")
     private val on = listOf(ManyProjects.CARD_EDIT, ManyProjects.MANAGER_BOT)
+
+    @After fun english() = I18n.use("en", null)
 
     @Test fun theManagerBotsChatWhenTheProjectHasOneElseItsOwnChiefChat() {
         assertEquals(ProjectChats.Open(ProjectChats.BOT, "pm"), CardEdit.chatOf(running, on, listOf(pm)))
@@ -71,5 +76,16 @@ class CardEditTest {
             val plain = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
             assertEquals(false, "card" in plain || "project" in plain)
         } finally { server.close() }
+    }
+
+    @Test fun aFixedTilesNameIsDrawnInTheOwnersLanguageByItsIdAndACardKeepsItsTitle() {
+        val pl = JsonObject(listOf("Latest replies" to "Ostatnie odpowiedzi", "Current work" to "Bieżąca praca", "Blockers" to "Przeszkody", "Calendar" to "Kalendarz", "To-do" to "Do zrobienia", "Files" to "Pliki").associate { it.first to JsonPrimitive(it.second) })
+        I18n.use("pl", pl)
+        // The server stores the English name; the id says which piece it is.
+        assertEquals("Ostatnie odpowiedzi", CardEdit.nameOf(TileRef("replies", "Latest replies")))
+        assertEquals(listOf("Bieżąca praca", "Przeszkody", "Ostatnie odpowiedzi", "Kalendarz", "Do zrobienia", "Pliki"), CardEdit.PIECES.map { CardEdit.nameOf(TileRef(it, "English")) })
+        assertEquals("Decisions", CardEdit.nameOf(TileRef("card:k7f2", "Decisions")), "a card made by Claude has a title of its own")
+        I18n.use("en", null)
+        assertEquals("Latest replies", CardEdit.nameOf(TileRef("replies", "Latest replies")))
     }
 }

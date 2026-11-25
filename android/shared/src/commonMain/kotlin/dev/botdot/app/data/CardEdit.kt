@@ -32,6 +32,12 @@ object CardEdit {
 
     fun id(card: ProjectCard): String = "card:${card.id}"
 
+    /**
+     * The tile's name above a message that was about it. botdot stores a piece's name in English, so a piece is named
+     * by its id in the owner's language, as the chip was; only a card made by Claude has a name of its own (its title).
+     */
+    fun nameOf(ref: TileRef): String = if (ref.id in PIECES) ProjectBoard.label(ref.id) else ref.label
+
     /** The tile's id and project as a message sends them, or null for a plain message. */
     fun ids(t: Target?): Pair<String, String>? = t?.let { it.id to it.project }
 }

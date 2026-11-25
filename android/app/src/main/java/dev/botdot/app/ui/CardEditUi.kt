@@ -80,5 +80,5 @@ fun CardChip(label: String, onClear: () -> Unit) {
 @Composable
 internal fun CardAbout(card: dev.botdot.app.data.TileRef?, modifier: Modifier = Modifier) {
     if (card == null || card.label.isEmpty()) return
-    Text(card.label, color = LocalPaper.current.faint, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+    Text(dev.botdot.app.data.CardEdit.nameOf(card), color = LocalPaper.current.faint, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }

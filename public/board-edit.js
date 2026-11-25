@@ -117,8 +117,12 @@
   // The message with the tile went: the chip and the ring are done.
   const sent = (card) => { if (card && target?.id === card.card && target.project === card.project) clear(); };
 
-  // The tile's name above the owner's message that was about it (a run's, a Chief chat's, a waiting one's).
-  const aboutHTML = (card) => (card && typeof card.label === 'string' && card.label ? `<span class="card-about">${esc(card.label)}</span>` : '');
+  // The tile's name above the owner's message that was about it (a run's, a Chief chat's, a waiting one's). The server
+  // stores a fixed piece's name in English (lib/project-board-note.js), so a piece is drawn by its id in the owner's
+  // language, as the chip was; only a card made by Claude has a name of its own, which is its title.
+  const PIECES = ['work', 'blockers', 'replies', 'calendar', 'todo', 'files'];
+  const nameOf = (card) => (PIECES.includes(card.id) ? Company.pieceLabel(card.id) || card.label : card.label);
+  const aboutHTML = (card) => (card && typeof card.label === 'string' && card.label ? `<span class="card-about">${esc(nameOf(card))}</span>` : '');
 
   window.BoardEdit = { apply, sync, clear, cardFor, sent, aboutHTML };
 })();

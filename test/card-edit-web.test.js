@@ -11,9 +11,10 @@ const { read, esc, element, finders } = require('./web-page');
 
 const ROOT = path.join(__dirname, '..');
 const source = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const PL = JSON.parse(source('lib/i18n/pl/web.json'));
 
 // The page around it: a project with a card, the Dock open on the manager bot's chat, elements that hold what is set on them.
-function page({ features = ['card-edit'], chat = 'open' } = {}) {
+function page({ features = ['card-edit'], chat = 'open', polish = false } = {}) {
   const state = { features, view: 'bot', botId: 'pm', company: { id: 'p1', phase: 'running', chiefChat: 'cc', cards: [{ id: 'k7f2' }] } };
   const composer = element({ '.composer-box': element(), '.card-chip': null }, { text: element() });
   composer.inserted = [];
@@ -26,12 +27,14 @@ function page({ features = ['card-edit'], chat = 'open' } = {}) {
   const document = { createElement: () => { const el = element({ button: element() }, { setAttribute(k, v) { this[k] = v; }, after() {}, append() {}, remove() { composer.inserted = composer.inserted.filter((x) => x !== this); } }); el.dataset = {}; made.push(el); return el; } };
   const tiles = (root) => root;
   const ctx = vm.createContext({
-    state, Dock, document, esc, tr: (t, v) => String(t).replace(/\{(\w+)\}/g, (m, k) => v?.[k] ?? m), CSS: { escape: (x) => x },
+    state, Dock, document, esc, tr: (t, v) => String(polish ? PL[t] ?? t : t).replace(/\{(\w+)\}/g, (m, k) => v?.[k] ?? m), CSS: { escape: (x) => x },
     Company: { onBoard: (c, k) => ['work', 'replies'].includes(k) },
     window: {}, requestAnimationFrame: (f) => f(), queueMicrotask,
     $: (sel, root) => (sel === '#chat-row .view:not(.hidden) form.composer' ? composer : root.querySelector(sel)),
     $$: (sel, root) => (sel === '.card-chip' ? chips() : root?.querySelectorAll?.(sel) || []),
   });
+  // The page's own naming of a piece (public/company.js), with the page's tr.
+  ctx.Company.pieceLabel = vm.runInContext(`(${source('public/company.js').match(/const pieceLabel = (.*);/)[1]})`, ctx);
   vm.runInContext(read('board-edit.js'), ctx);
   return { ctx, state, composer, chips, opened, made, BoardEdit: ctx.window.BoardEdit, document };
 }
@@ -102,6 +105,16 @@ test("the tile's name above a message is drawn as text", () => {
   assert.equal(BoardEdit.aboutHTML(null), '');
   assert.equal(BoardEdit.aboutHTML({ id: 'replies' }), '');
   assert.equal(BoardEdit.aboutHTML({ id: 'card:k', label: '</span><b>x' }), '<span class="card-about">&lt;/span&gt;&lt;b&gt;x</span>');
+});
+
+test("a fixed tile's name is drawn in the owner's language, by its id, once the server has stored it in English", () => {
+  const { BoardEdit } = page({ polish: true });
+  assert.equal(BoardEdit.aboutHTML({ id: 'replies', label: 'Latest replies' }), '<span class="card-about">Ostatnie odpowiedzi</span>');
+  for (const [id, label] of [['work', 'Current work'], ['blockers', 'Blockers'], ['calendar', 'Calendar'], ['todo', 'To-do'], ['files', 'Files']]) {
+    assert.notEqual(BoardEdit.aboutHTML({ id, label }), `<span class="card-about">${label}</span>`, `${id} is drawn in Polish`);
+  }
+  assert.equal(BoardEdit.aboutHTML({ id: 'card:k7f2', label: 'Decisions' }), '<span class="card-about">Decisions</span>', "a card made by Claude keeps its own title: it is the owner's and Claude's word, not ours");
+  assert.equal(page().BoardEdit.aboutHTML({ id: 'replies', label: 'Latest replies' }), '<span class="card-about">Latest replies</span>', 'and in English as it is');
 });
 
 test('the chats send the tile, keep it on the waiting and the sent bubble, and clear it when the message went', () => {
