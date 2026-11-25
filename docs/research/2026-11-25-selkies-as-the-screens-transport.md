@@ -133,7 +133,7 @@ A proposal for the owner to change. All at 1280x800, one watched screen, softwar
 
 ## The trial steps
 
-Files are in [`selkies-trial/`](selkies-trial/): `selkies-trial.Dockerfile`, `run-selkies.sh`, `pattern.py`, `pixelflux-probe.py`, `measure.py`, `trial-relay.cjs`. They were checked for syntax only; none was run. The desktop image must have 1280x800 screens (PR #1731). All commands run as one person on the machine, with `docker` pointing at the Docker the owner names.
+Files are in [`selkies-trial/`](selkies-trial/): `selkies-trial.Dockerfile`, `run-selkies.sh`, `pattern.py`, `pixelflux-probe.py`, `measure.py`, `trial-relay.cjs` and, for Stage 2, `stage2.sh`. They were checked for syntax only; none was run. The desktop image must have 1280x800 screens (PR #1731). All commands run as one person on the machine, with `docker` pointing at the Docker the owner names.
 
 ### Stage 1: a throwaway computer, with the owner's OK for the machine
 
@@ -157,11 +157,10 @@ docker exec -d -u box -e HOME=/home/box -e SCREEN=11 -e SCREEN_DISPLAY=:11 -e VN
 
 ```sh
 docker exec -u box -e HOME=/home/box -e DISPLAY=:11 selkies-trial sh -c 'xdpyinfo | grep -E "MIT-SHM|DAMAGE|XFIXES|XTEST|RANDR|depth of root|dimensions"'
-docker exec -d -u box -e HOME=/home/box -e DISPLAY=:11 selkies-trial python3 /opt/selkies-trial/pattern.py
 docker exec -u box -e HOME=/home/box -e DISPLAY=:11 selkies-trial /opt/selkies/bin/python /opt/selkies-trial/pixelflux-probe.py 8 15
 ```
 
-Expect `MIT-SHM` and `DAMAGE` listed, a 32-bit root, `1280x800`, `stream_info` saying `capture: 'XShm'`, `encoder: 'x264'`, then two lines of rates and CPU and `PASS`. Keep the output.
+The probe measures the still phase first, on a screen nothing moves on, and then starts `pattern.py` itself for the moving phase and stops it at the end: do not start `pattern.py` before it. Expect `MIT-SHM` and `DAMAGE` listed, a 32-bit root, `1280x800`, `stream_info` saying `capture: 'XShm'`, `encoder: 'x264'`, then a `still` and a `moving` line of rates and CPU and `PASS`. Keep the output.
 
 **Step 2, Selkies' server and the comparison:**
 
@@ -184,11 +183,11 @@ Checks for the bots' own control, with a viewer connected: a screenshot and a cl
 Only if Stage 1 passes the table, and only for the account and the hour the owner names. It checks what a throwaway cannot: a real bot's real browser load and the real front door and Tailscale path.
 
 1. Pick a bot with a screen on the account's computer and note its screen number n (10 + its screen).
-2. Copy the pinned `.deb` and the four scripts (`run-selkies.sh`, `pattern.py`, `pixelflux-probe.py`, `measure.py`, into `/opt/selkies-trial/`) into the account's computer with `docker cp`, using the account's own Docker (`DOCKER_HOST` as botdot sets it for that account), then as root `apt-get install -y --no-install-recommends /tmp/selkies.deb x11-utils x11-xserver-utils` (the last two give `xdpyinfo`, `xrandr` and `xrdb`, which the image may lack). Nothing else in the computer changes.
+2. Copy the pinned `.deb` (to `/tmp/selkies.deb`) and the five scripts (`run-selkies.sh`, `pattern.py`, `pixelflux-probe.py`, `measure.py` and `stage2.sh`, into `/opt/selkies-trial/`) into the account's computer with `docker cp`, using the account's own Docker (`DOCKER_HOST` as botdot sets it for that account), then run `docker exec -u root <computer> /opt/selkies-trial/stage2.sh install`. It first writes the list of installed packages to `/var/lib/selkies-trial/` (not `/tmp`, which may be cleared), then runs `apt-get update` and installs the `.deb` with `x11-utils` and `x11-xserver-utils` (`xdpyinfo`, `xrandr` and `xrdb`, which the image may lack; if it has them, apt leaves them as they are). The computer changes in exactly these ways: the packages that list did not have (the Selkies package and the dependencies it pulls in), `/opt/selkies/`, `/opt/selkies-trial/`, `/tmp/selkies.deb`, apt's package lists and cache, `/var/lib/selkies-trial/`, and the trial's logs. Nothing else, and the undo takes those out.
 3. Start Selkies for that screen only: `docker exec -d -u box -e HOME=/home/box <computer> /opt/selkies-trial/run-selkies.sh <n>`.
 4. Reach it with `trial-relay.cjs` on the botdot server's machine, under that same `DOCKER_HOST`, bound to loopback and `tailscale serve` in front, not through botdot's own relay; **no change to `server.js`, `lib/computers.js` or the account's image**. The owner watches while the bot works.
 5. Measure as in Stage 1, with the bot's real work.
-6. **Undo:** kill the `selkies` process and `trial-relay.cjs`, `tailscale serve --https=8443 off`, `apt-get remove -y selkies` in the computer, and delete `/tmp/selkies-<n>.log`. Selkies writes only logs and, in its upload folder, files a client sends; none is sent.
+6. **Undo:** kill `trial-relay.cjs`, run `tailscale serve --https=8443 off`, then `docker exec -u root <computer> /opt/selkies-trial/stage2.sh undo`. It stops `selkies`, purges only the packages that were not in the recorded list (never a package named in the script: `x11-xserver-utils` is the desktop image's own, `botdot-desktop` calls `xhost` from it, so a purge of it would break every bot's screen), runs no `autoremove`, stops without removing anything if that purge would also take out a package that was there before, and deletes `/opt/selkies`, `/opt/selkies-trial`, `/tmp/selkies.deb`, `/tmp/selkies-*.log`, apt's lists (only if they were empty before), the apt cache and `/var/lib/selkies-trial/`. Selkies writes only logs and, in its upload folder, files a client sends; none is sent. `undo` prints the packages it removes, so the owner sees that they are the trial's.
 
 ## Sources
 

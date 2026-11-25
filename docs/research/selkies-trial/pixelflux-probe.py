@@ -8,12 +8,16 @@ took (`stream_info`), the frames, bytes, the encoder's time per frame, and the C
   python3 -m venv /tmp/pf && /tmp/pf/bin/pip install pixelflux==2.2.3
   DISPLAY=:11 /tmp/pf/bin/python pixelflux-probe.py [still seconds] [moving seconds]
 
-Run `pattern.py` on the same display before the moving phase starts (the shell script does). Exit 0 when XShm worked
-and frames arrived, 2 when the capture failed or delivered nothing: then read the printed error, it names the step
-(shmget, shmat, shm_attach, XShm unavailable, a 32-bit root).
+The still phase comes first on a screen nothing moves on, so run the probe before `pattern.py`: the probe starts
+`pattern.py` (beside it) itself between the two phases and stops it at the end, so the still figure is a still screen's.
+PATTERN=0 starts nothing, for a pattern you run yourself. Exit 0 when XShm worked and frames arrived, 2 when the
+capture failed or delivered nothing: then read the printed error, it names the step (shmget, shmat, shm_attach, XShm
+unavailable, a 32-bit root).
 """
 import os
 import resource
+import signal
+import subprocess
 import sys
 import time
 
@@ -76,9 +80,19 @@ except Exception as e:  # the message names the failing step
 time.sleep(3)  # the first key frame, and the capture's own set-up
 print("stream_info:", capture.stream_info())
 still = phase("still", STILL)
-print("-- start the moving pattern now if it is not running (DISPLAY=... python3 pattern.py) --", flush=True)
+pattern = None
+if os.environ.get("PATTERN", "1") != "0":
+    pattern = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pattern.py")])
+    print("-- the moving pattern started (pattern.py) --", flush=True)
+else:
+    print("-- PATTERN=0: start the moving pattern now (DISPLAY=... python3 pattern.py) --", flush=True)
 time.sleep(3)
-moving = phase("moving", MOVING)
+try:
+    moving = phase("moving", MOVING)
+finally:
+    if pattern:
+        pattern.send_signal(signal.SIGTERM)
+        pattern.wait()
 print("stream_stats:", capture.stream_stats())
 capture.stop_capture()
 if not moving:
