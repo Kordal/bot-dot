@@ -20,6 +20,8 @@ launcher = importlib.util.module_from_spec(spec)
 loader.exec_module(launcher)
 launcher.PROFILE = os.path.join(sys.argv[2], "profile")
 out = {}
+real_screen_size = launcher.screen_size
+launcher.screen_size = lambda: (1280, 800)  # the screen of the current desktop image, whatever DISPLAY this test runs under
 
 
 def start():
@@ -85,4 +87,76 @@ out["put_aside"] = os.path.exists(path + ".unused") and not os.path.exists(path)
 sync_api.FAIL["identity"] = False
 renewed = start()
 out["renewed"] = renewed["fingerprint"] is not None and renewed["fingerprint"] != first["fingerprint"]
+
+# The screen is the real display's size, 1280x800 when it can't be read (a computer on an older desktop image is
+# still 1024x768 until its Update).
+bin_dir = os.path.join(sys.argv[2], "bin")
+os.makedirs(bin_dir)
+
+
+def tool(name, text):
+    path = os.path.join(bin_dir, name)
+    with open(path, "w") as f:
+        f.write(f"#!/bin/sh\necho '{text}'\n")
+    os.chmod(path, 0o755)
+
+
+os.environ["PATH"] = bin_dir
+out["no_tool"] = real_screen_size()
+tool("xdpyinfo", "  dimensions:    1024x768 pixels (271x203 millimeters)")
+out["xdpyinfo"] = real_screen_size()
+os.remove(os.path.join(bin_dir, "xdpyinfo"))
+tool("xrandr", "Screen 0: minimum 1 x 1, current 1152 x 720, maximum 32767 x 32767")
+out["xrandr"] = real_screen_size()
+tool("xrandr", "something else")
+out["unreadable"] = real_screen_size()
+tool("xrandr", "Screen 0: minimum 1 x 1, current 99999 x 1, maximum 1 x 1")
+out["absurd"] = real_screen_size()
+launcher.screen_size = real_screen_size  # as it runs on the bot's screen: the window is the screen's less the title bar
+tool("xdpyinfo", "  dimensions:    1024x768 pixels (271x203 millimeters)")
+
+
+def write_identity(screen, made_for=None):
+    kept = {"navigator": {"userAgent": "kept"}, "screen": {"width": screen[0], "height": screen[1]}, "seed": 1}
+    if made_for:
+        kept["botdot_screen"] = made_for
+    with open(path, "w") as f:
+        json.dump(kept, f)
+
+
+def kept_screen():
+    with open(path) as f:
+        return json.load(f)["botdot_screen"]
+
+
+cookies = os.path.join(launcher.PROFILE, "cookies.sqlite")
+with open(cookies, "w") as f:
+    f.write("logins")
+
+# An old desktop (1024x768): an identity made for that screen, before screens were noted, is kept and no new one is made.
+write_identity((1024, 768))
+made = len(fingerprints.MADE)
+os.environ["PATH"] = bin_dir
+old = start()
+out["old_desktop_kept"] = old["fingerprint"]["navigator"]["userAgent"] == "kept" and len(fingerprints.MADE) == made
+out["old_desktop_window"] = sync_api.LAUNCHES[-1]["window"]
+# An identity whose screen is larger than this one is made again.
+write_identity((1280, 800), [1280, 800])
+out["old_desktop_renewed"] = start()["fingerprint"]["navigator"]["userAgent"] != "kept" and len(fingerprints.MADE) == made + 1
+out["old_desktop_made_for"] = kept_screen()
+# The Update gives the screen 1280x800: the identity made for 1024x768 (noted, or from before it was) is made again.
+os.environ["PATH"] = os.defpath
+launcher.screen_size = lambda: (1280, 800)
+for name, noted in (("unnoted", None), ("noted", [1024, 768])):
+    write_identity((1024, 768), noted)
+    made = len(fingerprints.MADE)
+    out[f"update_renewed_{name}"] = start()["fingerprint"]["navigator"]["userAgent"] != "kept" and len(fingerprints.MADE) == made + 1
+out["update_window"] = sync_api.LAUNCHES[-1]["window"]
+out["update_made_with"] = fingerprints.MADE[-1]
+out["update_made_for"] = kept_screen()
+out["update_cookies_kept"] = open(cookies).read() == "logins"
+# What was made for 1280x800 stays, whatever its own screen: one 1280x720 is not made again at every start.
+write_identity((1280, 720), [1280, 800])
+made = len(fingerprints.MADE)
+out["same_size_kept"] = start()["fingerprint"]["navigator"]["userAgent"] == "kept" and len(fingerprints.MADE) == made
 print(json.dumps(out))

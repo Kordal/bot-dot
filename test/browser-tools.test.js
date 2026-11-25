@@ -360,7 +360,7 @@ test('a bot\'s browser keeps one identity, takes its place from the address and 
     const out = JSON.parse((await util.promisify(childProcess.execFile)('python3', [path.join(__dirname, 'fixtures', 'camoufox-bridge-identity.py'), LAUNCHER, scratch], { timeout: 30_000 })).stdout);
     assert.equal(out.same_identity, true, 'the second start has the identity of the first');
     assert.equal(out.made, 1);
-    assert.deepEqual(out.made_with, { window: [1024, 740], os: 'linux' });
+    assert.deepEqual(out.made_with, { window: [1280, 772], os: 'linux', screen: [1280, 800] });
     assert.equal(out.kept_mode, '0o600');
     assert.equal(out.geoip, '203.0.113.7', 'checked before the start, and the old database used as it is');
     assert.equal(out.locale, 'pl-PL');
@@ -376,6 +376,19 @@ test('a bot\'s browser keeps one identity, takes its place from the address and 
     assert.equal(out.crashed, null, 'a start that crashed opens again without it');
     assert.equal(out.kept_after_crash, true, 'and the identity is kept');
     assert.equal(out.same_after_crash, true);
+    // The screen is the real display's size, 1280x800 when it can't be read (a computer on an older desktop image is still 1024x768).
+    assert.deepEqual([out.no_tool, out.xdpyinfo, out.xrandr, out.unreadable, out.absurd], [[1280, 800], [1024, 768], [1152, 720], [1280, 800], [1280, 800]]);
+    assert.equal(out.old_desktop_kept, true, 'an identity made for 1024x768 is kept while the screen is 1024x768');
+    assert.deepEqual(out.old_desktop_window, [1024, 740], 'and the window fits that screen');
+    assert.equal(out.old_desktop_renewed, true, 'one with a larger screen than the display is made again');
+    assert.deepEqual(out.old_desktop_made_for, [1024, 768]);
+    assert.equal(out.update_renewed_unnoted, true, 'once the screen is 1280x800 an identity from before screens were noted is made again');
+    assert.equal(out.update_renewed_noted, true, 'and so is one made for 1024x768');
+    assert.deepEqual(out.update_window, [1280, 772]);
+    assert.deepEqual(out.update_made_with, { window: [1280, 772], os: 'linux', screen: [1280, 800] });
+    assert.deepEqual(out.update_made_for, [1280, 800]);
+    assert.equal(out.update_cookies_kept, true, 'the profile with its logins stays as it is');
+    assert.equal(out.same_size_kept, true, 'an identity made for this screen is kept, whatever its own screen');
   } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
 });
 

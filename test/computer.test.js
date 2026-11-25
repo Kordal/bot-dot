@@ -49,7 +49,7 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   const { rec, run } = await heldRun(srv, bot);
   assert.match(rec.system, /You have a computer: an Ubuntu Linux computer that the owner's other bots with a computer work on too, at the same time\./);
   // Its own screen and browser, and its own folder (#105).
-  assert.match(rec.system, /You have a screen of your own on it, a plain desktop \(1024x768, windows only: no panel or desktop icons\) with your own Camoufox browser/);
+  assert.match(rec.system, /You have a screen of your own on it, a plain desktop \(1280x800, windows only: no panel or desktop icons\) with your own Camoufox browser/);
   assert.match(rec.system, /The owner can watch your screen and take the mouse and keyboard at any time/);
   // Rendering pages into video takes a headless Chrome, which it finds itself, never a browser the owner installs.
   assert.ok(rec.system.includes("Don't browse with Chromium. Tools that render pages into images or video (Hyperframes, Puppeteer, Playwright) need a headless Chrome, never Firefox: use the one at $HYPERFRAMES_BROWSER_PATH, or /usr/bin/chromium"));

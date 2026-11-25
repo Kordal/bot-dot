@@ -40,6 +40,7 @@ import socket
 import socketserver
 import ssl
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -969,8 +970,12 @@ def proxied_options(options, p):
 
 
 IDENTITY_FILE = "botdot-identity.json"  # in the bot's profile: deleting the bot, or its profile, gives it a new one
-SCREEN = (1024, 768)
-WINDOW = (1024, 740)
+DEFAULT_SCREEN = (1280, 800)  # the size of a bot's screen (deploy/desktop/botdot-desktop), when this can't read it
+TITLE_BAR = 28  # what the window manager's title bar takes off the screen's height
+DISPLAY_SIZE = (
+    (["xdpyinfo"], re.compile(r"dimensions:\s+(\d+)x(\d+) pixels")),
+    (["xrandr", "--current"], re.compile(r"current (\d+) x (\d+)")),
+)
 # The owner's language, as lib/browser-locale.js gives it (en-US, pl-PL): a page's language, number and date formats.
 LOCALE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}$")
 geoip_failed_at = None
@@ -981,26 +986,53 @@ def say(text):
     print(f"camoufox-browser: {text}", file=sys.stderr, flush=True)
 
 
-def lasting_identity(Screen):
+def screen_size():
+    """The size of the screen this browser opens on (DISPLAY), as the X server says it: a computer still on an older
+    desktop image has the 1024x768 screen until its Update, where a window made for 1280x800 would not fit. The
+    default size when it can't be read."""
+    for command, form in DISPLAY_SIZE:
+        try:
+            found = form.search(subprocess.run(command, capture_output=True, text=True, timeout=5).stdout)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if found and 640 <= int(found[1]) <= 4096 and 480 <= int(found[2]) <= 4096:
+            return int(found[1]), int(found[2])
+    return DEFAULT_SCREEN
+
+
+def window_size(screen):
+    """The browser's window on that screen: all of its width, and its height less the window's title bar."""
+    return screen[0], screen[1] - TITLE_BAR
+
+
+def lasting_identity(Screen, screen):
     """The bot's own browser identity (an fpgen fingerprint), the same at every start: a site that sees the same
     visitor come back with another screen, GPU and fonts each time takes it for a bot. Made at the first start and
-    kept in the profile. None on a Camoufox without generate_fingerprint (0.5.6) or when it can't be made: then
-    Camoufox makes one for this start, as before."""
+    kept in the profile, with the screen it was made for (`botdot_screen`, which Camoufox is not given). One made for
+    a smaller screen than this one (every one made before the screen was 1280x800 has no size: it was made for
+    1024x768), or whose own screen is larger than this one, is made again: the profile, with its logins, stays as it
+    is. None on a Camoufox without generate_fingerprint (0.5.6) or when it can't be made: then Camoufox makes one for
+    this start, as before."""
     path = os.path.join(PROFILE, IDENTITY_FILE)
     try:
         with open(path) as f:
             kept = json.load(f)
         if isinstance(kept, dict) and kept.get("navigator"):
-            return kept
-    except (OSError, ValueError):
+            made_for = kept.pop("botdot_screen", None) or [1024, 768]
+            own = kept.get("screen") if isinstance(kept.get("screen"), dict) else {}
+            if (made_for[0] >= screen[0] and made_for[1] >= screen[1]
+                    and own.get("width", 0) <= screen[0] and own.get("height", 0) <= screen[1]):
+                return kept
+            say(f"a new identity: the kept one was made for {made_for[0]}x{made_for[1]}, this screen is {screen[0]}x{screen[1]}")
+    except (OSError, ValueError, TypeError, IndexError):
         pass
     try:
         from camoufox.fingerprints import generate_fingerprint
-        made = generate_fingerprint(screen=Screen(max_width=SCREEN[0], max_height=SCREEN[1]), window=WINDOW, os="linux")
+        made = generate_fingerprint(screen=Screen(max_width=screen[0], max_height=screen[1]), window=window_size(screen), os="linux")
         text = json.dumps(made)
         fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as f:
-            f.write(text)
+            f.write(json.dumps({**made, "botdot_screen": list(screen)}))
         os.replace(path + ".tmp", path)
         return json.loads(text)  # as it is read back next time, so every start has the same identity, salt and all
     except Exception as exc:
@@ -1058,13 +1090,14 @@ def run_browser(url):
     from camoufox.sync_api import Camoufox
 
     os.makedirs(PROFILE, mode=0o700, exist_ok=True)
+    screen = screen_size()
     options = dict(
         headless=False,
         persistent_context=True,
         user_data_dir=PROFILE,
         os="linux",                      # match the real machine so fonts and platform agree
-        screen=Screen(max_width=SCREEN[0], max_height=SCREEN[1]),
-        window=WINDOW,
+        screen=Screen(max_width=screen[0], max_height=screen[1]),
+        window=window_size(screen),
         humanize=0.5,                    # human-like cursor movement, up to 0.5 s a move instead of 1.5 s
         firefox_user_prefs={
             "signon.rememberSignons": False,  # never store typed passwords in the profile
@@ -1085,7 +1118,7 @@ def run_browser(url):
         },
     )
     who = {}
-    identity = lasting_identity(Screen)
+    identity = lasting_identity(Screen, screen)
     if identity:
         who["fingerprint"] = identity
     with proxy_lock:

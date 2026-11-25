@@ -20,10 +20,10 @@ function keepScreenConnected(iframe) {
   }, 4000);
 }
 
-// The screen as large as the window lets it be, at the desktop's 4:3 (a boat.dev machine's 16:9), with all of the dialog in the window and no
+// The screen as large as the window lets it be, at the desktop's 16:10 (a boat.dev machine's 16:9), with all of the dialog in the window and no
 // scrollbar of its own (#43): the screen is made as narrow as the height left for it asks. What is under it keeps
 // the dialog's width, so its height does not change with the screen's.
-function fitScreen(m, ratio = 4 / 3) {
+function fitScreen(m, ratio = 16 / 10) {
   const f = $('#screen-frame', m);
   if (!f || !m.open) return;
   // The dialog's height may be the window's less 40 (the stylesheet's max-height), its 1px border included.
