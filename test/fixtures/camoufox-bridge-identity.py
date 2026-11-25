@@ -9,6 +9,7 @@ import stat
 import sys
 import threading
 import time
+import types
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "camoufox-stub"))
@@ -21,7 +22,10 @@ loader.exec_module(launcher)
 launcher.PROFILE = os.path.join(sys.argv[2], "profile")
 out = {}
 real_screen_size = launcher.screen_size
-launcher.screen_size = lambda: (1280, 800)  # the screen of the current desktop image, whatever DISPLAY this test runs under
+real_x11_screen = launcher.x11_screen
+launcher.screen_size = lambda: ((1280, 800), True)  # the screen of the current desktop image, whatever DISPLAY this test runs under
+launcher.x11_screen = lambda: None  # libX11 is read below, against a stand-in
+os.environ.pop("BOTDOT_SCREEN", None)
 
 
 def start():
@@ -146,7 +150,7 @@ out["old_desktop_renewed"] = start()["fingerprint"]["navigator"]["userAgent"] !=
 out["old_desktop_made_for"] = kept_screen()
 # The Update gives the screen 1280x800: the identity made for 1024x768 (noted, or from before it was) is made again.
 os.environ["PATH"] = os.defpath
-launcher.screen_size = lambda: (1280, 800)
+launcher.screen_size = lambda: ((1280, 800), True)
 for name, noted in (("unnoted", None), ("noted", [1024, 768])):
     write_identity((1024, 768), noted)
     made = len(fingerprints.MADE)
@@ -159,4 +163,68 @@ out["update_cookies_kept"] = open(cookies).read() == "logins"
 write_identity((1280, 720), [1280, 800])
 made = len(fingerprints.MADE)
 out["same_size_kept"] = start()["fingerprint"]["navigator"]["userAgent"] == "kept" and len(fingerprints.MADE) == made
+
+# botdot says the screen (BOTDOT_SCREEN) before the display is read: a boat.dev machine's :0 is 1920x1080, and its
+# bots' screen stays 1024x768, so a window of 1024x740 and the identity they have, which was made for 1024x768 (before
+# screens were noted, or noted).
+launcher.screen_size = real_screen_size
+os.environ["PATH"] = bin_dir
+tool("xdpyinfo", "  dimensions:    1920x1080 pixels (508x285 millimeters)")
+out["display_1080"] = real_screen_size()
+os.environ["BOTDOT_SCREEN"] = "1024x768"
+out["given"] = real_screen_size()
+for name, noted in (("unnoted", None), ("noted", [1024, 768])):
+    write_identity((1024, 768), noted)
+    made = len(fingerprints.MADE)
+    out[f"given_kept_{name}"] = start()["fingerprint"]["navigator"]["userAgent"] == "kept" and len(fingerprints.MADE) == made
+    out[f"given_window_{name}"] = sync_api.LAUNCHES[-1]["window"]
+os.environ["BOTDOT_SCREEN"] = "99999x1"
+out["given_absurd"] = real_screen_size()  # not taken: the display is read
+os.environ["BOTDOT_SCREEN"] = "big"
+out["given_nonsense"] = real_screen_size()
+del os.environ["BOTDOT_SCREEN"]
+
+# A reading that failed (no tool, no display to reach: a start of the bridge alone) uses the window of 1280x800 but
+# never makes a new identity: what is kept stays, whatever screen it was made for.
+empty = os.path.join(sys.argv[2], "empty")
+os.makedirs(empty)
+os.environ["PATH"] = empty
+out["unread"] = real_screen_size()
+for name, made_for, own in (("unnoted", None, (1024, 768)), ("noted_small", [1024, 768], (1024, 768)), ("noted_large", [1920, 1080], (1920, 1080))):
+    write_identity(own, made_for)
+    made = len(fingerprints.MADE)
+    out[f"unread_kept_{name}"] = start()["fingerprint"]["navigator"]["userAgent"] == "kept" and len(fingerprints.MADE) == made
+    out[f"unread_window_{name}"] = sync_api.LAUNCHES[-1]["window"]
+os.remove(path)
+made = len(fingerprints.MADE)
+start()
+out["unread_first"] = len(fingerprints.MADE) == made + 1 and fingerprints.MADE[-1]["window"]  # with none kept, one is made
+
+# libX11 first (the desktop has it for Firefox): the default screen of XOpenDisplay(NULL), the display closed again.
+os.environ["PATH"] = bin_dir
+calls = []
+x11 = types.SimpleNamespace(
+    XOpenDisplay=lambda name: calls.append(("open", name)) or 7,
+    XDefaultScreen=lambda display: 0,
+    XDisplayWidth=lambda display, number: 1600,
+    XDisplayHeight=lambda display, number: 900,
+    XCloseDisplay=lambda display: calls.append(("close", display)),
+)
+real_cdll = launcher.ctypes.CDLL
+launcher.x11_screen = real_x11_screen
+try:
+    launcher.ctypes.CDLL = lambda name: x11
+    out["x11"] = real_screen_size()  # the stand-in xdpyinfo says 1920x1080: libX11 is asked first
+    out["x11_calls"] = list(calls)
+    x11.XOpenDisplay = lambda name: None  # no display to reach
+    out["x11_no_display"] = [real_x11_screen(), real_screen_size()]  # then xdpyinfo
+    x11.XOpenDisplay = lambda name: 7
+    x11.XDisplayWidth = lambda display, number: 99999
+    out["x11_absurd"] = real_screen_size()
+    def no_library(name):
+        raise OSError("libX11.so.6: cannot open shared object file")
+    launcher.ctypes.CDLL = no_library
+    out["x11_missing"] = [real_x11_screen(), real_screen_size()]
+finally:
+    launcher.ctypes.CDLL = real_cdll
 print(json.dumps(out))

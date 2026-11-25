@@ -95,6 +95,7 @@ test("the proxy goes to the machine's bridge alone: no screen, no desktop, and t
   const sent = b.commands().map((c) => c.command);
   assert.ok(!sent.some((c) => c.includes('xhost')), "the desktop (:0) is not let in: it's the screen's");
   assert.equal(b.commands().filter((c) => c.detached).length, 1, 'the bridge, and nothing else');
+  assert.match(b.commands().find((c) => c.detached).command, /env HOME=\/home\/browser DISPLAY=:0 BOTDOT_SCREEN=1024x768 /, 'told the screen even with no desktop to read: a boat.dev bot keeps its 1024x768 screen and its identity');
   for (const c of sent) assert.ok(!c.includes(PROXY.password), 'the login is on no command line');
   const [file, content] = [...b.box.files.entries()].find(([p]) => p.startsWith('/tmp/botdot-secret-'));
   assert.equal(JSON.parse(content).proxy.password, PROXY.password, 'it went through the file API, as a typed secret does');

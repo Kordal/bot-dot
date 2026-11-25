@@ -377,7 +377,8 @@ test('a bot\'s browser keeps one identity, takes its place from the address and 
     assert.equal(out.kept_after_crash, true, 'and the identity is kept');
     assert.equal(out.same_after_crash, true);
     // The screen is the real display's size, 1280x800 when it can't be read (a computer on an older desktop image is still 1024x768).
-    assert.deepEqual([out.no_tool, out.xdpyinfo, out.xrandr, out.unreadable, out.absurd], [[1280, 800], [1024, 768], [1152, 720], [1280, 800], [1280, 800]]);
+    // It says whether it read the size: a guess (the second of each) is not a reading.
+    assert.deepEqual([out.no_tool, out.xdpyinfo, out.xrandr, out.unreadable, out.absurd], [[[1280, 800], false], [[1024, 768], true], [[1152, 720], true], [[1280, 800], false], [[1280, 800], false]]);
     assert.equal(out.old_desktop_kept, true, 'an identity made for 1024x768 is kept while the screen is 1024x768');
     assert.deepEqual(out.old_desktop_window, [1024, 740], 'and the window fits that screen');
     assert.equal(out.old_desktop_renewed, true, 'one with a larger screen than the display is made again');
@@ -389,6 +390,26 @@ test('a bot\'s browser keeps one identity, takes its place from the address and 
     assert.deepEqual(out.update_made_for, [1280, 800]);
     assert.equal(out.update_cookies_kept, true, 'the profile with its logins stays as it is');
     assert.equal(out.same_size_kept, true, 'an identity made for this screen is kept, whatever its own screen');
+    // boat.dev: botdot gives the bridge its 1024x768 (BOTDOT_SCREEN) though :0 is 1920x1080: the window stays 1024x740 and the identity is kept.
+    assert.deepEqual([out.display_1080, out.given], [[[1920, 1080], true], [[1024, 768], true]]);
+    for (const name of ['unnoted', 'noted']) {
+      assert.equal(out[`given_kept_${name}`], true, `a boat.dev bot's ${name} identity is kept`);
+      assert.deepEqual(out[`given_window_${name}`], [1024, 740], 'in the window it had');
+    }
+    assert.deepEqual([out.given_absurd, out.given_nonsense], [[[1920, 1080], true], [[1920, 1080], true]], 'a size botdot gives that makes no sense is not taken: the display is read');
+    // A reading that failed (the bridge alone, ADR 262, with no display to reach) never makes a new identity.
+    assert.deepEqual(out.unread, [[1280, 800], false]);
+    for (const name of ['unnoted', 'noted_small', 'noted_large']) {
+      assert.equal(out[`unread_kept_${name}`], true, `the ${name} identity is kept when the size can't be read`);
+      assert.deepEqual(out[`unread_window_${name}`], [1280, 772], 'the window is the default screen\'s');
+    }
+    assert.deepEqual(out.unread_first, [1280, 772], 'with none kept, one is made');
+    // libX11 is read first, then xdpyinfo and xrandr.
+    assert.deepEqual(out.x11, [[1600, 900], true]);
+    assert.deepEqual(out.x11_calls, [['open', null], ['close', 7]], 'XOpenDisplay(NULL), and the display closed again');
+    assert.deepEqual(out.x11_no_display, [null, [[1920, 1080], true]]);
+    assert.deepEqual(out.x11_absurd, [[1920, 1080], true]);
+    assert.deepEqual(out.x11_missing, [null, [[1920, 1080], true]]);
   } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
 });
 
