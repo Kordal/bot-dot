@@ -1,5 +1,6 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): new accounts from sign-up links, suspend, resume and
 // delete from the admin page, shares of the machine, and the uninstaller.
+// Part 3 of 3 of the accounts and uninstaller tests: the parts run side by side, so that none takes more than about three minutes in CI (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
@@ -7,207 +8,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { ROOT, script, installer, rerun, withBob } = require('./installer-helpers');
 
-// --- New accounts from sign-up links (#467) -----------------------------------------------------------
+// --- Uninstall (#76) -------------------------------------------------------------------------------
 
-test('the front door asks for new accounts in a folder of its own, and root\'s step is a copy of the installer that systemd starts', (t) => {
-  const done = rerun(t);
-  const requests = `${done.dir}/front-door/requests`;
-  assert.match(done.system, new RegExp(`^chown 0:990 ${requests}$`, 'm'), 'root owns it, the front door\'s group may write in it');
-  assert.equal(fs.statSync(requests).mode & 0o777, 0o770);
-  const compose = fs.readFileSync(path.join(ROOT, 'compose.front-door.yaml'), 'utf8');
-  assert.match(compose, /^ {6}- \.\/requests:\/requests /m);
-  assert.match(compose, /^ {6}FRONT_DOOR_REQUESTS: \/requests$/m);
+// install.sh --uninstall, run from the source on the machine `first` installed, answering `input`.
+const uninstall = (t, first, options = {}) => installer(t, { again: first, dotenv: '', args: ['--uninstall'], ...options });
 
-  // Root's copy of the installer, which only root can change.
-  const bin = `${done.dir}/bin`;
-  assert.equal(fs.readFileSync(`${bin}/install.sh`, 'utf8'), script);
-  assert.equal(fs.statSync(bin).mode & 0o777, 0o700);
-  assert.equal(fs.statSync(`${bin}/install.sh`).mode & 0o777, 0o600);
-  assert.match(done.system, new RegExp(`^chown 0:0 ${bin}$`, 'm'));
+// The AppArmor profile the installer writes on Ubuntu 24.04, where rootless Docker needs one.
+const PROFILE = '# botdot (install.sh): rootless Docker for each account needs user namespaces.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile botdot-rootlesskit /usr/bin/rootlesskit flags=(unconfined) {\n  userns,\n}\n';
 
-  const unit = (name) => fs.readFileSync(path.join(done.etc, 'systemd', 'system', name), 'utf8');
-  assert.match(unit('botdot-accounts.path'), new RegExp(`^DirectoryNotEmpty=${requests}$`, 'm'));
-  assert.match(unit('botdot-accounts.service'), /^Type=oneshot$/m);
-  assert.match(unit('botdot-accounts.service'), new RegExp(`^ExecStart=/bin/sh ${bin}/install.sh --requested$`, 'm'), 'one fixed command, nothing from the front door on it');
-  assert.doesNotMatch(unit('botdot-accounts.service'), /^User=/m, 'root');
-  assert.match(unit('botdot-accounts.service'), new RegExp(`^Environment=BOT_DOT_DIR=${done.dir} BOT_DOT_RUN=${done.run} BOT_DOT_ETC=${done.etc}$`, 'm'), 'the folders this install has');
-  assert.match(done.system, /^systemctl enable --now botdot-accounts\.path$/m);
-  assert.match(done.said, /Make sign-up links for other people on the admin page: https:\/\/botdot\.example\.com\/admin/);
-});
+// A userdel on the machine `first` that removes every user but `refused`, which a process still uses.
+const refusingUserdel = (first, refused) => ['#!/bin/sh', 'echo "userdel $*" >> "$STAND_IN_LOG"',
+  `[ "$1" = ${refused} ] && { echo "userdel: user ${refused} is currently used by process 42" >&2; exit 8; }`,
+  `grep -v "^$1:" "${path.join(first.top, 'users')}" > "${first.top}/users.new"; mv "${first.top}/users.new" "${path.join(first.top, 'users')}"`, 'exit 0', ''].join('\n');
 
-test('without systemd a loop started now takes the requests, and the installer says it won\'t come back by itself', async (t) => {
-  const done = rerun(t, '', {}, { systemd: false });
-  // Started in the background: the stand-in writes it down a moment after the installer ends.
-  const log = path.join(done.top, 'system.log');
-  for (let i = 0; i < 50 && !/^nohup /m.test(fs.readFileSync(log, 'utf8')); i++) await new Promise((r) => setTimeout(r, 100));
-  assert.match(fs.readFileSync(log, 'utf8'), /^nohup sh -c i=0; while :; do \[ -z "\$\(ls -A '.+\/front-door\/requests' 2>\/dev\/null\)" \] \|\| BOT_DOT_DIR='.+' BOT_DOT_RUN='.+' BOT_DOT_ETC='.+' sh '.+\/bin\/install\.sh' --requested; \[ \$\(\(i % 20\)\) != 0 \] \|\| BOT_DOT_DIR='.+' BOT_DOT_RUN='.+' BOT_DOT_ETC='.+' sh '.+\/bin\/install\.sh' --load; i=\$\(\(i \+ 1\)\); sleep 3; done$/m, 'and every minute measures the load');
-  assert.match(done.said, /This machine has no systemd, so the accounts sign-up links make are made by a loop started now, which doesn't start again after a restart\./);
-});
-
-test("root's step makes each account the front door made and asked for, as the install made the admin's, and nothing else", (t) => {
-  const first = rerun(t);
-  const requests = path.join(first.dir, 'front-door', 'requests');
-  fs.writeFileSync(path.join(first.dir, 'front-door', 'data', 'front-door.json'), JSON.stringify({ accounts: { ann: {}, bob: {} }, passkeys: {}, sessions: {}, signUpLinks: {} }));
-  for (const name of ['bob', 'carl', 'ann', 'Bad Name', '.hidden', '..dots', 'dan\nab']) fs.writeFileSync(path.join(requests, name), '');
-  fs.mkdirSync(path.join(requests, 'eve'));
-  const before = { system: first.system.length, docker: first.docker.length };
-
-  const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'] });
-  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
-  assert.deepEqual(fs.readdirSync(requests), [], 'every request is taken');
-  const system = done.system.slice(before.system);
-  const docker = done.docker.slice(before.docker);
-
-  // bob: made as the admin's account was.
-  const home = `${done.dir}/accounts/bob`;
-  assert.match(system, new RegExp(`^useradd --no-create-home --home-dir ${home} --shell /usr/sbin/nologin --comment botdot account bob botdot-bob$`, 'm'));
-  assert.match(system, /^systemctl enable botdot-account@bob$/m);
-  assert.match(system, new RegExp(`^setfacl -m g:botdot-door:x,m::x ${done.dir}/sockets/bob$`, 'm'));
-  assert.equal(JSON.parse(fs.readFileSync(path.join(home, '.config', 'docker', 'daemon.json'), 'utf8'))['default-runtime'], 'runsc');
-  const env = done.accountEnv('bob');
-  assert.equal(env.BOT_DOT_ACCOUNT, 'bob');
-  assert.equal(env.DOCKER_SOCKET, `${done.run}/bob/docker.sock`);
-  assert.equal(env.BOT_DOT_IMAGE, first.accountEnv('ann').BOT_DOT_IMAGE, 'the images the install pinned');
-  assert.equal(env.BOT_DOT_COMPUTER_IMAGE, first.accountEnv('ann').BOT_DOT_COMPUTER_IMAGE);
-  assert.ok(docker.some((c) => c.host === `unix://${done.run}/bob/docker.sock` && c.call === `compose --project-directory ${home} up -d --remove-orphans`));
-  assert.match(done.said, /Making the account bob, which a sign-up link made at the front door/);
-  assert.match(done.said, /The account bob is running/);
-
-  // Nothing else: no account the front door doesn't have, no name that isn't one, nothing made twice.
-  assert.doesNotMatch(system, /useradd .*botdot-(carl|ann|dan|eve)/);
-  assert.match(done.said, /Not an account's name, so nothing was done: danab/, 'a name of two lines is no name');
-  assert.match(done.said, /The front door has no account carl, so nothing was done\./);
-  assert.match(done.said, /Not an account's name, so nothing was done: BadName/);
-  assert.match(done.said, /The account ann is made already/);
-  assert.ok(!docker.some((c) => c.host === `unix://${done.run}/ann/docker.sock` && /^compose .* up/.test(c.call)), "ann's botdot server is left as it is");
-  // And nothing of the machine: no package, no front door, no Caddy or Tailscale, no unit, no link.
-  assert.doesNotMatch(system, /^(apt-get|apparmor_parser|tailscale|systemctl daemon-reload|useradd --system)/m);
-  assert.ok(!docker.some((c) => c.host === 'machine' && /^compose --project-directory/.test(c.call)), JSON.stringify(docker));
-  assert.doesNotMatch(done.said, /botdot installer|\/sign-up\//);
-});
-
-// --- Suspend, resume and delete from the admin page (#470) -------------------------------------------
-
-
-test("root's step stops a suspended account's Docker, and with it all it runs, and keeps its data and user", (t) => {
-  const { door, step, home, upIn, users } = withBob(t);
-  fs.writeFileSync(path.join(home, 'data', 'bots.json'), '[]');
-  door({ accounts: { ann: {}, bob: { suspended: '2026-10-16T12:00:00.000Z' } } });
-  const done = step('bob');
-  assert.match(done.system, /^systemctl disable --now botdot-account@bob$/m, "its Docker stops, and doesn't start with the machine");
-  assert.ok(!upIn(done, 'bob'), 'nothing of it is started');
-  assert.match(done.said, /The account bob is suspended: it is stopped, and its data kept/);
-  assert.ok(fs.existsSync(path.join(home, 'data', 'bots.json')), 'its data stays');
-  assert.match(fs.readFileSync(users, 'utf8'), /^botdot-bob:/m, 'its Linux user stays');
-  assert.doesNotMatch(done.system, /^(userdel|useradd)/m);
-});
-
-test("root's step starts a resumed account again as it was, and leaves a running one as it is", (t) => {
-  const { door, step, upIn, started } = withBob(t);
-  door({ accounts: { ann: {}, bob: {} } });
-  const running = step('bob');
-  assert.match(running.said, /The account bob is made already, and runs/);
-  assert.ok(!upIn(running, 'bob'));
-
-  fs.rmSync(started); // suspended: its Docker doesn't answer
-  const done = step('bob');
-  assert.match(done.said, /Starting the account bob again, which the admin resumed/);
-  assert.match(done.system, /^systemctl enable botdot-account@bob$/m);
-  assert.match(done.system, /^systemctl (re)?start botdot-account@bob$/m);
-  assert.ok(upIn(done, 'bob'), 'its botdot server starts');
-  assert.doesNotMatch(done.system, /^useradd/m, 'the same user, made once');
-  assert.doesNotMatch(done.system, /\/accounts\/bob\/data$/m, 'the data folder its restarted server owns stays its');
-  assert.match(done.said, /The account bob is running/);
-});
-
-test("root's step starts again an account whose Docker runs but whose botdot server doesn't answer", (t) => {
-  const { first, door, step, upIn } = withBob(t);
-  door({ accounts: { ann: {}, bob: {} } });
-  fs.rmSync(path.join(first.dir, 'sockets', 'bob', 'botdot.sock')); // its server stopped
-  const done = step('bob');
-  assert.match(done.said, /Starting the account bob again/);
-  assert.ok(upIn(done, 'bob'), 'its botdot server starts');
-  assert.doesNotMatch(done.system, /^useradd/m, 'the same user, made once');
-});
-
-test("root's step reads the front door again when it is done, so the admin's resume meanwhile isn't lost", (t) => {
-  const { first, door, step, upIn, started } = withBob(t);
-  door({ accounts: { ann: {}, bob: { suspended: '2026-10-16T12:00:00.000Z' } } });
-  // While bob's Docker stops, the admin resumes bob: the front door's data says so, and its request found this one.
-  const data = path.join(first.dir, 'front-door', 'data', 'front-door.json');
-  const resumed = JSON.stringify({ accounts: { ann: {}, bob: {} }, passkeys: {}, sessions: {}, signUpLinks: {}, deleted: {} });
-  const systemctl = ['#!/bin/sh', 'echo "systemctl $*" >> "$STAND_IN_LOG"', '[ "$1" = show ] && exit 0',
-    `[ "$1" = disable ] && { rm -f "${started}"; printf '%s' '${resumed}' > "${data}"; }`,
-    `case "$1" in start|restart) touch "${started}" ;; esac`, 'exit 0', ''].join('\n');
-  const done = step('bob', { bins: { systemctl } });
-  assert.match(done.said, /The account bob is suspended: it is stopped/);
-  assert.match(done.said, /Starting the account bob again, which the admin resumed/);
-  assert.ok(upIn(done, 'bob'), 'bob runs again');
-});
-
-test("root's step keeps a request made while it read the front door once more, and the next run takes it", (t) => {
-  const { first, door, step, upIn, started } = withBob(t);
-  door({ accounts: { ann: {}, bob: { suspended: '2026-10-16T12:00:00.000Z' } } });
-  const requests = path.join(first.dir, 'front-door', 'requests');
-  const data = path.join(first.dir, 'front-door', 'data', 'front-door.json');
-  const resumed = JSON.stringify({ accounts: { ann: {}, bob: {} }, passkeys: {}, sessions: {}, signUpLinks: {}, deleted: {} });
-  fs.writeFileSync(path.join(requests, 'bob'), '');
-  // The front door's data is read once more after bob is stopped: while it is read (the file it reads is the one from
-  // before), the admin resumes bob, and the front door asks again.
-  const resumes = [
-    `if [ "$1" = run ] && [ "$5" = node ] && [ "$7" = -e ] && [ ! -e "${requests}/bob" ] && [ ! -e "${first.top}/resumed" ]; then`,
-    `  touch "${first.top}/resumed"; printf '%s' '${resumed}' > "${data}.new"; mv "${data}.new" "${data}"; touch "${requests}/bob"`,
-    'fi',
-  ];
-  const suspended = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ["--requested"], dockerFirst: resumes });
-  assert.equal(suspended.status, 0, `${suspended.said}\n${suspended.stderr}`);
-  assert.match(suspended.said, /The account bob is suspended: it is stopped/);
-  assert.ok(fs.existsSync(path.join(requests, 'bob')), 'the new request stays');
-  fs.rmSync(started, { force: true });
-  const done = step('bob');
-  assert.match(done.said, /Starting the account bob again, which the admin resumed/);
-  assert.ok(upIn(done, 'bob'), 'bob runs again');
-});
-
-test("root's step erases a deleted account: its Docker, data, socket folder, Linux user and sub-IDs", (t) => {
-  const { first, door, step, home, users } = withBob(t);
-  fs.mkdirSync(path.join(first.run, 'bob'), { recursive: true });
-  door({ accounts: { ann: {} }, deleted: { bob: '2026-10-16T12:00:00.000Z' } });
-  const done = step('bob');
-  assert.match(done.system, /^systemctl disable --now botdot-account@bob$/m);
-  assert.match(done.system, /^userdel botdot-bob$/m);
-  assert.ok(fs.existsSync(path.join(first.dir, 'disks', 'bob.img')) === false, 'its disk is gone');
-  assert.ok(fs.existsSync(path.join(first.dir, 'disks', 'ann.img')), "ann's stays");
-  for (const gone of [home, path.join(first.dir, 'sockets', 'bob'), path.join(first.run, 'bob')]) assert.ok(!fs.existsSync(gone), `${gone} is gone`);
-  for (const map of ['subuid', 'subgid']) {
-    const ids = fs.readFileSync(path.join(first.etc, map), 'utf8');
-    assert.doesNotMatch(ids, /^botdot-bob:/m, `${map} has nothing of bob`);
-    assert.match(ids, /^botdot-ann:/m, "ann's stay");
-  }
-  assert.doesNotMatch(fs.readFileSync(users, 'utf8'), /^botdot-bob:/m);
-  assert.match(done.said, /The account bob is erased: its data, containers and Linux user/);
-  assert.ok(fs.existsSync(path.join(first.dir, 'accounts', 'ann', 'compose.yaml')), "ann's account is untouched");
-
-  const again = step('bob');
-  assert.match(again.said, /The account bob is deleted, and nothing of it is on this machine/);
-  assert.doesNotMatch(again.system, /^userdel/m);
-});
-
-test("root's step erases nothing the front door doesn't say it deleted, and never the admin's account", (t) => {
-  const { first, door, step, home } = withBob(t);
-  for (const data of ['{"accounts": {"ann": {}, "bo', JSON.stringify({ accounts: { ann: {} } })]) {
-    door(data);
-    const done = step('bob');
-    assert.match(done.said, /The front door has no account bob, so nothing was done\./);
-    assert.doesNotMatch(done.system, /^(userdel|systemctl disable)/m);
-    assert.ok(fs.existsSync(path.join(home, 'compose.yaml')));
-  }
-  door({ accounts: {}, deleted: { ann: '2026-10-16T12:00:00.000Z' } });
-  const admin = step('ann');
-  assert.match(admin.stderr, /The account ann is the admin's own, so it wasn't erased\./);
-  assert.doesNotMatch(admin.system, /^(userdel|systemctl disable)/m);
-  assert.ok(fs.existsSync(path.join(first.dir, 'accounts', 'ann', 'compose.yaml')));
-});
+const UNITS = ['botdot-account@.service', 'botdot-accounts.path', 'botdot-accounts.service', 'botdot-load.timer', 'botdot-load.service'];
 
 test('an update leaves a suspended account stopped, and erases one the admin deleted', (t) => {
   const { first, door, upIn } = withBob(t);
@@ -294,18 +108,6 @@ test('without systemd the CPU and RAM share are said not to be applied', (t) => 
   assert.doesNotMatch(done.system, /set-property/);
   assert.equal(fs.readFileSync(path.join(done.dir, 'accounts', 'ann', 'share', 'share.json'), 'utf8'), '{"cpu":2,"ram":5}\n', 'its computer is sized all the same');
 });
-
-// --- Uninstall (#76) -------------------------------------------------------------------------------
-
-// install.sh --uninstall, run from the source on the machine `first` installed, answering `input`.
-const uninstall = (t, first, options = {}) => installer(t, { again: first, dotenv: '', args: ['--uninstall'], ...options });
-// The AppArmor profile the installer writes on Ubuntu 24.04, where rootless Docker needs one.
-const PROFILE = '# botdot (install.sh): rootless Docker for each account needs user namespaces.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile botdot-rootlesskit /usr/bin/rootlesskit flags=(unconfined) {\n  userns,\n}\n';
-// A userdel on the machine `first` that removes every user but `refused`, which a process still uses.
-const refusingUserdel = (first, refused) => ['#!/bin/sh', 'echo "userdel $*" >> "$STAND_IN_LOG"',
-  `[ "$1" = ${refused} ] && { echo "userdel: user ${refused} is currently used by process 42" >&2; exit 8; }`,
-  `grep -v "^$1:" "${path.join(first.top, 'users')}" > "${first.top}/users.new"; mv "${first.top}/users.new" "${path.join(first.top, 'users')}"`, 'exit 0', ''].join('\n');
-const UNITS = ['botdot-account@.service', 'botdot-accounts.path', 'botdot-accounts.service', 'botdot-load.timer', 'botdot-load.service'];
 
 test('the uninstaller lists what it removes, and removes nothing without a typed yes', (t) => {
   const { first, home } = withBob(t);
