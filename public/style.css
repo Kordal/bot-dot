@@ -1575,6 +1575,13 @@ div.field .hint { font-weight: 400; color: var(--faint); }
 .setup-body h3 { margin: 1px 0 var(--sp-4); font-size: var(--fs-14); font-weight: 600; }
 .setup-body .muted { font-size: var(--fs-14); line-height: 1.55; overflow-wrap: anywhere; }
 .setup-body .muted b { color: var(--text); font-weight: 600; }
+.bot-states { padding: var(--sp-16); margin-bottom: var(--sp-12); display: grid; gap: var(--sp-12); }
+.bot-states h3 { margin: 0; font-size: var(--fs-14); font-weight: 600; }
+.bot-states ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-12); }
+.bot-states li { display: grid; grid-template-columns: 32px 128px 1fr; gap: var(--sp-12); align-items: center; }
+.bot-states .avatar { width: 32px; height: 32px; }
+.bot-states .fig .t-cut { fill: var(--raise-2); } /* the dot is cut out of the card it sits on */
+.state-meaning { color: var(--muted); font-size: var(--fs-14); line-height: 1.4; }
 .setup-actions { margin-top: var(--sp-12); display: flex; gap: var(--sp-12); flex-wrap: wrap; align-items: center; }
 .setup-login { padding: var(--sp-16) var(--sp-16); margin: calc(var(--sp-4) * -1) 0 var(--sp-12); display: grid; gap: var(--sp-12); }
 .setup-login ol { margin: 0; padding-left: var(--sp-24); display: grid; gap: var(--sp-16); }

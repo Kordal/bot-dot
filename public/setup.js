@@ -5,6 +5,23 @@
 // address, #setup. Signing in to Claude again later is in Settings → Claude.
 const deviceTimezone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } };
 
+// The six lines a bot's key can say, in the order a new owner meets them (#1699): its example bot (a colour of
+// BOT_COLORS and an icon of the figure definition's kit), the tile's state, what Keypad.status is told, and what the
+// line means. Drawn only: nothing here is a real bot, and nothing in the card is clickable.
+const SETUP_STATES = () => [
+  { color: 1, icon: 'mail', face: 'working', status: { running: true }, live: tr('Checking your inbox'), meaning: tr('Working on a task. The line says what it does right now.') },
+  { color: 0, icon: 'plane', face: 'needs_you', status: { needs: true }, meaning: tr('It asks you something or waits for your OK. Open its chat to answer.') },
+  { color: 2, icon: 'news', face: 'idle', status: { unread: 2 }, meaning: tr("New replies you haven't read yet.") },
+  { color: 5, icon: 'receipt', face: 'idle', status: { last: 'success' }, meaning: tr('Finished. Its chat has the result.') },
+  { color: 4, icon: 'globe', face: 'failed', status: { last: 'error' }, meaning: tr('The last task stopped. Its chat says why.') },
+  { color: 6, icon: 'tag', face: 'idle', status: { watching: true, lastTime: '07:12' }, meaning: tr('Nothing to do now. Its job runs again on schedule.') },
+];
+// The card on the Setup page: a row for each, the tile, the line as Home draws it (keyState) and its meaning.
+function botStatesCard() {
+  const row = (x) => `<li>${botFigure(BOT_COLORS[x.color][0], x.face, '', { icon: x.icon })}${keyState(Keypad.status(x.status), x.live || '')}<span class="state-meaning">${esc(x.meaning)}</span></li>`;
+  return `<section class="card bot-states" aria-labelledby="bot-states-title"><h3 id="bot-states-title">${tr("How a bot shows what it's doing")}</h3><ul>${SETUP_STATES().map(row).join('')}</ul></section>`;
+}
+
 async function renderSetup(fresh = false) {
   const root = $('#view-setup');
   if (root.dataset.ready && !fresh) return;
@@ -445,6 +462,7 @@ function drawSetup() {
     ${adv ? computers : ''}${phone}${tz}
     ${adv ? `<h3 class="page-sub">${tr('Extras')}</h3>
     ${extras.join('')}` : ''}
+    ${botStatesCard()}
     ${state.bots.length ? '' : `<p class="muted settings-hint">${tr('Moving from another botdot?')} <button type="button" class="link-btn" id="restore-open">${tr('Restore a backup')}</button></p>`}
     <div class="settings-foot"><button class="btn primary" id="setup-done" ${c.loggedIn || unknown ? '' : 'disabled'}>${s.done ? tr('Back to your bots') : tr('Meet your Chief of Staff')}</button></div>`;
 
