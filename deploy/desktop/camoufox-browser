@@ -1013,8 +1013,8 @@ def x11_screen():
 def screen_size():
     """(the size of the screen this browser opens on, whether it was read). Read: BOTDOT_SCREEN when botdot gives it
     (WxH: boat.dev machines, whose :0 is 1920x1080 and whose bots keep a 1024x768 screen), else the X server's own
-    (libX11, then xdpyinfo, then xrandr). A computer still on an older desktop image has the 1024x768 screen until its
-    Update, where a window made for 1280x800 would not fit. When nothing tells (no tool, no display to reach, as in a
+    (libX11, then xdpyinfo, then xrandr). A screen started before botdot copied the newer botdot-desktop keeps its
+    1024x768 until it ends, where a window made for 1280x800 would not fit. When nothing tells (no tool, no display to reach, as in a
     bridge-only start, ADR 262): the default size and False, and the kept identity is not judged by a guess."""
     def sane(size):
         return size if size and 640 <= size[0] <= 4096 and 480 <= size[1] <= 4096 else None
