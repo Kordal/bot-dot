@@ -303,3 +303,46 @@ test('a group turn held at the twelve-reply limit does not count as work, though
   const r = (await own.api('/update/idle', { headers: FD })).data;
   assert.equal(r.working, 0, 'and it is no work');
 });
+
+// While botdot holds the work (Claude signed out, or over its usage limit) drainQueue starts nothing, so what waits can
+// wait for hours; it is in queue.json, so a restart loses nothing of it, and it is no work: the account may switch.
+test('what waits while Claude is signed out is no work, and counts again once it can start', async (t) => {
+  const own = await startServer();
+  const signedOut = path.join(own.out, 'signed-out');
+  t.after(async () => { fs.rmSync(signedOut, { force: true }); own.unhold(); await own.stop(); });
+  const bot = await makeBot(own, { name: 'Out' });
+  const idleOwn = async () => (await own.api('/update/idle', { headers: FD })).data;
+  const going = [await heldRun(own, bot, 'One.'), await heldRun(own, bot, 'Two.'), await heldRun(own, bot, 'Three.')]; // a bot works on three at once
+  const mine = (await own.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'And this' } })).data;
+  assert.equal(mine.status, 'queued');
+  assert.equal((await idleOwn()).working, 4, 'three runs going and a message waiting for them');
+
+  fs.writeFileSync(signedOut, '');
+  assert.equal((await own.api('/setup/claude', { method: 'DELETE' })).data.stopped, 3);
+  for (const h of going) await own.finished(h.run.id);
+  await new Promise((r) => setTimeout(r, 100)); // past the moment the queue would have gone on
+  assert.equal((await own.api(`/runs/${mine.id}?events=0`)).data.status, 'queued', 'it waits for the sign-in');
+  assert.equal(readData(own.data, 'queue.json').queues[bot.id].length, 1, 'kept in the queue file');
+  const r = await idleOwn();
+  assert.equal(r.working, 0, 'nothing is going, and the message waiting for the sign-in is no work');
+
+  fs.rmSync(signedOut);
+  own.unhold();
+  assert.equal((await own.api('/setup?fresh')).data.claude.loggedIn, true);
+  const rec = await own.nextRun((x) => x.stdin?.startsWith('And this'), 'the waiting message to start');
+  own.release(rec);
+  await waitFor(async () => ((await idleOwn()).working === 0 ? true : null), { what: 'the message to end', timeout: 20_000 });
+});
+
+test('what waits while Claude is over its usage limit is no work either', async (t) => {
+  let own = await startServer();
+  t.after(async () => { own.unhold(); await own.stop(); });
+  const bot = await makeBot(own, { name: 'Limited' });
+  own = await restartServer(own, (data) => {
+    setQueue(data, (q) => { q.queues[bot.id] = [{ key: 'owner:limited-1', kind: 'owner', runId: 'limited-1', prompt: 'Waits for the reset.', text: 'Waits for the reset.', queuedAt: new Date().toISOString() }]; });
+    fs.writeFileSync(path.join(data, 'scheduler.json'), JSON.stringify({ limitUntil: ahead(5 * 3600_000) }));
+  });
+  assert.equal(readData(own.data, 'queue.json').queues[bot.id].length, 1, 'kept in the queue file');
+  const r = (await own.api('/update/idle', { headers: FD })).data;
+  assert.equal(r.working, 0, 'it starts at the reset, from the queue file, however long that is');
+});
