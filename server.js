@@ -1077,7 +1077,7 @@ async function serveScreen(req, res, { botId, rest }) {
   // irreversible step that waits or is on the bot's page then counts as declined (ADR 107).
   if (file === VIEWER_PAGE && /[?&]view_only=0(&|$)/.test(rest)) irreversibleSteps.tookControl(botId);
   if (file !== VIEWER_PAGE) return sendFile(res, file, headers);
-  const html = screenPage.page(fs.readFileSync(file, 'utf8'), lang);
+  const html = screenPage.page(fs.readFileSync(file, 'utf8'), lang, botId, { boat });
   res.writeHead(200, { ...headers, 'Content-Type': HTML_UTF8 });
   res.end(html);
 }

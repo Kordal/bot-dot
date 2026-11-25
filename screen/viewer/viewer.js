@@ -2,6 +2,7 @@
 // through a transport (transport-rfb.js), says its state in words, reconnects by itself, and tells the page that holds
 // it (the web page's dialog, the picture-in-picture, the run's live screen) what state it is in.
 import { createTransport } from './transport-rfb.js';
+import { setupDrop } from './drop.js';
 
 const query = new URLSearchParams(location.search);
 // Watching until the owner takes control: only view_only=0 lets the mouse and keys through (ADR 107).
@@ -75,5 +76,6 @@ function connect() {
 
 setState('starting');
 connect();
+setupDrop({ allowed: () => !viewOnly });
 // The page that holds the viewer may remove it: close the connection with it.
 addEventListener('pagehide', () => { clearTimeout(retry); transport?.disconnect(); });
