@@ -3,7 +3,7 @@ package dev.botdot.app.data
 import kotlinx.serialization.Serializable
 
 /**
- * The pencil on a board tile (ADR 273; web: public/board-edit.js). A tile that has a title of its own has a pencil: it
+ * The pencil on a board tile (ADR 275; web: public/board-edit.js). A tile that has a title of its own has a pencil: it
  * opens the project's own chat, the project manager's, with a chip above the message box that names the tile. The
  * message then carries the tile's id (`card`) and its project, which botdot checks against the board and tells the
  * manager. Taking the chip off sends a plain message; sending clears the chip. Drawn only when `features` has

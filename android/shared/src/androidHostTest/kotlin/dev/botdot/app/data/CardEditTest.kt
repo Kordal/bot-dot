@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The pencil on a board tile (ADR 273): which chat it opens, and what a waiting message keeps of the tile. */
+/** The pencil on a board tile (ADR 275): which chat it opens, and what a waiting message keeps of the tile. */
 class CardEditTest {
     private val running = Company(id = "p1", name = "Shop", phase = "running", chiefChat = "cc1", lead = "pm")
     private val pm = Bot("pm", "Planner")

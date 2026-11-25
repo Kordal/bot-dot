@@ -349,7 +349,7 @@ a.more-btn { text-decoration: none; }
 .reply-chip button:hover { color: var(--text); background: var(--sunk); }
 .reply-chip.hidden { display: none; }
 
-/* The pencil on a board tile and the chip it puts above the message box (ADR 273, board-edit.js). */
+/* The pencil on a board tile and the chip it puts above the message box (ADR 275, board-edit.js). */
 .be-pencil { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--faint); cursor: pointer; }
 .be-pencil:hover, .be-pencil:focus-visible { background: var(--fill); color: var(--text); }
 .be-pencil svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

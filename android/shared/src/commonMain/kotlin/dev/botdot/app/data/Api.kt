@@ -431,7 +431,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
             if (key != null) put("key", key)
             if (replyTo != null) put("replyTo", replyTo) // a run the owner picked Reply on (#627)
             if (answers != null) put("answers", answers) // the run whose question a tapped answer or a sent card answers (#1380)
-            card?.let { put("card", it.id); put("project", it.project) } // the tile of the project's board it points at (ADR 273)
+            card?.let { put("card", it.id); put("project", it.project) } // the tile of the project's board it points at (ADR 275)
         }),
     )
 
@@ -1112,7 +1112,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
             put("text", text)
             put("attachments", json.encodeToJsonElement(attachments))
             if (key != null) put("key", key)
-            card?.let { put("card", it.id); put("project", it.project) } // the tile of the project's board it points at (ADR 273)
+            card?.let { put("card", it.id); put("project", it.project) } // the tile of the project's board it points at (ADR 275)
         })
         return runCatching { json.decodeFromString<ChiefChat>(answer) }.getOrNull()
     }

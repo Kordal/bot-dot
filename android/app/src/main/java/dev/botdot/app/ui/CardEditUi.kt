@@ -28,7 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
- * The pencil on a board tile (ADR 273; web: public/board-edit.js). [CardEditHandle] is what the board's tiles read: the
+ * The pencil on a board tile (ADR 275; web: public/board-edit.js). [CardEditHandle] is what the board's tiles read: the
  * tile pointed at now, and how to point at one. Null where the board has no pencil (the server lacks `card-edit`, the
  * project is not running or has no chat to open).
  */
