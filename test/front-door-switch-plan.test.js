@@ -48,6 +48,13 @@ test('the night window is from 04:00 until the end of the owner\'s quiet hours, 
   assert.deepEqual(hours('UTC', { start: 8, end: 8 }), [4, 5, 6], 'a start that is the end is no quiet hours: 07:00');
   assert.deepEqual(hours('UTC', { start: 22, end: 3 }), [4, 5, 6], 'quiet hours that end before 04:00 leave no window: 07:00');
   assert.deepEqual(hours('UTC', { start: 22, end: 4 }), [4, 5, 6], 'ending at 04:00: the same');
+  assert.deepEqual(hours('UTC', { start: 4, end: 4 }), [4, 5, 6], 'a start that is the end: the same');
+  assert.deepEqual(hours('UTC', { start: 0, end: 4 }), [4, 5, 6], '00:00 to 04:00 ends as the night begins: 07:00');
+  assert.deepEqual(hours('UTC', { start: 13, end: 15 }), [4, 5, 6], 'daytime quiet hours do not cover 04:00: 07:00');
+  assert.deepEqual(hours('UTC', { start: 20, end: 23 }), [4, 5, 6], 'evening quiet hours do not cover 04:00: 07:00');
+  assert.deepEqual(hours('UTC', { start: 22, end: 8 }), [4, 5, 6, 7], 'quiet hours across midnight that cover 04:00');
+  assert.deepEqual(hours('UTC', { start: 2, end: 6 }), [4, 5], 'quiet hours that start before 04:00 and end after it, same day');
+  assert.deepEqual(hours('UTC', { start: 4, end: 9 }), [4, 5, 6, 7, 8], 'quiet hours that start at 04:00');
   // Another zone moves the window on the clock: Tokyo is nine hours ahead of UTC.
   assert.deepEqual(hours('Asia/Tokyo', { start: 22, end: 7 }), [19, 20, 21], '04:00 to 07:00 in Tokyo is 19:00 to 22:00 UTC');
   assert.deepEqual(hours('America/New_York', { start: 22, end: 7 }), [9, 10, 11], '04:00 to 07:00 in New York (UTC-5)');
