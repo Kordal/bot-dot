@@ -334,7 +334,7 @@ test('ownerSaid: the owner\'s requests and what they steered in, as far as the b
 test('ownerSaid: the main assignment of a run the owner started with "Run", and a Board tile\'s message, are not their words', () => {
   const said = H.ownerSaid([
     run({ prompt: 'Every morning list the owner\'s open pull requests.', customPrompt: false }),
-    run({ prompt: 'Refresh the weather: the owner lives in Paris.', tile: true }),
+    run({ prompt: 'Refresh the weather: the owner lives in Paris.', othersWords: true }),
     run({ prompt: 'I am vegan.' }),
   ], { now: NOW });
   assert.deepEqual(said, ['I am vegan.']);
@@ -354,8 +354,8 @@ test('ownerWords: only a request the owner typed, also in a run that carries on'
     chief: run({ id: 'chief', prompt: 'The Chief wrote this.', startedBy: 'chief' }),
     chiefAgain: run({ id: 'chiefAgain', prompt: 'The Chief wrote this.', startedBy: 'chief', customPrompt: false, continues: 'chief' }),
     job: run({ id: 'job', prompt: 'The job\'s task', trigger: 'schedule', jobName: 'Morning check' }),
-    tile: run({ id: 'tile', prompt: 'The tile\'s message', tile: true }),
-    tileAgain: run({ id: 'tileAgain', prompt: 'The tile\'s message', tile: true, customPrompt: false, continues: 'tile' }),
+    tile: run({ id: 'tile', prompt: 'The tile\'s message', othersWords: true }),
+    tileAgain: run({ id: 'tileAgain', prompt: 'The tile\'s message', othersWords: true, customPrompt: false, continues: 'tile' }),
     hello: run({ id: 'hello', prompt: 'Say hello.', trigger: 'hello' }),
     review: run({ id: 'review', prompt: 'Review.', trigger: 'review' }),
     teammate: run({ id: 'teammate', prompt: 'A teammate asked', trigger: 'bot', fromBot: { id: 'x', name: 'F' } }),
@@ -369,6 +369,18 @@ test('ownerWords: only a request the owner typed, also in a run that carries on'
   for (const name of ['assignment', 'assignmentAgain', 'followUp', 'followUpAgain', 'chief', 'chiefAgain', 'job', 'tile', 'tileAgain', 'hello', 'review', 'teammate', 'lost']) assert.equal(words(name), '', name);
   assert.equal(H.ownerWords(runs.again), '', 'without a way to read the run it continues, nothing is known');
   assert.equal(H.ownerWords(null, read), '');
+});
+
+test('ownerSteers: what the owner steered into a run and into each run of the chain it carries on (ADR 278)', () => {
+  const runs = {
+    first: run({ id: 'first', prompt: 'Plan my trip.', steered: [{ id: 's1', text: 'I am vegan.' }, { id: 's2', text: 'A teammate wrote this.', fromBot: { id: 'x', name: 'F' } }] }),
+    again: run({ id: 'again', prompt: 'Plan my trip.', customPrompt: false, continues: 'first', steered: [{ id: 's3', text: 'I live in Lodz.' }] }),
+    third: run({ id: 'third', prompt: 'Plan my trip.', customPrompt: false, continues: 'again' }),
+  };
+  const read = (id) => runs[id] || null;
+  assert.deepEqual(H.ownerSteers(runs.third, read), ['I am vegan.', 'I live in Lodz.'], 'back to the first of the chain, no teammate\'s');
+  assert.deepEqual(H.ownerSteers(runs.again), ['I live in Lodz.'], 'without a way to read, only its own');
+  assert.deepEqual(H.ownerSteers(null, read), []);
 });
 
 test('groupChat hands back the owner\'s messages of the block, not a member\'s reply nor the Project Manager\'s', () => {
