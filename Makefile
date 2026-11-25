@@ -93,6 +93,10 @@ chief-eval: ## 13 typical requests to the real Chief on scratch servers, each sc
 ui-eval: ## 8 prompts to a real bot on scratch servers: kit:ui should be picked where a view is right (a table or a comparison included, with no Markdown table) and not where prose is, and every ui fence it writes is read by the apps' validator; spends model usage, skips when no Claude is signed in (BOT_DOT_TEST_LIVE_ONLY=<case ids> runs some, BOT_DOT_TEST_LIVE_REPEAT=<n> runs each n times)
 	@BOT_DOT_TEST_UI_EVAL=1 node --test --test-reporter=spec test/live/ui-eval.test.js
 
+.PHONY: memory-eval
+memory-eval: ## The live memory suite on real Claude: reading, writing and, in r01 to r06, the weekly memory review (duplicates, a lesson in the runs, a note the owner said, a tidy memory, no invention, a how-to into a skill), each graded on the notes afterwards; spends model usage (BOT_DOT_TEST_LIVE_ONLY=<scenario names> runs some, BOT_DOT_TEST_LIVE_REPEAT=<n> runs each n times; compare with test/live/report.js --compare)
+	@BOT_DOT_TEST_LIVE_CLAUDE=1 node --test --test-reporter=spec test/live/memory-conversations.test.js
+
 .PHONY: tools-real
 tools-real: ## The real micromamba installs jq from conda-forge for one bot both ways, under the container's restrictions (needs Docker and the network)
 	@./tests/integration/tools-real.sh

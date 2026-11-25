@@ -5,16 +5,21 @@
 //   question result keeps its prompt, answer, tool calls, the records recall returned, time taken and context used.
 // - writing: what a bot saves after one short conversation (WRITE_SCENARIOS in grading.js), graded on the store
 //   afterwards: a note or none, for whom, how many.
-// Not part of npm test; costs real model usage.
+// - the weekly review: what the bot's memory review (lib/bots.js reviewPrompt, startReview) does to its notes.
+//   REVIEW_SCENARIOS (r01 to r06, in grading.js) seed a bot with notes and past runs, start its review as "Review
+//   now" does, and grade the notes and skills afterwards: duplicates merged, a lesson in the runs saved, a note the
+//   owner said left alone, nothing changed in a tidy memory, nothing invented, a how-to moved into a skill. No model
+//   judges. The report has a section of its own, and report.js --compare a verdict per scenario.
+// Not part of npm test (its grading is: test/memory-live-grading.test.js); costs real model usage.
 //
 //   BOT_DOT_TEST_LIVE_CLAUDE=1 npm run test:live
 //
 // BOT_DOT_TEST_LIVE_REPEAT (default 3): runs of each scenario. BOT_DOT_TEST_LIVE_ONLY: scenario names,
-// comma separated. BOT_DOT_TEST_LIVE_OUT: folder for results.json and report.md (default: a temp folder).
+// comma separated (BOT_DOT_TEST_LIVE_ONLY=r01-duplicates,r04-nothing-to-do runs two review scenarios). BOT_DOT_TEST_LIVE_OUT: folder for results.json and report.md (default: a temp folder).
 // BOT_DOT_TEST_LIVE_PARALLEL (default 3): scenarios running at once.
 //
 // The baseline is test/live/baseline.json, with its report baseline.md. A later run next to it, with a verdict per
-// question and per write-side scenario (better, the same, worse):
+// question, per write-side scenario and per review scenario (better, the same, worse):
 //   node test/live/report.js --compare test/live/baseline.json <out>/results.json
 // A baseline holds for one Claude model. The servers' data is in the system's temporary folder (TMPDIR): keep that
 // outside any checkout, because Claude Code loads a CLAUDE.md that stands above a bot's folder into its run.
@@ -27,7 +32,8 @@ const crypto = require('crypto');
 const { startServer, makeBot, waitFor } = require('../helpers');
 const { DAYS } = require('../../lib/chat-history');
 const { report } = require('./report');
-const { conversationOf, heldIn, valuesOf, grade, WRITE_SCENARIOS, WRITER } = require('./grading');
+const { conversationOf, heldIn, valuesOf, grade, WRITE_SCENARIOS, WRITER, REVIEW_SCENARIOS, gradeReview } = require('./grading');
+const { seedRun, seedNotes } = require('./seed');
 
 const LIVE = process.env.BOT_DOT_TEST_LIVE_CLAUDE === '1';
 const REPEAT = Math.max(1, Number(process.env.BOT_DOT_TEST_LIVE_REPEAT) || 3);
@@ -42,7 +48,6 @@ const FRESH = DAYS + 1;
 
 const digits = (n) => Array.from({ length: n }, (_, i) => crypto.randomInt(i ? 0 : 1, 10)).join('');
 const letters = (n) => Array.from({ length: n }, () => 'ABCDEFGHJKLMNPRSTUVWXYZ'[crypto.randomInt(23)]).join('');
-const daysAgo = (d) => new Date(Date.now() - d * 864e5).toISOString();
 const ask = (q) => `${q}\n\nEnd your reply with one last line in exactly this form: ANSWER: <the answer>, or ANSWER: unknown if you don't know.`;
 const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 const answerOf = (text) => [...String(text || '').matchAll(/ANSWER:\s*\**\s*(.+)/gi)].pop()?.[1].replace(/\*+/g, '').trim() ?? null;
@@ -105,18 +110,6 @@ async function liveServer(dir) {
   };
   s.close = () => s.srv.stop();
   return s;
-}
-
-// A finished run written straight to the data folder, as if a bot made it days ago (the index picks it up
-// on the next start). For facts that should live only in a past run: so never younger than FRESH days, or the
-// conversation block would hand it to the bot that is asked about it.
-function seedRun(data, bot, { prompt, result, days = FRESH }) {
-  const at = daysAgo(days);
-  const id = `${at.replace(/[-:T]/g, '').slice(0, 14)}-${crypto.randomUUID().slice(0, 6)}`;
-  const meta = { id, botId: bot.id, botName: bot.name, botEmoji: bot.emoji, botColor: bot.color, prompt, customPrompt: true, trigger: 'manual', status: 'success', startedAt: at, endedAt: at, durationMs: 1000, numTurns: 1, result };
-  fs.writeFileSync(path.join(data, 'runs', `${id}.json`), JSON.stringify(meta, null, 2));
-  fs.writeFileSync(path.join(data, 'runs', `${id}.ndjson`), [{ type: 'run_start', meta }, { type: 'result', subtype: 'success', result }, { type: 'run_end', status: 'success', meta }].map((e) => JSON.stringify(e)).join('\n') + '\n');
-  return id;
 }
 
 // ---------- what a conversation did ----------
@@ -506,12 +499,46 @@ async function writeSide(s, scenario) {
   return { says: scenario.says, turns, store, grade: grade(scenario, store, turns) };
 }
 
+// ---------- what the weekly review did ----------
+
+// One review scenario (grading.js): a bot seeded with the scenario's notes and runs on a stopped server, its review
+// started as "Review now" does (POST /api/memory/review/:botId), and the notes and skills it has afterwards, with
+// the grade. Nothing here fails on what the review chose to do.
+async function reviewSide(s, scenario) {
+  const bot = await makeBot(s.srv, scenario.bot);
+  await s.srv.stop();
+  const seeded = seedNotes(s.data, bot.id, scenario.notes);
+  for (const r of scenario.runs) seedRun(s.data, bot, r);
+  await s.restart();
+  const run = await retried(() => reviewOnce(s, bot));
+  if (run.status !== 'success') throw new Error(`The review of ${bot.name} didn't finish: ${run.text.split('\n')[0]}`);
+  const m = (await s.api('/memory')).data;
+  const after = (m.bots.find((b) => b.id === bot.id)?.notes || []).map((n) => ({ id: n.id, text: n.text, topic: n.topic, pinned: n.pinned, pinLocked: n.pinLocked, source: n.source }));
+  // The skills this bot wrote during the review: the library's entries it created, read whole.
+  const library = (await s.api('/skills')).data.library.filter((k) => k.createdBy === `bot:${bot.id}`);
+  const skills = [];
+  for (const k of library) { const x = (await s.api(`/skills/${encodeURIComponent(k.name)}`)).data; skills.push({ name: x.name, description: x.description, instructions: x.instructions }); }
+  const store = { seeded, after, skills };
+  return { says: scenario.says, store, report: run.text, calls: run.calls, model: run.model, grade: gradeReview(scenario, store) };
+}
+
+async function reviewOnce(s, bot) {
+  const started = await s.api(`/memory/review/${bot.id}`, { method: 'POST' });
+  if (!started.data?.run) throw new Error(`Couldn't start the review of ${bot.name}: ${JSON.stringify(started.data)}`);
+  const id = started.data.run.id || started.data.run;
+  const meta = await waitFor(async () => { const r = await s.api(`/runs/${id}`); return r.data.status && !['running', 'queued'].includes(r.data.status) ? r.data : null; }, { timeout: RUN_TIMEOUT, every: 1000, what: `the review of ${bot.name}` });
+  const events = fs.readFileSync(path.join(s.data, 'runs', `${id}.ndjson`), 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return {}; } });
+  const { calls, model } = trace(events);
+  return { runId: id, status: meta.status, text: meta.result || meta.error || '', calls, model };
+}
+
 // ---------- the run ----------
 
 test('live memory conversations (real Claude)', { skip: !LIVE && 'set BOT_DOT_TEST_LIVE_CLAUDE=1 to run live conversations', timeout: 6 * 3600_000 }, async (t) => {
   const writers = new Map(WRITE_SCENARIOS.map((w) => [w.name, w]));
-  const names = ONLY.length ? ONLY : [...Object.keys(SCENARIOS), ...writers.keys()];
-  for (const n of names) assert.ok(SCENARIOS[n] || writers.has(n), `no scenario called ${n}`);
+  const reviewers = new Map(REVIEW_SCENARIOS.map((r) => [r.name, r]));
+  const names = ONLY.length ? ONLY : [...Object.keys(SCENARIOS), ...writers.keys(), ...reviewers.keys()];
+  for (const n of names) assert.ok(SCENARIOS[n] || writers.has(n) || reviewers.has(n), `no scenario called ${n}`);
   const outDir = process.env.BOT_DOT_TEST_LIVE_OUT || fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-live-results-'));
   fs.mkdirSync(outDir, { recursive: true });
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-live-'));
@@ -519,11 +546,12 @@ test('live memory conversations (real Claude)', { skip: !LIVE && 'set BOT_DOT_TE
   for (let rep = 1; rep <= REPEAT; rep++) for (const scenario of names) jobs.push({ scenario, rep });
   const results = []; // reading: the questions of each scenario
   const writes = []; // writing: what the store held after each conversation
+  const reviews = []; // the weekly review: what the notes and skills were after each review
   const work = async () => {
     for (let job; (job = jobs.shift());) {
       const dir = path.join(scratch, `${job.scenario}-${job.rep}`);
       const started = Date.now();
-      const into = writers.has(job.scenario) ? writes : results;
+      const into = writers.has(job.scenario) ? writes : reviewers.has(job.scenario) ? reviews : results;
       let s;
       try {
         s = await liveServer(dir);
@@ -531,6 +559,13 @@ test('live memory conversations (real Claude)', { skip: !LIVE && 'set BOT_DOT_TE
           const w = await writeSide(s, writers.get(job.scenario));
           writes.push({ ...job, ...w, ms: Date.now() - started });
           t.diagnostic(`${job.scenario} #${job.rep}: ${w.grade.saved ? `saved (the bot's ${w.grade.own}, shared ${w.grade.shared}, waiting ${w.grade.waiting})` : 'nothing saved'}`);
+          continue;
+        }
+        if (reviewers.has(job.scenario)) {
+          const w = await reviewSide(s, reviewers.get(job.scenario));
+          reviews.push({ ...job, ...w, ms: Date.now() - started });
+          const g = w.grade;
+          t.diagnostic(`${job.scenario} #${job.rep}: ${g.wanted ? 'as wanted' : 'not as wanted'} (removed ${g.gone.length}, reworded ${g.edited.length}, added ${g.added}, skills ${g.skills})`);
           continue;
         }
         const { setup, questions } = await SCENARIOS[job.scenario](s);
@@ -549,10 +584,10 @@ test('live memory conversations (real Claude)', { skip: !LIVE && 'set BOT_DOT_TE
     const git = (...a) => require('child_process').execFileSync('git', a, { encoding: 'utf8' }).trim();
     commit = git('rev-parse', '--short', 'HEAD') + (git('status', '--porcelain', '--', 'lib', 'server.js') ? ' with uncommitted changes' : '');
   } catch { /* not a checkout */ }
-  const models = [...new Set([...results.flatMap((r) => (r.questions || []).map((q) => q.result.model)), ...writes.flatMap((w) => (w.turns || []).map((x) => x.model))].filter(Boolean))];
+  const models = [...new Set([...results.flatMap((r) => (r.questions || []).map((q) => q.result.model)), ...writes.flatMap((w) => (w.turns || []).map((x) => x.model)), ...reviews.map((r) => r.model)].filter(Boolean))];
   const meta = { date: new Date().toISOString().slice(0, 10), commit, repeat: REPEAT, models };
-  fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify({ ...meta, results, writes }, null, 2));
-  fs.writeFileSync(path.join(outDir, 'report.md'), report(results, meta, writes));
+  fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify({ ...meta, results, writes, reviews }, null, 2));
+  fs.writeFileSync(path.join(outDir, 'report.md'), report(results, meta, writes, reviews));
   t.diagnostic(`results in ${outDir}`);
   // The servers' data, and the Claude session files their runs left in ~/.claude/projects.
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -560,5 +595,5 @@ test('live memory conversations (real Claude)', { skip: !LIVE && 'set BOT_DOT_TE
   for (const p of fs.existsSync(projects) ? fs.readdirSync(projects) : []) if (p.includes(path.basename(scratch))) fs.rmSync(path.join(projects, p), { recursive: true, force: true });
   // Wrong answers and what a bot chose to save are results. A scenario that couldn't run, or a question asked
   // with its answer in the conversation block, is a failure of the test itself.
-  assert.deepEqual([...results, ...writes].filter((r) => r.error).map((r) => `${r.scenario} #${r.rep}: ${r.error}`), []);
+  assert.deepEqual([...results, ...writes, ...reviews].filter((r) => r.error).map((r) => `${r.scenario} #${r.rep}: ${r.error}`), []);
 });
