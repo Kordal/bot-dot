@@ -17,6 +17,8 @@ struct HomeView: View {
     @State private var asking = false
     /// The bot whose computer screen is open, from the ⋯ menu.
     @State private var screen: ScreenOpen?
+    /// What a bot's screen said as it closed ("I'm done" that did not go back), for a moment at the top.
+    @State private var said: (text: String, count: Int) = ("", 0)
     /// Home's search: the Chief, bots and groups that match, then the messages botdot finds (HomeSearch).
     @State private var query = ""
     @State private var hits: [ChatHit] = []
@@ -194,7 +196,8 @@ struct HomeView: View {
         .navigationDestination(for: DocumentView.Opening.self) { ViewerView(api: home.home.api, opening: $0) }
         .refreshable { await home.refresh() }
         .navigationTitle("botdot")
-        .navigationDestination(item: $screen) { s in ScreenView(home: home.home, botId: s.id, name: s.name) }
+        .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
+        .navigationDestination(item: $screen) { s in ScreenView(home: home.home, botId: s.id, name: s.name) { said = ($0, said.count + 1) } }
         .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
         .navigationDestination(for: Route.self) { route in
             switch route {

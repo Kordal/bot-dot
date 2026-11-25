@@ -33,15 +33,16 @@ const boatFrameUrl = (url) => `/boat-desktop.html#u=${encodeURIComponent(url)}`;
 // botdot's own viewer, as on the account's computer (ADR 149). navigator.userAgentData is Chromium's alone.
 const boatViaVnc = () => state.features.includes('boat-desktop-vnc') && !navigator.userAgentData;
 // "I'm done" (ADR 225): while the owner has control, it hands the screen back to the bot, whose last run carries on.
+// The owner said they are done, so the screen closes whatever the server answers (#1743): its words still show.
 function screenDone(m, bot) {
   $('#screen-done', m).onclick = async () => {
     $('#screen-done', m).disabled = true;
     try {
       const r = await api(`/bots/${bot.id}/computer/done`, { method: 'POST' });
       toast(r.text || tr("I'm done"));
-      m.close();
       refresh(); // the card of the step it carries on, if it made one, is answered by this too (ADR 258)
-    } catch (e) { toast(e.message, true); $('#screen-done', m).disabled = false; }
+    } catch (e) { toast(e.message, true); }
+    m.close();
   };
 }
 

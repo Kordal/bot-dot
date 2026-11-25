@@ -139,7 +139,12 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     // "I'm done" (ADR 225): hands the screen back to the bot, whose last run carries on.
                     if (ComputerScreen.canHandBack(state, control, server?.features)) TextButton(onClick = {
                         val a = api ?: return@TextButton
-                        scope.launch { val failed = ComputerScreen.handBack(a, botId); if (failed == null) onBack() else snack.showError(failed) }
+                        // The owner said they are done: it closes whatever the server answers (#1743), and its words outlive the screen as a toast.
+                        scope.launch {
+                            val failed = ComputerScreen.handBack(a, botId)
+                            if (failed != null) android.widget.Toast.makeText(app, failed, android.widget.Toast.LENGTH_LONG).show()
+                            onBack()
+                        }
                     }) { Text(tr("I'm done"), color = p.text) }
                     if (state == "running") TextButton(onClick = { control = !control }) {
                         Text(ComputerScreen.controlLabel(control), color = if (control) p.err else p.text)

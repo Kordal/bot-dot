@@ -16,6 +16,8 @@ struct ChiefView: View {
     /// A bot a chip or a mail card opens: its chat, or its screen.
     @State private var chat: ChatRoute?
     @State private var screen: HomeView.ScreenOpen?
+    /// What a bot's screen said as it closed ("I'm done" that did not go back), for a moment at the top.
+    @State private var said: (text: String, count: Int) = ("", 0)
     /// A file under a reply or one a mail carries, opened in the viewer.
     @State private var opening: DocumentView.Opening?
     /// Its settings (Android's ChiefSettingsScreen), behind the gear.
@@ -30,8 +32,9 @@ struct ChiefView: View {
             } else { Color.clear }
         }
         .replyFiles(api: home.api, from: model?.state?.name ?? "", opening: $opening)
+        .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
         .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
-        .navigationDestination(item: $screen) { s in ScreenView(home: home, botId: s.id, name: s.name) }
+        .navigationDestination(item: $screen) { s in ScreenView(home: home, botId: s.id, name: s.name) { said = ($0, said.count + 1) } }
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
         .navigationDestination(isPresented: $settings) { ChiefSettingsView(home: home) { id in settings = false; model?.open(id) } }
         .toolbar {

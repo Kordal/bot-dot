@@ -82,7 +82,12 @@ fun BoatScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     // "I'm done" (ADR 225): hands the screen back to the bot, whose last run carries on.
                     if (url != null && control && canHandBack) TextButton(onClick = {
                         val a = api ?: return@TextButton
-                        scope.launch { runCatching { a.computerDone(botId) }.onSuccess { onBack() }.onError { snack.showError(it.message ?: tr("Couldn't hand it back")) } }
+                        // The owner said they are done: it closes whatever the server answers (#1743), and its words outlive the screen as a toast.
+                        scope.launch {
+                            val failed = dev.botdot.app.data.ComputerScreen.handBack(a, botId)
+                            if (failed != null) android.widget.Toast.makeText(app, failed, android.widget.Toast.LENGTH_LONG).show()
+                            onBack()
+                        }
                     }) { Text(tr("I'm done"), color = p.text) }
                     if (url != null) TextButton(onClick = { control = !control }) {
                         Text(if (control) tr("Stop controlling") else tr("Take control"), color = if (control) p.err else p.text)
