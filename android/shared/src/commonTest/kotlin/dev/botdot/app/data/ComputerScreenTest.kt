@@ -182,17 +182,30 @@ class ComputerScreenTest {
         assertEquals(1, botdot.posts().size)
     }
 
-    @Test fun doneRefusedSaysWhyAndStays() = runTest {
+    @Test fun doneRefusedClosesTheScreenAndCarriesItsWords() = runTest {
         val botdot = FakeBotdot { r -> if (r.method == "POST") 409 to """{"error":"It is working."}""" else 200 to running }
         val desk = desk(botdot)
         desk.settled()
         desk.control()
         desk.state.first { it.control }
-        assertFalse(desk.done())
-        val s = desk.state.first { it.noticeId > 0 }
-        assertFalse(s.closed)
-        assertEquals("It is working.", s.notice)
+        assertFalse(desk.done(), "it did not go back to the bot")
+        val s = desk.state.first { it.closed }
+        assertEquals("It is working.", s.notice, "the server's words outlive the screen")
         assertEquals(1, s.noticeId)
+        assertFalse(s.handBack, "and I'm done no longer shows")
+        assertFalse(desk.done(), "closed: a late second tap sends nothing")
+        assertEquals(1, botdot.posts().size)
+    }
+
+    @Test fun doneThatFailedOnTheNetworkClosesTheScreenToo() = runTest {
+        val botdot = FakeBotdot { r -> if (r.method == "POST") throw RuntimeException("No connection") else 200 to running }
+        val desk = desk(botdot)
+        desk.settled()
+        desk.control()
+        desk.state.first { it.control }
+        assertFalse(desk.done())
+        val s = desk.state.first { it.closed }
+        assertEquals("No connection", s.notice)
     }
 
     @Test fun thePageCarriesTheSessionCookie() {

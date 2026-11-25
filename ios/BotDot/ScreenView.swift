@@ -4,12 +4,14 @@ import BotdotShared
 
 /// A bot's computer screen, as the Android app's: botdot's own screen page (noVNC) in a web view with the phone's
 /// session. Watching only, unless you take control; then "I'm done" hands the screen back and the bot carries on.
+/// "I'm done" always closes the screen (#1743); when it did not go back to the bot, [onSaid] gets botdot's words, for
+/// the screen below to show once this one is gone.
 struct ScreenView: View {
     let home: HomeStore
     let botId: String
     let name: String
+    let onSaid: (String) -> Void
     @State private var model: ScreenModel?
-    @State private var notice: String?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -36,12 +38,6 @@ struct ScreenView: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) {
-            if let notice {
-                Text(notice).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16)
-                    .accessibilityIdentifier("notice")
-            }
-        }
         .task {
             if model == nil {
                 let made = ScreenModel(home: home, botId: botId)
@@ -50,13 +46,11 @@ struct ScreenView: View {
             }
         }
         .onDisappear { model?.stop(); model = nil }
-        // Handed back to the bot: the screen closes (ADR 225).
-        .onChange(of: model?.state?.closed) { _, closed in if closed == true { dismiss() } }
-        .task(id: model?.state?.noticeId) {
-            guard let text = model?.state?.notice else { return }
-            notice = text
-            try? await Task.sleep(for: .seconds(3))
-            if notice == text { notice = nil }
+        // "I'm done" closes the screen (ADR 225), handed back or not (#1743): what botdot said goes to the screen below.
+        .onChange(of: model?.state?.closed) { _, closed in
+            guard closed == true else { return }
+            if let words = model?.state?.notice { onSaid(words) }
+            dismiss()
         }
     }
 

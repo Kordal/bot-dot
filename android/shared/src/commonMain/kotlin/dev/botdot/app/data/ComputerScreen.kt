@@ -167,7 +167,10 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
         own.update { if (it.state == ComputerScreen.RUNNING) it.copy(control = !it.control) else it }
     }
 
-    /** "I'm done": whether the screen went back to the bot. If not, the notice says why. */
+    /**
+     * "I'm done": whether the screen went back to the bot. The owner said they are done, so the screen closes whatever
+     * the server answers (#1743); if it did not go back, the notice carries why, for the app to show once the screen is gone.
+     */
     @Throws(Exception::class)
     suspend fun done(): Boolean {
         // Checked and claimed in one step (a compare-and-set): of two taps at once, from any thread, one sends it.
@@ -186,7 +189,7 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
             throw e
         }
         // Let go together with what it came to: no moment when it is neither on its way nor closed.
-        own.update { if (failed == null) it.copy(handing = false, closed = true) else it.copy(handing = false, notice = failed, noticeId = it.noticeId + 1) }
+        own.update { if (failed == null) it.copy(handing = false, closed = true) else it.copy(handing = false, closed = true, notice = failed, noticeId = it.noticeId + 1) }
         return failed == null
     }
 
@@ -196,8 +199,8 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
 
 /**
  * What a bot's screen shows now: its [state] (ComputerScreen's), whether the owner has [control], the page's [url]
- * while it runs, whether "I'm done" shows ([handBack]), a [notice] (new with each [noticeId]), and [closed] once the
- * screen went back to the bot.
+ * while it runs, whether "I'm done" shows ([handBack]), a [notice] (new with each [noticeId]; the app shows it once
+ * the screen is gone), and [closed] once the owner said "I'm done", whether or not the screen went back to the bot.
  */
 data class ScreenState(
     val state: String,
