@@ -1,14 +1,14 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): an update to a named version, the snapshot of each
 // account's data before its switch, and a rollback to it (#979, ADR 155).
+// Part 3 of 3 of the named update tests: the parts run side by side, so that no one file sets the time of a shard (docs/decisions/2026-11-25-installer-tests-in-parts.md).
 const { test } = require('node:test');
 if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { checked, installer, withBob, status } = require('./installer-helpers');
+const { installer, withBob, status } = require('./installer-helpers');
 
 const NAMED = `sha256:${'e'.repeat(64)}`;
-const REVISION = 'f'.repeat(40);
 
 // An install with bob, whose data holds `note`, and an update through root's step asked for with `request` (the text
 // of the UPDATE file). options: more for the installer (answers, dockerFirst, given). What it did, update.json, the
@@ -29,58 +29,16 @@ function update(t, request, options = {}, { dotenv = '' } = {}) {
   return { ...bob, done, log, calls, before, update: status(done, 'update.json'), env: done.env };
 }
 
-test('an update request that names a digest installs exactly that signed release, and its computer of the same source', (t) => {
-  const { done, update: u, log, calls, first } = update(t, `${NAMED}\n`, { answers: { revision: REVISION, release: '7' } });
-  assert.equal(u.state, 'updated', log);
-  assert.equal(u.named, NAMED, 'update.json says the version it was asked for');
-  const asked = done.checks.map(checked);
-  const server = asked.find((a) => a[1] === 'server');
-  assert.deepEqual(server, [`ghcr.io/ladrok/bot-dot@${NAMED}`, 'server', '--release', '--at', 'e'.repeat(64), '--installed', '1'], 'that release, by its own signed tag, never older than the one installed');
-  const desktop = asked.find((a) => a[1] === 'desktop');
-  assert.deepEqual(desktop, ['ghcr.io/ladrok/bot-dot-desktop:latest', 'desktop', '--at', REVISION], 'the computer of the same source revision');
-  const env = fs.readFileSync(path.join(first.dir, 'front-door', '.env'), 'utf8');
-  assert.match(env, new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/ladrok/bot-dot@${NAMED}$`, 'm'), 'the front door pins it');
-  assert.match(env, /^BOT_DOT_RELEASE=7$/m, 'and its release number, against which an older one is refused');
-  assert.ok(calls('bob').some((c) => c === `pull ghcr.io/ladrok/bot-dot@${NAMED}`), 'bob got that very image');
-  assert.match(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', '.env'), 'utf8'), new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/ladrok/bot-dot@${NAMED}$`, 'm'));
-});
-
-test('an update request without a digest takes the newest, as before', (t) => {
-  const { done, update: u, log } = update(t, '');
-  assert.equal(u.state, 'updated', log);
-  assert.equal(u.named, undefined);
-  assert.deepEqual(done.checks.map(checked).map((a) => a.slice(0, 3)), [['ghcr.io/ladrok/bot-dot:latest', 'server', '--release'], ['ghcr.io/ladrok/bot-dot-desktop:latest', 'desktop']]);
-  assert.ok(!done.checks.some((a) => a.includes('--at')));
-});
-
-// What a refused named update leaves: nothing downloaded, nothing restarted, update.json failed at check.
-function refusedAtCheck(r, why) {
-  assert.equal(r.update.state, 'failed', r.log);
-  assert.equal(r.update.phase, 'check', 'it stopped at check');
-  assert.match(r.update.error, why);
-  const since = r.done.docker.slice(r.before).map((c) => c.call);
-  assert.ok(!since.some((c) => /^(pull|load)\b|^compose .* (up|stop)/.test(c)), `nothing downloaded or restarted:\n${since.join('\n')}`);
-  assert.match(fs.readFileSync(path.join(r.home, 'compose.yaml'), 'utf8'), /# the version before/);
+// A snapshot as a switch that didn't finish leaves it: root's own, with the data and what the account ran before.
+function snapshotOf(r) {
+  const snap = path.join(r.home, 'snapshot');
+  fs.mkdirSync(path.join(snap, 'data'), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(snap, 'data', 'note'), 'before');
+  fs.writeFileSync(path.join(snap, 'compose.yaml'), `${fs.readFileSync(path.join(r.home, 'compose.yaml'), 'utf8')}# the version before\n`);
+  fs.copyFileSync(path.join(r.home, '.env'), path.join(snap, '.env'));
+  fs.writeFileSync(path.join(snap, 'at'), `${new Date().toISOString()}\n`);
+  return snap;
 }
-
-test('a digest that is not a signed release is refused at check, and nothing restarts', (t) => {
-  refusedAtCheck(update(t, NAMED, { signed: { [`ghcr.io/ladrok/bot-dot@${NAMED}`]: 'it has no botdot signature' } }), new RegExp(`Refused ghcr\\.io/ladrok/bot-dot@${NAMED}: it has no botdot signature\\. Nothing was downloaded or started\\.`));
-});
-
-test('a request that names no digest is refused at check', (t) => {
-  refusedAtCheck(update(t, 'latest please'), /Refused the version asked for: name it as sha256: and the 64 hex digits/);
-});
-
-test("the admin page's Update of a front door from before #979, which writes the time it asked, takes the newest", (t) => {
-  const { update: u, log } = update(t, `${new Date().toISOString()}\n`);
-  assert.equal(u.state, 'updated', log);
-  assert.equal(u.named, undefined, "it names no version");
-  assert.doesNotMatch(log, /Refused the version asked for/);
-});
-
-test('a named version older than the one the front door runs is refused', (t) => {
-  refusedAtCheck(update(t, NAMED, { answers: { release: '3' } }, { dotenv: 'BOT_DOT_RELEASE=5\n' }), /it is older than the version this machine runs/);
-});
 
 test("each account's data is kept as a snapshot before its switch, and goes once its new server answers", (t) => {
   const { home, calls, log, update: u, done } = update(t, NAMED);
@@ -102,17 +60,6 @@ test("an account whose disk wouldn't keep a fifth free after the snapshot switch
   assert.ok(!calls('bob').some((c) => /^compose .* stop bot-dot$/.test(c)), "its server isn't stopped for a copy");
   assert.deepEqual(fs.readdirSync(home).filter((f) => f.startsWith('snapshot')), []);
 });
-
-// A snapshot as a switch that didn't finish leaves it: root's own, with the data and what the account ran before.
-function snapshotOf(r) {
-  const snap = path.join(r.home, 'snapshot');
-  fs.mkdirSync(path.join(snap, 'data'), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(snap, 'data', 'note'), 'before');
-  fs.writeFileSync(path.join(snap, 'compose.yaml'), `${fs.readFileSync(path.join(r.home, 'compose.yaml'), 'utf8')}# the version before\n`);
-  fs.copyFileSync(path.join(r.home, '.env'), path.join(snap, '.env'));
-  fs.writeFileSync(path.join(snap, 'at'), `${new Date().toISOString()}\n`);
-  return snap;
-}
 
 test("a new server that doesn't answer gets its data back from the snapshot, with its version (ADR 044)", (t) => {
   // bob's first `compose up` of the update starts a server that changes its data and never answers.

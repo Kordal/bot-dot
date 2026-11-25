@@ -1,5 +1,5 @@
 // An account moved between machines by the fleet console (ADR 254, install.sh's IMPORT- and DELETE-, in
-// test/installer-offsite.test.js): `node front-door.js import-account --account NAME --record FILE --by console` makes
+// test/installer-offsite-*.test.js): `node front-door.js import-account --account NAME --record FILE --by console` makes
 // the account with no passkey from what the other machine's front door kept of it, so that only a sign-in link lets
 // its owner in, and `delete-account` has the running front door delete it as the admin page does: its boat.dev
 // machines, its rooms and its usage go too. Each prints one line of JSON and keeps an
