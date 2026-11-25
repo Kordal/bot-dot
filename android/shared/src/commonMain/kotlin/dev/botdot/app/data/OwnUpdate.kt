@@ -23,6 +23,10 @@ data class OwnUpdate(
     /** How the last switch went: `switching`, `updated`, `kept` or `failed`, and why when it didn't happen. */
     val last: String? = null,
     val error: String? = null,
+    /** The owner's `when` (ADR 271): `ready`, `night` or `manual`; null from a front door that doesn't have it. */
+    val updateWhen: String? = null,
+    /** `night` when the owner chose "Tonight" for the version that waits. */
+    val plan: String? = null,
 ) {
     val ready get() = deadline != null
     val moving get() = asked || last == "switching"
@@ -30,7 +34,16 @@ data class OwnUpdate(
     /** What the section says, in the web page's words: nothing while nothing waits or moves. */
     fun text(zone: TimeZone = TimeZone.currentSystemDefault()): String = when {
         moving -> tr("Moving to the new version. Your bots restart in a minute or two.")
-        ready -> tr("A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.", "version" to (readyVersion?.let { " ($it)" } ?: ""), "day" to day(deadline!!, zone))
+        ready -> {
+            val version = readyVersion?.let { " ($it)" } ?: ""
+            val on = day(deadline!!, zone)
+            when {
+                updateWhen == "ready" -> tr("A new version{version} is ready. Your account moves to it as soon as your bots are idle.", "version" to version)
+                updateWhen == "night" || (updateWhen == "manual" && plan == "night") -> tr("A new version{version} is ready. Your account moves to it at night, when your bots are idle.", "version" to version)
+                updateWhen == "manual" -> tr("A new version{version} is ready. Your account moves to it when you say, or by itself from {day}.", "version" to version, "day" to on)
+                else -> tr("A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.", "version" to version, "day" to on)
+            }
+        }
         last == "kept" || last == "failed" -> tr("The last move to a new version didn't happen: {why}.", "why" to (error?.ifBlank { null } ?: tr("the admin can see why")))
         else -> ""
     }
@@ -54,6 +67,8 @@ data class OwnUpdate(
                 deadline = text(ready, "deadline")?.takeIf { runCatching { Instant.parse(it) }.isSuccess },
                 last = text(last, "state"),
                 error = text(last, "error"),
+                updateWhen = text(j, "when")?.takeIf { it == "ready" || it == "night" || it == "manual" },
+                plan = text(j, "plan")?.takeIf { it == "night" },
             )
         }
 

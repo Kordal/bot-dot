@@ -48,9 +48,11 @@ test('room on a managed machine is its shares against what it has, less a reserv
 });
 
 test('managed, one account on a public origin: no admin page, and the setup key makes the one account', async (t) => {
-  const door = await startFrontDoor({ env: { FRONT_DOOR_ORIGIN: ORIGIN, FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_ADMIN: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
+  // With a requests folder, as root's step gives one: the front door still plans no switch here (ADR 271, #1689).
+  const requests = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-requests-'));
+  const door = await startFrontDoor({ env: { FRONT_DOOR_ORIGIN: ORIGIN, FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_ADMIN: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY, FRONT_DOOR_REQUESTS: requests } });
   const owner = await standIn(door, 'owner');
-  t.after(async () => { await door.stop(); owner.close(); });
+  t.after(async () => { await door.stop(); owner.close(); fs.rmSync(requests, { recursive: true, force: true }); });
   assert.equal(door.firstLink, null, `no sign-up link printed:\n${door.log.join('')}`);
   assert.equal((await door.browser().get('/admin')).status, 404, 'no admin page, not even the sign-in page');
   assert.equal((await door.browser().get('/admin/capacity')).status, 404);
@@ -65,6 +67,7 @@ test('managed, one account on a public origin: no admin page, and the setup key 
   assert.equal((await b.get('/admin/accounts')).status, 404);
   assert.equal(owner.seen.filter((r) => r.url.startsWith('/admin')).length, 0, 'never passed on to the account');
   assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, deleteAccount: true, deletionRequest: true, deleteAccountPage: null, subscriptionPage: null, feedback: false, feedbackTo: null, feedbackScreenshots: false, feedbackReports: false, feedbackAsk: true, updates: false, rooms: false, roomLinks: false });
+  assert.equal((await b.get('/front-door/update')).status, 404, 'the owner of a managed machine chooses no time for an update: the fleet console does');
   assert.equal((await b.get('/front-door/feedback')).status, 404, 'no My reports on a managed machine yet: its statuses come back through the console');
   assert.equal((await b.get('/api/bots')).data.account, 'owner');
 });
