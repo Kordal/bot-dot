@@ -89,4 +89,49 @@ class OwnUpdateTest {
         assertEquals("/front-door/update/notes", door.takeRequest().target)
         assertEquals(listOf(WhatsNew.Entry("2026-10-22-b", "Second", listOf("One", "Two"))), notes)
     }
+
+    // The three-way "When" (ADR 271, #1691): drawn only when the answer has `when`, else the switch, unchanged.
+    private fun waiting(`when`: String, more: String = "") =
+        """{"when":"$`when`","autoUpdate":${`when` != "manual"},"asked":false,"canUpdate":true$more,"ready":{"version":"abc1234","from":"0123456","since":"2026-10-21T10:00:00.000Z","deadline":"2026-10-28T10:00:00.000Z"},"last":null}"""
+
+    @Test fun readsTheWhenAndDrawsTheChoiceOnlyWhereTheAnswerHasIt() {
+        assertEquals(listOf("ready", "night", "manual"), listOf("ready", "night", "manual").map { OwnUpdate.of(obj(waiting(it))).updateWhen })
+        assertTrue(OwnUpdate.of(obj(waiting("night"))).chooses)
+        assertFalse("an older front door", OwnUpdate.of(obj(ready)).chooses)
+        assertNull("not one of the three", OwnUpdate.of(obj("""{"when":"sometimes"}""")).updateWhen)
+        assertNull("not a text", OwnUpdate.of(obj("""{"when":true}""")).updateWhen)
+        assertEquals(listOf("As soon as it's ready", "At night, when idle", "When I say"), OwnUpdate.WHENS.map { it.second })
+        assertEquals("At night, when idle", OwnUpdate.of(obj(waiting("night"))).whenName)
+        assertEquals("", OwnUpdate.of(obj(ready)).whenName)
+    }
+
+    @Test fun saysWhenTheWaitingVersionMovesAndItsDeadline() {
+        val z = TimeZone.UTC
+        assertEquals("A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle, by Wednesday, Oct 28 at the latest.", OwnUpdate.of(obj(waiting("ready"))).text(z))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it at night, when your bots are idle, by Wednesday, Oct 28 at the latest.", OwnUpdate.of(obj(waiting("night"))).text(z))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it when you say, or by Wednesday, Oct 28.", OwnUpdate.of(obj(waiting("manual"))).text(z))
+        assertTrue("moving is said as before", OwnUpdate.of(obj("""{"when":"night","asked":true}""")).text(z).startsWith("Moving to the new version"))
+        assertEquals("nothing waits: the choice says it all", "", OwnUpdate.of(obj("""{"when":"night"}""")).text(z))
+    }
+
+    @Test fun sendsTheChoiceToTheFrontDoor() = runBlocking {
+        door.enqueue(json(waiting("manual")))
+        assertEquals("manual", api.setUpdateWhen("manual").updateWhen)
+        val r = door.takeRequest()
+        assertEquals("POST" to "/front-door/update", r.method to r.target)
+        assertEquals("1", r.headers["X-Bot-Dot"])
+        assertEquals("""{"when":"manual"}""", r.body!!.utf8())
+
+        door.enqueue(json("""{"error":"Your account is paused by the admin."}""", 503))
+        try { api.setUpdateWhen("ready"); fail("refused") } catch (e: ApiException) { assertEquals("Your account is paused by the admin.", e.message) }
+    }
+
+    @Test fun updateNowWarnsThatWorkStopsOnlyWhenTheAnswerSaysBusy() {
+        assertTrue(OwnUpdate.of(obj(waiting("manual", ""","busy":true"""))).warnsOnUpdateNow)
+        assertFalse(OwnUpdate.of(obj(waiting("manual", ""","busy":false"""))).warnsOnUpdateNow)
+        assertTrue("it doesn't say: today's confirm", OwnUpdate.of(obj(waiting("manual"))).warnsOnUpdateNow)
+        assertTrue("an older front door", OwnUpdate.of(obj(ready)).warnsOnUpdateNow)
+        assertEquals("At night, when idle", AppSettingsState(update = OwnUpdate.of(obj(waiting("night")))).updateValue)
+        assertEquals("Automatic", AppSettingsState(update = OwnUpdate.of(obj(ready.replace("false", "true")))).updateValue)
+    }
 }

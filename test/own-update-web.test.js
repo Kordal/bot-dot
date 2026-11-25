@@ -13,23 +13,28 @@ const NOTES = { entries: [{ id: '2026-10-22-b', title: 'Second <b>', points: ['O
 function page({ features = ['accounts'], session = { updates: true }, update = READY, after = null, confirmed = true, notes = answer(200, NOTES) } = {}) {
   const calls = [];
   const toasts = [];
+  const asked = [];
   const box = element();
   const now = element();
-  const card = element({ '#auto-update': box, '#update-now': now }, {});
+  const pick = element();
+  const card = element({ '#auto-update': box, '#update-when': pick, '#update-now': now }, {});
   card.hidden = true;
   const ctx = vm.createContext({
     ...words,
     state: { features },
     esc: (s) => String(s).replace(/</g, '&lt;'),
     toast: (text, bad = false) => toasts.push([text, bad]), flashSaved() {},
-    askFirst: async () => confirmed,
+    askFirst: async (text) => { asked.push(text); return confirmed; },
     setTimeout: () => 0, clearTimeout: () => {},
     $: (sel, root) => (sel === '#update-card' ? card : root ? root.querySelector(sel) : null),
     fetch: async (url, opts) => {
       calls.push([url, opts]);
       if (url === '/front-door/session') return answer(200, session)();
       if (url === '/front-door/update/notes') return notes();
-      if (opts?.method === 'POST') return (after || answer(200, { ...update, autoUpdate: JSON.parse(opts.body).autoUpdate ?? update.autoUpdate }))();
+      if (opts?.method === 'POST') {
+        const sent = JSON.parse(opts.body);
+        return (after || answer(200, { ...update, autoUpdate: sent.autoUpdate ?? update.autoUpdate, ...(sent.when ? { when: sent.when, autoUpdate: sent.when !== 'manual' } : {}) }))();
+      }
       return answer(200, update)();
     },
   });
@@ -37,7 +42,7 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
     ${cut('const CHEV = ', '// A change on a settings screen saves by itself')}
     ${cut('// ---------- when this account switches to a new version ----------', '// ---------- signing out everywhere ----------')}
     Object.assign(this, { loadUpdateCard, drawUpdateCard, updateCardText });`, ctx);
-  return { ctx, calls, toasts, card, box, now };
+  return { ctx, calls, toasts, asked, card, box, now, pick };
 }
 
 test('web: Settings shows Updates only where the front door says this account chooses', async () => {
@@ -132,4 +137,81 @@ test('web: every note a waiting version brings shows under Updates, past the new
   assert.match(card.innerHTML, /14 changes, newest first/);
   assert.equal((card.innerHTML.match(/<section>/g) || []).length, 3);
   assert.equal((card.innerHTML.match(/<details><summary>Note \d+<\/summary>/g) || []).length, 11);
+});
+
+// The three-way "When" (ADR 271, #1691): drawn only when the answer has `when`, else the switch above, unchanged.
+const DAY = new Date(READY.ready.deadline).toLocaleDateString('en', { weekday: 'long', month: 'short', day: 'numeric' });
+const WHEN = (when, more = {}) => ({ ...READY, when, autoUpdate: when !== 'manual', ...more });
+
+test('web: an answer with `when` draws the three-way choice, not the switch', async () => {
+  for (const [when, name] of [['ready', "As soon as it's ready"], ['night', 'At night, when idle'], ['manual', 'When I say']]) {
+    const { ctx, card } = page({ update: WHEN(when) });
+    await ctx.loadUpdateCard();
+    assert.doesNotMatch(card.innerHTML, /id="auto-update"|Update automatically/, 'no switch');
+    assert.match(card.innerHTML, /<b>When<\/b><select id="update-when" aria-label="When">/);
+    assert.deepEqual([...card.innerHTML.matchAll(/<option value="(\w+)"( selected)?>([^<]*)</g)].map((m) => [m[1], !!m[2], m[3]]),
+      [['ready', when === 'ready', "As soon as it's ready"], ['night', when === 'night', 'At night, when idle'], ['manual', when === 'manual', 'When I say']]);
+    assert.match(card.innerHTML, new RegExp(`<summary><b>Updates</b><span class="bs-val">${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</span>`), 'the row names the choice');
+  }
+});
+
+test('web: the text under the choice says when the waiting version moves, and the deadline', async () => {
+  const said = async (when) => {
+    const { ctx, card } = page({ update: WHEN(when) });
+    await ctx.loadUpdateCard();
+    return card.innerHTML.match(/id="update-said">([^<]*)</)[1];
+  };
+  assert.equal(await said('ready'), `A new version (abc1234) is ready. Your account moves to it as soon as your bots are idle, by ${DAY} at the latest.`);
+  assert.match(await said('night'), /^A new version \(abc1234\) is ready\. Your account moves to it at night, when your bots are idle, by .+ at the latest\.$/);
+  assert.match(await said('manual'), /^A new version \(abc1234\) is ready\. Your account moves to it when you say, or by .+\.$/);
+  const { ctx } = page();
+  assert.match(ctx.updateCardText({ when: 'night', asked: true }), /^Moving to the new version/, 'moving and failing are said as before');
+  assert.equal(ctx.updateCardText({ when: 'night', last: null, ready: null }), '', 'nothing waits: the choice says it all');
+  const none = page({ update: WHEN('night', { ready: null, canUpdate: false }) });
+  await none.ctx.loadUpdateCard();
+  assert.doesNotMatch(none.card.innerHTML, /id="update-said"/);
+});
+
+test('web: choosing sends { when } at once, and a refusal puts the old choice back', async () => {
+  const { ctx, calls, card, pick } = page({ update: WHEN('night') });
+  await ctx.loadUpdateCard();
+  pick.value = 'manual';
+  await pick.onchange();
+  const [url, opts] = calls.at(-1);
+  assert.equal(url, '/front-door/update');
+  assert.equal(opts.headers['X-Bot-Dot'], '1');
+  assert.deepEqual(JSON.parse(opts.body), { when: 'manual' });
+  assert.match(card.innerHTML, /<option value="manual" selected>/, 'drawn again from its answer');
+
+  const no = page({ update: WHEN('night'), after: answer(503, { error: 'Your account is paused by the admin.' }) });
+  await no.ctx.loadUpdateCard();
+  no.pick.value = 'ready';
+  await no.pick.onchange();
+  assert.deepEqual(no.toasts, [['Your account is paused by the admin.', true]]);
+  assert.equal(no.pick.value, 'night');
+  assert.equal(no.pick.disabled, false);
+});
+
+test('web: an answer without `when` keeps the switch, whatever else it says', async () => {
+  const { ctx, card } = page({ update: { ...READY, busy: true } });
+  await ctx.loadUpdateCard();
+  assert.match(card.innerHTML, /id="auto-update"/);
+  assert.doesNotMatch(card.innerHTML, /id="update-when"/);
+  assert.match(card.innerHTML, /by itself on/, "today's line");
+});
+
+test('web: "Update now" warns that work stops only when the answer says the account is busy', async () => {
+  const warning = /work still running stops/;
+  for (const [more, warns] of [[{ busy: true }, true], [{ busy: false }, false], [{}, true]]) {
+    const { ctx, now, asked } = page({ update: WHEN('manual', more) });
+    await ctx.loadUpdateCard();
+    await now.onclick();
+    assert.equal(asked.length, 1);
+    assert.equal(warning.test(asked[0]), warns, JSON.stringify(more));
+    assert.match(asked[0], /^Update now\?/);
+  }
+  const old = page();
+  await old.ctx.loadUpdateCard();
+  await old.now.onclick();
+  assert.match(old.asked[0], warning, 'an older front door: today\'s confirm');
 });

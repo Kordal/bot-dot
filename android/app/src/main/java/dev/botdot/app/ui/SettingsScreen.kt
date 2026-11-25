@@ -482,9 +482,12 @@ fun SettingsScreen(
             }
 
             update?.let { u ->
-                // On: always the latest botdot version. Off: the owner updates when ready, before the admin's deadline.
-                FoldSection(tr("Updates"), if (u.autoUpdate) tr("Automatic") else tr("By hand")) {
-                    SwitchRow(tr("Update automatically"), checked = u.autoUpdate) { on ->
+                // With `when` (ADR 271): the owner's three-way choice. Without it, from an older front door: today's switch.
+                FoldSection(tr("Updates"), if (u.chooses) u.whenName else if (u.autoUpdate) tr("Automatic") else tr("By hand")) {
+                    if (u.chooses) Choice(tr("When"), u.updateWhen!!, dev.botdot.app.data.OwnUpdate.WHENS) { to ->
+                        if (to == u.updateWhen) return@Choice
+                        scope.launch { runCatching { api!!.setUpdateWhen(to) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
+                    } else SwitchRow(tr("Update automatically"), checked = u.autoUpdate) { on ->
                         scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
                     }
                     u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
@@ -652,7 +655,8 @@ fun SettingsScreen(
     if (confirmUpdateNow) AlertDialog(
         onDismissRequest = { confirmUpdateNow = false },
         title = { Text(tr("Update now?")) },
-        text = { Text(tr("Your account moves to the new version: your bots restart, and work still running stops.")) },
+        // "Now" means now: the warning that work stops is for an account the front door says is busy.
+        text = { Text(if (update?.warnsOnUpdateNow != false) tr("Your account moves to the new version: your bots restart, and work still running stops.") else tr("Your account moves to the new version.")) },
         confirmButton = {
             TextButton(onClick = {
                 confirmUpdateNow = false
