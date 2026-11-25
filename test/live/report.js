@@ -1,13 +1,13 @@
 // The live memory conversations report (memory-conversations.test.js), from its results.json:
 //   node test/live/report.js results.json > report.md
 // Or a later run next to a baseline (test/live/baseline.json), question by question and, for what the bots
-// saved, scenario by scenario, each with its verdict: better, the same or worse.
+// saved and what the weekly review did, scenario by scenario, each with its verdict: better, the same or worse.
 //   node test/live/report.js --compare test/live/baseline.json results.json
-const { WRITE_SCENARIOS, grade } = require('./grading');
+const { WRITE_SCENARIOS, REVIEW_SCENARIOS, grade, gradeReview } = require('./grading');
 
 const median = (xs) => { const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b); return v.length ? v[Math.floor((v.length - 1) / 2)] : null; };
 
-function report(results, meta, writes = []) {
+function report(results, meta, writes = [], reviews = []) {
   const rows = new Map();
   for (const run of results) {
     for (const q of run.questions || []) {
@@ -63,6 +63,7 @@ function report(results, meta, writes = []) {
     if (odd.length) lines.push('');
   }
   if (writes.length) lines.push(...writeReport(writes));
+  if (reviews.length) lines.push(...reviewReport(reviews));
   return lines.join('\n');
 }
 
@@ -210,6 +211,86 @@ function compareWrites(before, after) {
   return lines.join('\n');
 }
 
+
+// ---------- what the weekly review did ----------
+
+// The grade of a repeat by today's rules, from the notes and skills its file kept (as graded() reads the write side).
+function reviewGraded(w) {
+  const scenario = REVIEW_SCENARIOS.find((x) => x.name === w.scenario);
+  return scenario && w.store ? gradeReview(scenario, w.store) : w.grade;
+}
+
+// Per scenario, over the repeats that completed: what each review did, one number per repeat.
+function reviewSummary(reviews) {
+  const out = new Map();
+  for (const w of reviews) {
+    const g = reviewGraded(w);
+    if (!g) continue;
+    if (!out.has(w.scenario)) out.set(w.scenario, { says: w.says || '', n: 0, wanted: 0, gone: [], edited: [], repinned: [], added: [], skills: [], invented: [] });
+    const s = out.get(w.scenario);
+    s.n++;
+    if (g.wanted) s.wanted++;
+    s.gone.push(g.gone.length); s.edited.push(g.edited.length); s.repinned.push(g.repinned.length);
+    s.added.push(g.added); s.skills.push(g.skills); s.invented.push(g.invented);
+  }
+  return new Map([...out].sort(([x], [y]) => x.localeCompare(y)));
+}
+
+const REVIEW_LEGEND = 'As wanted: repeats that ended the way the scenario says (grading.js REVIEW_SCENARIOS): duplicates down to one note, the lesson in a run saved as a note, the owner\'s note as it was and still pinned, a tidy memory unchanged, no note of words that neither the notes nor the runs hold, a how-to as a skill with its note removed. Removed, Reworded, Re-pinned, Added, Skills: per repeat, how many seeded notes the review removed, reworded, pinned or unpinned, how many notes and skills it made. Invented: per repeat, notes it wrote whose numbers or half of whose words were in neither.';
+
+function reviewReport(reviews) {
+  const rows = reviewSummary(reviews);
+  const lines = [
+    '## The weekly review', '',
+    `Each scenario seeds a bot with notes and past runs on its own server, starts the bot's memory review as "Review now" does, and reads its notes and skills afterwards. ${REVIEW_LEGEND}`, '',
+    '| Scenario | As wanted | Removed | Reworded | Re-pinned | Added | Skills | Invented |',
+    '| --- | ---: | --- | --- | --- | --- | --- | --- |',
+  ];
+  let wanted = 0; let all = 0;
+  for (const [name, s] of rows) {
+    wanted += s.wanted; all += s.n;
+    lines.push(`| ${name}: ${s.says} | ${of(s.wanted, s.n)} | ${s.gone.join(', ')} | ${s.edited.join(', ')} | ${s.repinned.join(', ')} | ${s.added.join(', ')} | ${s.skills.join(', ')} | ${s.invented.join(', ')} |`);
+  }
+  lines.push('', `**As wanted: ${wanted}/${all}.** This counts what happened; nothing here is asserted.`, '');
+  const failed = reviews.filter((w) => w.error);
+  if (failed.length) lines.push('### Reviews that failed', '', ...failed.map((w) => `- ${w.scenario} #${w.rep}: ${w.error}`), '');
+  lines.push('### What the review changed, after each repeat', '');
+  for (const w of reviews.filter((x) => x.store).sort((x, y) => x.scenario.localeCompare(y.scenario) || x.rep - y.rep)) {
+    const g = reviewGraded(w);
+    const seeded = new Set(w.store.seeded.map((x) => x.id));
+    const said = (t) => `"${String(t).replace(/\s+/g, ' ')}"`;
+    const changes = [
+      ...g.gone.map((k) => `removed ${k}`), ...g.edited.map((k) => `reworded ${k}`), ...g.repinned.map((k) => `re-pinned ${k}`),
+      ...w.store.after.filter((n) => !seeded.has(n.id)).map((n) => `added ${said(n.text)}`),
+      ...(w.store.skills || []).map((k) => `wrote the skill ${k.name}`),
+    ];
+    lines.push(`- ${w.scenario} #${w.rep}: ${changes.join('; ') || 'no change'}${g.wanted ? '' : ' (not as wanted)'}`);
+  }
+  lines.push('');
+  return lines;
+}
+
+// What the review did, next to the baseline: per scenario better, the same or worse, by the repeats that ended as wanted.
+function compareReviews(before, after) {
+  const [a, b] = [reviewSummary(before), reviewSummary(after)];
+  const lines = [
+    '## The weekly review, compared', '',
+    `Each cell: baseline → change, where it moved. Verdict: by the repeats that ended as wanted. ${REVIEW_LEGEND}`, '',
+    '| Scenario | As wanted | Removed | Reworded | Re-pinned | Added | Skills | Invented | Verdict |',
+    '| --- | ---: | --- | --- | --- | --- | --- | --- | --- |',
+  ];
+  const verdicts = [];
+  const list = (s, f) => s[f]?.join(', ');
+  for (const name of new Set([...a.keys(), ...b.keys()])) {
+    const x = a.get(name) || {}; const y = b.get(name) || {};
+    const v = verdict({ good: x.wanted, n: x.n }, { good: y.wanted, n: y.n });
+    verdicts.push(v);
+    lines.push(`| ${name}: ${y.says || x.says || ''} | ${cell(of(x.wanted, x.n), of(y.wanted, y.n))} | ${['gone', 'edited', 'repinned', 'added', 'skills', 'invented'].map((f) => cell(list(x, f), list(y, f))).join(' | ')} | ${v} |`);
+  }
+  lines.push('', `**Review scenarios ${tally(verdicts)}.**`, '');
+  return lines.join('\n');
+}
+
 // Two result files side by side: x the baseline, y the later run. Both sides of memory, where both files have them.
 function comparison(x, y) {
   const models = (r) => (r.models || []).join(', ') || 'unknown';
@@ -217,20 +298,22 @@ function comparison(x, y) {
   // A baseline holds for one Claude model: on another one, the difference is the model's as much as the change's.
   if (models(x) !== models(y)) out.push(`**The baseline was made with ${models(x)} and this run with ${models(y)}.** A baseline holds for one Claude model: record a new one for the new model before reading these verdicts as the effect of a change.\n`);
   if ((x.writes || []).length || (y.writes || []).length) out.push(compareWrites(x.writes || [], y.writes || []));
+  // The review section is there once either file has one: a baseline without it reads "–" for each scenario until it is recorded.
+  if ((x.reviews || []).length || (y.reviews || []).length) out.push(compareReviews(x.reviews || [], y.reviews || []));
   // A scenario that failed is in no count above: 3/3 next to 2/2 reads "the same" on fewer repeats.
-  const failed = (r) => [...(r.results || []), ...(r.writes || [])].filter((e) => e.error).map((e) => `${e.scenario} #${e.rep}`).join(', ') || 'none';
+  const failed = (r) => [...(r.results || []), ...(r.writes || []), ...(r.reviews || [])].filter((e) => e.error).map((e) => `${e.scenario} #${e.rep}`).join(', ') || 'none';
   if (failed(x) !== 'none' || failed(y) !== 'none') out.push(`**Failed, and so in no count above.** Baseline: ${failed(x)}. This run: ${failed(y)}. A verdict over fewer repeats says less than it reads.\n`);
   return out.join('\n');
 }
 
-module.exports = { report, compare, compareWrites, comparison, writeSummary, verdict };
+module.exports = { report, compare, compareWrites, compareReviews, comparison, writeSummary, reviewSummary, verdict };
 
 if (require.main === module) {
   const read = (f) => JSON.parse(require('fs').readFileSync(f, 'utf8'));
   if (process.argv[2] === '--compare') {
     process.stdout.write(comparison(read(process.argv[3]), read(process.argv[4])));
   } else {
-    const { results, writes, ...meta } = read(process.argv[2]);
-    process.stdout.write(report(results, meta, writes));
+    const { results, writes, reviews, ...meta } = read(process.argv[2]);
+    process.stdout.write(report(results, meta, writes, reviews));
   }
 }
