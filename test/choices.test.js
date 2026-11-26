@@ -126,6 +126,8 @@ test('yesOf finds the choice that says yes, in any of the usual languages', () =
   assert.equal(yesOf(['Oui', 'Non']), 0);
   assert.equal(yesOf(['Do it', 'Not now']), 0);
   assert.equal(yesOf(['Send it', 'Cancel']), 0); // of two, the one beside the only no
+  assert.equal(yesOf(['Gönder', 'İptal']), 0); // a Turkish İ lowercases to i and a combining dot, still a no
+  assert.equal(yesOf(['İPTAL', 'Gönder']), 1);
   assert.equal(yesOf(['Yes', 'Later', 'No']), 0);
   assert.equal(yesOf(['Send it', 'Change it first', 'Cancel']), -1); // three, none says yes
   assert.equal(yesOf(['Do 1', 'Do all', 'Not now']), -1); // two say yes: none is the yes
