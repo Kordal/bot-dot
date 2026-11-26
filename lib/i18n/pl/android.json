@@ -627,6 +627,7 @@
   "The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.": "Aplikacja pokazuje Markdown, tekst, kod, CSV i obrazy. Ten otwórz na telefonie.",
   "Rendered": "Sformatowany",
   "Source": "Źródło",
+  "Only what is in this file loads": "Ładuje się tylko to, co jest w tym pliku",
   "Table": "Tabela",
   "Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).": "Za duży, żeby pokazać całość. Pokazuję początek (do 1 MB albo 1000 wierszy).",
   "Save it to see everything.": "Zapisz go, żeby zobaczyć wszystko.",

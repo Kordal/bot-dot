@@ -169,7 +169,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         if (req.text != null) { view = FileView(name = req.name, kind = "markdown", text = req.text); mode = "rendered"; return@LaunchedEffect }
         val a = api ?: return@LaunchedEffect
         runCatching { a.viewFile(src) }
-            .onSuccess { v -> view = v; values = v.interactive?.values; mode = DocumentView.modeOf(v.kind) }
+            .onSuccess { v -> view = v; values = v.interactive?.values; mode = DocumentView.modeFor(v, req.name, server?.features) }
             .onFailure { error = it }
     }
     // A page (#346) is read again when its bot saves it (the feed's `page`) or its job changes, as it is shown now.
@@ -317,15 +317,26 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             }
             DocumentView.Pane.TEXT -> Column(Modifier.fillMaxSize()) {
                 v!!
-                val modes = DocumentView.modes(v.kind)
+                val modes = DocumentView.modes(v, req.name, server?.features)
+                val htmlFrame = DocumentView.htmlFrame(v, req.name, server?.features)
                 if (modes.isNotEmpty()) Row(Modifier.padding(horizontal = Space.s16, vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                    modes.forEach { (m, label) -> ModeChip(label, mode == m) { mode = m } }
+                    modes.forEach { (m, label) ->
+                        ModeChip(label, mode == m) {
+                            mode = m
+                            // Rendered again after its address ran out: read anew, which signs another.
+                            if (m == "rendered" && htmlFrame != null && DocumentView.frameStale(v, kotlin.time.Clock.System.now())) tries++
+                        }
+                    }
+                    if (htmlFrame != null && mode == "rendered") Text(tr("Only what is in this file loads"), color = p.faint, fontSize = Type.s12, modifier = Modifier.align(Alignment.CenterVertically))
                 }
-                if (v.truncated) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",
+                // The rendered page is the whole file (a preview is made only of a file read whole), so no "cut" there.
+                if (v.truncated && !(htmlFrame != null && mode == "rendered")) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",
                     color = p.text, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s8).fillMaxWidth()
                         .border(1.dp, p.warnLine, Radius.card).background(p.warnSoft, Radius.card).padding(Space.s12))
                 val text = v.text.orEmpty()
                 when {
+                    // An HTML file rendered: scripts on, in the sandbox's WebView and nothing more (ADR 281).
+                    htmlFrame != null && mode == "rendered" -> HtmlFrame(htmlFrame)
                     v.kind == "markdown" && mode == "rendered" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12)) {
                         if (v.parts != null) PageParts(v.parts!!) else MarkdownText(text, onWeb = null, paths = null)
                         Spacer(Modifier.height(Space.s32))

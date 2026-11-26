@@ -61,6 +61,29 @@ object DocumentView {
     /** How a file is first shown: Markdown rendered, a CSV as a table, the rest as its text. */
     fun modeOf(kind: String): String = when (kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" }
 
+    /** botdot shows an HTML file rendered (ADR 281): its view carries a frame on the sandbox's own address. */
+    const val HTML_PREVIEW = "html-preview"
+    private val HTML_NAME = Regex("""\.html?$""", RegexOption.IGNORE_CASE)
+    /** The one shape of address a frame has: the sandbox's origin, the account, a signed token, index.html. Nothing else is framed. */
+    private val HTML_FRAME = Regex("""^https?://[A-Za-z0-9.-]+(:\d{1,5})?/[a-z][a-z0-9-]{1,23}/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/index\.html$""")
+
+    /** The frame an HTML file ([name]) is shown in, or null: from a server with `html-preview`, for a text view that carries one of that shape. */
+    fun htmlFrame(view: FileView?, name: String, features: Collection<String>?): String? =
+        view?.takeIf { it.kind == "text" && features != null && HTML_PREVIEW in features && HTML_NAME.containsMatchIn(name) }
+            ?.preview?.frame?.takeIf { HTML_FRAME.matches(it) }
+
+    /** The frame's address has run out ([now] past its `expires`): rendered again, it is signed anew. */
+    fun frameStale(view: FileView?, now: kotlin.time.Instant): Boolean =
+        view?.preview?.expires?.let { runCatching { kotlin.time.Instant.parse(it) < now }.getOrNull() } == true
+
+    /** How a file is first shown, an HTML file with a frame rendered ([modeOf] for the rest). */
+    fun modeFor(view: FileView, name: String, features: Collection<String>?): String =
+        if (htmlFrame(view, name, features) != null) "rendered" else modeOf(view.kind)
+
+    /** The switches over a file as [modes] has them, and over an HTML file with a frame, Rendered and Source. */
+    fun modes(view: FileView, name: String, features: Collection<String>?): List<Pair<String, String>> =
+        if (htmlFrame(view, name, features) != null) listOf("rendered" to tr("Rendered"), "source" to tr("Source")) else modes(view.kind)
+
     /** The switches over a Markdown file or a CSV, as (mode, label); none for any other. */
     fun modes(kind: String): List<Pair<String, String>> = when (kind) {
         "markdown" -> listOf("rendered" to tr("Rendered"), "source" to tr("Source"))
@@ -162,7 +185,13 @@ data class FileView(
     val plain: String? = null,
     /** A bot's interactive page (#399): its frame on the sandbox's own address, its versions and its live values. */
     val interactive: InteractiveView? = null,
+    /** An HTML file read whole (ADR 281): the address of its frame on the sandbox's own address; null when the machine has none. */
+    val preview: HtmlPreview? = null,
 )
+
+/** The frame an HTML file is shown in (ADR 281), and when its address runs out. */
+@Serializable
+data class HtmlPreview(val frame: String = "", val expires: String? = null)
 
 /**
  * File paths in a bot's reply (#251), by the rules the web page shares (test/fixtures/file-paths.json; filePaths in
