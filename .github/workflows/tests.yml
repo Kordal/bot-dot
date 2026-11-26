@@ -200,6 +200,13 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+      # Robolectric fetches its Android jars (android-all-instrumented, ~200 MB) from Maven Central into ~/.m2 at test
+      # time, outside Gradle's cache. Kept here so a slow or failed download there no longer fails every UI test class.
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('android/gradle/libs.versions.toml', 'android/app/build.gradle.kts') }}
+          restore-keys: robolectric-
       # No assembleDebug: the unit tests and lint compile the app, and android.yml's release build packages it. The
       # shared data layer's tests (android/shared, ADR 242) run on the JVM here, and in the iOS simulator in ios.yml.
       - name: Unit tests
