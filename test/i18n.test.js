@@ -8,7 +8,7 @@ const path = require('path');
 const vm = require('vm');
 const { startServer, ROOT } = require('./helpers');
 const i18n = require('../lib/i18n');
-const { AREAS, collect, placeholders } = require('../lib/i18n/keys');
+const { AREAS, collect, calls, placeholders } = require('../lib/i18n/keys');
 
 const pl = i18n.load('pl');
 const OTHERS = i18n.offered().filter((l) => l !== 'en');
@@ -86,6 +86,28 @@ test('every string of a language folder for the web page and the Android app is 
     }
   }
   assert.deepEqual(problems, []);
+});
+
+test('the server\'s strings are found as the code calls them: i18n.tr(), i18n.trn() and i18n.said() on the module it required, a bare said() taken from it, and a sentence said() passes on that Polish has', () => {
+  const keys = (src, area = 'server') => [...src.matchAll(calls(src, area))].map((m) => m[1] || m[2]);
+  const required = "const i18n = require('./i18n');\n";
+  assert.deepEqual(keys(`${required}i18n.tr(lang, 'Opening {host}', { host }); i18n.trn(lang, n, '{n} file', '{n} files'); i18n.said(lang, 'Thinking');`), ['tr', 'trn', 'said']);
+  assert.deepEqual(keys("const words = require('../i18n');\nwords.said(lang, 'Typing'); require('./i18n').tr(lang, 'Saved');"), ['said', 'tr']);
+  assert.deepEqual(keys("const { said } = require('./i18n');\nsaid(lang, 'Choose files');"), ['said']);
+  // Another object's tr() or said(), or a said() of the file's own, takes no key.
+  assert.deepEqual(keys("foo.tr(lang, 'x'); i18n.tr(lang, 'not required here'); said(extra, 'such field');"), []);
+  assert.deepEqual(keys(`${required}i18n.tr('x'); words.tr('y'); I18n.tr('z'); tr('w');`, 'web'), ['tr', 'tr']);
+  assert.deepEqual(keys('dev.botdot.app.data.tr("Saved"); other.data.tr("x")', 'android'), ['tr']);
+  const server = collect('server');
+  const at = (key) => server.filter((k) => k.key === key).map((k) => `${k.file}${k.passed ? ' (passed on)' : ''}`);
+  assert.ok(at('Reading a web page').includes('lib/working-line.js'), 'i18n.said(lang, \'Reading a web page\')');
+  assert.ok(at('Opening {host}').includes('lib/working-line.js'), 'i18n.tr(lang, \'Opening {host}\', …)');
+  assert.ok(at('Thinking').includes('lib/chief.js'), 'i18n.said(lang, \'Thinking\')');
+  assert.ok(at('Choose files').includes('lib/drop-page.js'), 'said(lang, \'Choose files\') taken from i18n');
+  assert.ok(at('No space left on the server.').includes('lib/problems.js (passed on)'), 'said(lang, NO_SPACE), NO_SPACE written in lib/problems.js');
+  assert.ok(at('Its bot is gone').includes('server.js (passed on)'), 'an error\'s message');
+  assert.ok(!server.some((k) => k.key === 'such field'), 'lib/pieces.js has a said() of its own');
+  assert.ok(!collect('web').some((k) => k.file === 'public/unread.js' && k.line === 16), 'words.tr(text, vars) in public/unread.js is no key');
 });
 
 test('every string of a language folder for the server is one its code writes: a tr() key, or the literal of a sentence said() passes on', () => {
