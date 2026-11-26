@@ -56,6 +56,7 @@ The Italian glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engl
 | Saved | Salvato |
 | the web page | il browser ("nel browser"), so that "pagina" stays a bot's page |
 | the Android app / the iPhone app / the desktop app | l'app Android / l'app per iPhone / l'app desktop |
+| provider (of models) | provider (m., invariable: "Collega un provider", "Rimuovi il provider") |
 | installed tool | strumento installato |
 | mention | menzione |
 | checkup | check-up |
