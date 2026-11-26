@@ -397,7 +397,7 @@ function renderSettings() {
       </details>` : `<div class="bs-row"${tipAttrs(tr('Every bot uses the default. Change a bot in its settings.'))}><b>${tr('Bots with their own model')}</b><span class="bs-val">${tr('None')}</span></div>`}` : ''}
       ${computerRowHTML()}
       ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
-      <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${LANGUAGE_NAMES.map(([id, name]) => `<option value="${id}"${id === (s.language || 'en') ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
+      <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${languageChoices(state.languages).map(([id, name]) => `<option value="${esc(id)}"${id === (s.language || 'en') ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select></label>
       ${pushCardHTML()}
       <div class="bs-group" id="install-card" hidden></div>
       <details class="bs-row bs-more" id="backups-card">
@@ -487,8 +487,13 @@ function wireAdvanced(root) {
 }
 
 // The interface's language (#645, ADR 108): saved by itself; the page then loads again in it. A language's own name
-// is never translated.
-const LANGUAGE_NAMES = [['en', 'English'], ['pl', 'Polski']];
+// is never translated. The languages are the server's (ADR 280): `languages` of GET /api/settings, else the ones
+// kept with the dictionary; the page's own is always among them.
+function languageChoices(fromServer) {
+  const list = (Array.isArray(fromServer) && fromServer.length ? fromServer : I18n.languages).filter((l) => l && typeof l.code === 'string');
+  const out = list.map((l) => [l.code, typeof l.name === 'string' && l.name ? l.name : l.code]);
+  return out.some(([id]) => id === I18n.language) ? out : [...out, [I18n.language, I18n.language]];
+}
 function wireLanguage(root) {
   const pick = $('#settings-language', root);
   if (!pick) return;

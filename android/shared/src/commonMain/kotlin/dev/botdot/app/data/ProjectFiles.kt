@@ -48,7 +48,7 @@ object ProjectFiles {
         return when (day) {
             today -> formatDate(t, "HH:mm", null, zone)
             today.minus(1, DateTimeUnit.DAY) -> tr("Yesterday")
-            else -> formatDate(t, if (day.year == today.year) "d MMM" else "d MMM yyyy", I18n.language, zone)
+            else -> formatDate(t, if (day.year == today.year) I18n.shortDay else "d MMM yyyy", I18n.language, zone)
         }
     }
 }

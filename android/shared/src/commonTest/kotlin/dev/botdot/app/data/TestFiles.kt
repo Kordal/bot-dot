@@ -14,6 +14,14 @@ import kotlinx.io.readString
 fun fixture(key: String): String =
     SystemFileSystem.source(Path(FIXTURES[key] ?: error("No fixture $key"))).buffered().use { it.readString() }
 
+/**
+ * Polish's words of [kind] (lib/i18n/pl/phrases.json, ADR 280), which the apps get from the server with the dictionary:
+ * what the shared fixtures' Polish cases read with.
+ */
+fun polishPhrases(kind: String): List<String> =
+    (kotlinx.serialization.json.Json.parseToJsonElement(fixture("polishPhrases")) as kotlinx.serialization.json.JsonObject)[kind]
+        .let { it as? kotlinx.serialization.json.JsonArray }?.map { (it as kotlinx.serialization.json.JsonPrimitive).content }.orEmpty()
+
 /** JUnit's assertArrayEquals for floats: the same length, each within [delta]. */
 fun assertArrayEquals(expected: FloatArray, actual: FloatArray, delta: Float, message: String? = null) {
     assertEquals(expected.size, actual.size, message)

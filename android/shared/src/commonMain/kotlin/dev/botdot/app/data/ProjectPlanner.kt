@@ -289,10 +289,19 @@ object ProjectDecisions {
 
     data class Typed(val text: String, val why: String)
 
-    /** "Launch in Polish first because most users are Polish": the decision, and its reason after the first "because" (Polish "bo", "ponieważ") or dash. */
-    fun split(input: String): Typed {
+    private const val REGEX_MARKS = ".*+?^$()[]{}|\\"
+
+    /**
+     * "Launch in Polish first because most users are Polish": the decision, and its reason after the first "because" or
+     * dash, or another offered language's word for it ([because]: its phrases' `because`, ADR 280, which come with the
+     * dictionary; Polish "bo", "ponieważ").
+     */
+    fun split(input: String, because: List<String> = I18n.phrases("because")): Typed {
         val typed = input.replace(Regex("\\s+"), " ").trim()
-        val m = Regex("""^(.+?)\s+(?:because|bo|ponieważ|[—–-])\s+(.+)$""", RegexOption.IGNORE_CASE).matchEntire(typed)
+        val words = (listOf("because") + because.filter { it.isNotBlank() }.map { w ->
+            w.trim().split(Regex("\\s+")).joinToString("\\s+") { part -> part.map { c -> if (c in REGEX_MARKS) "\\$c" else c.toString() }.joinToString("") }
+        }).joinToString("|")
+        val m = Regex("""^(.+?)\s+(?:$words|[—–-])\s+(.+)$""", RegexOption.IGNORE_CASE).matchEntire(typed)
             ?: return Typed(typed, "")
         return Typed(m.groupValues[1].replace(Regex("[,;:]$"), "").trim(), m.groupValues[2])
     }

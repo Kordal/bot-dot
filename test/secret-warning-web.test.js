@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const { app, cut } = require('./web-page');
 
-const page = vm.createContext({ String });
+// Polish's words for "password" come with the dictionary (lib/i18n/pl/phrases.json, ADR 280), as I18n.phrases.
+const page = vm.createContext({ String, I18n: { phrases: require('../lib/i18n/phrases').forApps() } });
 vm.runInContext(`${cut('const SECRET_AFTER = ', '// ---------- vault item types ----------')}\nthis.looksLikeSecret = looksLikeSecret;`, page);
 const { looksLikeSecret } = page;
 

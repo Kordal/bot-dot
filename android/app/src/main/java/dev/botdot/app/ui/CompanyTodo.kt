@@ -82,7 +82,7 @@ internal fun weekdayName(d: Int): String = java.time.DayOfWeek.of(if (d == 0) 7 
 internal fun dueLabel(due: String): String = when (ProjectTodo.dueKind(due)) {
     ProjectTodo.Due.TODAY -> tr("Today")
     ProjectTodo.Due.TOMORROW -> tr("Tomorrow")
-    else -> runCatching { LocalDate.parse(due).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", I18n.locale)) }.getOrDefault(due)
+    else -> runCatching { LocalDate.parse(due).format(java.time.format.DateTimeFormatter.ofPattern(I18n.shortDay, I18n.locale)) }.getOrDefault(due)
 }
 
 /** The owner's own head: a person on a filled circle. */

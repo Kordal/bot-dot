@@ -397,7 +397,7 @@ fun SettingsScreen(
 
             // The interface's language (#645): saved by itself, and every screen draws again in it at once.
             if (server?.features?.contains(I18n.FEATURE) == true) {
-                Choice(tr("Language"), I18n.language, I18n.LANGUAGES) { to ->
+                Choice(tr("Language"), I18n.language, I18n.choices) { to ->
                     if (to == I18n.language) return@Choice
                     scope.launch { runCatching { api!!.setLanguage(to); I18n.sync(api!!, server?.features) }.onSuccess { saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                 }

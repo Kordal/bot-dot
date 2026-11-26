@@ -203,7 +203,7 @@ function listenFeed(es) {
   es.addEventListener('language', (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
-    if (!['en', 'pl'].includes(d.language) || d.language === I18n.language) return;
+    if (typeof d.language !== 'string' || !d.language || d.language === I18n.language) return;
     if ($$('textarea, input[type=text]').some((el) => el.value.trim()) || $('#modal').open) return; // at the next load
     I18n.sync(api, state.features);
   });

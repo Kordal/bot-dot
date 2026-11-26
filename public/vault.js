@@ -6,7 +6,13 @@
 // of four characters or more that holds a digit or a symbol (a hyphen is none: "case-sensitive"); after ":" or
 // "=" a plain word counts too when the message ends with it. So "my password is wrong again" and "the password reset page" send without a question.
 // A PIN only counts when a number follows, so phrases like "pin the version" don't trigger it.
-const SECRET_AFTER = /(?:\b(?:password|passwd|pwd|hasło|haslo|passcode)(?:(?:\s+is\b)?\s*([:=])|\s+-|-(?=\s)|\s+is\b)|\bpass\s*([:=]))\s*(\S{4,})/gi; // "pass" only with ":" or "=": not the verb
+// The words for "password" are English's and every offered language's (its phrases' password, ADR 280: "hasło"),
+// which come with the dictionary (I18n.phrases).
+const SECRET_AFTER = (() => {
+  const words = ['password', 'passwd', 'pwd', 'passcode', ...((typeof I18n !== 'undefined' && Array.isArray(I18n.phrases?.password)) ? I18n.phrases.password : [])]
+    .filter((w) => typeof w === 'string' && w.trim()).map((w) => w.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'));
+  return new RegExp(`(?:(?<![\\p{L}\\p{N}_])(?:${words.join('|')})(?:(?:\\s+is\\b)?\\s*([:=])|\\s+-|-(?=\\s)|\\s+is\\b)|\\bpass\\s*([:=]))\\s*(\\S{4,})`, 'giu'); // "pass" only with ":" or "=": not the verb
+})();
 function looksLikeSecret(t) {
   const text = String(t ?? '');
   if (/\bpin\b\s*(code)?\s*(is|:|=|-)?\s*\d{4,8}\b/i.test(text)) return true;

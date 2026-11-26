@@ -1,5 +1,6 @@
 package dev.botdot.app.answerview
 
+import dev.botdot.app.data.I18n
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -417,23 +418,26 @@ internal fun String.jsTrim(): String {
 internal fun phraseKey(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
 
 /**
- * What a `source` that says there is none reads like, in English and Polish, compared as a reserved phrase is ([phraseKey]).
+ * What a `source` that says there is none reads like, compared as a reserved phrase is ([phraseKey]): English's here, and
+ * every other offered language's (its phrases' `noSource`, ADR 280), which come with the dictionary ([I18n.phrases]).
  * A source is read clause by clause (a colon, comma, semicolon, bracket, full stop or dash ends one): it says there is none when
  * it is empty, or its last clause is one of these, so "the bot's estimate: none, no source available" is no source either.
  */
 private val NO_SOURCE = listOf(
     "none", "n/a", "na", "nil", "nothing", "unknown", "not known", "unavailable", "not available", "not applicable", "not specified", "not given", "not provided",
     "no source", "no sources", "no source available", "no source given", "no source provided", "no source known", "no sources available", "source unknown", "source not available", "no data source",
-    "brak", "brak źródła", "brak źródeł", "brak źródła danych", "brak danych", "brak informacji", "nie dotyczy", "nie podano", "nie ma", "nie ma źródła", "bez źródła", "b/d", "n/d", "nic",
-    "nieznane", "nieznany", "nieznana", "źródło nieznane", "nieznane źródło", "niedostępne", "niedostępny", "źródło niedostępne",
 ).map { phraseKey(it) }.toSet()
+
+// The other languages' phrases as last read, and the set they make with English's.
+private var noSource: Pair<List<String>, Set<String>> = emptyList<String>() to NO_SOURCE
 
 private val SOURCE_CLAUSE = Regex("[:;,.()–—…]|\\s-\\s")
 
 /** Whether a `source` says there is none: [source] is read as [NO_SOURCE] says. A text with no clause in it (only marks) says none too. */
-internal fun saysNone(source: String): Boolean {
+internal fun saysNone(source: String, others: List<String> = I18n.phrases("noSource")): Boolean {
+    val none = noSource.takeIf { it.first == others }?.second ?: (NO_SOURCE + others.map { phraseKey(it) }).also { noSource = others to it }
     val parts = source.split(SOURCE_CLAUSE).map { phraseKey(it) }.filter { it.isNotEmpty() }
-    return parts.isEmpty() || parts.last() in NO_SOURCE
+    return parts.isEmpty() || parts.last() in none
 }
 
 /** A text cut to [n] characters, not in the middle of a pair. */

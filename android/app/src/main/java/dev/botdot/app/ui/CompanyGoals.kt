@@ -213,7 +213,7 @@ private fun Start(c: Company, o: Objective) {
     val at = CompanyFloor.checkinDate(c.startedAt)
     Num(o)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        val facts = listOfNotNull(tr("Day {n} of 90", "n" to (c.day ?: 1)), at?.let { tr("Check-in {date}", "date" to it.toJavaLocalDate().format(DateTimeFormatter.ofPattern("d MMM", I18n.locale))) })
+        val facts = listOfNotNull(tr("Day {n} of 90", "n" to (c.day ?: 1)), at?.let { tr("Check-in {date}", "date" to it.toJavaLocalDate().format(DateTimeFormatter.ofPattern(I18n.shortDay, I18n.locale))) })
         facts.forEach { Text(it, color = p.muted, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.clip(Radius.pill).background(p.fill).padding(horizontal = Space.s12, vertical = Space.s4)) }
     }
 }
