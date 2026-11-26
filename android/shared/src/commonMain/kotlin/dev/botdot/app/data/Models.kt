@@ -448,6 +448,7 @@ data class Run(
     val jobName: String? = null,
     val watchName: String? = null, // the watch whose end started it (trigger "watch", ADR 248)
     val kind: String? = null,
+    val projectUpdate: String? = null, // a project update's delivery key (kind "project-update")
     val startedAt: String = "",
     val endedAt: String? = null,
     val costUsd: Double? = null,
@@ -499,7 +500,12 @@ data class Run(
     @SerialName("reconnect") val reconnectValue: JsonElement? = null,
     // Its steps (docs/api.md, "A run's steps"; #625), kept as they came. Read them through [steps].
     @SerialName("steps") val stepsValue: JsonElement? = null,
+    // A project update's data (`update`, `project-update-card`, #1755), kept as it came. Read it through [update].
+    @SerialName("update") val updateValue: JsonElement? = null,
 ) {
+    /** A project update's data, for its card; null for any other run and from a server without `project-update-card`. */
+    val update: ProjectUpdateCard? get() = if (kind == "project-update") ProjectUpdateCard.of(updateValue) else null
+
     /** Its steps, for its block's step line ([RunSteps]); null from a server without them, or for a run that took none. */
     val steps: RunSteps? get() = RunSteps.of(stepsValue)
 
@@ -742,7 +748,12 @@ data class ChiefMessage(
     // A Chief reply: the pages its bots saved in the task it handed them, each with its `botId` and `bot`. Read them through [botPages].
     @SerialName("botPages") val botPagesValue: JsonElement? = null,
     val about: MessageAbout? = null, // the team it is about (ADR 223), drawn above it
+    // A project update's data (`update`, `project-update-card`, #1755), kept as it came. Read it through [update].
+    @SerialName("update") val updateValue: JsonElement? = null,
 ) {
+    /** A project update's data, for its card; null for any other message and from a server without `project-update-card`. */
+    val update: ProjectUpdateCard? get() = if (projectUpdate != null) ProjectUpdateCard.of(updateValue) else null
+
     /** The steps of its work, or null for none. */
     val plan: Plan? get() = Plan.of(planValue)
 

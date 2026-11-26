@@ -3810,6 +3810,62 @@ div.po-row { cursor: pointer; }
 .po-who > .avatar svg { width: 100%; height: 100%; display: block; }
 button.po-meta { width: 100%; padding: 0; text-align: left; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 button.po-meta:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* A project update: one card of the block kit in a chat (public/project-update.js, #1755). */
+.bubble.from-bot.pu { max-width: min(100%, 680px); width: 100%; padding: 0; background: none; box-shadow: none; border-radius: 0; line-height: 1.5; }
+.pu-card { background: var(--raise-2); box-shadow: var(--lift); border-radius: var(--r-14); overflow: hidden; text-align: left; }
+.pu-top { display: flex; align-items: center; gap: var(--sp-12); padding: var(--sp-16) var(--sp-16) var(--sp-12); }
+.pu-icon { flex: none; width: var(--sp-32); height: var(--sp-32); border-radius: var(--r-8); background: var(--sunk); display: grid; place-items: center; color: var(--muted); }
+.pu-icon svg, .pu-chev svg, .pu-board svg, .pu-fold { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pu-toggle, .pu-lead { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-12); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.pu-toggle { cursor: pointer; border-radius: var(--r-8); }
+.pu-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pu-heading { min-width: 0; display: grid; }
+.pu-title { font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.pu-sub { font-size: var(--fs-12); color: var(--muted); }
+.pu-fold { margin-left: auto; flex: none; color: var(--faint); transition: transform .2s; }
+.pu-card.open .pu-fold { transform: rotate(180deg); }
+.pu-body[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .pu-fold { transition: none; } }
+.pu-board { flex: none; color: var(--muted); }
+.pu-board:hover { color: var(--text); }
+.pu-pills { display: flex; flex-wrap: wrap; gap: var(--sp-8); padding: 0 var(--sp-16) var(--sp-16); }
+.pu-sec { display: grid; gap: var(--sp-12); padding: var(--sp-12) var(--sp-16) var(--sp-16); border-top: 1px solid var(--line); }
+.pu-sec h3 { margin: 0; font-size: var(--fs-12); font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: var(--sp-8); }
+.pu-sec h3 .n { color: var(--faint); font-weight: 400; }
+.pu-call { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.pu-sec .kit-callout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-4) var(--sp-12); align-items: center; }
+.pu-sec .kit-callout b { margin: 0; }
+.pu-sec .kit-callout .pu-call { grid-column: 1; }
+.pu-sec .kit-callout .btn { grid-column: 2; grid-row: 1 / span 2; }
+.pu-rows { display: grid; gap: var(--sp-12); }
+.pu-row { display: grid; grid-template-columns: var(--sp-24) minmax(0, 1fr) auto; gap: var(--sp-12); align-items: start; cursor: pointer; }
+.pu-row > .avatar, .pu-row > .cf-you, .pu-none { width: var(--sp-24); height: var(--sp-24); margin: 0; }
+.pu-row > .avatar svg { width: 100%; height: 100%; display: block; }
+.pu-none { border-radius: 50%; background: var(--sunk); }
+.pu-main { min-width: 0; }
+.pu-who-line { display: flex; align-items: baseline; gap: var(--sp-8); }
+.pu-who { padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.pu-who:hover { text-decoration: underline; }
+.pu-who:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pu-when { font-size: var(--fs-12); color: var(--faint); }
+.pu-what { margin: 0; color: var(--muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.pu-what a { color: var(--mention); text-decoration: none; }
+.pu-what code { font-size: var(--fs-12); background: var(--sunk); border-radius: var(--r-8); padding: 0 var(--sp-4); color: var(--text); }
+.pu-plain { color: var(--text); }
+.pu-row > .kit-pill { margin-top: 1px; }
+.pu-chev { color: var(--faint); margin-top: 1px; }
+.pu-done { display: grid; gap: var(--sp-8); margin: 0; padding: 0; list-style: none; }
+.pu-done li { display: grid; grid-template-columns: var(--sp-24) minmax(0, 1fr); gap: var(--sp-12); align-items: start; }
+.pu-done .pu-what { color: var(--text); }
+.pu-tick { width: var(--sp-24); height: var(--sp-24); border-radius: 50%; background: var(--ok-soft); color: var(--ok-text); display: grid; place-items: center; }
+.pu-tick svg { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.pu-goals { display: grid; gap: var(--sp-12); }
+.pu-goal { display: grid; gap: var(--sp-8); }
+.pu-goal-top { display: flex; align-items: baseline; gap: var(--sp-8); }
+.pu-value { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pu-value small { color: var(--faint); font-weight: 400; font-size: var(--fs-12); margin-left: var(--sp-4); }
+.pu-quiet { margin: 0; padding: var(--sp-12) var(--sp-16); border-top: 1px solid var(--line); color: var(--faint); font-size: var(--fs-12); }
+.pu-note { border-top: 0; padding-top: 0; }
 .po-error { color: var(--err); }
 
 /* ---------- answer views (#1624, ADR 264) ----------

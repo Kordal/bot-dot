@@ -412,6 +412,11 @@ private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean, features
             }
         }
     }
+    // A project update with its data: one card of the block kit (#1755); a record from before it shows its text.
+    r.update?.takeIf { r.status == "success" }?.let { card ->
+        TheirBubble(footer, copyText = text, plain = true) { ProjectUpdateCardUi(card, r.projectUpdate ?: r.id) }
+        return
+    }
     // Between bots (a run another bot or the Chief started) the reply folds as the message above it does (#413),
     // unless it addresses the owner: a teammate's request whose reply only the owner reads (#465).
     if ((r.fromBot != null && r.trigger == "bot" || r.startedBy == "chief") && r.status == "success" && r.notificationAudience != "owner") {

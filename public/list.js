@@ -97,7 +97,7 @@ function glideContacts(draw) {
 // says what it does.
 function contactLine(b, r, working) {
   const asks = Unread.asks(b, b.running || r?.status === 'running');
-  const prev = asks ? tr('Asks: {question}', { question: asks }) : b.running ? working : r ? (r.status === 'success' ? plain(r.result) : r.status === 'running' ? working : tr("Couldn't finish")) : b.description || '';
+  const prev = asks ? tr('Asks: {question}', { question: asks }) : b.running ? working : r ? (r.status === 'success' ? (typeof ProjectUpdate === 'object' && ProjectUpdate.preview(r)) || plain(r.result) : r.status === 'running' ? working : tr("Couldn't finish")) : b.description || '';
   return { prev, cls: asks ? 'asks' : b.running ? 'working' : '', after: asks ? Unread.mark(b.color) : Unread.dots(Unread.count(b), b.color) };
 }
 

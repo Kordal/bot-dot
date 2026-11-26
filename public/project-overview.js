@@ -92,5 +92,5 @@ const ProjectOverview = (() => {
   // The questions waiting for the owner (a bot's, a team chat's, the Chief's): they stand in Needs you, not under Blockers.
   // A question in a chat that already has a card in Needs you (the Chief's) is that card's: shown once, as the card.
   const questions = (c, cards = []) => (stateOf(c.id).data?.blockers || []).filter((x) => x.state === 'asks' && (!x.chatId || !cards.some((k) => k.a?.chatId === x.chatId)));
-  return { html, tile, refresh, wire, fit, rows, questions, sig: (id) => snapshots.get(id) || null };
+  return { html, tile, refresh, wire, fit, rows, head, questions, sig: (id) => snapshots.get(id) || null };
 })();

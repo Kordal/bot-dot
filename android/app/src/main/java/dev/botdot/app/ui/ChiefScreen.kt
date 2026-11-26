@@ -345,7 +345,9 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
 @Composable
 private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, lineSaysIt: Boolean, draft: String = "", plan: dev.botdot.app.data.Plan? = null, onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
     val p = LocalPaper.current
+    val update = if (m.pending) null else m.update // a project update with its data: one card of the block kit (#1755); an older server's has only its text
     when {
+        update != null -> TheirBubble(shortTime(m.endedAt ?: m.at), copyText = m.text, plain = true) { ProjectUpdateCardUi(update, m.projectUpdate.orEmpty()) }
         m.role == "user" -> MyBubble(m.text, m.attachments, about = m.card)
         m.role == "suggestion" -> Suggestion(m, onBuild, onDismiss)
         m.role == "report" -> Report(m)
