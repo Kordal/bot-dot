@@ -660,5 +660,6 @@
   "Asks for the {site} login": "{site} girişini istiyor",
   "Start its screen": "Ekranını aç",
   "Copy its files": "Dosyalarını kopyala",
-  "Erase it": "Sil"
+  "Erase it": "Sil",
+  "Source": "Kaynak"
 }
