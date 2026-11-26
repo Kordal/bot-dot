@@ -96,4 +96,49 @@ class DocumentViewTest {
         assertFalse(DocumentView.isPdf(FileView(name = "a.docx", kind = "none", type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document")))
         assertFalse(DocumentView.isPdf(null))
     }
+
+    // An HTML file shown rendered (ADR 256): in the same locked-down WebView an interactive page has, on the sandbox's
+    // address, from a server with `html-preview`; its source is the other mode.
+    private val frame = "https://botdot.example.com:8443/ann/eyJoIjoiYSJ9.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/index.html"
+    private val features = listOf("document-viewer", "html-preview")
+    private fun html(frame: String? = this.frame, name: String = "index.html", kind: String = "text") =
+        FileView(name = name, kind = kind, text = "<h1>Hi</h1>", preview = frame?.let { HtmlPreview(it, "2026-11-26T20:00:00.000Z") })
+
+    @Test fun anHtmlFilesViewCarriesItsFrameAndAnAppReadsIt() = runBlocking {
+        server.enqueue(json("""{"name":"index.html","size":11,"kind":"text","type":"text/plain","truncated":false,"text":"<h1>Hi</h1>","preview":{"frame":"$frame","expires":"2026-11-26T20:00:00.000Z"}}"""))
+        val v = api.viewFile(DocumentView.pathFile("web", "site-mockup/index.html"))
+        assertEquals(frame, v.preview?.frame)
+        server.enqueue(json("""{"name":"a.txt","size":3,"kind":"text","type":"text/plain","truncated":false,"text":"hi"}"""))
+        assertEquals(null, api.viewFile("/files/r1/a.txt").preview)
+    }
+
+    @Test fun anHtmlFileIsRenderedOnlyForAServerWithThePreviewAndOnlyAtTheSandboxsOwnAddress() {
+        assertEquals(frame, DocumentView.htmlFrame(html(), "index.html", features))
+        assertEquals(frame, DocumentView.htmlFrame(html(name = "old.HTM"), "old.HTM", features))
+        assertEquals(null, DocumentView.htmlFrame(html(), "index.html", listOf("document-viewer"))) // a server without the preview
+        assertEquals(null, DocumentView.htmlFrame(html(), "index.html", null))
+        assertEquals(null, DocumentView.htmlFrame(html(frame = null), "index.html", features)) // no sandbox address on that machine
+        assertEquals(null, DocumentView.htmlFrame(html(), "notes.txt", features))
+        assertEquals(null, DocumentView.htmlFrame(html(kind = "markdown"), "index.html", features))
+        assertEquals(null, DocumentView.htmlFrame(null, "index.html", features))
+        for (bad in listOf("javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "//evil.example/x", "/api/bots", "file:///etc/passwd", "https://a\"onload=\"x", "$frame?x=1", "https://botdot.example.com:8443/ann/x.y/app.js")) {
+            assertEquals(bad, null, DocumentView.htmlFrame(html(frame = bad), "index.html", features))
+        }
+    }
+
+    @Test fun anHtmlFileOpensRenderedWithRenderedAndSourceToSwitchBetween() {
+        assertEquals("rendered", DocumentView.modeFor(html(), "index.html", features))
+        assertEquals(listOf("rendered", "source"), DocumentView.modes(html(), "index.html", features).map { it.first })
+        assertEquals("source", DocumentView.modeFor(html(), "index.html", listOf("document-viewer")))
+        assertEquals(emptyList<String>(), DocumentView.modes(html(), "index.html", listOf("document-viewer")).map { it.first })
+        assertEquals("rendered", DocumentView.modeFor(FileView(kind = "markdown"), "a.md", features))
+        assertEquals(listOf("table", "source"), DocumentView.modes(FileView(kind = "csv"), "a.csv", features).map { it.first })
+    }
+
+    @Test fun aFramesAddressRunsOutAtItsExpiry() {
+        val v = html()
+        assertFalse(DocumentView.frameStale(v, kotlin.time.Instant.parse("2026-11-26T19:59:59Z")))
+        assertTrue(DocumentView.frameStale(v, kotlin.time.Instant.parse("2026-11-26T20:00:01Z")))
+        assertFalse(DocumentView.frameStale(FileView(), kotlin.time.Instant.parse("2030-01-01T00:00:00Z"))) // no expiry said
+    }
 }

@@ -184,6 +184,6 @@ test('the styles follow the mockup: a 28px round pencil in the faint colour, a r
 });
 
 test('the server announces it, and Android asks for it', () => {
-  assert.match(source('server.js'), /'card-edit'\];/);
+  assert.match(source('server.js'), /'card-edit'[,\]]/);
   assert.match(source('android/shared/src/commonMain/kotlin/dev/botdot/app/data/ManyProjects.kt'), /CARD_EDIT = "card-edit"/);
 });

@@ -86,14 +86,22 @@ const DocViewer = (() => {
     const table = v.kind === 'csv' && c.mode === 'table' ? tableOf(rowsOf(c), null, c) : null;
     return `<div class="dv-bar">
       ${c.page && v.page ? Pages.barHTML(v.page) : ''}
-      ${v.kind === 'markdown' ? seg(c, [['rendered', tr('Rendered')], ['source', tr('Source')]]) : v.kind === 'csv' ? seg(c, [['table', tr('Table')], ['source', tr('Source')]]) : ''}
+      ${v.kind === 'markdown' || htmlFrame(c) ? seg(c, [['rendered', tr('Rendered')], ['source', tr('Source')]]) : v.kind === 'csv' ? seg(c, [['table', tr('Table')], ['source', tr('Source')]]) : ''}
       ${table ? `<input class="dv-find" type="search" placeholder="${tr('Find in table')}" aria-label="${tr('Find in table')}" value="${esc(c.find)}"><span class="dv-count faint">${trn(table.total, '{n} row', '{n} rows')} · ${trn(table.cols, '{n} column', '{n} columns')}</span>` : ''}
+      ${htmlFrame(c) && c.mode === 'rendered' ? `<span class="dv-count faint">${tr('Only what is in this file loads')}</span>` : ''}
       <span class="dv-sp"></span>
       ${text ? `<button type="button" class="btn sm" data-dv="copy">${ICON.copy}${tr('Copy')}</button>` : ''}
       ${v.kind === 'markdown' && globalThis.DocPage && state.features.includes('document-export') ? `<a class="btn sm" href="/${esc(DocPage.address({ file: c.src }))}" target="_blank" rel="noopener">${tr('Open as document')}</a>` : ''}
       ${downloadHTML(c)}
     </div>`;
   }
+  // An HTML file shown rendered (ADR 256): its frame, on the sandbox's own address, for an .html or .htm file whose view
+  // carries one, from a server with `html-preview`. Never anything but an address of that shape: no script, data or
+  // relative address is ever framed, so a view that says otherwise is the file's source.
+  const FRAME = /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?\/[a-z][a-z0-9-]{1,23}\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/index\.html$/;
+  const htmlFrame = (c) => (c.view?.kind === 'text' && /\.html?$/i.test(c.name) && state.features.includes('html-preview') && FRAME.test(c.view.preview?.frame || '') ? c.view.preview.frame : null);
+  // The frame's address has run out (an open page loads nothing more, but a new frame needs a new one).
+  const frameStale = (c) => !!c.view?.preview?.expires && Date.parse(c.view.preview.expires) < Date.now();
   const sepOf = (name) => (/\.tsv$/i.test(name) ? '\t' : ',');
   const rowsOf = (c) => (c.rows ||= csvRows(c.view.text, sepOf(c.name)));
   const linesHTML = (text) => `<ol class="dv-lines">${String(text).replace(/\n$/, '').split('\n').map((l) => `<li>${esc(l) || ' '}</li>`).join('')}</ol>`;
@@ -129,6 +137,9 @@ const DocViewer = (() => {
     if (v.interactive && c.page) return `${headHTML(c)}${Pages.siteBarHTML(c, downloadHTML(c))}<div class="dv-body dv-site-body">${Pages.siteBodyHTML(c, downloadHTML(c, true))}</div>`;
     if (isPdf(v)) return `${headHTML(c)}${barHTML(c)}<div class="dv-body dv-frame-body"><iframe class="dv-pdf" src="/api${esc(c.src)}" title="${esc(c.name)}"></iframe></div>`;
     if (v.kind === 'none') return `${headHTML(c)}<div class="dv-body">${stateHTML(tr('No preview for this kind of file'), tr('The app shows Markdown, text, code, CSV and pictures. Open this one on your device.'), downloadHTML(c, true))}</div>`;
+    // An HTML file rendered: a frame with scripts on and nothing more (no same origin, no forms, no popups), on the
+    // sandbox's own address, where every answer carries `sandbox allow-scripts` as well. Its source is the other mode.
+    if (htmlFrame(c) && c.mode === 'rendered') return `${headHTML(c)}${barHTML(c)}<div class="dv-body dv-frame-body"><iframe class="dv-html" sandbox="allow-scripts" src="${esc(htmlFrame(c))}" referrerpolicy="no-referrer" title="${esc(c.name)}" allow="fullscreen 'none'"></iframe></div>`;
     const cut = v.truncated ? `<div class="dv-cut"><b>${tr('Too large to show whole.')}</b> ${tr('Showing its start (up to 1 MB or 1,000 lines).')} ${v.downloadable === false ? '' : tr('Download it to see everything.')}</div>` : '';
     return `${headHTML(c)}${barHTML(c)}${cut}<div class="dv-body">${bodyHTML(c)}</div>`;
   }
@@ -171,11 +182,11 @@ const DocViewer = (() => {
 
   // An interactive page in full screen or back (#399): everything but its frame is drawn again, so the page keeps
   // what the owner did in it; an address that ran out is signed anew, which loads it again.
-  // A PDF keeps its frame the same way, and with it the page it is on.
+  // A PDF or an HTML file keeps its frame the same way, and with it the page it is on.
   function around(c) {
     const el = box();
     const i = c.view.interactive;
-    if (!i) { if (!el || !$('iframe.dv-pdf', el)) return draw(); }
+    if (!i) { if (!el || !$('iframe.dv-pdf, iframe.dv-html', el)) return draw(); }
     else if (!el || !$('iframe.dv-site', el) || (i.expires && Date.parse(i.expires) < Date.now())) return load(c, true);
     const t = document.createElement('div');
     t.innerHTML = html(c);
@@ -219,7 +230,7 @@ const DocViewer = (() => {
   async function load(c, again = false) {
     c.rows = null;
     try { c.view = await api(withQuery(c.src, 'view=1')); c.error = null; } catch (e) { c.view = null; c.error = e; }
-    if (c.view && !again) c.mode = c.view.kind === 'markdown' ? 'rendered' : c.view.kind === 'csv' ? 'table' : 'source';
+    if (c.view && !again) c.mode = c.view.kind === 'markdown' || htmlFrame(c) ? 'rendered' : c.view.kind === 'csv' ? 'table' : 'source';
     if (cur !== c) return;
     const top = again ? $('.dv-body', box())?.scrollTop : 0;
     draw();
@@ -292,8 +303,16 @@ const DocViewer = (() => {
   async function act(btn) {
     const what = btn.dataset.dv;
     if (what === 'close') return close();
-    if (what === 'full') { cur.full = !cur.full; return cur.view?.interactive || isPdf(cur.view) ? around(cur) : draw(); }
-    if (what === 'mode') { cur.mode = btn.dataset.mode; return draw(); }
+    if (what === 'full') {
+      cur.full = !cur.full;
+      if (htmlFrame(cur) && cur.mode === 'rendered') return frameStale(cur) ? load(cur, true) : around(cur);
+      return cur.view?.interactive || isPdf(cur.view) ? around(cur) : draw();
+    }
+    if (what === 'mode') {
+      cur.mode = btn.dataset.mode;
+      // Rendered again after its address ran out: signed anew, which loads the page again.
+      return cur.mode === 'rendered' && htmlFrame(cur) && frameStale(cur) ? load(cur, true) : draw();
+    }
     // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
     if (what === 'copy') { if (await copyText((cur.mode === 'rendered' && cur.view?.plain) || cur.view?.text || '')) toast(tr('Copied')); return; }
     if (what === 'sort') {
