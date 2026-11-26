@@ -185,7 +185,7 @@
   "Asked": "Bertanya ke",
   "Delete the team {name}?": "Hapus tim {name}?",
   "Delete the group {name}?": "Hapus grup {name}?",
-  "Its chat is erased. Its bots stay.": "Chat-nya terhapus. Bot-botnya tetap ada.",
+  "Its chat is erased. Its bots stay.": "Chat-nya terhapus. Semua botnya tetap ada.",
   "Its chat is erased. No bot is deleted: each keeps its own chat.": "Chat-nya terhapus. Tidak ada bot yang dihapus: masing-masing tetap punya chat sendiri.",
   "{names}. What you write here, all of them read.": "{names}. Yang kamu tulis di sini dibaca semuanya.",
   "{n} more": "{n} lagi",
@@ -290,7 +290,7 @@
   "Bots will run on your Claude subscription.": "Bot akan berjalan dengan langganan Claude milikmu.",
   "Bots can't run until you sign in to Claude or save a key again.": "Bot tidak bisa berjalan sampai kamu masuk ke Claude atau menyimpan kunci lagi.",
   "Remove the provider?": "Hapus penyedia?",
-  "Bots on its models will run on the default model instead.": "Bot yang memakai modelnya akan beralih ke model default.",
+  "Bots on its models will run on the default model instead.": "Bot yang memakai modelnya akan beralih ke model bawaan.",
   "Remove your boat.dev key?": "Hapus kunci boat.dev milikmu?",
   "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machines on boat.dev: delete them with their files, or keep them there.": {
     "other": "Botmu lalu lanjut dengan kunci admin di PC Virtual Eksternal. Kuncimu membuat {n} mesin di boat.dev: hapus beserta file-nya, atau biarkan di sana."
@@ -555,7 +555,7 @@
   "updated {age}": "diperbarui {age}",
   "No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot's reply.": "Belum ada halaman. Minta bot membuat halaman, laporan, atau ringkasan: hasilnya muncul di sini, dan di bawah balasan bot.",
   "Searching": "Mencari",
-  "Delete the project {name}? Its bots stay.": "Hapus proyek {name}? Bot-botnya tetap ada.",
+  "Delete the project {name}? Its bots stay.": "Hapus proyek {name}? Semua botnya tetap ada.",
   "An older release cannot be installed.": "Rilis yang lebih lama tidak bisa dipasang.",
   "mentioned {names}": "menyebut {names}",
   "{n} people": {
