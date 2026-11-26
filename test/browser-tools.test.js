@@ -488,6 +488,6 @@ test('with a Docker helper, every call carries the account\'s language, and the 
   locale.use(() => 'en');
   assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }], language: 'pl' }), 200);
   assert.equal(seen, 'pl-PL', "the call's language, not one of the helper's own");
-  assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }], language: 'de' }), 400, 'only a language botdot has');
+  assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }], language: 'xx' }), 400, 'only a language botdot has');
   assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }] }), 200, 'and none is fine');
 });

@@ -144,7 +144,7 @@ test('a language is offered once its folder is there: a folder of German strings
   assert.deepEqual(i18n.categories('ru'), ['one', 'few', 'many']);
   assert.deepEqual(i18n.categories('fr'), ['one', 'many', 'other']);
   assert.equal(i18n.info('pt-BR').english, 'Brazilian Portuguese');
-  assert.equal(i18n.clean('de'), 'en', 'German has no folder here: not offered');
+  assert.equal(i18n.clean('xx'), 'en', 'a code the registry does not list: not offered');
 });
 
 test('tr() and trn(): Polish where there is one, English otherwise, placeholders filled, Polish plural forms', () => {
@@ -212,7 +212,7 @@ test("an account's language: English to start with, Polish when the owner sets i
   t.after(() => s.stop());
   assert.ok((await s.api('/version')).data.features.includes('language'));
   assert.equal((await s.api('/settings')).data.settings.language, 'en');
-  const bad = await s.api('/settings', { method: 'PUT', body: { language: 'de' } });
+  const bad = await s.api('/settings', { method: 'PUT', body: { language: 'xx' } });
   assert.equal(bad.status, 400);
   assert.match(bad.data.error, /language/);
   const r = await s.api('/settings', { method: 'PUT', body: { language: 'pl' } });
@@ -223,7 +223,7 @@ test("an account's language: English to start with, Polish when the owner sets i
   assert.equal(d.status, 200);
   assert.equal(d.data.language, 'pl');
   assert.equal(d.data.strings.Saved, 'Zapisano');
-  assert.equal((await s.api('/i18n/de')).status, 404);
+  assert.equal((await s.api('/i18n/xx')).status, 404);
   // The languages the account may choose and the phrases the apps read come with every dictionary, English's too (ADR 280).
   assert.ok((await s.api('/version')).data.features.includes('languages'));
   assert.deepEqual(d.data.languages.map((l) => l.code), i18n.offered());
