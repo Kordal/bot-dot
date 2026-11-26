@@ -1,10 +1,10 @@
 {
-  "stopWords": ["acaba", "ama", "ancak", "bana", "beni", "benim", "ben", "bir", "biz", "bu", "bunu", "da", "daha", "de", "diye", "en", "gibi", "göre", "hem", "her", "için", "ile", "ise", "kadar", "ki", "mi", "mı", "mu", "mü", "ne", "o", "olan", "olarak", "onu", "sen", "seni", "senin", "siz", "şey", "şu", "ve", "veya", "ya", "yani"],
+  "stopWords": ["acaba", "ama", "ancak", "bana", "beni", "benim", "bir", "biz", "bu", "bunu", "da", "daha", "de", "diye", "en", "gibi", "göre", "her", "için", "ile", "ise", "kadar", "ki", "mi", "mı", "mu", "mü", "ne", "o", "olan", "olarak", "onu", "sen", "seni", "senin", "siz", "şey", "şu", "ve", "veya", "ya", "yani"],
   "corrections": ["hayır", "yanlış", "yanlis", "hatalı", "hatali", "düzelt*", "duzelt*", "tekrar dene", "yeniden dene", "öyle değil", "oyle degil", "olmadı", "olmadi", "olmamış", "olmamis", "demek istediğim", "kastettiğim"],
   "never": ["asla", "hiçbir zaman", "hiç", "değil", "yapma", "etme"],
   "schedule": ["her gün", "hergün", "günlük", "her sabah", "her akşam", "her gece", "her hafta", "haftalık", "her saat", "saatte bir", "her # dakika*", "# dakikada bir", "her # saat*", "# saatte bir"],
   "yes": ["evet", "tamam", "olur", "elbette", "tabii", "tabi", "peki"],
-  "no": ["hayır", "iptal", "vazgeç", "sonra", "daha sonra"],
+  "no": ["hayır", "iptal", "vazgeç", "sonra"],
   "nothingNew": ["yeni bir şey yok", "yeni bir sey yok", "yeni bir gelişme yok", "değişiklik yok", "degisiklik yok", "güncelleme yok", "yenilik yok"],
   "because": ["çünkü", "zira"],
   "noSource": ["yok", "kaynak yok", "kaynaksız", "kaynak belirtilmedi", "kaynak belirtilmemiş", "kaynak bilinmiyor", "bilinmeyen kaynak", "veri yok", "bilgi yok", "bilinmiyor", "bilinmeyen", "belirtilmedi", "belirtilmemiş", "mevcut değil", "erişilemiyor", "geçerli değil"],

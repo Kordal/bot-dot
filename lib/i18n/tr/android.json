@@ -171,7 +171,7 @@
   "Make": "Oluştur",
   "move it": "Taşınamadı",
   "copy it": "Kopyalanamadı",
-  "{ownerName} won't have it any more.": "Artık {ownerName} botunda olmayacak.",
+  "{ownerName} won't have it any more.": "{ownerName} artık buna erişemeyecek.",
   "Couldn't stop": "Durdurulamadı",
   "Message the group…": "Gruba yaz…",
   "Asked": "Sordu:",
