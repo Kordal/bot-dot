@@ -9,13 +9,15 @@ const path = require('path');
 const http = require('http');
 const passkey = require('./fixtures/soft-passkey');
 const { startFrontDoor } = require('./front-door-helpers');
-const { startServer, makeBot, freePort } = require('./helpers');
+const { startServer, makeBot, freePort, fakeDocker } = require('./helpers');
 const fileView = require('../lib/file-view');
 
-let door, ann, owner, sitesPort, bot;
+let door, ann, owner, sitesPort, bot, docker, boxBot;
+const RUNNING = '"running"|"bot-dot/desktop:latest"|"sha256:a"';
 const PAGE = '<!doctype html><title>Mockup</title><h1>Acme</h1><script>document.querySelector("h1").textContent = "Acme!"</script>';
 before(async () => {
-  ann = await startServer({ account: 'ann' });
+  docker = fakeDocker();
+  ann = await startServer({ account: 'ann', env: { PATH: `${docker.bin}${path.delimiter}${process.env.PATH}` } });
   sitesPort = await freePort();
   door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_SITES_ORIGIN: `http://localhost:${sitesPort}`, FRONT_DOOR_SITES_PORT: String(sitesPort) } });
   fs.symlinkSync(path.dirname(ann.socket), path.join(door.sockets, 'ann'));
@@ -24,6 +26,7 @@ before(async () => {
   const options = await owner.post(`${door.firstLink.path}/options`, { name: 'ann' });
   assert.equal((await owner.post(door.firstLink.path, { name: 'ann', credential: key.register(options.data.publicKey) })).status, 201);
   bot = await makeBot(ann, { name: 'Website Builder' });
+  boxBot = await makeBot(ann, { name: 'Box Builder', computer: 'linux' });
   const ws = path.join(ann.data, 'workspaces', bot.id);
   fs.mkdirSync(path.join(ws, 'site-mockup'), { recursive: true });
   fs.writeFileSync(path.join(ws, 'site-mockup', 'index.html'), PAGE);
@@ -35,6 +38,7 @@ before(async () => {
 after(async () => {
   await door?.stop();
   if (ann) { await ann.stop(); fs.rmSync(ann.dir, { recursive: true, force: true }); }
+  docker?.remove();
 });
 
 const at = (p, more = '&view=1') => `/api/bots/${bot.id}/path?path=${encodeURIComponent(p)}${more}`;
@@ -148,4 +152,35 @@ test("botdot's own address never serves the file as a page: not the download, no
 test('the app may frame the sandbox and still no other address', async () => {
   const app = await owner.get('/');
   assert.match(app.headers['content-security-policy'], new RegExp(`frame-src 'self' http://localhost:${sitesPort}(;|$)`));
+});
+
+test("an HTML file on the account's computer is shown rendered too, from a copy of what was read there", async () => {
+  docker.answer('inspect.json', RUNNING);
+  docker.answer('exec.txt', `ok ${Buffer.byteLength(PAGE)} 1760000000\n${Buffer.from(PAGE).toString('base64')}`);
+  const r = await owner.get(`/api/bots/${boxBot.id}/path?path=${encodeURIComponent(`/workspace/${boxBot.id}/site-mockup/index.html`)}&view=1`);
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.data.text, PAGE);
+  assert.ok(r.data.preview?.frame, 'a frame on the sandbox');
+  const page = await site('GET', pathOf(r.data.preview.frame));
+  assert.equal(page.status, 200);
+  assert.equal(page.text, PAGE, 'the copy, not a read of the computer');
+  assert.match(page.headers['content-security-policy'], /sandbox allow-scripts/);
+  docker.answer('exec.txt', null);
+  docker.answer('inspect.json', null);
+});
+
+test("a preview that can't be kept (a full disk, an unwritable folder) leaves the file's source, not an error", async () => {
+  const previews = path.join(ann.data, 'previews');
+  const moved = `${previews}.aside`;
+  if (fs.existsSync(previews)) fs.renameSync(previews, moved);
+  fs.writeFileSync(previews, 'not a folder');
+  try {
+    const r = await owner.get(at('site-mockup/old.HTM'));
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.data.text, '<h1>old</h1>');
+    assert.equal(r.data.preview, undefined);
+  } finally {
+    fs.rmSync(previews, { force: true });
+    if (fs.existsSync(moved)) fs.renameSync(moved, previews);
+  }
 });
