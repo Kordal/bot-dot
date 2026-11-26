@@ -1980,5 +1980,6 @@
   "Showing its start (up to 1 MB or 1,000 lines).": "Se muestra el principio (hasta 1 MB o 1000 líneas).",
   "Download it to see everything.": "Descárgalo para verlo todo.",
   "Open {name} · {size}": "Abrir {name} · {size}",
-  "{n} changes, newest first. Tap a title for more.": "{n} cambios, los más recientes primero. Toca un título para ver más."
+  "{n} changes, newest first. Tap a title for more.": "{n} cambios, los más recientes primero. Toca un título para ver más.",
+  "Only what is in this file loads": "Solo se carga lo que hay en este archivo"
 }
