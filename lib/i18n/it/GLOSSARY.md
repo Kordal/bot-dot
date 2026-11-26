@@ -77,3 +77,5 @@ The Italian glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engl
 A bot's working line speaks in the first person present, as Polish does: "Apro {host}", "Leggo un file", "Cerco". An error is "Impossibile …" + infinitive ("Impossibile salvare"); a quote is «…».
 
 Common buttons: Salva, Annulla, Elimina, Modifica, Invia, Riprova, Chiudi, Indietro, Apri, Copia, Rinomina, Aggiungi, Rimuovi, Pausa / Riprendi, Collega, Accedi, Esci, Approva, Fissa / Rimuovi dai fissati, Mostra / Nascondi, Carica, Scarica, Continua, Fine.
+
+- **On / Off → "Sì" / "No".** One English word is the state of Backup, Notifiche, Competenze, a tile and a report's rhythm: "Attivo" / "Disattivato" agreed with the masculine singular alone, and a yes and a no agree with nothing.

@@ -127,12 +127,85 @@ test('every string of a language folder for the server is one its code writes: a
   assert.equal(i18n.said('pl', 'Not in the dictionary'), 'Not in the dictionary');
 });
 
+test('French elides de, que and le before a name that starts with a vowel or a mute h, on the server', () => {
+  const plan = (who) => i18n.tr('fr', "{who}'s plan", { who });
+  assert.equal(plan('Anna'), "Plan d'Anna");
+  assert.equal(plan('Bob'), 'Plan de Bob');
+  assert.equal(i18n.tr('fr', 'Waits until {who} is free', { who: 'Émile' }), "Attend qu'Émile soit libre");
+  assert.equal(i18n.tr('fr', 'Waits until {who} is free', { who: 'Zoé' }), 'Attend que Zoé soit libre');
+  assert.equal(plan('Hélène'), "Plan d'Hélène", 'a mute h');
+  assert.equal(plan('Hugo'), 'Plan de Hugo', 'an aspirated h, or one the list does not know: not elided');
+  assert.equal(plan('Yann'), 'Plan de Yann');
+  assert.equal(plan('anna@x.com'), 'Plan de anna@x.com', 'an address is not a name');
+  assert.equal(plan('app.js'), 'Plan de app.js');
+  assert.equal(plan(8), 'Plan de 8');
+  assert.equal(plan('Élodie-Marie (Home)'), "Plan d'Élodie-Marie (Home)", 'the first word decides');
+  assert.equal(i18n.tr('fr', 'Waits until {names} are free', { names: 'Anna et Bob' }), "Attend qu'Anna et Bob soient libres");
+  assert.equal(i18n.tr('fr', "{who}'s plan"), 'Plan de {who}', 'no values: the text as it is');
+  assert.equal(i18n.tr('fr', 'Saved'), 'Enregistré', 'a string with no placeholder is not touched');
+  for (const lang of OTHERS.filter((l) => l !== 'fr')) assert.equal(i18n.elisionOf(lang), null, `${lang} declares none`);
+  assert.equal(i18n.elisionOf('en'), null);
+  assert.equal(i18n.tr('en', "{who}'s plan", { who: 'Anna' }), "Anna's plan");
+  assert.equal(i18n.tr('pl', "{who}'s plan", { who: 'Anna' }), i18n.strings('pl')["{who}'s plan"].replace('{who}', 'Anna'), 'another language is filled as it always was');
+});
+
+test('elision: the word right before a placeholder, its capital and its case, from a rule a folder declares', () => {
+  const elision = require('../lib/i18n/elision');
+  const rule = elision.of('fr');
+  assert.deepEqual(Object.keys(rule.words), ['de', 'que', 'le', 'la']);
+  const fill = (t, vars) => elision.fill(t, vars, rule);
+  assert.equal(fill('de {name}', { name: 'Anna' }), "d'Anna");
+  assert.equal(fill('de {name}', { name: 'Bob' }), 'de Bob');
+  assert.equal(fill('que {bot}', { bot: 'Émile' }), "qu'Émile");
+  assert.equal(fill('Que {bot}', { bot: 'Émile' }), "Qu'Émile");
+  assert.equal(fill('De {name}', { name: 'Anna' }), "D'Anna");
+  assert.equal(fill('le {name} et la {other}', { name: 'Alice', other: 'Odile' }), "l'Alice et l'Odile");
+  assert.equal(fill('de\u00a0{name}', { name: 'Anna' }), "d'Anna", 'after a no-break space too');
+  assert.equal(fill('ode {name}', { name: 'Anna' }), 'ode Anna', 'only the word itself');
+  assert.equal(fill("l'de {name}", { name: 'Anna' }), "l'de Anna", 'not after an apostrophe');
+  assert.equal(fill('de {a} et de {b}', { a: 'Anna', b: 'Bob' }), "d'Anna et de Bob");
+  assert.equal(fill('de {missing}', {}), 'de {missing}');
+  assert.equal(fill('{name}', { name: 'Anna' }), 'Anna', 'a placeholder with no word before it');
+  assert.equal(fill('de la {name}', { name: 'Anna' }), "de l'Anna", 'the word right before: la');
+  assert.equal(elision.fill('de {name}', { name: 'Anna' }, null), 'de Anna', 'no rule: no elision');
+  // A rule is data: Italian could declare its own.
+  assert.equal(elision.fill('di {n}', { n: 'Anna' }, { words: { di: "d'" }, silentH: [] }), "d'Anna");
+  assert.equal(elision.of('xx'), null);
+  assert.equal(elision.of('en'), null);
+  assert.equal(elision.of('fr', fs.mkdtempSync(path.join(require('os').tmpdir(), 'elision-'))), null, 'a folder with no phrases.json declares none');
+  assert.equal(i18n.trn('fr', 2, '{n} bot', '{n} bots'), '2 bots', 'a count is filled as it was');
+});
+
+test('the API hands out a language\'s elision rule with its dictionary, and English has none', async (t) => {
+  const s = await startServer();
+  t.after(() => s.stop());
+  const fr = (await s.api('/i18n/fr')).data;
+  assert.deepEqual(fr.elision.words, { de: "d'", que: "qu'", le: "l'", la: "l'" });
+  assert.ok(fr.elision.silentH.includes('hélène'));
+  assert.equal((await s.api('/i18n/pl')).data.elision, null);
+  assert.equal((await s.api('/i18n/en')).data.elision, null);
+});
+
+test('"On" and "Off" are the state of every setting, so a language that agrees a state with its subject gives them words that agree with nothing', () => {
+  // Backups, Notifications, Skills, a tile's dot and a report's rhythm all read "Off": French "Désactivé" was masculine
+  // for Sauvegardes, Compétences and Notifications alike. These languages inflect (gender or number), so theirs are a
+  // yes and a no or an abbreviation; the others' words (An/Aus, Aan/Uit, オン/オフ…) are invariant already.
+  const words = { fr: ['Oui', 'Non'], es: ['Sí', 'No'], it: ['Sì', 'No'], 'pt-BR': ['Sim', 'Não'], pl: ['Wł.', 'Wył.'], ru: ['Вкл.', 'Выкл.'] };
+  for (const [lang, [on, off]] of Object.entries(words)) {
+    assert.equal(i18n.tr(lang, 'On'), on, lang);
+    assert.equal(i18n.tr(lang, 'Off'), off, lang);
+  }
+  // "On" is not a preposition either: the payment request says "Site" above the site's address.
+  assert.ok(!/tr\('On'\)<\/div>\s*<div class="site"/.test(fs.readFileSync(path.join(ROOT, 'public/vault.js'), 'utf8')));
+});
+
 test("every language folder's phrases are lists of the kinds botdot reads, its schedule words have English's shape, and an offered language has its glossary", () => {
   const phrases = require('../lib/i18n/phrases');
   const cronWords = require('../lib/cron-words');
   for (const lang of folders()) {
     const raw = tableOf(lang, 'phrases.json');
-    for (const kind of Object.keys(raw)) assert.ok(kind in phrases.KINDS, `${lang}/phrases.json: ${kind} is no kind of lib/i18n/phrases.js`);
+    for (const kind of Object.keys(raw)) assert.ok(kind in phrases.KINDS || kind === 'elision', `${lang}/phrases.json: ${kind} is no kind of lib/i18n/phrases.js`);
+    if (raw.elision) assert.ok(require('../lib/i18n/elision').of(lang), `${lang}/phrases.json: elision needs its words, { "de": "d'" }`);
     assert.doesNotThrow(() => phrases.of(lang), lang);
     for (const kind of Object.keys(phrases.KINDS)) for (const p of phrases.of(lang)[kind]) assert.doesNotThrow(() => new RegExp(phrases.source(p), 'u'), `${lang} ${kind}: ${p}`);
     if (fs.existsSync(path.join(i18n.DIR, lang, 'cron-words.js'))) {
@@ -221,6 +294,31 @@ test('the web page draws a string in Polish from the dictionary kept in the brow
   assert.equal(g.I18n.locale, 'de-DE');
   assert.deepEqual(g.I18n.languages.map((l) => l.code), ['en', 'de']);
   assert.deepEqual(g.I18n.phrases.because, ['weil']);
+  // French: the rule comes with the dictionary and elides before a name; English text and other languages are as they were.
+  const rule = { words: { de: "d'", que: "qu'", le: "l'", la: "l'" }, silentH: ['hélène'] };
+  const f = run({ language: 'fr', strings: { "{who}'s plan": 'Plan de {who}', 'Waits until {who} is free': 'Attend que {who} soit libre', Saved: 'Enregistré', '{n} files of {who}': { one: '{n} fichier de {who}', other: '{n} fichiers de {who}' } }, languages: [{ code: 'en', name: 'English' }, { code: 'fr', name: 'Français' }], elision: rule });
+  assert.equal(f.tr("{who}'s plan", { who: 'Anna' }), "Plan d'Anna");
+  assert.equal(f.tr("{who}'s plan", { who: 'Bob' }), 'Plan de Bob');
+  assert.equal(f.tr('Waits until {who} is free', { who: 'Émile' }), "Attend qu'Émile soit libre");
+  assert.equal(f.tr("{who}'s plan", { who: 'Hélène' }), "Plan d'Hélène");
+  assert.equal(f.tr("{who}'s plan", { who: 'Hugo' }), 'Plan de Hugo');
+  assert.equal(f.tr("{who}'s plan", { who: 'anna@x.com' }), 'Plan de anna@x.com');
+  // The page's names are HTML: botLabel() is the bot's mark (an <svg>), then its escaped name. Elision reads what shows.
+  const mark = '<svg class="fig fig-small" viewBox="0 0 10 10" style="--c:#fc0" aria-hidden="true" data-bot="b1"><path d="M0 0h10v10H0z"/></svg>';
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}Anna` }), `Plan d'${mark}Anna`, 'a vowel after the mark');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}Bob` }), `Plan de ${mark}Bob`, 'a consonant after the mark');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}Hélène` }), `Plan d'${mark}Hélène`);
+  assert.equal(f.tr("{who}'s plan", { who: '<b>Émile</b>' }), "Plan d'<b>Émile</b>", 'a name in <b>');
+  assert.equal(f.tr("{who}'s plan", { who: '<a href="#x">Zoé</a>' }), 'Plan de <a href="#x">Zoé</a>', 'a link');
+  assert.equal(f.tr("{who}'s plan", { who: 'Alice &amp; Bob' }), "Plan d'Alice &amp; Bob", 'an escaped name');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}&lt;x&gt;` }), `Plan de ${mark}&lt;x&gt;`, 'a name that is no word');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}` }), `Plan de ${mark}`, 'a mark and no name');
+  assert.equal(f.tr('Saved'), 'Enregistré');
+  assert.equal(f.tr("{who}'s plan"), 'Plan de {who}');
+  assert.equal(f.tr('Not in the dictionary: de {who}', { who: 'Anna' }), 'Not in the dictionary: de Anna', 'English text is not elided');
+  assert.equal(f.trn(2, '{n} file of {who}', '{n} files of {who}', { who: 'Anna' }), "2 fichiers d'Anna");
+  assert.equal(run({ language: 'fr', strings: { "{who}'s plan": 'Plan de {who}' } }).tr("{who}'s plan", { who: 'Anna' }), 'Plan de Anna', 'kept before the server handed out a rule: as it was');
+  assert.equal(run({ language: 'pl', strings: { "{who}'s plan": 'Plan de {who}' }, elision: rule }).tr("{who}'s plan", { who: 'Anna' }), "Plan d'Anna", 'the rule is the language\'s, as the server hands it out');
   const j = run({ language: 'ja', strings: { '{n} bots': { other: 'ボット{n}体' } } });
   assert.equal(j.trn(1, '{n} bot', '{n} bots'), 'ボット1体', 'Japanese has one form, other');
   assert.equal(run({ language: '<script>', strings: { Saved: 'x' } }).lang, 'en', 'no language code: English');

@@ -37,3 +37,5 @@ The Polish glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engli
 | Working / Done / Idle / Asks | Pracuje / Gotowe / Bezczynny / Pyta |
 | Saved | Zapisano |
 | the web page | przeglądarka ("w przeglądarce"), so that "strona" stays a Page |
+
+- **On / Off → "Wł." / "Wył.".** One English word is the state of Kopie zapasowe, Powiadomienia, Umiejętności, a tile and a report's rhythm: "Wyłączone" agreed with a neuter plural alone, and the abbreviations agree with nothing (Russian's "Вкл." / "Выкл." are the same idea).

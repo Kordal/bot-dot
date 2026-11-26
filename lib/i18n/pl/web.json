@@ -80,7 +80,7 @@
   "Off-site backups of the account are kept for 14 days, then removed.": "Kopie zapasowe konta poza serwerem są trzymane przez 14 dni, potem znikają.",
   "Type your account name, {name}, to confirm": "Wpisz nazwę konta, {name}, żeby potwierdzić",
   "Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.": "Wylogować wszędzie? Każda przeglądarka i aplikacja zalogowana na twoje konto, także ta, zaloguje się ponownie kluczem dostępu.",
-  "Off": "Wyłączone",
+  "Off": "Wył.",
   "Passphrase": "Hasło",
   "Again": "Powtórz",
   "Failed": "Nie udało się",

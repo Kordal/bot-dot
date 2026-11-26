@@ -68,7 +68,7 @@ jobs:
           ^lib/(audit|helper-client|helper-model|tools-link|tools-worker|browser-locale|group-router|prompt-text)\.js$
           ^lib/(boat|jsonfile|vault-files|computer-move|connectors|principal-fs|principal-fs-worker|workspace-git)\.js$
           ^lib/(vault|vault-item-types|network-address|github-app|app-errors|connected-apps)\.js$
-          ^lib/i18n/(index\.js|languages\.json)$
+          ^lib/i18n/(index\.js|languages\.json|elision\.js)$
           ^test/installer.*\.js$
           ^test/(helpers|linux|run)\.js$
           ^test/fixtures/fake-docker\.js$

@@ -46,6 +46,7 @@ object I18n {
     /** The languages the account may choose, as the server last said. */
     val languages: List<Language> get() = languagesState.value
     private var phraseLists: Map<String, List<String>> = emptyMap()
+    private var elision: Elision? = null
 
     /** The languages for the Settings picker: code and own name; the app's own language is always among them. */
     val choices: List<Pair<String, String>>
@@ -64,25 +65,28 @@ object I18n {
     fun start(k: Keep) {
         keep = k
         val o = runCatching { k.read()?.let { Api.JSON.parseToJsonElement(it) as? JsonObject } }.getOrNull() ?: return
-        use(o["language"].text(), o["strings"] as? JsonObject, languagesOf(o["languages"]) ?: OLDER_SERVER, phrasesOf(o["phrases"]))
+        use(o["language"].text(), o["strings"] as? JsonObject, languagesOf(o["languages"]) ?: OLDER_SERVER, phrasesOf(o["phrases"]), o["elision"] as? JsonObject)
     }
 
     /**
-     * [lang] with its [table] (null for English), the [offered] languages and the [words] of every offered language,
-     * kept for the next start. A language that is not offered is English.
+     * [lang] with its [table] (null for English), the [offered] languages, the [words] of every offered language and
+     * the language's [elision] rule (lib/i18n/elision.js), kept for the next start. A language that is not offered is English.
      */
-    fun use(lang: String?, table: JsonObject?, offered: List<Language> = OLDER_SERVER, words: Map<String, List<String>> = phraseLists) {
+    fun use(lang: String?, table: JsonObject?, offered: List<Language> = OLDER_SERVER, words: Map<String, List<String>> = phraseLists, elision: JsonObject? = null) {
         val all = offered.ifEmpty { listOf(ENGLISH) }
         val l = lang?.takeIf { c -> c == "en" || all.any { it.code == c } } ?: "en"
         languagesState.value = all
         phraseLists = words
         language = l
         strings = if (l == "en") emptyMap() else table.orEmpty()
+        val rule = if (l == "en") null else Elision.of(elision)
+        this.elision = rule
         keep?.write(buildJsonObject {
             put("language", l)
             put("strings", JsonObject(strings))
             put("languages", JsonArray(all.map { it.json() }))
             put("phrases", JsonObject(words.mapValues { (_, v) -> JsonArray(v.map { JsonPrimitive(it) }) }))
+            rule?.let { put("elision", it.json()) }
         }.toString())
     }
 
@@ -91,7 +95,7 @@ object I18n {
         if (features == null || FEATURE !in features) return
         val lang = runCatching { api.language() }.getOrNull() ?: return
         if (MANY in features) {
-            runCatching { api.i18n(lang) }.onSuccess { d -> use(lang, d["strings"] as? JsonObject, languagesOf(d["languages"]) ?: listOf(ENGLISH), phrasesOf(d["phrases"])) }
+            runCatching { api.i18n(lang) }.onSuccess { d -> use(lang, d["strings"] as? JsonObject, languagesOf(d["languages"]) ?: listOf(ENGLISH), phrasesOf(d["phrases"]), d["elision"] as? JsonObject) }
             return
         }
         if (lang == "en") return use("en", null, OLDER_SERVER, emptyMap())
@@ -103,10 +107,26 @@ object I18n {
 
     fun text(key: String): String = (strings[key] as? JsonPrimitive)?.contentOrNull ?: key
 
+    /** [key]'s text with its {placeholders} filled from [vars]; a text of the dictionary elides (lib/i18n/elision.js), English does not. */
+    fun tr(key: String, vars: Array<out Pair<String, Any?>>): String {
+        val found = (strings[key] as? JsonPrimitive)?.contentOrNull
+        return if (found != null) fill(found, vars, elision) else fill(key, vars)
+    }
+
     /** A count's text: the form of the language's category, or else "other", then "few", then "many" (as the server picks). */
-    fun plural(n: Int, one: String, other: String): String {
-        val forms = strings[other] as? JsonObject ?: return if (n == 1) one else other
-        return forms[form(language, n)].text() ?: forms["other"].text() ?: forms["few"].text() ?: forms["many"].text() ?: other
+    fun plural(n: Int, one: String, other: String): String = pluralOf(n, one, other).first
+
+    /** The text of [plural] and whether it came from the dictionary. */
+    private fun pluralOf(n: Int, one: String, other: String): Pair<String, Boolean> {
+        val forms = strings[other] as? JsonObject ?: return (if (n == 1) one else other) to false
+        val t = forms[form(language, n)].text() ?: forms["other"].text() ?: forms["few"].text() ?: forms["many"].text()
+        return if (t != null) t to true else other to false
+    }
+
+    /** A count's text with {n} and [vars] filled in, elided as [tr] is. */
+    fun trn(n: Int, one: String, other: String, vars: Array<out Pair<String, Any?>>): String {
+        val (text, found) = pluralOf(n, one, other)
+        return fill(text, arrayOf<Pair<String, Any?>>("n" to n, *vars), if (found) elision else null)
     }
 
     /**
@@ -129,8 +149,60 @@ object I18n {
         }
     }
 
-    fun fill(text: String, vars: Array<out Pair<String, Any?>>): String =
-        if (vars.isEmpty()) text else Regex("""\{(\w+)\}""").replace(text) { m -> vars.firstOrNull { it.first == m.groupValues[1] }?.second?.toString() ?: m.value }
+    /**
+     * [text] with its {placeholders} filled from [vars]; with an [elision] rule, a word that stands right before a
+     * placeholder is elided where the value asks for it ("de {name}" is "d'Anna" but "de Bob", French's).
+     */
+    fun fill(text: String, vars: Array<out Pair<String, Any?>>, elision: Elision? = null): String {
+        if (vars.isEmpty()) return text
+        fun value(key: String) = vars.firstOrNull { it.first == key }?.second?.toString()
+        if (elision == null) return PLACEHOLDER.replace(text) { m -> value(m.groupValues[1]) ?: m.value }
+        return elision.pattern.replace(text) { m ->
+            val word = m.groups[1]?.value
+            val v = value((if (word != null) m.groups[3] else m.groups[4])!!.value) ?: return@replace m.value
+            val form = word?.let { elision.words[it.lowercase()] }
+            when {
+                word == null -> v
+                form == null || !elision.soft(v) -> word + m.groupValues[2] + v
+                word[0].isUpperCase() -> form.replaceFirstChar { it.uppercase() } + v
+                else -> form + v
+            }
+        }
+    }
+
+    private val PLACEHOLDER = Regex("""\{(\w+)\}""")
+
+    /**
+     * Elision before a name (lib/i18n/elision.js, French's "d'Anna"): the [words] that elide and what each becomes
+     * before a vowel, and the [silentH] words whose mute h a vowel's rule treats as one. It is the server's data
+     * (`elision` of GET /api/i18n/<code>); the rule here is the same as the server's and the web page's.
+     */
+    class Elision(val words: Map<String, String>, val silentH: List<String>) {
+        internal val pattern = Regex("(?<![\\p{L}\\p{N}'’])(${words.keys.joinToString("|") { Regex.escape(it) }})([ \u00a0\u202f])\\{(\\w+)\\}|\\{(\\w+)\\}", RegexOption.IGNORE_CASE)
+
+        /** Whether [value] starts with a vowel or a mute h, as a word of letters alone ("Anna", "ouvrir"; not "app.js" or "Yann"). */
+        fun soft(value: String): Boolean {
+            val word = FIRST_WORD.find(value)?.value?.lowercase() ?: return false
+            return word[0] in VOWELS || (word[0] == 'h' && word.substringBefore('-') in silentH)
+        }
+
+        internal fun json() = buildJsonObject {
+            put("words", JsonObject(words.mapValues { JsonPrimitive(it.value) }))
+            put("silentH", JsonArray(silentH.map { JsonPrimitive(it) }))
+        }
+
+        companion object {
+            private const val VOWELS = "aeiouàâäéèêëîïôöùûüœæ"
+            private val FIRST_WORD = Regex("^[\\p{L}\\p{M}][\\p{L}\\p{M}'’-]*(?=$|[\\s,;:!?)»…])")
+
+            /** The rule of the server's `elision`, or null when the language has none. */
+            fun of(e: JsonObject?): Elision? {
+                val words = (e?.get("words") as? JsonObject)?.mapNotNull { (w, f) -> f.text()?.takeIf { it.isNotEmpty() && w.isNotEmpty() && w.all(Char::isLetter) }?.let { w.lowercase() to it } }?.toMap().orEmpty()
+                if (words.isEmpty()) return null
+                return Elision(words, (e?.get("silentH") as? JsonArray)?.mapNotNull { it.text()?.lowercase() }.orEmpty())
+            }
+        }
+    }
 
     private fun Language.json() = buildJsonObject {
         put("code", code); put("name", name); locale?.let { put("locale", it) }; put("longDay", longDay); put("shortDay", shortDay)
@@ -150,7 +222,7 @@ object I18n {
 }
 
 /** [text] in the account's language, its {placeholders} filled from [vars]. */
-fun tr(text: String, vararg vars: Pair<String, Any?>): String = I18n.fill(I18n.text(text), vars)
+fun tr(text: String, vararg vars: Pair<String, Any?>): String = I18n.tr(text, vars)
 
 /** A count: [one] for one and [other] otherwise in English; the other languages' forms are keyed by [other]. {n} is [n]. */
-fun trn(n: Int, one: String, other: String, vararg vars: Pair<String, Any?>): String = I18n.fill(I18n.plural(n, one, other), arrayOf<Pair<String, Any?>>("n" to n, *vars))
+fun trn(n: Int, one: String, other: String, vararg vars: Pair<String, Any?>): String = I18n.trn(n, one, other, vars)

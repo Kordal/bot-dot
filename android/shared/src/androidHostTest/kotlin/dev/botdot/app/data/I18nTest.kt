@@ -66,6 +66,41 @@ class I18nTest {
         assertEquals("many is missing: few", "5 godziny", trn(5, "{n} hour", "{n} hours"))
     }
 
+    // French elides before a name (lib/i18n/elision.js): the server hands out the rule with the dictionary.
+    private val frenchRule = JsonObject(mapOf(
+        "words" to JsonObject(mapOf("de" to JsonPrimitive("d'"), "que" to JsonPrimitive("qu'"), "le" to JsonPrimitive("l'"), "la" to JsonPrimitive("l'"))),
+        "silentH" to kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive("hélène"))),
+    ))
+    private val frenchOffered = listOf(I18n.Language("en", "English"), I18n.Language("fr", "Français", "fr-FR"))
+    private val french = JsonObject(mapOf(
+        "Plan of {who}" to JsonPrimitive("Plan de {who}"),
+        "Waits for {bot}" to JsonPrimitive("Attend que {bot} soit libre"),
+        "The {thing}" to JsonPrimitive("Le {thing} est prêt"),
+        "{n} files of {bot}" to JsonObject(mapOf("one" to JsonPrimitive("{n} fichier de {bot}"), "other" to JsonPrimitive("{n} fichiers de {bot}"))),
+    ))
+
+    @Test fun frenchElidesDeQueAndLeBeforeAVowelNameAndOnlyThere() {
+        I18n.use("fr", french, frenchOffered, emptyMap(), frenchRule)
+        assertEquals("Plan d'Anna", tr("Plan of {who}", "who" to "Anna"))
+        assertEquals("Plan de Bob", tr("Plan of {who}", "who" to "Bob"))
+        assertEquals("Attend qu'Émile soit libre", tr("Waits for {bot}", "bot" to "Émile"))
+        assertEquals("Attend que Zoé soit libre", tr("Waits for {bot}", "bot" to "Zoé"))
+        assertEquals("L'Alice est prêt", tr("The {thing}", "thing" to "Alice"))
+        assertEquals("Le Bob est prêt", tr("The {thing}", "thing" to "Bob"))
+        assertEquals("Plan d'Hélène", tr("Plan of {who}", "who" to "Hélène"))
+        assertEquals("a name with an aspirated h is not elided", "Plan de Hugo", tr("Plan of {who}", "who" to "Hugo"))
+        assertEquals("a value that is not a word of letters is not elided", "Plan de anna@x.com", tr("Plan of {who}", "who" to "anna@x.com"))
+        assertEquals("Plan de 8", tr("Plan of {who}", "who" to 8))
+        assertEquals("a count elides too", "2 fichiers d'Anna", trn(2, "{n} file of {bot}", "{n} files of {bot}", "bot" to "Anna"))
+        assertEquals("a string with no placeholder is as it is", "Not there d'Anna", tr("Not there d'Anna"))
+        assertEquals("English text is never elided", "Ask de Anna", tr("Ask de {who}", "who" to "Anna"))
+    }
+
+    @Test fun aLanguageThatDeclaresNoRuleDoesNotElide() {
+        I18n.use("pl", JsonObject(mapOf("Plan of {who}" to JsonPrimitive("Plan: de {who}"))), listOf(I18n.Language("en", "English"), I18n.Language("pl", "Polski")))
+        assertEquals("Plan: de Anna", tr("Plan of {who}", "who" to "Anna"))
+    }
+
     @Test fun theFeedSaysTheLanguage() {
         assertEquals("pl", I18n.event(FeedEvent(null, "language", JsonObject(mapOf("language" to JsonPrimitive("pl"))))))
         assertEquals(null, I18n.event(FeedEvent(null, "language", JsonObject(mapOf("language" to JsonPrimitive("xx"))))))
