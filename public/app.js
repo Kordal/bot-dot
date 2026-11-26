@@ -1152,7 +1152,7 @@ function linkifyChat(root) {
     const node = walker.currentNode;
     const parent = node.parentElement;
     if (parent?.closest('.chat-thread .bubble, .po-text') &&
-        !parent.closest('a, code, pre, button, .mention, .diagram, .pu-name')) nodes.push(node); // a project update's callout title names its bot beside its own button
+        !parent.closest('a, code, pre, button, .mention, .diagram, .pu-name, .vu-card')) nodes.push(node); // a project update's callout title names its bot beside its own button; a version note's titles are plain text
   }
   const bots = nodes.length ? namedBots() : [];
   for (const node of nodes) {

@@ -690,7 +690,10 @@ function chatsOfAsk(x) {
 // that came meanwhile stood only in Needs you, under a chat that said "Waiting for your OK", until the next refresh.
 function drawChatCards() {
   if (state.view === 'bot' && state.botId && $('#view-bot')?.dataset.bot === state.botId) updateChatNeeds($('#bot-thread'), state.botId);
-  if (state.view === 'chief' && state.chatId) updateChatNeeds($('#chat-thread'), 'chief');
+  if (state.view === 'chief' && state.chatId) {
+    updateChatNeeds($('#chat-thread'), 'chief');
+    if (typeof VersionUpdate === 'object') VersionUpdate.sync($('#chat-thread')); // a new-version note's button goes with its card
+  }
 }
 
 // The card a bot's run waits for, in its chat: "Waiting for your OK" scrolls to it (drawStatusLine). The run's

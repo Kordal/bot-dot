@@ -69,6 +69,11 @@ test('a version that waits is a card for an app that asks for it, a note in the 
   assert.equal(note.notice, true);
   assert.deepEqual(note.cards, [card.id]);
   assert.match(note.text, /- Updates wait for idle/);
+  // The same note as data beside its text, for the apps' card (`version-update-card`, #1759); the chat's list line says its head.
+  assert.ok((await srv.api('/version')).data.features.includes('version-update-card'));
+  assert.deepEqual(note.versionUpdate, { head: 'A new version of botdot is ready', version: 'abc1234', body: note.text.split('\n')[0].replace('A new version of botdot is ready. ', ''), heading: "What's new", notes: [{ title: 'Updates wait for idle' }], cardId: card.id });
+  const listed = (await srv.api('/chief')).data.chats.find((c) => c.preview === 'A new version of botdot is ready');
+  assert.ok(listed, "the list's line is the head, not the first line of the text");
   // Told again (every change, and after a failure): one card, one note.
   await srv.api('/update/offer', { method: 'POST', headers: ROOM, body: offer({ busy: false }) });
   assert.equal((await cards()).length, 1);

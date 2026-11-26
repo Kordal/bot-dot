@@ -103,6 +103,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val overview by app.store.chief.value.collectAsState()
     val chats = overview?.chats.orEmpty()
     val botsNow by app.store.bots.value.collectAsState()
+    val needsNow by app.store.needs.value.collectAsState()
     val bots = botsNow.orEmpty()
     val groupsNow by app.store.groups.value.collectAsState()
     // A message's team (ADR 223): its name opens the team's chat.
@@ -247,6 +248,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                 return@Scaffold
             }
             val messages = chat?.messages.orEmpty()
+            val waitingCards = remember(needsNow) { needsNow?.asks.orEmpty().map { it.id }.toSet() } // the cards that wait in Needs you: a new-version note's button shows only while its card does
             val first = chat?.offset ?: 0 // where the loaded messages start in the whole chat
             val newestFirst = remember(messages) { messages.asReversed() }
             val namedHere = remember(messages) { newestNames(messages.mapIndexed { n, x -> "$n" to x.cards.takeIf { !x.pending && !x.failed && x.role in setOf("chief", "report") } }) }
@@ -314,7 +316,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             if (!m.pending) m.about?.let { AboutLine(it, mine = m.role != "chief", onTeam = openTeam, onProject = onProject) }
                             val cardOpen = i == cardAt
                             ViewReplyScope(chiefViewId(chatId, index)) {
-                                Message(shownNewestFirst[i], if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
+                                Message(shownNewestFirst[i], if (i == 0 && busy) activity else emptyList(), chips, waitingCards, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
                                     plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
                                     onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                                     onDismiss = { vm.dismiss() },
@@ -343,11 +345,13 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
 }
 
 @Composable
-private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, lineSaysIt: Boolean, draft: String = "", plan: dev.botdot.app.data.Plan? = null, onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
+private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, waitingCards: Set<String>, lineSaysIt: Boolean, draft: String = "", plan: dev.botdot.app.data.Plan? = null, onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
     val p = LocalPaper.current
     val update = if (m.pending) null else m.update // a project update with its data: one card of the block kit (#1755); an older server's has only its text
+    val version = if (m.pending || update != null) null else m.versionUpdate // the note of a new version with its data: one card (#1759); an older server's has only its text
     when {
         update != null -> TheirBubble(shortTime(m.endedAt ?: m.at), copyText = m.text, plain = true) { ProjectUpdateCardUi(update, m.projectUpdate.orEmpty()) }
+        version != null -> TheirBubble(shortTime(m.endedAt ?: m.at), copyText = m.text, plain = true) { VersionUpdateCardUi(version, waitingCards) }
         m.role == "user" -> MyBubble(m.text, m.attachments, about = m.card)
         m.role == "suggestion" -> Suggestion(m, onBuild, onDismiss)
         m.role == "report" -> Report(m)
