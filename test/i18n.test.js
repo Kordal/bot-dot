@@ -383,7 +383,8 @@ test("the style sheet keeps Korean words whole: keep-all on <html lang=ko>, a lo
   const rule = css.match(/html:lang\(ko\)\s*\{([^}]*)\}/);
   assert.ok(rule, 'a rule for html:lang(ko)');
   assert.match(rule[1], /word-break:\s*keep-all/);
-  assert.match(rule[1], /overflow-wrap:\s*anywhere/);
+  assert.match(rule[1], /overflow-wrap:\s*break-word/);
+  assert.doesNotMatch(rule[1], /overflow-wrap:\s*anywhere/, 'anywhere shrinks a Korean item to one syllable');
 });
 
 test("a keypad key's name wraps to two balanced lines before it is cut, so a long name of a language shows whole", () => {

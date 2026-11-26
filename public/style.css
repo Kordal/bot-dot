@@ -92,10 +92,11 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
 .md-table::-webkit-scrollbar-thumb, .md .diagram-svg::-webkit-scrollbar-thumb, .dv-table::-webkit-scrollbar-thumb, .script-out::-webkit-scrollbar-thumb, .tool pre::-webkit-scrollbar-thumb, .skill-preview::-webkit-scrollbar-thumb, .pick-instructions::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r-pill); }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font: var(--fs-14)/1.5 var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
-/* Korean breaks a line between words, not inside one (keep-all); a token longer than its line still breaks. On <html>, so a
+/* Korean breaks a line between words, not inside one (keep-all); a token longer than its line still breaks (break-word, not anywhere: anywhere would make the narrowest width of Korean text one
+   syllable, so flex and grid items shrink and break words anyway). On <html>, so a
    rule of a class that sets its own word-break or overflow-wrap (code, a table) still wins. The page's language is
    <html lang> (i18n.js: the account's, "ko"). */
-html:lang(ko) { word-break: keep-all; overflow-wrap: anywhere; }
+html:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
 button, input, select, textarea { font: inherit; color: inherit; }
 code, pre, .mono { font-family: var(--mono); font-size: var(--fs-12); }
 a { color: inherit; }
