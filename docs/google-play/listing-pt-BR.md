@@ -14,7 +14,7 @@ botdot
 Uma equipe de bots de IA comandada pelo chat, no seu servidor ou hospedada
 ```
 
-## Full description (4000): 2335
+## Full description (4000): 2338
 
 ```
 botdot é o app Android do botdot, um software de código aberto que dá a você uma equipe de bots de IA comandada pelo chat.
@@ -32,7 +32,7 @@ O que você pode fazer no app
 • Notificações quando um bot responde, termina ou precisa de você, enviadas direto do seu botdot, sem serviço de push no meio.
 
 Você precisa de uma conta botdot
-O app se conecta a um servidor botdot e não mostra nada sem um. Instale o botdot no seu próprio servidor ou VM Linux com um comando (código aberto, licença MIT: github.com/ladrok/bot-dot), use uma conta que o administrador de um servidor botdot der a você, ou deixe o botdot hospedado para você em botdot.app.
+O app se conecta a um servidor botdot e não mostra nada sem um. Instale o botdot no seu próprio servidor ou VM Linux com um comando (código aberto, licença MIT: github.com/ladrok/bot-dot), use uma conta que o administrador de um servidor botdot der a você, ou deixe que hospedem o botdot para você em botdot.app.
 
 Sua conta de IA
 Todo bot roda no Claude Code. Cada conta entra com a própria assinatura do Claude ou chave de API da Anthropic, ou usa outro provedor de modelos que escolher. O botdot é um projeto independente de código aberto, não feito pela Anthropic nem afiliado a ela.
