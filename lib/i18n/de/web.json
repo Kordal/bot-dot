@@ -1928,5 +1928,6 @@
   "Showing its start (up to 1 MB or 1,000 lines).": "Der Anfang wird gezeigt (bis 1 MB oder 1.000 Zeilen).",
   "Download it to see everything.": "Lade sie herunter, um alles zu sehen.",
   "Open {name} · {size}": "{name} öffnen · {size}",
-  "{n} changes, newest first. Tap a title for more.": "{n} Änderungen, die neuesten zuerst. Tippe auf einen Titel für mehr."
+  "{n} changes, newest first. Tap a title for more.": "{n} Änderungen, die neuesten zuerst. Tippe auf einen Titel für mehr.",
+  "Only what is in this file loads": "Nur der Inhalt dieser Datei wird geladen"
 }
