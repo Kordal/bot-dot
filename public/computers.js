@@ -187,7 +187,7 @@ function openScreen(botId) {
     $('#screen-done', m).classList.toggle('hidden', !(control && on && state.features.includes('screen-done')));
     $('#screen-control', m).disabled = !on;
     const shown = $('#screen-frame iframe', m);
-    if (on && shown) { screenControl(shown, botId, control); return; } // already showing: not loaded again
+    if (on && shown) { screenControl(shown, botId, control); fit(); return; } // already showing: not loaded again, sized to what is left
     $('#screen-frame', m).innerHTML = off
       ? `<div class="screen-off"><div class="big">🖥</div>${esc(off.text)}<div><button class="btn sm" id="screen-start">${esc(off.start)}</button></div></div>`
       : on

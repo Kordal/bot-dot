@@ -109,7 +109,7 @@ test('web: Take control switches the showing screen in place, without loading it
   ctx.screenControl(loading, 'b1', true);
   assert.equal(loading.src, '/computer/b1/vnc.html?view_only=0', 'not ready yet: opened at the new address');
   const screen = cut('function openScreen(', '// Plain-language explanation for a failed or stopped run');
-  assert.match(screen, /if \(on && shown\) \{ screenControl\(shown, botId, control\); return; \}/, 'the dialog keeps its screen');
+  assert.match(screen, /if \(on && shown\) \{ screenControl\(shown, botId, control\); fit\(\); return; \}/, 'the dialog keeps its screen, fitted to the notes beside it');
   assert.match(cut('function openBoatComputer(', 'function openScreen('), /screenControl\(\$\('#screen-frame iframe', m\), bot\.id, control\)/);
   // The viewer: only its own parent, of its own origin, switches it, and taking control still tells the server (ADR 107).
   const viewer = fs.readFileSync(path.join(__dirname, '..', 'screen', 'viewer', 'viewer.js'), 'utf8');
