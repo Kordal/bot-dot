@@ -1,0 +1,13 @@
+{
+  "stopWords": ["a", "ao", "aos", "as", "às", "com", "como", "da", "das", "de", "do", "dos", "e", "ela", "ele", "em", "é", "era", "essa", "esse", "esta", "está", "este", "eu", "foi", "isso", "isto", "já", "lhe", "mais", "mas", "me", "meu", "minha", "na", "nas", "no", "nos", "não", "num", "numa", "o", "os", "ou", "para", "pelo", "pela", "por", "pra", "que", "se", "sem", "ser", "seu", "sua", "são", "também", "tem", "um", "uma"],
+  "corrections": ["não", "errado", "errada", "está errado", "tá errado", "de novo", "tente de novo", "faça de novo", "corrig*", "não era isso", "eu quis dizer", "era para"],
+  "never": ["nunca", "jamais", "não"],
+  "schedule": ["todo dia", "todos os dias", "diariamente", "toda manhã", "todas as manhãs", "toda semana", "semanalmente", "toda hora", "a cada # minuto*", "a cada # hora*"],
+  "yes": ["sim", "claro", "pode", "com certeza"],
+  "no": ["não", "cancelar", "depois", "agora não"],
+  "nothingNew": ["nada de novo", "nada novo", "sem novidades", "sem alterações", "sem mudanças", "nenhuma novidade", "nenhuma mudança", "nenhuma alteração"],
+  "because": ["porque", "pois"],
+  "noSource": ["nenhuma", "nenhum", "sem fonte", "sem fontes", "sem dados", "fonte desconhecida", "desconhecida", "desconhecido", "não informado", "não informada", "não se aplica", "não há", "n/d", "indisponível", "fonte indisponível"],
+  "nameEndings": [],
+  "password": ["senha"]
+}
