@@ -1,0 +1,13 @@
+{
+  "feature": "Tim bot AI yang kamu atur lewat chat",
+  "screenshots": {
+    "1-home.png": "Botmu dan yang menunggumu",
+    "2-chief.png": "Minta bot ke Kepala Staf",
+    "3-approve.png": "Skrip menunggu persetujuanmu",
+    "4-server.png": "Meteran dan angka langsung di chat",
+    "5-spending.png": "Grafik, bukan tumpukan angka",
+    "6-quiz.png": "Jawab kuis langsung di chat",
+    "7-quotes.png": "Bandingkan pilihan berdampingan",
+    "8-board.png": "Nilai langsung di Papanmu"
+  }
+}
