@@ -3,6 +3,7 @@
 The German glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each English term is in botdot. The same words as the What's new notes in `whats-new/de/` and the Play listing (`docs/google-play/listing-de.md`).
 
 - **The owner is "du"**, lowercase ("dein", "dich", "dir"), as German phone apps write it.
+- **No sentence starts with a "sie" or "ihr" that means a thing** ("Sie enthält eine Kachel", "Ihr Chat wird gelöscht"): capitalised there, it reads as the formal "Sie" or "Ihr". Name the thing ("Der Chat der Gruppe wird gelöscht") or turn the sentence ("Darin ist eine Kachel"); after a colon the pronoun stays lowercase.
 - **A button or a menu item is an infinitive:** "Speichern", "Abbrechen", "Löschen", "Jetzt aktualisieren". A heading is a noun ("Einstellungen", "Verbundene Apps"). A state is a short verb or adjective ("Arbeitet", "Fertig").
 - **Names stay as they are:** botdot (lowercase, also at the start of a sentence; its genitive is "von botdot", never "botdots"), Claude, Claude Code, Gmail, Composio, boat.dev, Bitwarden, Haiku, Sonnet, Opus, GitHub, Google Play.
 - **English words German apps use as they are** stay English: Bot, Board, Job, Skill, Standup, Team, Updates, Chat, App, Link, Browser. They take German articles and plurals: der Bot / die Bots, das Board, der Job / die Jobs, der Skill / die Skills, der Chat / die Chats, die App / die Apps.
