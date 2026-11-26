@@ -8,7 +8,7 @@ const { read, esc, words } = require('./web-page');
 
 const page = (extra = {}) => {
   const calls = [];
-  const ctx = vm.createContext({ ...words, esc, setView: (...a) => calls.push(a), ...extra });
+  const ctx = vm.createContext({ ...words, esc, setView: (...a) => calls.push(a), state: { asks: [{ id: 'deadbeef', kind: 'update' }] }, ...extra });
   vm.runInContext(`${read('version-update.js')}\nthis.VersionUpdate = VersionUpdate;`, ctx);
   return Object.assign(ctx.VersionUpdate, { calls });
 };
@@ -32,9 +32,32 @@ test('web: no version, no titles or no card in Needs you leaves that part out', 
   assert.match(html, /vu-line/);
 });
 
+test('web: the button shows only while its card is in the asks the page holds, and goes when the card is dropped', () => {
+  const state = { asks: [{ id: 'deadbeef', kind: 'update' }] };
+  const v = page({ state });
+  assert.doesNotMatch(v.html(note), /vu-act" hidden/, 'the card waits: the button shows');
+  const stale = page({ state: { asks: [{ id: 'cafe0001', kind: 'update' }] } }).html(note);
+  assert.match(stale, /class="pu-sec vu-act" hidden>/, 'another card waits, not this one: no button');
+  assert.match(page({ state: { asks: null } }).html(note), /vu-act" hidden>/, 'no list yet: no button');
+  assert.match(page({ state: undefined }).html(note), /vu-act" hidden>/);
+  // The note is drawn, then the card goes (answered Now or Tonight, or dropped by sync()): the next sync hides the button.
+  const wrap = { hidden: false };
+  const el = { dataset: { vuCard: 'deadbeef' }, parentElement: wrap, onclick: null };
+  const root = { querySelectorAll: (sel) => (sel === '[data-vu] [data-vu-card]' ? [el] : []) };
+  v.wire(root);
+  assert.equal(wrap.hidden, false);
+  state.asks = [];
+  v.sync(root);
+  assert.equal(wrap.hidden, true, 'the card is gone: the button goes');
+  state.asks = [{ id: 'deadbeef', kind: 'update' }];
+  v.sync(root);
+  assert.equal(wrap.hidden, false, 'and shows again if the card does');
+  assert.match(read('needs.js'), /VersionUpdate\.sync\(\$\('#chat-thread'\)\)/, 'the Chief chat syncs it whenever the asks are drawn');
+});
+
 test('web: the Open card button opens Needs you', () => {
   const v = page();
-  const el = { dataset: {}, onclick: null };
+  const el = { dataset: { vuCard: 'deadbeef' }, parentElement: {}, onclick: null };
   v.wire({ querySelectorAll: (sel) => (sel === '[data-vu] [data-vu-card]' ? [el] : []) });
   el.onclick();
   assert.deepEqual(v.calls, [['needs']]);

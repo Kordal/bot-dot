@@ -11,6 +11,10 @@ const VersionUpdate = (() => {
   // What the list says for the Chief's chat whose newest message is the note: the head (`preview` of the chat already says it).
   const preview = (m) => (of(m) ? str(m.versionUpdate.head).trim() : null);
   const cardId = (v) => (/^[0-9a-f]{8}$/i.test(str(v.cardId)) ? str(v.cardId) : '');
+  // Whether that card still waits: it is in the list of asks the page holds (`state.asks`, the one Needs you and the cards under
+  // a message are drawn from). The note keeps its card id for good, the card does not: it goes when the owner answers Now or
+  // Tonight, or when the offer is dropped, and then the button opens an empty Needs you.
+  const waits = (id) => typeof state === 'object' && Array.isArray(state?.asks) && state.asks.some((a) => a?.id === id);
   function html(v) {
     const titles = (Array.isArray(v.notes) ? v.notes : []).map((n) => str(n?.title).trim()).filter(Boolean);
     const card = cardId(v);
@@ -18,10 +22,16 @@ const VersionUpdate = (() => {
       <div class="pu-top"><div class="pu-lead"><span class="pu-icon">${ICON}</span><span class="pu-heading"><span class="pu-title">${esc(str(v.head))}</span>${str(v.version).trim() ? `<span class="pu-sub">${esc(str(v.version).trim())}</span>` : ''}</span></div></div>
       ${str(v.body).trim() ? `<p class="vu-line">${esc(str(v.body))}</p>` : ''}
       ${titles.length ? `<section class="pu-sec"><h3>${esc(str(v.heading))}</h3><ul class="vu-notes">${titles.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>` : ''}
-      ${card ? `<div class="pu-sec vu-act"><button type="button" class="btn" data-vu-card="${esc(card)}">${tr('Open card')}</button></div>` : ''}</article>`;
+      ${card ? `<div class="pu-sec vu-act"${waits(card) ? '' : ' hidden'}><button type="button" class="btn" data-vu-card="${esc(card)}">${tr('Open card')}</button></div>` : ''}</article>`;
+  }
+  // A button that opens nothing is no button: it shows while its card waits and goes when the card is gone (called again as
+  // the list of asks changes, needs.js drawChatCards).
+  function sync(root) {
+    root?.querySelectorAll('[data-vu] [data-vu-card]').forEach((b) => { if (b.parentElement) b.parentElement.hidden = !waits(b.dataset.vuCard); });
   }
   function wire(root) {
     root.querySelectorAll('[data-vu] [data-vu-card]').forEach((b) => { b.onclick = () => setView('needs'); });
+    sync(root);
   }
-  return { html, wire, of, preview };
+  return { html, wire, sync, of, preview };
 })();

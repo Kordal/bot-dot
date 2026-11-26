@@ -3871,6 +3871,7 @@ button.po-meta:focus-visible { outline: 2px solid var(--focus-ring); outline-off
 .vu-notes { display: grid; gap: var(--sp-8); margin: 0; padding: 0; list-style: none; }
 .vu-notes li { color: var(--text); overflow-wrap: anywhere; }
 .vu-act { justify-items: start; }
+.vu-act[hidden] { display: none; }
 .po-error { color: var(--err); }
 
 /* ---------- answer views (#1624, ADR 264) ----------

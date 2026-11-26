@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -28,8 +29,8 @@ class VersionUpdateCardUiTest {
         "heading":"What's new","notes":[{"title":"A project update is a card"},{"title":"<b>Plain</b> text"}],"cardId":"deadbeef"}"""
     private fun card(s: String) = VersionUpdateCard.of(Json.parseToJsonElement(s))!!
     private val opened = mutableListOf<String>()
-    private fun show(c: VersionUpdateCard) = rule.setContent {
-        CompositionLocalProvider(LocalProjectUpdateWays provides ProjectUpdateWays(null, { opened += it }, { })) { Column { VersionUpdateCardUi(c) } }
+    private fun show(c: VersionUpdateCard, waiting: Set<String> = setOf("deadbeef")) = rule.setContent {
+        CompositionLocalProvider(LocalProjectUpdateWays provides ProjectUpdateWays(null, { opened += it }, { })) { Column { VersionUpdateCardUi(c, waiting) } }
     }
 
     @Test fun theCardSaysTheHeadTheVersionWhenItMovesAndTheTitlesAsPlainText() {
@@ -55,5 +56,24 @@ class VersionUpdateCardUiTest {
         rule.onAllNodesWithText("Open card").assertCountEquals(0)
         rule.onAllNodesWithText("What's new").assertCountEquals(0)
         rule.onNodeWithText("Your account moves to it as soon as your bots are idle.").assertExists()
+    }
+
+    // The card goes from Needs you when the owner answers Now or Tonight, or the offer is dropped: the note, kept in the chat,
+    // keeps the id, and a button that opens an empty Needs you is no button.
+    @Test fun whenTheCardIsDroppedAfterTheNoteTheButtonGoes() {
+        val waiting = mutableStateOf(setOf("deadbeef"))
+        rule.setContent {
+            CompositionLocalProvider(LocalProjectUpdateWays provides ProjectUpdateWays(null, { opened += it }, { })) { Column { VersionUpdateCardUi(card(full), waiting.value) } }
+        }
+        rule.onNodeWithText("Open card").assertExists()
+        rule.runOnIdle { waiting.value = emptySet() }
+        rule.onAllNodesWithText("Open card").assertCountEquals(0)
+        rule.onNodeWithText("A new version of botdot is ready").assertExists()
+        rule.onNodeWithText("A project update is a card").assertExists()
+    }
+
+    @Test fun aCardThatIsNotInTheListHasNoButton() {
+        show(card(full), waiting = setOf("cafe0001"))
+        rule.onAllNodesWithText("Open card").assertCountEquals(0)
     }
 }

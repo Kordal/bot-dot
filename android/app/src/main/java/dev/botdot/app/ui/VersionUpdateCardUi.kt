@@ -31,11 +31,12 @@ import dev.botdot.app.data.tr
 /**
  * The Chief's note of a new version as one card of the block kit (web: public/version-update.js; docs/api.md "A new version in
  * the Chief's chat", #1759), in the look of the project update's card: the head with the version, the line saying when the
- * account moves to it, the What's new titles as plain text, and, when the card in Needs you waits, one button that opens
- * Needs you. Now and Tonight stay on that card and are not repeated here.
+ * account moves to it, the What's new titles as plain text, and, while the card in Needs you waits, one button that opens
+ * Needs you. Now and Tonight stay on that card and are not repeated here. [waiting]: the ids of the cards that wait in Needs
+ * you (the asks the app holds): the note keeps its card's id for good, the card goes when answered or dropped, and with it the button.
  */
 @Composable
-fun VersionUpdateCardUi(v: VersionUpdateCard) {
+fun VersionUpdateCardUi(v: VersionUpdateCard, waiting: Set<String>) {
     val p = LocalPaper.current
     val ways = LocalProjectUpdateWays.current
     Column(Modifier.fillMaxWidth().raised(Radius.card).testTag("version-update")) {
@@ -57,8 +58,8 @@ fun VersionUpdateCardUi(v: VersionUpdateCard) {
             if (v.heading.isNotBlank()) Text(v.heading, color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) { v.notes.forEach { Text(it, color = p.text) } }
         }
-        // A button that opens nothing is no button: with no card in Needs you to open, there is none.
-        if (v.cardId != null && ways != null) Box(
+        // A button that opens nothing is no button: with no card waiting in Needs you to open, there is none.
+        if (v.cardId != null && v.cardId in waiting && ways != null) Box(
             Modifier.fillMaxWidth().drawBehind { drawLine(p.line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), strokeWidth = 1.dp.toPx()) }
                 .padding(start = Space.s16, end = Space.s16, top = Space.s12, bottom = Space.s16),
         ) {
