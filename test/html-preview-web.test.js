@@ -1,4 +1,4 @@
-// An HTML file in the document viewer on the web page (ADR 256): it is drawn in a frame on the sandbox's own address
+// An HTML file in the document viewer on the web page (ADR 281): it is drawn in a frame on the sandbox's own address
 // with `sandbox="allow-scripts"` and nothing more, never as markup of this page, with a Rendered / Source toggle like
 // Markdown's. Without the server's `html-preview`, or when the view has no address for the frame, it is its source.
 const { test } = require('node:test');

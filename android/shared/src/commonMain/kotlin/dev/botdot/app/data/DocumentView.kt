@@ -61,7 +61,7 @@ object DocumentView {
     /** How a file is first shown: Markdown rendered, a CSV as a table, the rest as its text. */
     fun modeOf(kind: String): String = when (kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" }
 
-    /** botdot shows an HTML file rendered (ADR 256): its view carries a frame on the sandbox's own address. */
+    /** botdot shows an HTML file rendered (ADR 281): its view carries a frame on the sandbox's own address. */
     const val HTML_PREVIEW = "html-preview"
     private val HTML_NAME = Regex("""\.html?$""", RegexOption.IGNORE_CASE)
     /** The one shape of address a frame has: the sandbox's origin, the account, a signed token, index.html. Nothing else is framed. */
@@ -185,11 +185,11 @@ data class FileView(
     val plain: String? = null,
     /** A bot's interactive page (#399): its frame on the sandbox's own address, its versions and its live values. */
     val interactive: InteractiveView? = null,
-    /** An HTML file read whole (ADR 256): the address of its frame on the sandbox's own address; null when the machine has none. */
+    /** An HTML file read whole (ADR 281): the address of its frame on the sandbox's own address; null when the machine has none. */
     val preview: HtmlPreview? = null,
 )
 
-/** The frame an HTML file is shown in (ADR 256), and when its address runs out. */
+/** The frame an HTML file is shown in (ADR 281), and when its address runs out. */
 @Serializable
 data class HtmlPreview(val frame: String = "", val expires: String? = null)
 

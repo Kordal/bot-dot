@@ -97,7 +97,7 @@ class DocumentViewTest {
         assertFalse(DocumentView.isPdf(null))
     }
 
-    // An HTML file shown rendered (ADR 256): in the same locked-down WebView an interactive page has, on the sandbox's
+    // An HTML file shown rendered (ADR 281): in the same locked-down WebView an interactive page has, on the sandbox's
     // address, from a server with `html-preview`; its source is the other mode.
     private val frame = "https://botdot.example.com:8443/ann/eyJoIjoiYSJ9.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/index.html"
     private val features = listOf("document-viewer", "html-preview")

@@ -95,7 +95,7 @@ const DocViewer = (() => {
       ${downloadHTML(c)}
     </div>`;
   }
-  // An HTML file shown rendered (ADR 256): its frame, on the sandbox's own address, for an .html or .htm file whose view
+  // An HTML file shown rendered (ADR 281): its frame, on the sandbox's own address, for an .html or .htm file whose view
   // carries one, from a server with `html-preview`. Never anything but an address of that shape: no script, data or
   // relative address is ever framed, so a view that says otherwise is the file's source.
   const FRAME = /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?\/[a-z][a-z0-9-]{1,23}\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/index\.html$/;

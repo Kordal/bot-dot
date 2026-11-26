@@ -1,4 +1,4 @@
-// An HTML file the owner opens, shown rendered (ADR 256, amending ADR 072): botdot copies the bytes the viewer read into a
+// An HTML file the owner opens, shown rendered (ADR 281, amending ADR 072): botdot copies the bytes the viewer read into a
 // preview store of its own, keyed by their hash, and the sandbox's address serves that copy and nothing else. Its parts:
 // the store, the preview's signed address, and the answer to the front door's request for it.
 const { test } = require('node:test');

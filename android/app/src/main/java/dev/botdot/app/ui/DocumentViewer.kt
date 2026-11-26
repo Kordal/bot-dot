@@ -334,7 +334,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                         .border(1.dp, p.warnLine, Radius.card).background(p.warnSoft, Radius.card).padding(Space.s12))
                 val text = v.text.orEmpty()
                 when {
-                    // An HTML file rendered: scripts on, in the sandbox's WebView and nothing more (ADR 256).
+                    // An HTML file rendered: scripts on, in the sandbox's WebView and nothing more (ADR 281).
                     htmlFrame != null && mode == "rendered" -> HtmlFrame(htmlFrame)
                     v.kind == "markdown" && mode == "rendered" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12)) {
                         if (v.parts != null) PageParts(v.parts!!) else MarkdownText(text, onWeb = null, paths = null)

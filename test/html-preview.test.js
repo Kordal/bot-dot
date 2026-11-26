@@ -1,4 +1,4 @@
-// An HTML file the owner opens is shown rendered (ADR 256, amending ADR 072), end to end: the real front door with the
+// An HTML file the owner opens is shown rendered (ADR 281, amending ADR 072), end to end: the real front door with the
 // sandbox's own address, and an account's real botdot server. The viewer's answer for the file carries a signed address
 // on the sandbox's own address, where a copy of the bytes it read is served with the sandbox's rules; the file is never
 // served as a page on botdot's own address, and without a sandbox address there is no preview.

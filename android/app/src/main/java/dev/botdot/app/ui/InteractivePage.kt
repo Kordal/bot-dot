@@ -89,14 +89,14 @@ fun InteractiveFrame(site: InteractiveView, values: JsonObject?, onDownload: () 
 }
 
 /**
- * An HTML file the owner opened, rendered (ADR 256): a copy of what the viewer read, on the sandbox's own address, in the
+ * An HTML file the owner opened, rendered (ADR 281): a copy of what the viewer read, on the sandbox's own address, in the
  * very WebView an interactive page has. White where the page sets no colour, as a browser shows it; no values are handed in.
  */
 @Composable
 fun HtmlFrame(frame: String) = SandboxedFrame(frame, null, android.graphics.Color.WHITE)
 
 /**
- * A page on the sandbox's own address (#399, ADR 072; an HTML file's preview, ADR 256). The WebView has JavaScript for the
+ * A page on the sandbox's own address (#399, ADR 072; an HTML file's preview, ADR 281). The WebView has JavaScript for the
  * page and nothing else: no bridge to the app, no files, no storage, no new windows, no third-party cookies. Whatever it
  * navigates to off the page's own prefix is asked about (a link out) or blocked.
  */

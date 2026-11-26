@@ -2378,7 +2378,7 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .dv-site { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); color-scheme: dark; }
 .dv-body.dv-frame-body { display: flex; padding: 0; overflow: hidden; }
 .dv-pdf { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); }
-/* An HTML file rendered (ADR 256): a page on its own, as a browser shows it, so white where it sets no colour. */
+/* An HTML file rendered (ADR 281): a page on its own, as a browser shows it, so white where it sets no colour. */
 .dv-html { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; }
 .pg-version { display: flex; align-items: center; gap: var(--sp-8); padding: var(--sp-8) 0; border-top: 1px solid var(--line); }
 .pg-version .pg-text { flex: 1; }
