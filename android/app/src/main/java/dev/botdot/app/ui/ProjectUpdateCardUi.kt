@@ -99,7 +99,8 @@ fun ProjectUpdateCardUi(u: ProjectUpdateCard, key: String) {
         }
         if (unfolded) {
             if (u.needs.isNotEmpty()) UpdateSection(tr("Needs you")) {
-                u.needs.forEach { x -> UpdateCallout("warn", tr("{name} asks", "name" to x.name), x.text, tr("Open card"), primary = true, onClick = { ways?.open(if (x.cardId != null) "needs" else x.destination ?: "needs") }) }
+                u.needs.forEach { x -> UpdateCallout("warn", tr("{name} asks", "name" to x.name), x.text, if (x.cardId != null) tr("Open card") else tr("Open chat"), primary = true,
+                    onClick = if (x.cardId != null) ({ ways?.open("needs") }) else x.destination?.let { d -> { ways?.open(d) } }) }
             }
             if (u.blockers.isNotEmpty()) UpdateSection(tr("Blockers")) {
                 u.blockers.forEach { x -> UpdateCallout("err", tr("{name} failed", "name" to x.name), x.text, tr("Open chat"), primary = false, onClick = x.destination?.let { d -> { ways?.open(d) } }) }

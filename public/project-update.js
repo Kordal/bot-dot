@@ -35,7 +35,7 @@ const ProjectUpdate = (() => {
     const pills = list(u.pills).map((x) => `<span class="kit-pill ${level(x.level)}">${esc(str(x.text))}</span>`).join('');
     const needs = list(u.needs), blockers = list(u.blockers), goals = list(u.goals), done = list(u.done), work = list(u.work), decisions = list(u.decisions), replies = list(u.replies);
     const sec = [];
-    if (needs.length) sec.push(section(tr('Needs you'), needs.map((x) => callout(x, 'warn', tr('{name} asks', { name: esc(str(x.name)) }), tr('Open card'), x.cardId ? ` data-pu-card="${esc(str(x.cardId))}"` : '')).join('')));
+    if (needs.length) sec.push(section(tr('Needs you'), needs.map((x) => callout(x, 'warn', tr('{name} asks', { name: esc(str(x.name)) }), x.cardId ? tr('Open card') : tr('Open chat'), x.cardId ? ` data-pu-card="${esc(str(x.cardId))}"` : '')).join('')));
     if (blockers.length) sec.push(section(tr('Blockers'), blockers.map((x) => callout(x, 'err', tr('{name} failed', { name: esc(str(x.name)) }), tr('Open chat'))).join('')));
     if (goals.length) sec.push(section(tr('Goals'), `<div class="pu-goals">${goals.map((g) => {
       const pct = typeof g.ratio === 'number' && Number.isFinite(g.ratio) ? Math.round(Math.min(1, Math.max(0, g.ratio)) * 100) : null;

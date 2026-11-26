@@ -91,6 +91,16 @@ class ProjectUpdateCardUiTest {
         rule.onNodeWithText("No new recorded team report: Ops.").assertExists()
     }
 
+    @Test fun aQuestionWithNoCardIsOpenChatAndOpensItsChat() {
+        opened.clear()
+        show(card(busy.replace("\"cardId\":\"ask9\",", "")))
+        rule.onNodeWithText("Qwotz Development").performClick()
+        rule.onAllNodesWithText("Open card").assertCountEquals(0)
+        rule.onAllNodesWithText("Open chat").assertCountEquals(2)
+        rule.onAllNodesWithText("Open chat")[0].performClick()
+        assertEquals(listOf("bot/qa"), opened)
+    }
+
     @Test fun nothingABotWroteBecomesMarkup() {
         val evil = card(busy.replace("Plan the **database** copy", "<img src=x onerror=alert(1)> **bold**"))
         show(evil)

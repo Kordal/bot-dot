@@ -137,3 +137,10 @@ test('web: a blocker with nowhere to go has no button, and the notes stand at th
   assert.match(html, /unavailable for this update: &lt;b&gt;Sales&lt;\/b&gt;\./, 'a note is text, never markup');
   assert.match(page().html({ ...quiet, work: [], replies: [], quiet: undefined, notes: ['No new recorded team report: Ops.'] }), /pu-toggle/, 'a card with only notes can unfold');
 });
+
+test('web: a question with no card is Open chat, and a question that has nowhere to go has no button', () => {
+  const html = page().html({ ...busy, needs: [{ botId: 'qa', name: 'QA Tester', text: 'Which staging?' }, { name: 'Nobody', text: 'Alone' }] });
+  assert.match(html, /Which staging\?<\/p><button type="button" class="btn primary" data-pu-bot="qa">Open chat<\/button>/);
+  assert.doesNotMatch(html, /Open card/);
+  assert.match(html, /<b class="pu-name">Nobody asks<\/b><p class="pu-call">Alone<\/p><\/div>/);
+});
