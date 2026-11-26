@@ -1,0 +1,12 @@
+{
+  "stopWords": ["au", "aux", "avec", "ce", "ces", "cette", "dans", "de", "des", "du", "elle", "en", "et", "être", "il", "ils", "je", "la", "le", "les", "leur", "lui", "ma", "mais", "me", "mes", "ne", "nous", "ou", "où", "pas", "qu", "que", "qui", "sa", "se", "ses", "sont", "ta", "te", "tes", "tu", "un", "une", "vous"],
+  "corrections": ["non", "faux", "c'est faux", "c’est faux", "erreur", "pas ça", "pas comme ça", "ce n'est pas ça", "ce n’est pas ça", "réessaie", "recommence", "corrige*", "je voulais dire", "j'ai dit", "j’ai dit"],
+  "never": ["jamais", "ne", "n'*", "n’*"],
+  "schedule": ["tous les jours", "chaque jour", "tous les matins", "chaque matin", "tous les soirs", "chaque soir", "toutes les semaines", "chaque semaine", "toutes les heures", "chaque heure", "toutes les # minutes", "toutes les # min", "toutes les # heures", "quotidien*", "hebdomadaire*"],
+  "yes": ["oui", "ouais", "d'accord", "d’accord", "volontiers", "confirmer", "valider"],
+  "no": ["non", "annuler", "refuser", "pas", "jamais", "ignorer"],
+  "nothingNew": ["rien de nouveau", "aucun changement", "pas de changement", "aucune nouveauté", "rien à signaler", "ras", "pas de nouvelles"],
+  "because": ["parce que", "puisque"],
+  "noSource": ["aucune", "aucun", "aucune source", "pas de source", "sans source", "source inconnue", "inconnu", "inconnue", "non disponible", "indisponible", "non communiqué", "non précisé", "néant", "n/d", "n/a"],
+  "password": ["mot de passe", "mdp"]
+}
