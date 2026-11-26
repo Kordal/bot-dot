@@ -45,6 +45,7 @@ The Brazilian Portuguese glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says w
 | working line | linha de status |
 | answer buttons | botões de resposta |
 | Always allow / Allow once / Decline | Sempre permitir / Permitir uma vez / Recusar |
+| your OK (an approval the owner gives) | sua aprovação ("Aguardando sua aprovação"), never "seu OK" |
 | Always approved / Revoke | Sempre aprovados / Revogar |
 | Update now / Update automatically | Atualizar agora / Atualizar automaticamente |
 | Keep up to date | Manter atualizado |
