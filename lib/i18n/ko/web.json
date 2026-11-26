@@ -153,7 +153,7 @@
   "Board": "보드",
   "Nothing on it yet": "비어 있어요",
   "Colour": "색상",
-  "Waiting for your OK": "내 확인 대기 중",
+  "Waiting for your OK": "확인 대기 중",
   "Couldn't update": "업데이트하지 못했어요",
   "written by AI": "AI 작성",
   "Change": "변경",
@@ -521,7 +521,7 @@
   "Team chat": "팀 채팅",
   "Needs you: {who}": "확인 필요: {who}",
   "{n} working": {
-    "other": "{n}개 작업 중"
+    "other": "봇 {n}개 작업 중"
   },
   "Members": "팀원",
   "Add bots to {team}": "{team}에 봇 추가",
@@ -871,7 +871,7 @@
   "Select all": "모두 선택",
   "Changed": "수정한 날짜",
   "{n} more not listed.": {
-    "other": "{n}개 더 있음(목록에 없음)."
+    "other": "목록에 없는 항목이 {n}개 더 있어요."
   },
   "Move": "이동",
   "{n} selected": "{n}개 선택됨",
@@ -1283,7 +1283,7 @@
     "other": "{n}단계 완료"
   },
   "{n} steps not started": {
-    "other": "{n}단계 시작 안 함"
+    "other": "{n}단계 시작 전"
   },
   "Plan · {done} of {total} done": "계획 · {total}개 중 {done}개 완료",
   "{n} reviews": {
@@ -1491,7 +1491,7 @@
   "Couldn't sign out ({status}).": "로그아웃하지 못했어요({status}).",
   "Subscription": "구독",
   "Feedback to the developers": "개발자에게 피드백",
-  "Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are.": "내 신고는 botdot 개발자에게 전달돼요. 본문은 개인 정보를 빼고 공개될 수 있지만, 스크린샷은 공개되지 않아요.",
+  "Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are.": "보낸 피드백은 botdot 개발자에게 전달돼요. 본문은 개인 정보를 빼고 공개될 수 있지만, 스크린샷은 공개되지 않아요.",
   "Delete account": "계정 삭제",
   "Delete account…": "계정 삭제…",
   "Your account is deleted on botdot.app: the page says how.": "계정은 botdot.app에서 삭제해요. 방법은 해당 페이지에 있어요.",
@@ -1510,9 +1510,9 @@
   "botdot's developers read it. Its text may be published without personal details; screenshots never are. Only what you write and add here is sent.": "botdot 개발자가 읽어요. 본문은 개인 정보를 빼고 공개될 수 있지만, 스크린샷은 공개되지 않아요. 여기에 쓰고 추가한 것만 전송돼요.",
   "What happened, or what you would like": "무슨 일이 있었는지, 또는 원하는 것",
   "Add screenshot": "스크린샷 추가",
-  "My reports": "내 신고",
+  "My reports": "내 피드백",
   "At most {n} screenshots go in one report.": {
-    "other": "신고 하나에 스크린샷은 최대 {n}개까지 넣을 수 있어요."
+    "other": "피드백 하나에 스크린샷은 최대 {n}개까지 넣을 수 있어요."
   },
   "{name} isn't a PNG, JPEG or WebP picture.": "{name}은(는) PNG, JPEG, WebP 이미지가 아니에요.",
   "{name} is {size} MB: each screenshot can be at most 5 MB.": "{name}은(는) {size}MB예요. 스크린샷은 각각 최대 5MB까지 가능해요.",
@@ -1524,10 +1524,10 @@
   "Won't fix": "수정 안 함",
   "Public issue #{n}": "공개 이슈 #{n}",
   "Send feedback": "피드백 보내기",
-  "Couldn't load your reports: can't reach botdot.": "신고를 불러오지 못했어요: botdot에 연결할 수 없어요.",
-  "Couldn't load your reports ({status}).": "신고를 불러오지 못했어요({status}).",
-  "You have not sent any report yet.": "아직 보낸 신고가 없어요.",
-  "Fixed: your report from {date}": "해결됨: {date}에 보낸 신고",
+  "Couldn't load your reports: can't reach botdot.": "피드백을 불러오지 못했어요: botdot에 연결할 수 없어요.",
+  "Couldn't load your reports ({status}).": "피드백을 불러오지 못했어요({status}).",
+  "You have not sent any report yet.": "아직 보낸 피드백이 없어요.",
+  "Fixed: your report from {date}": "해결됨: {date}에 보낸 피드백",
   "Got it": "확인",
   "Couldn't read a screenshot. Remove it and add it again.": "스크린샷을 읽지 못했어요. 제거한 뒤 다시 추가하세요.",
   "Couldn't send: can't reach botdot. Your text and screenshots are still here.": "보내지 못했어요: botdot에 연결할 수 없어요. 작성한 내용과 스크린샷은 그대로 남아 있어요.",
@@ -1645,7 +1645,7 @@
   "On this computer": "이 컴퓨터에 있음",
   "Skills are turned off for this bot": "이 봇은 스킬이 꺼져 있어요",
   "Deselect all": "모두 선택 해제",
-  "lowercase-with-dashes": "소문자-대시-형식",
+  "lowercase-with-dashes": "소문자와 하이픈(예: weekly-report)",
   "Bots decide from this": "봇이 이걸 보고 판단해요",
   "When to use it": "사용할 때",
   "Use when writing the weekly status report": "주간 현황 보고서를 쓸 때 사용",

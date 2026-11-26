@@ -66,10 +66,10 @@ Other words kept the same everywhere:
 | approve / OK (a card's yes) | 승인 / 확인 |
 | watch (botdot waits for something outside) | 지켜보기 |
 | call / call address (a job's) | 호출 / 호출 주소 |
-| proposal / plan / checkup / replay | 제안 / 계획 / 점검 / 다시 보기 |
+| proposal / plan / checkup / replay | 제안 / 계획 / 점검 / 재실행 테스트 (not 다시 보기, which is "watch again") |
 | account / admin / admin page | 계정 / 관리자 / 관리자 페이지 |
 | login, sign in / sign out | 로그인 / 로그아웃 |
 | Home / Other | 홈 / 기타 |
 | screen (a bot's computer's) | 화면 |
 | source (of a figure or a note) | 출처 |
-| feedback | 피드백 |
+| feedback / a feedback report | 피드백 (never 신고, which is a report of abuse, nor 보고서) |
