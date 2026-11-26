@@ -43,8 +43,10 @@ import platform.Foundation.currentLocale
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.decimalSeparator
 import platform.Foundation.groupingSeparator
+import platform.Foundation.lowercaseStringWithLocale
 import platform.Foundation.timeZoneForSecondsFromGMT
 import platform.Foundation.timeZoneWithName
+import platform.Foundation.uppercaseStringWithLocale
 import kotlinx.datetime.offsetAt
 import platform.Security.SecKeyCreateWithData
 import platform.Security.SecKeyVerifySignature
