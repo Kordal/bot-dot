@@ -1,5 +1,5 @@
-Las traducciones se ajustan mejor a la pantalla
-- En la página web, el texto en coreano ahora se parte entre palabras, no a mitad de una palabra, y un nombre largo en una tecla del teclado ocupa dos líneas antes de cortarse.
-- Las mayúsculas y minúsculas siguen las reglas del idioma elegido: en turco, una «i» pasa a «İ», en la inicial de un bot, en un título o en una etiqueta.
-- En japonés, chino y coreano, el nombre de un bot dentro de una frase es un enlace a su chat, y un botón como «はい、送信» se muestra como el sí.
-- El horario de una tarea en japonés o chino separa los días y las horas con «、», como se escribe allí.
+Las traducciones encajan mejor en la pantalla
+- En el navegador, el texto en coreano ahora pasa a la línea siguiente entre palabras y no en mitad de una, y un nombre largo en una tecla del teclado ocupa dos líneas antes de recortarse.
+- Las mayúsculas siguen las reglas de tu idioma: en turco, la «i» se convierte en «İ» en la inicial de un bot, en un título o en una etiqueta.
+- En japonés, chino y coreano, el nombre de un bot dentro de una frase es un enlace a su chat, y un botón de respuesta como «はい、送信» cuenta como el sí.
+- El horario de una tarea en japonés o en chino separa los días y las horas con «、», como se escribe en esos idiomas.

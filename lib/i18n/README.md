@@ -38,7 +38,7 @@ Everything a language needs is in its own files: no shared code and no shared li
    | `nothingNew` | a whole report that says there is nothing to report ("nothing new", "no changes") |
    | `because` | the word between a decision and its reason ("Launch in Poland first because…") |
    | `noSource` | a figure's source that says there is none ("none", "unknown", "no source") |
-   | `nameEndings` | an ending your grammar puts on a name ("Alfred" → "Alfredowi"), so a bot's declined name is still a link |
+   | `nameEndings` | an ending your grammar puts on a name ("Alfred" → "Alfredowi"), so a bot's declined name is still a link. Not in Chinese, Japanese or Korean letters: a name beside them is a link as it is, and a particle ("Annaは", "Anna의") stays outside it |
    | `password` | a word for "password" |
 
    `phrases.json` may also declare **`elision`** for a language that writes "d'Anna" for "de Anna" (French): `{ "words": { "de": "d'", "que": "qu'", "le": "l'", "la": "l'" }, "silentH": ["hélène", "henri"] }`. After a placeholder is filled, the word right before it becomes its elided form when the value's first word is plain letters starting with a vowel or one of the mute-h words (and keeps its form otherwise: "de Bob", "de Hugo"); a text that is not in the dictionary, a value like `app.js` or an address, and a string with no placeholder are never touched. [elision.js](elision.js) is the rule; the server hands the data out with the dictionary (`elision` of `GET /api/i18n/<code>`), and the web page and Android apply it in their own `tr()` (the web page's values may be HTML, as a bot's name is with its mark in front, so it looks at the text the value shows: tags are skipped). So write "de {name}", never "d'{name}".

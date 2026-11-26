@@ -208,6 +208,9 @@ test("every language folder's phrases are lists of the kinds botdot reads, its s
     if (raw.elision) assert.ok(require('../lib/i18n/elision').of(lang), `${lang}/phrases.json: elision needs its words, { "de": "d'" }`);
     assert.doesNotThrow(() => phrases.of(lang), lang);
     for (const kind of Object.keys(phrases.KINDS)) for (const p of phrases.of(lang)[kind]) assert.doesNotThrow(() => new RegExp(phrases.source(p), 'u'), `${lang} ${kind}: ${p}`);
+    // A name stands beside Han, Kana and Hangul as it is (public/app.js botNameLinks, BotNames.kt): an ending in those letters
+    // (a particle, an honorific) would never be read, and stays outside the link.
+    for (const p of phrases.of(lang).nameEndings) assert.ok(!/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(p), `${lang}/phrases.json nameEndings: "${p}" is in Chinese, Japanese or Korean letters, beside which a name is a link without it`);
     if (fs.existsSync(path.join(i18n.DIR, lang, 'cron-words.js'))) {
       const P = require(path.join(i18n.DIR, lang, 'cron-words.js'));
       for (const k of Object.keys(cronWords.EN)) assert.equal(typeof P[k], typeof cronWords.EN[k], `${lang}/cron-words.js: ${k}`);

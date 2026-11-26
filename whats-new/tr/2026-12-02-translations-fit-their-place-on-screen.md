@@ -1,5 +1,5 @@
 Çeviriler ekrana daha iyi oturuyor
-- Web sayfasında Korece metin artık kelimenin ortasından değil, kelimeler arasından satıra bölünüyor; tuş takımındaki bir tuşun uzun adı da kesilmeden önce iki satıra yayılıyor.
-- Büyük ve küçük harfler seçilen dilin kurallarına uyuyor: Türkçede “i” harfi “I” değil “İ” oluyor; bir botun baş harfinde, başlıklarda ve etiketlerde.
-- Japonca, Çince ve Korecede bir cümlenin içindeki bot adı, o botun sohbetine giden bir bağlantı oluyor; “はい、送信” gibi bir düğme de evet olarak gösteriliyor.
-- Japonca ve Çince bir zamanlama, günleri ve saatleri oralarda yazıldığı gibi “、” ile ayırıyor.
+- Tarayıcıda Korece metin artık kelimenin ortasından değil, kelimelerin arasından alt satıra geçiyor; tuş takımındaki bir tuşun uzun adı da kısaltılmadan önce iki satıra yayılıyor.
+- Büyük ve küçük harfler seçtiğin dilin kurallarına uyuyor: Türkçede “i” büyüyünce “I” değil “İ” oluyor; bir botun baş harfinde, başlıklarda ve etiketlerde.
+- Japonca, Çince ve Korecede cümlenin içindeki bot adı o botun sohbetine giden bir bağlantı oluyor; “はい、送信” gibi bir yanıt düğmesi de evet sayılıyor.
+- Japonca ya da Çince bir işin zamanlaması, günleri ve saatleri o dillerde yazıldığı gibi “、” ile ayırıyor.

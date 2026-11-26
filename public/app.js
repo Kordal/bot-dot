@@ -1192,14 +1192,17 @@ function linkifyChat(root) {
 // a whole word: no letter, number or "_" of a longer word on either side, except Chinese, Japanese and Korean, which
 // have no spaces between words ("AlfredがQA Testerに", "请让Alfred发送"): a name stands beside them. A name two bots share
 // is nobody's. A bot that is gone is plain text.
-const botNameEndings = (endings = typeof I18n !== 'undefined' ? I18n.phrases?.nameEndings : null) => [...new Set((Array.isArray(endings) ? endings : []).filter((e) => typeof e === 'string' && e))]
-  .sort((a, b) => b.length - a.length).map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-const BOT_NAME_ENDINGS = botNameEndings();
-const botNameRes = new Map();
 // A character of a longer word: a letter, number or "_" that is not Han, Kana (Hiragana, Katakana) or Hangul. Ranges, not
 // scripts, so that the Android app's regex (BotNames.kt) reads the same.
 const CJK_CHARS = '\\u1100-\\u11FF\\u3040-\\u30FF\\u3130-\\u318F\\u31F0-\\u31FF\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uAC00-\\uD7AF\\uF900-\\uFAFF\\uFF66-\\uFF9F';
 const WORD_CHAR = `(?![${CJK_CHARS}])[\\p{L}\\p{N}_]`;
+// An ending written in Han, Kana or Hangul (a particle: "Annaは", "Anna의") is never part of the link: a name stands beside
+// those letters as it is, and the particle stays outside it.
+const CJK_LETTER = new RegExp(`[${CJK_CHARS}]`, 'u');
+const botNameEndings = (endings = typeof I18n !== 'undefined' ? I18n.phrases?.nameEndings : null) => [...new Set((Array.isArray(endings) ? endings : []).filter((e) => typeof e === 'string' && e && !CJK_LETTER.test(e)))]
+  .sort((a, b) => b.length - a.length).map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+const BOT_NAME_ENDINGS = botNameEndings();
+const botNameRes = new Map();
 // The names in a text: where each starts, the text of the name and its ending, and the id of the bot. bots: { id, name }.
 function botNameLinks(text, bots) {
   const ids = new Map();

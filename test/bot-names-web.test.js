@@ -21,7 +21,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
 
 for (const c of cases) {
   test(`web: bot names in ${JSON.stringify(c.text)} (${c.name})`, () => {
-    const links = page([]).botNameLinks(c.text, c.bots);
+    const links = page([], 'Chief of Staff', c.endings).botNameLinks(c.text, c.bots);
     assert.deepEqual(plain(links.map((l) => [l.index, l.text, l.id])), c.links);
   });
 }
