@@ -14,7 +14,7 @@ botdot
 Uma equipe de bots de IA comandada pelo chat, no seu servidor ou hospedada
 ```
 
-## Full description (4000): 2339
+## Full description (4000): 2335
 
 ```
 botdot é o app Android do botdot, um software de código aberto que dá a você uma equipe de bots de IA comandada pelo chat.
