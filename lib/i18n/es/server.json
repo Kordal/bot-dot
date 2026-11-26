@@ -622,5 +622,6 @@
   "Using one of your MCP servers": "Usando uno de tus servidores MCP",
   "used one of the owner's MCP servers": "usó uno de los servidores MCP del dueño",
   "This is too long to show in full, so it can't be approved. Decline it.": "Es demasiado largo para mostrarlo entero, así que no se puede aprobar. Recházalo.",
-  "This job no longer exists.": "Esta tarea ya no existe."
+  "This job no longer exists.": "Esta tarea ya no existe.",
+  "Source": "Origen"
 }

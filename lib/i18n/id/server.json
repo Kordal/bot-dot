@@ -618,5 +618,6 @@
   "Checking your MCP servers": "Mengecek server MCP-mu",
   "Asking to add an MCP server": "Meminta izin menambah server MCP",
   "Using one of your MCP servers": "Memakai salah satu server MCP-mu",
-  "used one of the owner's MCP servers": "memakai salah satu server MCP milik pemilik"
+  "used one of the owner's MCP servers": "memakai salah satu server MCP milik pemilik",
+  "Source": "Asal"
 }

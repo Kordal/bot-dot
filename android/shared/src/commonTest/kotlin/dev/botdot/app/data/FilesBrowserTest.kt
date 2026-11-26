@@ -122,7 +122,7 @@ class FilesBrowserTest {
         assertEquals("table", DocumentView.modeOf("csv"))
         assertEquals("source", DocumentView.modeOf("text"))
         assertEquals(listOf("rendered", "source"), DocumentView.modes("markdown").map { it.first })
-        assertEquals(listOf("Table", "Source"), DocumentView.modes("csv").map { it.second })
+        assertEquals(listOf("Table", "Source code"), DocumentView.modes("csv").map { it.second })
         assertTrue(DocumentView.modes("text").isEmpty())
     }
 }

@@ -347,6 +347,15 @@ test("the style sheet keeps Korean words whole: keep-all on <html lang=ko>, a lo
   assert.match(rule[1], /overflow-wrap:\s*anywhere/);
 });
 
+test("a keypad key's name wraps to two balanced lines before it is cut, so a long name of a language shows whole", () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'style.css'), 'utf8');
+  const rule = css.match(/^\.key \.name\s*\{([^}]*)\}/m);
+  assert.ok(rule, 'a rule for .key .name');
+  assert.match(rule[1], /-webkit-line-clamp:\s*2/);
+  assert.match(rule[1], /text-wrap:\s*balance/);
+  assert.doesNotMatch(rule[1], /white-space:\s*nowrap/);
+});
+
 test('the server capitalises text for the owner by the language, not by the default rules: Turkish "i" is "İ"', () => {
   assert.equal(i18n.upper('tr', 'istanbul'), 'İSTANBUL');
   assert.equal(i18n.lower('tr', 'DIYARBAKIR'), 'dıyarbakır');

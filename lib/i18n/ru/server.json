@@ -622,5 +622,6 @@
   "Using one of your MCP servers": "Использует один из ваших MCP-серверов",
   "used one of the owner's MCP servers": "использовал один из MCP-серверов владельца",
   "This is too long to show in full, so it can't be approved. Decline it.": "Это слишком длинно, чтобы показать целиком, поэтому одобрить это нельзя. Отклоните.",
-  "This job no longer exists.": "Этого задания больше нет."
+  "This job no longer exists.": "Этого задания больше нет.",
+  "Source": "Источник"
 }

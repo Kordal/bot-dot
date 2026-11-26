@@ -618,5 +618,6 @@
   "Checking your MCP servers": "MCPサーバーを確認中",
   "Asking to add an MCP server": "MCPサーバーの追加を求めています",
   "Using one of your MCP servers": "あなたのMCPサーバーを使用中",
-  "used one of the owner's MCP servers": "オーナーのMCPサーバーを使いました"
+  "used one of the owner's MCP servers": "オーナーのMCPサーバーを使いました",
+  "Source": "取得元"
 }
