@@ -1,0 +1,13 @@
+{
+  "feature": "Ein Team aus KI-Bots, gesteuert per Chat",
+  "screenshots": {
+    "1-home.png": "Deine Bots und was auf dich wartet",
+    "2-chief.png": "Bitte den Stabschef um einen Bot",
+    "3-approve.png": "Skripte warten auf dein OK",
+    "4-server.png": "Anzeigen und Live-Zahlen im Chat",
+    "5-spending.png": "Diagramme statt Zahlenwüsten",
+    "6-quiz.png": "Ein Quiz direkt im Chat beantworten",
+    "7-quotes.png": "Optionen nebeneinander vergleichen",
+    "8-board.png": "Live-Werte auf deinem Board"
+  }
+}

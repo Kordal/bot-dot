@@ -1,0 +1,12 @@
+{
+  "stopWords": ["aber", "als", "am", "an", "auch", "auf", "aus", "bei", "bin", "bis", "das", "dass", "dem", "den", "der", "des", "die", "du", "ein", "eine", "einen", "einem", "einer", "er", "es", "für", "hat", "ich", "im", "in", "ist", "ja", "mit", "nach", "nicht", "noch", "oder", "sie", "sind", "so", "um", "und", "uns", "von", "vom", "war", "was", "wenn", "wie", "wir", "zu", "zum", "zur"],
+  "corrections": ["nein", "falsch", "fehler", "korrigier*", "nochmal", "noch mal", "noch einmal", "so nicht", "das stimmt nicht", "stimmt nicht", "ich meinte", "gemeint war", "sollte doch"],
+  "never": ["nie", "niemals", "nicht", "kein*"],
+  "schedule": ["täglich", "taeglich", "jeden tag", "jeden morgen", "jeden abend", "morgens", "wöchentlich", "woechentlich", "jede woche", "stündlich", "stuendlich", "jede stunde", "alle # minuten", "alle # stunden", "alle # min"],
+  "yes": ["ja", "klar", "sicher", "gerne", "gern", "okay", "ok", "los"],
+  "no": ["nein", "abbrechen", "später", "spaeter", "lieber nicht"],
+  "nothingNew": ["nichts neues", "keine neuigkeiten", "keine änderungen", "keine aenderungen", "unverändert", "keine updates"],
+  "because": ["weil", "denn"],
+  "noSource": ["keine", "keine quelle", "keine quellen", "keine angabe", "keine angaben", "keine daten", "ohne quelle", "quelle unbekannt", "unbekannte quelle", "unbekannt", "nicht bekannt", "nicht verfügbar", "nicht angegeben", "k. a.", "k.a.", "n. v.", "n/a", "entfällt"],
+  "password": ["passwort", "kennwort"]
+}
