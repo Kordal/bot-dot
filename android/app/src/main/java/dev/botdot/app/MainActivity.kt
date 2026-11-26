@@ -440,6 +440,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(inFront) { if (inFront) dev.botdot.app.ui.ConnectAsks.check(app) }
                 CompositionLocalProvider(LocalListToggle provides toggleList.takeIf { panes && !keypad }, LocalChiefName provides chiefName,
                     dev.botdot.app.ui.LocalOpenConnectors provides { nav.navigate("connectors") },
+                    // The rows of a project update's card open a chat, the cards in Needs you or the project's Board (#1755).
+                    dev.botdot.app.ui.LocalProjectUpdateWays provides dev.botdot.app.ui.ProjectUpdateWays(botsNow, { open(it) }, { goSpace(it) }),
                     // A bot's name in a message opens its chat; the Chief's, the latest chat of the Chief.
                     dev.botdot.app.ui.LocalOpenChat provides { id -> open(if (id == dev.botdot.app.data.Mentions.CHIEF) "chief/latest" else "bot/$id") }) {
                 // The first-run question for that name, once the phone is in (not while it connects or signs in).

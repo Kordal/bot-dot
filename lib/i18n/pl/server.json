@@ -704,5 +704,25 @@
   "Text to type on the bot's screen": "Tekst do wpisania na ekranie bota",
   "This bot's screen starts when it first uses its computer.": "Ekran tego bota włącza się, gdy po raz pierwszy użyje komputera.",
   "This bot's computer is turned off.": "Komputer tego bota jest wyłączony.",
-  "This bot's screen couldn't be shown. Try again in a moment.": "Nie udało się pokazać ekranu tego bota. Spróbuj za chwilę."
+  "This bot's screen couldn't be shown. Try again in a moment.": "Nie udało się pokazać ekranu tego bota. Spróbuj za chwilę.",
+  "{n} need you": {
+    "one": "{n} czeka na ciebie",
+    "few": "{n} czekają na ciebie",
+    "many": "{n} czeka na ciebie"
+  },
+  "{n} blockers": {
+    "one": "{n} blokada",
+    "few": "{n} blokady",
+    "many": "{n} blokad"
+  },
+  "{n} done": "{n} gotowe",
+  "{n} in progress": "{n} w toku",
+  "Nothing needs you": "Nic na ciebie nie czeka",
+  "No blockers": "Brak blokad",
+  "of {total} steps": "z {total} kroków",
+  "nothing marked done": "nic nie oznaczono jako gotowe",
+  "no goal figures": "brak liczb celów",
+  "no new decisions": "brak nowych decyzji",
+  "nothing in progress": "nic w toku",
+  "no new replies or reports": "brak nowych odpowiedzi i raportów"
 }

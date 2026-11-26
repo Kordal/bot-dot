@@ -252,7 +252,8 @@ function runParts(bot, r, last, newest, canReply = false, quote = '') {
     // and so does a reply that addresses the owner: a teammate's request whose reply only the owner reads (#465).
     const outgoing = sentTo(r).filter((t) => t.text);
     // What it learned stands under it, but the skills it changed: those are in its step line (stepLineHTML).
-    const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md"${!failed && (r.questions?.length || (open && r.choices?.length)) ? ' data-asks' : !failed && r.choices?.length ? ' data-asked' : ''}>${md(body, failed ? null : r.botId, !failed)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
+    const update = !failed && r.kind === 'project-update' && typeof ProjectUpdate === 'object' ? ProjectUpdate.of(r) : null; // the update's data: one card of the block kit; a record from before it shows its text
+    const bubble = update ? `<div class="bubble from-bot pu">${ProjectUpdate.html(update, r.projectUpdate)}</div>` : `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md"${!failed && (r.questions?.length || (open && r.choices?.length)) ? ' data-asks' : !failed && r.choices?.length ? ' data-asked' : ''}>${md(body, failed ? null : r.botId, !failed)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
         ${failed ? '' : globalThis.inlineCardsHTML?.(r) || ''}
         ${learnedChips({ ...r, learned: (r.learned || []).filter((x) => !SKILL_KINDS.includes(x.kind)) })}`;
     const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
@@ -505,6 +506,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     if (!docked) scrollToNew(thread);
     $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', thread).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
+    if (typeof ProjectUpdate === 'object') ProjectUpdate.wire(thread);
     // A block's step line opens and closes, and stays so; Stop in a running block's footer ends that run.
     $$('details.run-steps', thread).forEach(keepStepsOpen);
     $$('details.run-steps.now', thread).forEach((el) => { const r = runs.find((x) => x.id === el.dataset.steps); if (r) el.dataset.sig = stepsSig(r); });

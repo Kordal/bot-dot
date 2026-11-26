@@ -584,7 +584,8 @@ function chiefBubble(m, last = false, index = null) {
   const files = !m.pending && Array.isArray(m.files) && m.files.length ? botFilesHTML(m.files) : '';
   // The pages it saved in this reply (#384, public/pages.js), as under a bot's reply, then those its bots saved for it.
   const pages = !m.pending && typeof Pages !== 'undefined' ? Pages.chipsHTML({ botId: 'chief', pages: [...(m.pages || []), ...(m.botPages || [])] }) : '';
-  const body = m.pending
+  const update = !m.pending && m.projectUpdate && typeof ProjectUpdate === 'object' ? ProjectUpdate.of(m) : null; // a project update with its data: one card of the block kit; an older server's has only its text
+  const body = update ? ProjectUpdate.html(update, m.projectUpdate) : m.pending
     ? '' // its draft, from a server that has drafts, is drawn in its place as it grows (followChief)
     : m.error && !m.text
       ? `<div class="md">${md(m.error)}</div>${files}`
@@ -598,7 +599,7 @@ function chiefBubble(m, last = false, index = null) {
     <div class="bubble-row from-bot"${m.pending ? ' data-pending' : ''}>
       <div class="stack">
         ${m.pending ? '' : globalThis.aboutHTML?.(m) || ''}
-        ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}${plan}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
+        ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}${update ? ' pu' : ''}">${body}${plan}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
         ${mail}
         ${m.pending || m.error ? '' : globalThis.inlineCardsHTML?.(m) || ''}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
@@ -665,6 +666,7 @@ const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack min
 
 function wireActions(root) {
   wireMail(root);
+  if (typeof ProjectUpdate === 'object') ProjectUpdate.wire(root);
   $$('.action-chip', root).forEach((b) => {
     b.onclick = async () => {
       if (b.dataset.kind === 'skill') return setView('skills');

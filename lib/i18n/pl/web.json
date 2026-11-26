@@ -1966,5 +1966,9 @@
   "The last task stopped. Its chat says why.": "Ostatnie zadanie się zatrzymało. Dlaczego, widać w jego rozmowie.",
   "Nothing to do now. Its job runs again on schedule.": "Teraz nie ma nic do zrobienia. Jego zadanie ruszy znów o swojej porze.",
   "About {name}": "O: {name}",
-  "Remove {name} from this message": "Usuń „{name}” z tej wiadomości"
+  "Remove {name} from this message": "Usuń „{name}” z tej wiadomości",
+  "{name} failed": "{name}: nie udało się",
+  "Open card": "Otwórz kartę",
+  "Update since {when}": "Zmiany od {when}",
+  "Project update": "Aktualizacja projektu"
 }

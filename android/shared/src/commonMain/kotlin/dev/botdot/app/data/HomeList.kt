@@ -137,7 +137,8 @@ fun botSub(b: Bot, r: Run?, line: String?): String = when {
     b.asks != null -> botAsks(b, r).orEmpty()
     b.jobs.any { it.waits } -> jobWaits(b.jobs.first { it.waits })
     r == null -> b.description
-    r.status == "success" -> plainText(r.result.orEmpty()).replace('\n', ' ').take(120).ifBlank { b.description }
+    r.status == "success" -> r.update?.summary?.trim()?.takeIf { it.isNotEmpty() } // a project update: its outcome, not "Project update: <name>"
+        ?: plainText(r.result.orEmpty()).replace('\n', ' ').take(120).ifBlank { b.description }
     r.status == "stopped" -> tr("Stopped")
     else -> tr("Couldn't finish")
 }

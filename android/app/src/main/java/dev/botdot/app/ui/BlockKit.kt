@@ -63,7 +63,7 @@ private val VIOLET = Color(0xFF8B7CF6)
 
 /** A level's colours: its words and its soft background. */
 @Composable
-private fun levelColors(level: String?): Pair<Color, Color> {
+internal fun levelColors(level: String?): Pair<Color, Color> {
     val p = LocalPaper.current
     return when (BoardKit.level(level)) {
         "ok" -> p.okText to p.okSoft

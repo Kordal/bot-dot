@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>botdot project update mockup</title>
+<style>
+@font-face { font-family: Geist; src: url("../public/fonts/Geist.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+/* The web page's own tokens (public/style.css :root) and block kit classes (.kit-pill, .kit-bar, .kit-callout). */
+:root {
+  --bg: #000; --sunk: #1a1a1a; --line: #1f1f1f; --line-2: #2b2b2b;
+  --text: #fff; --muted: #a3a3a3; --faint: #838383;
+  --ink: #fff; --ink-text: #000; --mention: #378add;
+  --ok: #45c78e; --ok-text: #45c78e; --ok-soft: #16281f;
+  --err: #ef6a6a; --err-soft: #2d1717;
+  --warn: #e2a846; --warn-text: #e2a846; --warn-soft: #2c2413;
+  --raise: #0f0f0f; --raise-2: #171717; --fill: #232323; --hi: #ffffff0f; --lift: inset 0 1px 0 var(--hi);
+  --fs-12: 12px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-24: 24px; --fs-32: 32px;
+  --sp-4: 4px; --sp-8: 8px; --sp-12: 12px; --sp-16: 16px; --sp-24: 24px; --sp-32: 32px; --sp-48: 48px;
+  --r-8: 8px; --r-14: 14px; --r-pill: 99px;
+  --font: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: var(--fs-14)/1.5 var(--font); -webkit-font-smoothing: antialiased; padding: var(--sp-32) var(--sp-16) var(--sp-48); }
+h1, h2, h3, p { margin: 0; }
+svg { flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+a { color: inherit; }
+
+/* Mockup frame */
+.page { width: min(100%, 1180px); margin-inline: auto; display: grid; gap: var(--sp-48); }
+.page > header h1 { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.02em; }
+.page > header p { color: var(--muted); margin-top: var(--sp-4); max-width: 75ch; }
+.variant { display: grid; gap: var(--sp-16); }
+.variant > h2 { font-size: var(--fs-16); font-weight: 600; }
+.variant > .note { color: var(--muted); max-width: 75ch; }
+.variant > .note b { color: var(--text); font-weight: 600; }
+.pair { display: flex; flex-wrap: wrap; gap: var(--sp-24); align-items: flex-start; }
+.pane { flex: 1 1 520px; max-width: 680px; background: var(--raise); border-radius: var(--r-14); padding: var(--sp-24); display: grid; gap: var(--sp-16); }
+.pane.phone { flex: 0 0 390px; max-width: 390px; padding: var(--sp-16); }
+.pane-label { font-size: var(--fs-12); color: var(--faint); }
+
+/* The chat around it */
+.new-line { display: flex; align-items: center; gap: var(--sp-16); color: var(--muted); font-size: var(--fs-12); }
+.new-line::before, .new-line::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--mention) 55%, transparent); }
+
+/* Before: what the chat shows today */
+.plain { white-space: pre-line; line-height: 1.6; }
+.plain .h { display: block; margin-top: var(--sp-12); }
+.plain ul { margin: var(--sp-4) 0 0; padding-left: var(--sp-24); }
+.plain li a { color: var(--mention); }
+
+/* ---------- The update card ---------- */
+.upd { background: var(--raise-2); box-shadow: var(--lift); border-radius: var(--r-14); overflow: hidden; }
+.upd-head { display: flex; align-items: center; gap: var(--sp-12); padding: var(--sp-16) var(--sp-16) var(--sp-12); }
+.upd-icon { width: 32px; height: 32px; border-radius: var(--r-8); background: var(--sunk); display: grid; place-items: center; color: var(--muted); }
+.upd-icon svg { width: 16px; height: 16px; }
+.upd-title { font-weight: 600; line-height: 1.3; }
+.upd-sub { font-size: var(--fs-12); color: var(--muted); }
+.upd-head .open { margin-left: auto; }
+.pills { display: flex; flex-wrap: wrap; gap: var(--sp-8); padding: 0 var(--sp-16) var(--sp-16); }
+
+.kit-pill { display: inline-flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-12); padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); white-space: nowrap; }
+.kit-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.kit-pill.ok { color: var(--ok-text); background: var(--ok-soft); }
+.kit-pill.warn { color: var(--warn-text); background: var(--warn-soft); }
+.kit-pill.err { color: var(--err); background: var(--err-soft); }
+.kit-pill.info { color: var(--mention); background: color-mix(in srgb, var(--mention) 14%, var(--bg)); }
+.kit-pill.plan { color: var(--muted); background: var(--sunk); }
+
+.sec { padding: var(--sp-12) var(--sp-16) var(--sp-16); border-top: 1px solid var(--line); display: grid; gap: var(--sp-12); }
+.sec h3 { font-size: var(--fs-12); font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: var(--sp-8); }
+.sec h3 .n { color: var(--faint); font-weight: 400; }
+
+/* A row: who, what */
+.rows { display: grid; gap: var(--sp-12); }
+.row { display: grid; grid-template-columns: 24px 1fr auto; gap: var(--sp-12); align-items: start; }
+.head { width: 24px; height: 24px; border-radius: var(--r-8); display: grid; place-items: center; color: #fff; }
+.head svg { width: 14px; height: 14px; stroke-width: 2; }
+.head.none { background: var(--sunk); color: var(--faint); }
+.who { font-weight: 600; text-decoration: none; }
+.who:hover { text-decoration: underline; }
+.when { font-size: var(--fs-12); color: var(--faint); margin-left: var(--sp-8); font-weight: 400; }
+.what { color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.what code { font: var(--fs-12) ui-monospace, Menlo, monospace; background: var(--sunk); border-radius: var(--r-8); padding: 0 var(--sp-4); color: var(--text); }
+.what a { color: var(--mention); text-decoration: none; }
+.row .kit-pill { margin-top: 2px; }
+.chev { color: var(--faint); margin-top: 2px; }
+.chev svg { width: 16px; height: 16px; }
+
+/* Done: a tick per item */
+.done { display: grid; gap: var(--sp-8); margin: 0; padding: 0; list-style: none; }
+.done li { display: grid; grid-template-columns: 24px 1fr; gap: var(--sp-12); }
+.tick { width: 24px; height: 24px; border-radius: 50%; background: var(--ok-soft); color: var(--ok-text); display: grid; place-items: center; }
+.tick svg { width: 12px; height: 12px; stroke-width: 2.4; }
+
+/* Goals: the kit's bar */
+.goals { display: grid; gap: var(--sp-12); }
+.goal { display: grid; gap: var(--sp-8); }
+.goal-top { display: flex; align-items: baseline; gap: var(--sp-8); }
+.goal-top .v { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.goal-top .v small { color: var(--faint); font-weight: 400; font-size: var(--fs-12); margin-left: var(--sp-4); }
+.kit-bar { height: 6px; border-radius: var(--r-pill); background: var(--sunk); overflow: hidden; }
+.kit-bar i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--c, var(--ok)); }
+
+/* Needs you and blockers: the kit's callout */
+.kit-callout { border-radius: var(--r-14); padding: var(--sp-12) var(--sp-16); display: grid; grid-template-columns: 1fr auto; gap: var(--sp-4) var(--sp-12); align-items: center; }
+.kit-callout b { font-weight: 600; }
+.kit-callout p { grid-column: 1; color: var(--text); }
+.kit-callout .btn { grid-column: 2; grid-row: 1 / span 2; }
+.kit-callout.warn { background: var(--warn-soft); }
+.kit-callout.warn b { color: var(--warn-text); }
+.kit-callout.err { background: var(--err-soft); }
+.kit-callout.err b { color: var(--err); }
+
+.btn { border: 0; border-radius: var(--r-8); padding: var(--sp-8) var(--sp-12); font: inherit; font-weight: 600; background: var(--fill); color: var(--text); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: var(--sp-8); }
+.btn.primary { background: var(--ink); color: var(--ink-text); }
+.btn.link { background: none; padding: var(--sp-4) var(--sp-8); color: var(--muted); font-weight: 400; }
+.btn.link:hover { color: var(--text); }
+
+.quiet { padding: var(--sp-12) var(--sp-16); border-top: 1px solid var(--line); color: var(--faint); font-size: var(--fs-12); }
+
+/* Kpi row, variant C */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-8); padding: 0 var(--sp-16) var(--sp-16); }
+.kpi { background: var(--sunk); border-radius: var(--r-8); padding: var(--sp-12); display: grid; gap: var(--sp-4); }
+.kpi .l { font-size: var(--fs-12); color: var(--muted); }
+.kpi .v { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi.warn .v { color: var(--warn-text); }
+.kpi.zero .v { color: var(--faint); }
+
+/* Preview in the list, under the bot's name */
+.list { width: 320px; background: var(--raise); border-radius: var(--r-14); padding: var(--sp-8); }
+.contact { display: flex; gap: var(--sp-12); align-items: center; padding: var(--sp-12); border-radius: var(--r-14); background: var(--sunk); }
+.contact .head { width: 40px; height: 40px; border-radius: var(--r-14); }
+.contact .head svg { width: 20px; height: 20px; }
+.contact .nm { font-weight: 600; display: flex; }
+.contact .nm .t { margin-left: auto; font-weight: 400; font-size: var(--fs-12); color: var(--faint); }
+.contact .prev { font-size: var(--fs-12); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contact .mid { min-width: 0; flex: 1; }
+
+@media (max-width: 520px) {
+  .pane { padding: var(--sp-16); }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="7" rx="2"/><rect x="4" y="13" width="16" height="7" rx="2"/><path d="M8 7.5h.01M8 16.5h.01"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="8" width="10" height="12" rx="5"/><path d="M12 8V5M9 5l1 2M15 5l-1 2M4 13h3M17 13h3M5 18l2-1M19 18l-2-1M5 8l2 1M19 8l-2 1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 19h16M7 16v-5M12 16V7M17 16v-8"/></symbol>
+  <symbol id="i-todo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></symbol>
+</svg>
+
+<div class="page">
+  <header>
+    <h1>Project update in the Project Manager's chat</h1>
+    <p>Same recorded data as today (ADR 240: done items, goals, current work, blockers, Needs you, decisions, latest replies and team reports). The server sends it as structured data and the apps draw it with the block kit, so no model text becomes markup. Content below is the Qwotz update from the screenshot.</p>
+  </header>
+
+  <!-- ===================== BEFORE ===================== -->
+  <section class="variant">
+    <h2>Before</h2>
+    <p class="note">Nine headings in the same weight as the text, and five of them say nothing happened. The two things worth reading sit at the bottom.</p>
+    <div class="pair">
+      <div class="pane">
+        <div class="new-line">New</div>
+        <div class="plain">Project update: Qwotz Development
+<span class="h">Marked done</span>No newly completed items recorded.
+<span class="h">Goal progress</span>No goal figures recorded.
+<span class="h">Current work</span><ul><li><a>Infra Admin</a>: Ustalić kopię bazy Qwotz poza serwerem (np. cotygodniowy zrzut bazy stagingu na OVH prod przez NetBird)</li><li>Poczta Qwotz: zdecydować o osobnym koncie Brevo i wariancie „wszystko przez Brevo”, potem „start” dla kodu</li></ul><span class="h">Blockers</span>No current failure recorded.
+<span class="h">Needs you</span>Nothing currently asks for your answer or approval.
+<span class="h">Decisions</span>No new decisions recorded.
+<span class="h">Latest replies and reports</span><ul><li><a>Issue Reviewer</a>: Trzy nowe issue do decyzji (wszystkie z QA 25.11, bez PR-a): #700 …</li><li>Qwotz Manager: Odpowiedz mu „nie”: ta lista opisuje gałąź main …</li></ul>
+This update uses recorded activity. It starts no work and answers or approves nothing.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== A ===================== -->
+  <section class="variant">
+    <h2>A. One card, only what happened (recommended)</h2>
+    <p class="note">A head with the project and the period. Under it one row of the kit's status pills answers "is anything wrong?" at a glance. Then only the sections that have something, each row with the bot's head and name (a link to its chat). Empty sections fold into one faint line at the foot. The footer disclaimer goes: the card has no buttons that start work.</p>
+    <div class="pair">
+      <div class="pane">
+        <span class="pane-label">Quiet day (today's data)</span>
+        <div class="new-line">New</div>
+        <article class="upd">
+          <div class="upd-head">
+            <div class="upd-icon"><svg><use href="#i-chart"/></svg></div>
+            <div>
+              <div class="upd-title">Qwotz Development</div>
+              <div class="upd-sub">Update since Tue 09:00</div>
+            </div>
+            <button class="btn link open">Board <svg width="16" height="16"><use href="#i-chev"/></svg></button>
+          </div>
+          <div class="pills">
+            <span class="kit-pill ok">Nothing needs you</span>
+            <span class="kit-pill ok">No blockers</span>
+            <span class="kit-pill info">2 in progress</span>
+          </div>
+          <div class="sec">
+            <h3>In progress <span class="n">2</span></h3>
+            <div class="rows">
+              <div class="row">
+                <div class="head" style="background:#c98a2b"><svg><use href="#i-server"/></svg></div>
+                <div><a class="who" href="#">Infra Admin</a><p class="what">Ustalić kopię bazy Qwotz poza serwerem (np. cotygodniowy zrzut bazy stagingu na OVH prod przez NetBird)</p></div>
+                <span class="kit-pill info">Working</span>
+              </div>
+              <div class="row">
+                <div class="head none"><svg><use href="#i-todo"/></svg></div>
+                <div><span class="who">Poczta Qwotz</span><p class="what">Zdecydować o osobnym koncie Brevo i wariancie „wszystko przez Brevo”, potem „start” dla kodu (propozycja w <a href="#">mail-proposal.md</a>)</p></div>
+                <span class="kit-pill plan">To-do</span>
+              </div>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Latest replies <span class="n">2</span></h3>
+            <div class="rows">
+              <div class="row">
+                <div class="head" style="background:#3f8f5f"><svg><use href="#i-list"/></svg></div>
+                <div><a class="who" href="#">Issue Reviewer</a><span class="when">08:41</span><p class="what">Trzy nowe issue do decyzji (wszystkie z QA 25.11, bez PR-a): <a href="#">#700</a> Marża na wycenie różni się o 3 centy przed zapisem (4106,72) i po zapisie (4106,69).</p></div>
+                <span class="chev"><svg><use href="#i-chev"/></svg></span>
+              </div>
+              <div class="row">
+                <div class="head" style="background:#3d78c4"><svg><use href="#i-cube"/></svg></div>
+                <div><a class="who" href="#">Qwotz Manager</a><span class="when">07:52</span><p class="what">Odpowiedz mu „nie”: ta lista opisuje gałąź <code>main</code>. Na <code>staging</code> Groq został już usunięty w PR #708.</p></div>
+                <span class="chev"><svg><use href="#i-chev"/></svg></span>
+              </div>
+            </div>
+          </div>
+          <div class="quiet">Nothing marked done, no goal figures, no new decisions.</div>
+        </article>
+      </div>
+
+      <div class="pane">
+        <span class="pane-label">Busy day (every section has something)</span>
+        <div class="new-line">New</div>
+        <article class="upd">
+          <div class="upd-head">
+            <div class="upd-icon"><svg><use href="#i-chart"/></svg></div>
+            <div>
+              <div class="upd-title">Qwotz Development</div>
+              <div class="upd-sub">Update since Tue 09:00</div>
+            </div>
+            <button class="btn link open">Board <svg width="16" height="16"><use href="#i-chev"/></svg></button>
+          </div>
+          <div class="pills">
+            <span class="kit-pill warn">1 needs you</span>
+            <span class="kit-pill err">1 blocker</span>
+            <span class="kit-pill ok">3 done</span>
+            <span class="kit-pill info">2 in progress</span>
+          </div>
+          <div class="sec">
+            <h3>Needs you</h3>
+            <div class="kit-callout warn">
+              <b>QA Tester asks</b>
+              <p>Wolno mi zalogować się na staging kontem testowym klienta?</p>
+              <button class="btn primary">Open card</button>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Blockers</h3>
+            <div class="kit-callout err">
+              <b>Infra Admin failed</b>
+              <p>Zrzut bazy: brak dostępu do OVH przez NetBird (timeout po 30 s).</p>
+              <button class="btn">Open chat</button>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Goals</h3>
+            <div class="goals">
+              <div class="goal">
+                <div class="goal-top"><span>Wersja 1.0 na produkcji</span><span class="v">4<small>of 6 steps</small></span></div>
+                <div class="kit-bar"><i style="width:66%"></i></div>
+              </div>
+              <div class="goal">
+                <div class="goal-top"><span>Otwarte issue</span><span class="v">19<small>/ 10</small></span></div>
+                <div class="kit-bar"><i style="width:100%; --c: var(--warn)"></i></div>
+              </div>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Done <span class="n">3</span></h3>
+            <ul class="done">
+              <li><span class="tick"><svg><use href="#i-check"/></svg></span><span>Groq usunięty ze stagingu (PR #708)</span></li>
+              <li><span class="tick"><svg><use href="#i-check"/></svg></span><span>Testy QA 25.11 opisane w issue</span></li>
+              <li><span class="tick"><svg><use href="#i-check"/></svg></span><span>Domena mail.qwotz.pl zweryfikowana w Brevo</span></li>
+            </ul>
+          </div>
+          <div class="sec">
+            <h3>In progress <span class="n">2</span></h3>
+            <div class="rows">
+              <div class="row">
+                <div class="head" style="background:#c98a2b"><svg><use href="#i-server"/></svg></div>
+                <div><a class="who" href="#">Infra Admin</a><p class="what">Ustalić kopię bazy Qwotz poza serwerem</p></div>
+                <span class="kit-pill info">Working</span>
+              </div>
+              <div class="row">
+                <div class="head" style="background:#c98a2b"><svg><use href="#i-bug"/></svg></div>
+                <div><a class="who" href="#">QA Tester</a><p class="what">Regresja wyceny po poprawce zaokrągleń</p></div>
+                <span class="kit-pill warn">Asks</span>
+              </div>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Decisions</h3>
+            <p class="what" style="color:var(--text)">Poczta idzie w całości przez Brevo, osobne konto dla Qwotz.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== A on a phone ===================== -->
+  <section class="variant">
+    <h2>A on a phone, and in the list</h2>
+    <p class="note">The same card at 390px. In the bots list the preview says the outcome, not the heading: <b>"Nothing needs you, 2 in progress"</b> instead of "Project update: Qwotz Development".</p>
+    <div class="pair">
+      <div class="pane phone">
+        <article class="upd">
+          <div class="upd-head">
+            <div class="upd-icon"><svg><use href="#i-chart"/></svg></div>
+            <div>
+              <div class="upd-title">Qwotz Development</div>
+              <div class="upd-sub">Update since Tue 09:00</div>
+            </div>
+          </div>
+          <div class="pills">
+            <span class="kit-pill ok">Nothing needs you</span>
+            <span class="kit-pill ok">No blockers</span>
+            <span class="kit-pill info">2 in progress</span>
+          </div>
+          <div class="sec">
+            <h3>In progress <span class="n">2</span></h3>
+            <div class="rows">
+              <div class="row">
+                <div class="head" style="background:#c98a2b"><svg><use href="#i-server"/></svg></div>
+                <div><a class="who" href="#">Infra Admin</a><p class="what">Ustalić kopię bazy Qwotz poza serwerem (np. cotygodniowy zrzut bazy stagingu na OVH prod przez NetBird)</p></div>
+                <span></span>
+              </div>
+              <div class="row">
+                <div class="head none"><svg><use href="#i-todo"/></svg></div>
+                <div><span class="who">Poczta Qwotz</span><p class="what">Zdecydować o osobnym koncie Brevo i wariancie „wszystko przez Brevo”</p></div>
+                <span></span>
+              </div>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Latest replies <span class="n">2</span></h3>
+            <div class="rows">
+              <div class="row">
+                <div class="head" style="background:#3f8f5f"><svg><use href="#i-list"/></svg></div>
+                <div><a class="who" href="#">Issue Reviewer</a><span class="when">08:41</span><p class="what">Trzy nowe issue do decyzji (wszystkie z QA 25.11, bez PR-a): #700 Marża na wycenie różni się o 3 centy</p></div>
+                <span class="chev"><svg><use href="#i-chev"/></svg></span>
+              </div>
+            </div>
+          </div>
+          <div class="quiet">Nothing marked done, no goal figures, no new decisions.</div>
+        </article>
+      </div>
+      <div class="list">
+        <div class="contact">
+          <div class="head" style="background:#3d78c4"><svg><use href="#i-cube"/></svg></div>
+          <div class="mid">
+            <div class="nm">Qwotz Manager<span class="t">09:02</span></div>
+            <div class="prev">Nothing needs you, 2 in progress</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== C ===================== -->
+  <section class="variant">
+    <h2>B. Counts first (alternative)</h2>
+    <p class="note">Four kpi boxes on top, then the same sections as A. Reads like the Board, but on a quiet day it is a row of grey zeros that takes more room than the pills and says less. Not recommended.</p>
+    <div class="pair">
+      <div class="pane">
+        <article class="upd">
+          <div class="upd-head">
+            <div class="upd-icon"><svg><use href="#i-chart"/></svg></div>
+            <div>
+              <div class="upd-title">Qwotz Development</div>
+              <div class="upd-sub">Update since Tue 09:00</div>
+            </div>
+            <button class="btn link open">Board <svg width="16" height="16"><use href="#i-chev"/></svg></button>
+          </div>
+          <div class="kpis">
+            <div class="kpi zero"><span class="l">Needs you</span><span class="v">0</span></div>
+            <div class="kpi zero"><span class="l">Blockers</span><span class="v">0</span></div>
+            <div class="kpi zero"><span class="l">Done</span><span class="v">0</span></div>
+            <div class="kpi"><span class="l">In progress</span><span class="v">2</span></div>
+          </div>
+          <div class="sec">
+            <h3>In progress <span class="n">2</span></h3>
+            <div class="rows">
+              <div class="row">
+                <div class="head" style="background:#c98a2b"><svg><use href="#i-server"/></svg></div>
+                <div><a class="who" href="#">Infra Admin</a><p class="what">Ustalić kopię bazy Qwotz poza serwerem (np. cotygodniowy zrzut bazy stagingu na OVH prod przez NetBird)</p></div>
+                <span class="kit-pill info">Working</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+</div>
+</html>
