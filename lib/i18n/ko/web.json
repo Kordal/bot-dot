@@ -1876,5 +1876,6 @@
   "Showing its start (up to 1 MB or 1,000 lines).": "앞부분만 보여 드려요(최대 1MB 또는 1,000줄).",
   "Download it to see everything.": "전체를 보려면 다운로드하세요.",
   "Open {name} · {size}": "{name} 열기 · {size}",
-  "{n} changes, newest first. Tap a title for more.": "변경 사항 {n}개, 최신순이에요. 제목을 누르면 자세히 볼 수 있어요."
+  "{n} changes, newest first. Tap a title for more.": "변경 사항 {n}개, 최신순이에요. 제목을 누르면 자세히 볼 수 있어요.",
+  "Only what is in this file loads": "이 파일 안의 내용만 불러와요"
 }
