@@ -14,7 +14,7 @@ botdot
 Un team di bot IA che gestisci in chat, sul tuo server o in hosting per te
 ```
 
-## Full description (4000): 2262
+## Full description (4000): 2261
 
 ```
 botdot è l'app Android di botdot, software open source che ti dà un team di bot IA da gestire in chat.
@@ -35,7 +35,7 @@ Ti serve un account botdot
 L'app si collega a un server botdot e senza non mostra niente. Installa botdot sul tuo server o VM Linux con un solo comando (open source, licenza MIT: github.com/ladrok/bot-dot), usa un account che ti dà l'amministratore di un server botdot, o fatti ospitare botdot su botdot.app.
 
 Il tuo account IA
-Ogni bot funziona con Claude Code. Ogni account accede con il proprio abbonamento Claude o la propria chiave API Anthropic, oppure usa un altro fornitore di modelli a sua scelta. botdot è un progetto open source indipendente, non realizzato da Anthropic né affiliato ad essa.
+Ogni bot funziona con Claude Code. Ogni account accede con il proprio abbonamento Claude o la propria chiave API Anthropic, oppure usa un altro provider di modelli a sua scelta. botdot è un progetto open source indipendente, non realizzato da Anthropic né affiliato ad essa.
 
 Privacy
 L'app comunica solo con il server botdot a cui accedi. Niente analisi, niente pubblicità, nessun tracciamento. L'accesso usa una passkey sulla pagina del tuo server.
