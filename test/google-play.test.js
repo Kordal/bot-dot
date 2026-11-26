@@ -15,7 +15,29 @@ const block = (md, heading) => {
   return m[1];
 };
 
-for (const file of ['listing-en.md', 'listing-pl.md']) {
+// Each language's listing is listing-<code>.md and its captions captions/<code>.json (ADR 280): a language brings its own.
+const REGISTRY = require('../lib/i18n/languages.json').languages.map((l) => l.code);
+const LISTINGS = fs.readdirSync(DIR).filter((f) => /^listing-.+\.md$/.test(f)).sort();
+const captions = require('../docs/google-play/captions.cjs');
+
+test('every listing and every captions file is of a language botdot has, English and Polish among them, and each language with one has the other', () => {
+  const listed = LISTINGS.map((f) => f.slice('listing-'.length, -3));
+  const captioned = captions.all().map((c) => c.lang);
+  for (const l of [...listed, ...captioned]) assert.ok(REGISTRY.includes(l), `${l}: no language of lib/i18n/languages.json`);
+  for (const l of ['en', 'pl']) assert.ok(listed.includes(l) && captioned.includes(l), l);
+  assert.deepEqual([...captioned].sort(), [...listed].sort(), 'a language with a listing has its captions, and one with captions its listing');
+});
+
+test('every language\'s captions name each raw screenshot once, in a line that fits, and the feature graphic\'s line', () => {
+  const raw = fs.readdirSync(path.join(DIR, 'screenshots', 'raw')).filter((f) => f.endsWith('.png')).sort();
+  for (const { lang, feature, screenshots } of captions.all()) {
+    assert.ok(typeof feature === 'string' && feature.trim() && [...feature].length <= 60, `${lang}: feature, 1 to 60 characters`);
+    assert.deepEqual(Object.keys(screenshots).sort(), raw, `${lang}: a caption for each picture of screenshots/raw/`);
+    for (const [f, text] of Object.entries(screenshots)) assert.ok(typeof text === 'string' && text.trim() && [...text].length <= 48, `${lang} ${f}: a caption of 1 to 48 characters`);
+  }
+});
+
+for (const file of LISTINGS) {
   test(`${file} keeps to Play's lengths`, () => {
     const md = read(file);
     for (const [heading, max] of [['App name', 30], ['Short description', 80], ['Full description', 4000]]) {
@@ -33,18 +55,26 @@ for (const file of ['listing-en.md', 'listing-pl.md']) {
 test('the icon and the feature graphics are the sizes and kinds Play takes', () => {
   const icon = png.info(fs.readFileSync(path.join(DIR, 'graphics', 'icon-512.png')));
   assert.deepEqual([icon.width, icon.height, icon.bitDepth, icon.colorType], [512, 512, 8, 6], 'the icon: 512 x 512, 32-bit PNG');
-  for (const f of ['feature-1024x500.png', 'feature-1024x500-pl.png']) {
+  // English's and Polish's are kept here; another language's come from the Play screenshots workflow when it has none.
+  const kept = captions.all().map((c) => captions.featureFile(c.lang)).filter((f) => ['en', 'pl'].some((l) => f === captions.featureFile(l)) || fs.existsSync(path.join(DIR, 'graphics', f)));
+  assert.ok(kept.length >= 2);
+  for (const f of kept) {
     const i = png.info(fs.readFileSync(path.join(DIR, 'graphics', f)));
     assert.deepEqual([i.width, i.height, i.alpha], [1024, 500, false], `${f}: 1024 x 500, no alpha`);
   }
 });
 
 test('the phone screenshots are what Play takes: 2 to 8 a language, 9:16, 320 to 3840 pixels a side, no alpha', () => {
-  const sets = ['raw', 'en', 'pl'].map((d) => fs.readdirSync(path.join(DIR, 'screenshots', d)).filter((f) => f.endsWith('.png')).sort());
+  // English's and Polish's captioned pictures are kept here; another language's folder, when it has one, is whole.
+  const langs = captions.all().map((c) => c.lang).filter((l) => ['en', 'pl'].includes(l) || fs.existsSync(path.join(DIR, 'screenshots', l)));
+  const dirs = ['raw', ...langs];
+  const sets = dirs.map((d) => fs.readdirSync(path.join(DIR, 'screenshots', d)).filter((f) => f.endsWith('.png')).sort());
   assert.ok(sets[0].length >= 4 && sets[0].length <= 8, `${sets[0].length} screenshots`);
-  assert.deepEqual(sets[1], sets[0], 'en/ has one captioned picture for each in raw/');
-  assert.deepEqual(sets[2], sets[0], 'pl/ has one captioned picture for each in raw/');
-  for (const d of ['raw', 'en', 'pl']) {
+  dirs.slice(1).forEach((d, i) => assert.deepEqual(sets[i + 1], sets[0], `${d}/ has one captioned picture for each in raw/`));
+  for (const f of fs.readdirSync(path.join(DIR, 'screenshots'), { withFileTypes: true })) {
+    if (f.isDirectory()) assert.ok(dirs.includes(f.name), `screenshots/${f.name}/ is no language with captions`);
+  }
+  for (const d of dirs) {
     for (const f of sets[0]) {
       const i = png.info(fs.readFileSync(path.join(DIR, 'screenshots', d, f)));
       assert.equal(i.width * 16, i.height * 9, `${d}/${f}: ${i.width} x ${i.height} is not 9:16`);

@@ -207,7 +207,7 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
 }
 
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
-private val DAY get() = DateTimeFormatter.ofPattern("d MMM", I18n.locale)
+private val DAY get() = DateTimeFormatter.ofPattern(I18n.shortDay, I18n.locale) // the language's own (ADR 280)
 
 /** A time as a message shows it: "13:52" today, "5 Oct, 13:52" another day; "" for none. The same function iOS draws with ([chatClock]). */
 fun shortTime(iso: String?): String = chatClock(iso)

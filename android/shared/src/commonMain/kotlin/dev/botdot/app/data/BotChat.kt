@@ -715,7 +715,7 @@ fun chatClock(iso: String?): String = runCatching {
     val at = kotlin.time.Instant.parse(iso ?: return "")
     val zone = kotlinx.datetime.TimeZone.currentSystemDefault()
     val today = kotlin.time.Clock.System.now().toLocalDateTime(zone).date
-    if (at.toLocalDateTime(zone).date == today) formatDate(at, "HH:mm", null, zone) else formatDate(at, "d MMM, HH:mm", I18n.language, zone)
+    if (at.toLocalDateTime(zone).date == today) formatDate(at, "HH:mm", null, zone) else formatDate(at, "${I18n.shortDay}, HH:mm", I18n.language, zone)
 }.getOrDefault("")
 
 /** The time of day of a step in a run's details: "13:52", the day dropped from [chatClock]'s "5 Oct, 13:52". */

@@ -10,7 +10,8 @@ const { cut } = require('./web-page');
 const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'bot-names.json'), 'utf8'));
 const CHIEF = { id: 'chief', name: 'Chief of Staff' };
 function page(bots, chiefName = 'Chief of Staff') {
-  const ctx = vm.createContext({ URL, state: { bots }, Mentions: { CHIEF: 'chief' }, CHIEF_ROLE: 'Chief of Staff', CHIEF_BOT: { ...CHIEF, name: chiefName }, chiefName: () => chiefName });
+  // Polish's endings come with the dictionary (lib/i18n/pl/phrases.json, ADR 280), as I18n.phrases.
+  const ctx = vm.createContext({ URL, I18n: { phrases: require('../lib/i18n/phrases').forApps() }, state: { bots }, Mentions: { CHIEF: 'chief' }, CHIEF_ROLE: 'Chief of Staff', CHIEF_BOT: { ...CHIEF, name: chiefName }, chiefName: () => chiefName });
   vm.runInContext(`${cut('// What a web address shows in a chat', '// The Copy button')}${cut('const BARE_TLDS', 'function linkifyChat(root)')}${cut("// A bot's name in a message is a link", '// A tap on a bot')}
     this.botNameLinks = botNameLinks; this.chatLinkParts = chatLinkParts; this.namedBots = namedBots; this.botsToLink = botsToLink;`, ctx);
   return ctx;

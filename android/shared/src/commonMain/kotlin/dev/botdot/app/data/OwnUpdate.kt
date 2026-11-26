@@ -89,6 +89,6 @@ data class OwnUpdate(
         val WHENS: List<Pair<String, String>> get() = listOf("ready" to tr("As soon as it's ready"), "night" to tr("At night, when idle"), "manual" to tr("When I say"))
 
         private fun day(iso: String, zone: TimeZone): String =
-            formatDate(Instant.parse(iso), if (I18n.language == "pl") "EEEE, d MMMM" else "EEEE, MMM d", I18n.language, zone)
+            formatDate(Instant.parse(iso), I18n.longDay, I18n.language, zone) // the language's own pattern (ADR 280)
     }
 }

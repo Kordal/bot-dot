@@ -1,0 +1,13 @@
+{
+  "feature": "A team of AI bots you run by chat",
+  "screenshots": {
+    "1-home.png": "Your bots and what needs you",
+    "2-chief.png": "Ask the Chief of Staff for a bot",
+    "3-approve.png": "Scripts wait for your OK",
+    "4-server.png": "Gauges and live numbers in the chat",
+    "5-spending.png": "Charts, not walls of numbers",
+    "6-quiz.png": "Answer a quiz right in the chat",
+    "7-quotes.png": "Compare options side by side",
+    "8-board.png": "Live values on your Board"
+  }
+}

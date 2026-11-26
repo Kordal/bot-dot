@@ -82,6 +82,8 @@ val fixtures = mapOf(
     "markdownCases" to "test/fixtures/markdown-cases.json",
     "chatLinks" to "test/fixtures/chat-links.json",
     "botNames" to "test/fixtures/bot-names.json",
+    "pluralRules" to "test/fixtures/plural-rules.json",
+    "polishPhrases" to "lib/i18n/pl/phrases.json",
     "figureCases" to "test/fixtures/figure-cases.json",
     "pushSeals" to "test/fixtures/push-seals.json",
     "figureDefinition" to "lib/figure.json",

@@ -14,7 +14,8 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'whats-new-'));
 const write = (dir, id, text = note(`Note ${id}`)) => fs.writeFileSync(path.join(dir, `${id}.md`), text);
 
 test("every note in whats-new/ has a title and 2 to 4 points, and a name that is its id", () => {
-  const files = fs.readdirSync(NOTES).filter((f) => f !== 'README.md' && f !== 'pl');
+  // A folder is a language's twins (ADR 280), checked below.
+  const files = fs.readdirSync(NOTES, { withFileTypes: true }).filter((f) => f.isFile() && f.name !== 'README.md').map((f) => f.name);
   assert.ok(files.length > 0, 'whats-new/ has notes');
   for (const f of files) {
     assert.match(f, /\.md$/, `${f} is a .md note`);
@@ -32,8 +33,22 @@ test('every note has a Polish twin in whats-new/pl/ by the same rules, and every
   for (const n of whatsNew.read(path.join(NOTES, 'pl'))) assert.equal(n.error, undefined, `whats-new/pl/${n.id}.md ${n.error}`);
   const translated = whatsNew.read(NOTES, 'pl');
   assert.equal(translated.length, english.length);
-  const same = translated.filter((n, i) => n.title === whatsNew.read(NOTES)[i].title);
+  const original = whatsNew.read(NOTES);
+  const same = translated.filter((n, i) => n.title === original[i].title);
   assert.deepEqual(same.map((n) => n.id), [], 'Polish twins with the English title');
+});
+
+test("every other folder of whats-new/ is a language the interface offers, whose twins each have an English note and keep the rules (ADR 280)", () => {
+  const i18n = require('../lib/i18n');
+  const english = new Set(fs.readdirSync(NOTES).filter((f) => f.endsWith('.md') && f !== 'README.md'));
+  for (const d of fs.readdirSync(NOTES, { withFileTypes: true }).filter((f) => f.isDirectory()).map((f) => f.name)) {
+    assert.ok(i18n.isOffered(d) && d !== 'en', `whats-new/${d}/ is no language lib/i18n offers (a folder lib/i18n/${d}/)`);
+    for (const f of fs.readdirSync(path.join(NOTES, d))) {
+      assert.match(f, /\.md$/, `whats-new/${d}/${f} is a .md note`);
+      assert.ok(english.has(f), `whats-new/${d}/${f} has no English note`);
+    }
+    for (const n of whatsNew.read(path.join(NOTES, d))) assert.equal(n.error, undefined, `whats-new/${d}/${n.id}.md ${n.error}`);
+  }
 });
 
 test('in Polish: the twin where it is good, the English note where it is missing or broken, English for any other language', () => {

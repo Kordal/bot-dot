@@ -1187,9 +1187,12 @@ function linkifyChat(root) {
   }
 }
 // A bot's name in a message is a link to its chat (test/fixtures/bot-names.json, shared with the Android app): the
-// name as written, or declined by one of the endings Polish gives it (QA Testera, QA Testerowi), case as the name has
-// it, longest name first, as a whole word. A name two bots share is nobody's. A bot that is gone is plain text.
-const BOT_NAME_ENDINGS = 'owi|ami|ach|em|om|ów|ie|ze|a|u|y|i|e|ę|ą';
+// name as written, or declined by one of the endings an offered language gives it (its phrases' nameEndings, ADR 280,
+// which come with the dictionary: Polish's QA Testera, QA Testerowi), case as the name has it, longest name first, as
+// a whole word. A name two bots share is nobody's. A bot that is gone is plain text.
+const botNameEndings = (endings = typeof I18n !== 'undefined' ? I18n.phrases?.nameEndings : null) => [...new Set((Array.isArray(endings) ? endings : []).filter((e) => typeof e === 'string' && e))]
+  .sort((a, b) => b.length - a.length).map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+const BOT_NAME_ENDINGS = botNameEndings();
 const botNameRes = new Map();
 // The names in a text: where each starts, the text of the name and its ending, and the id of the bot. bots: { id, name }.
 function botNameLinks(text, bots) {
@@ -1203,7 +1206,7 @@ function botNameLinks(text, bots) {
   const key = names.join('\u0000');
   if (!botNameRes.has(key)) {
     if (botNameRes.size > 16) botNameRes.clear();
-    botNameRes.set(key, new RegExp(`(?<![\\p{L}\\p{N}_@/-])(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:${BOT_NAME_ENDINGS})?(?![\\p{L}\\p{N}_])`, 'gu'));
+    botNameRes.set(key, new RegExp(`(?<![\\p{L}\\p{N}_@/-])(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})${BOT_NAME_ENDINGS ? `(?:${BOT_NAME_ENDINGS})?` : ''}(?![\\p{L}\\p{N}_])`, 'gu'));
   }
   return [...text.matchAll(botNameRes.get(key))].map((m) => ({ index: m.index, text: m[0], id: ids.get(m[1]) }));
 }
@@ -1426,7 +1429,7 @@ async function readAll() {
     api(MEMORY_WAITS).then((p) => { if (!latest()) return; state.memPending = p; showNeeds(); }).catch(() => {});
     api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1&update=1').then((a) => { if (!latest()) return; state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { if (!latest()) return; state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
-    if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, providers: cfg.providers });
+    if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, providers: cfg.providers, languages: cfg.languages });
     if (state.view === 'bot' && state.botId) { loadInbox(state.botId); loadWatches(state.botId); readOwnRuns(state.botId); }
     render();
     computersRead.then((c) => {

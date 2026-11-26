@@ -6,7 +6,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The interface's language (#645, ADR 108): the words in Polish where the dictionary has them, English otherwise. */
+/** The interface's language (#645, ADR 108, ADR 280): the words in the account's language where the dictionary has them, English otherwise. */
 class I18nTest {
     private val polish = JsonObject(mapOf(
         "Saved" to JsonPrimitive("Zapisano"),
@@ -41,6 +41,29 @@ class I18nTest {
     @Test fun polishPluralForms() {
         assertEquals(listOf("one", "few", "few", "many", "many", "many", "few", "many", "few"), listOf(1, 2, 4, 5, 13, 21, 22, 112, 122).map { I18n.form("pl", it) })
         assertEquals(listOf("other", "one", "other"), listOf(0, 1, 2).map { I18n.form("en", it) })
+    }
+
+    @Test fun anyLanguageTheServerOffersWithItsPluralsAndItsDates() {
+        val offered = listOf(I18n.Language("en", "English"), I18n.Language("de", "Deutsch", "de-DE", "EEEE, d. MMMM", "d. MMM"), I18n.Language("ja", "日本語", "ja-JP", "M月d日 EEEE", "M月d日"))
+        val german = JsonObject(mapOf("Saved" to JsonPrimitive("Gespeichert"), "{n} bots" to JsonObject(mapOf("one" to JsonPrimitive("{n} Bot"), "other" to JsonPrimitive("{n} Bots")))))
+        I18n.use("de", german, offered, mapOf("because" to listOf("weil")))
+        assertEquals("de", I18n.language)
+        assertEquals("Gespeichert", tr("Saved"))
+        assertEquals(listOf("1 Bot", "2 Bots", "0 Bots"), listOf(1, 2, 0).map { trn(it, "{n} bot", "{n} bots") })
+        assertEquals("EEEE, d. MMMM", I18n.longDay)
+        assertEquals(listOf("en" to "English", "de" to "Deutsch", "ja" to "日本語"), I18n.choices)
+        assertEquals(listOf("weil"), I18n.phrases("because"))
+        assertEquals("ja", I18n.event(FeedEvent(null, "language", JsonObject(mapOf("language" to JsonPrimitive("ja"))))))
+        I18n.use("ja", JsonObject(mapOf("{n} bots" to JsonObject(mapOf("other" to JsonPrimitive("ボット{n}体"))))), offered)
+        assertEquals("Japanese has one form, other", "ボット1体", trn(1, "{n} bot", "{n} bots"))
+        assertEquals("M月d日", I18n.shortDay)
+        I18n.use("fr", null, offered)
+        assertEquals("a language the server does not offer is English", "en", I18n.language)
+    }
+
+    @Test fun aMissingFormFallsBackToOtherThenFewThenMany() {
+        I18n.use("pl", JsonObject(mapOf("{n} hours" to JsonObject(mapOf("one" to JsonPrimitive("{n} godzina"), "few" to JsonPrimitive("{n} godziny"))))))
+        assertEquals("many is missing: few", "5 godziny", trn(5, "{n} hour", "{n} hours"))
     }
 
     @Test fun theFeedSaysTheLanguage() {

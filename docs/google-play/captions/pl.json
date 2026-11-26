@@ -1,0 +1,13 @@
+{
+  "feature": "Zespół botów AI, którym kierujesz przez czat",
+  "screenshots": {
+    "1-home.png": "Twoje boty i to, co czeka na Ciebie",
+    "2-chief.png": "Poproś Szefa sztabu o bota",
+    "3-approve.png": "Skrypty czekają na Twoją zgodę",
+    "4-server.png": "Wskaźniki i liczby na żywo w czacie",
+    "5-spending.png": "Wykresy zamiast ścian liczb",
+    "6-quiz.png": "Quiz do rozwiązania w czacie",
+    "7-quotes.png": "Porównaj opcje obok siebie",
+    "8-board.png": "Wartości na żywo na Tablicy"
+  }
+}

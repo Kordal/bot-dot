@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import dev.botdot.app.BotDotApp
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -118,7 +119,9 @@ fun BotDotTheme(content: @Composable () -> Unit) {
     val p = DarkPaper
     val figure = (LocalContext.current.applicationContext as? BotDotApp)?.figure?.collectAsState()?.value
     CompositionLocalProvider(LocalPaper provides p, LocalFigure provides figure) {
-        ProvideFigureClock { MaterialTheme(colorScheme = botDotColors(p), shapes = BotDotShapes, typography = BotDotType, content = content) }
+        val language = dev.botdot.app.data.I18n.language // the words' locale: the language's own CJK forms (ADR 280)
+        val type = remember(language) { if (language == "en") BotDotType else BotDotType.inLocale(language) }
+        ProvideFigureClock { MaterialTheme(colorScheme = botDotColors(p), shapes = BotDotShapes, typography = type, content = content) }
     }
 }
 

@@ -99,10 +99,15 @@ const checkinDate = (startedAt) => (startedAt ? new Date(new Date(startedAt).get
 const stepsDone = (o) => (o?.steps?.length ? o.steps.filter((x) => x.done).length : 0);
 
 // A decision as the owner types it (#694): "Launch in Polish first because most users are Polish" is the decision and
-// its reason, split at the first "because" (Polish "bo", "ponieważ") or dash between words. { text, why }.
-function decision(input) {
+// its reason, split at the first "because" or dash between words, or another offered language's word for it (its
+// lib/i18n/<code>/phrases.json `because`, ADR 280: Polish "bo", "ponieważ"; the page's come with its dictionary,
+// I18n.phrases). { text, why }.
+const pageBecause = () => { try { return typeof I18n !== 'undefined' && Array.isArray(I18n.phrases?.because) ? I18n.phrases.because : []; } catch (e) { return []; } };
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+function decision(input, because = pageBecause()) {
   const typed = String(input || '').replace(/\s+/g, ' ').trim();
-  const m = /^(.+?)\s+(?:because|bo|ponieważ|[—–-])\s+(.+)$/i.exec(typed);
+  const words = ['because', ...because.filter((w) => typeof w === 'string' && w.trim()).map(escapeRe)];
+  const m = new RegExp(`^(.+?)\\s+(?:${words.join('|')}|[—–-])\\s+(.+)$`, 'iu').exec(typed);
   return m ? { text: m[1].replace(/[,;:]$/, '').trim(), why: m[2] } : { text: typed, why: '' };
 }
 

@@ -68,7 +68,7 @@ object Feedback {
         val issueLink: String? get() = issue?.let { "https://github.com/ladrok/bot-dot/issues/$it" }
         val issueLabel: String? get() = issue?.let { tr("Public issue #{n}", "n" to it) }
         /** The day it was sent, as a row shows it ("3 Nov"), in the account's language. */
-        val day: String get() = runCatching { formatDate(Instant.parse(created), "d MMM", I18n.language) }.getOrDefault("")
+        val day: String get() = runCatching { formatDate(Instant.parse(created), I18n.shortDay, I18n.language) }.getOrDefault("")
         /** The Fixed notice's line (#1569), as the web page says it: "Fixed: your report from 3 Nov". */
         val fixedLine: String get() = tr("Fixed: your report from {date}", "date" to day)
         /** The first words of what the owner wrote, as the notice shows them: one line, cut at a word, "…" when there is more. */

@@ -1,7 +1,9 @@
 # The Play store's phone screenshots (docs/google-play/README.md): the Android app on an emulator, connected to a real
 # botdot server with staged data and the tests' stand-in Claude (docs/google-play/screenshots/scene.cjs), pictured by
-# drive.cjs. Run by hand (Actions → Play screenshots → Run workflow); the pictures are the run's "play-screenshots"
-# artifact. Holds no secret.
+# drive.cjs, then captioned in every language that has captions (docs/google-play/captions/<code>.json, ADR 280:
+# caption.cjs, and the feature graphics by graphics/make.cjs). Run by hand (Actions → Play screenshots → Run workflow);
+# the pictures are the run's "play-screenshots" artifact: the raw ones at its top, each language's in a folder of its
+# code under captioned/, the feature graphics under graphics/. Holds no secret.
 name: Play screenshots
 
 on:
@@ -47,6 +49,16 @@ jobs:
           target: google_apis
           disable-animations: true
           script: node docs/google-play/screenshots/drive.cjs "$RUNNER_TEMP/scene" android/app/build/outputs/apk/debug/app-debug.apk play-screenshots
+      # Every language with captions, the ones a language's pull request added included: Playwright's Chromium draws
+      # them, with Noto CJK for Chinese, Japanese and Korean (Geist has no CJK letters).
+      - name: Caption them in every language
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+          npm install --no-save --no-package-lock playwright@1.57.0
+          npx playwright install --with-deps chromium
+          node docs/google-play/screenshots/caption.cjs play-screenshots play-screenshots/captioned
+          node docs/google-play/graphics/make.cjs play-screenshots/1-home.png play-screenshots/graphics
+          node docs/google-play/png.cjs check play-screenshots/captioned/*/*.png play-screenshots/graphics/feature-*.png
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
