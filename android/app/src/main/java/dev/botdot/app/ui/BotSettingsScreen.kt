@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.scheduleWords
 import dev.botdot.app.data.without
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -349,7 +350,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         for (group in listOf("machine", "builtin")) {
                             val list = sysSkills.filter { it.second == group }.sortedBy { it.first.name in b.disabledSkills }
                             if (list.isEmpty()) continue
-                            GroupHead((if (group == "builtin") tr("built into Claude Code") else tr("from your Claude account")).replaceFirstChar { it.uppercase() })
+                            GroupHead(I18n.upperFirst(if (group == "builtin") tr("built into Claude Code") else tr("from your Claude account")))
                             list.forEach { (k, _) ->
                                 val more = (if (group == "builtin") tr("Comes with Claude Code.") else tr("Installed in your Claude account.")) + " " + tr("Every bot has it unless you switch it off here.")
                                 key(k.name) { SkillRow(k.name, k.description, more, k.name !in disabled, focus = k.name == focusRow) { on -> disabled = if (on) disabled - k.name else disabled + k.name } }

@@ -48,7 +48,7 @@ object Proxies {
     }
 
     /** What a failed test said, with a capital first letter. */
-    fun said(error: String?): String = error.orEmpty().replaceFirstChar { it.uppercase() }
+    fun said(error: String?): String = I18n.upperFirst(error.orEmpty())
 
     /**
      * A pasted address in Host fills the form, as botdot reads it (lib/proxies.js parsed): socks5://user:pass@host:port,

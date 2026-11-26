@@ -84,16 +84,17 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
     val project = WorkspaceFiles.projectOf(root)?.let { n -> allProjects.firstOrNull { it.name == n } }
 
     fun go(r: String, to: String) { root = r; path = to }
-    fun act(what: String, block: suspend (Api) -> Unit) {
+    // [what] is a short phrase for "Couldn't {what}"; an action whose failure reads better as a whole sentence gives it as [failed].
+    fun act(what: String, failed: String? = null, block: suspend (Api) -> Unit) {
         val a = api ?: return tell(tr("Not connected to botdot"))
-        scope.launch { runCatching { block(a) }.onError { tell(it.message ?: tr("Couldn't {what}", "what" to what)) }; tries++ }
+        scope.launch { runCatching { block(a) }.onError { tell(it.message ?: failed ?: tr("Couldn't {what}", "what" to what)) }; tries++ }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         if (uris.size > WorkspaceFiles.MAX_FILES) tell(tr("Upload at most {n} files at a time.", "n" to WorkspaceFiles.MAX_FILES))
         val into = path
         val r = root
-        act("upload") { a ->
+        act("", failed = tr("Couldn't upload")) { a ->
             for (uri in uris.take(WorkspaceFiles.MAX_FILES)) {
                 runCatching { a.uploadToWorkspace(context.contentResolver, uri, botId, into, r) }.onError { tell(it.message ?: tr("Couldn't upload")) }
             }

@@ -86,7 +86,7 @@ const DocViewer = (() => {
     const table = v.kind === 'csv' && c.mode === 'table' ? tableOf(rowsOf(c), null, c) : null;
     return `<div class="dv-bar">
       ${c.page && v.page ? Pages.barHTML(v.page) : ''}
-      ${v.kind === 'markdown' || htmlFrame(c) ? seg(c, [['rendered', tr('Rendered')], ['source', tr('Source')]]) : v.kind === 'csv' ? seg(c, [['table', tr('Table')], ['source', tr('Source')]]) : ''}
+      ${v.kind === 'markdown' || htmlFrame(c) ? seg(c, [['rendered', tr('Rendered')], ['source', tr('Source code')]]) : v.kind === 'csv' ? seg(c, [['table', tr('Table')], ['source', tr('Source code')]]) : ''}
       ${table ? `<input class="dv-find" type="search" placeholder="${tr('Find in table')}" aria-label="${tr('Find in table')}" value="${esc(c.find)}"><span class="dv-count faint">${trn(table.total, '{n} row', '{n} rows')} · ${trn(table.cols, '{n} column', '{n} columns')}</span>` : ''}
       ${htmlFrame(c) && c.mode === 'rendered' ? `<span class="dv-count faint">${tr('Only what is in this file loads')}</span>` : ''}
       <span class="dv-sp"></span>

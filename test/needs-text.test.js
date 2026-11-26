@@ -196,6 +196,10 @@ test("a row's label keeps every letter and digit of the argument's name, in any 
   assert.deepEqual(labels(['Imię', '日本語', 'recipient_email']), ['Imię', '日本語', 'To']);
   assert.deepEqual(labels(['imię_i_nazwisko', 'adres–zwrotny', 'имяПользователя', 'Größe', 'ünvan', 'ßeta', 'नाम', 'école', 'pokój٣', 'käyttäjäNimi2']),
     ['Imię i nazwisko', 'Adres zwrotny', 'Имя пользователя', 'Größe', 'Ünvan', 'ßeta', 'नाम', 'École', 'Pokój٣', 'Käyttäjä nimi2']);
+  // An argument's name is an identifier, not the owner's text: its label is cased the same in every language, so a Turkish
+  // card reads "Id" and "Issue id", never "İd" (the label is what Allow once sends back).
+  const turkish = proposalView({ kind: 'connector-action', app: 'gmail', action: 'X', arguments: { id: 1, issue_id: 2, imię: 3 } }, 'Mail Writer', { lang: 'tr' }).rows.map((r) => r.label);
+  assert.deepEqual(turkish, ['Id', 'Issue id', 'Imię']);
   // Two names that differ in a letter of another script read as two rows, each by its own name.
   assert.deepEqual(labels(['Imię', 'Imi', 'Imie']), ['Imię', 'Imi', 'Imie']);
   // A character that draws nothing makes no second label that looks like the first: such names are numbered, as

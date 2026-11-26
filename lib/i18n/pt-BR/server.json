@@ -622,5 +622,6 @@
   "Checking your MCP servers": "Verificando seus servidores MCP",
   "Asking to add an MCP server": "Pedindo para adicionar um servidor MCP",
   "Using one of your MCP servers": "Usando um dos seus servidores MCP",
-  "used one of the owner's MCP servers": "usou um dos servidores MCP do dono"
+  "used one of the owner's MCP servers": "usou um dos servidores MCP do dono",
+  "Source": "Origem"
 }

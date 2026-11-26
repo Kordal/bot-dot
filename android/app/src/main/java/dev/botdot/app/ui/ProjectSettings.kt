@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.without
 import dev.botdot.app.data.delivered
 import dev.botdot.app.data.CHIEF_COLOR
@@ -157,7 +158,7 @@ private fun General(ui: CompanyUi, c: Company, ways: CompanyWays, patch: (JsonOb
                 val fill = parseColor(col, p.muted)
                 Box(Modifier.size(36.dp).clip(Radius.small).background(fill).then(if (on) Modifier.border(2.dp, p.text, Radius.small) else Modifier)
                     .clickable(onClickLabel = col) { if (!on) patch(buildJsonObject { put("color", col) }) }.semantics { contentDescription = col }, contentAlignment = Alignment.Center) {
-                    if (on) Text(ManyProjects.nameOf(c).take(1).uppercase(), color = inkOn(fill), fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
+                    if (on) Text(I18n.upper(ManyProjects.nameOf(c).take(1)), color = inkOn(fill), fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

@@ -29,12 +29,46 @@ test('the same set of values reads the same, however it is written', () => {
   assert.equal(describe('0 9 * * 6,7'), 'Weekends at 09:00');
 });
 
-test('in Japanese, a list reads with 、 and と, and a day of the month carries 日 on each number', () => {
-  assert.equal(describe('0 9 * * 1,3,5', 'ja'), '毎週月曜日、水曜日と金曜日 09:00');
-  assert.equal(describe('0 9 1,15 * *', 'ja'), '毎月1日と15日 09:00');
-  assert.equal(describe('0 9 1-5 * *', 'ja'), '毎月1日〜5日 09:00');
-  assert.equal(describe('0 9,17 * * *', 'ja'), '毎日 09:00と17:00');
-  assert.equal(describe('0 9 * * 1-5', 'ja'), '平日 09:00');
+test('a language chooses how its words are joined: ja and zh-Hans with "、", the others with ", " and " and "', () => {
+  const ja = (expr) => describe(expr, 'ja');
+  assert.equal(ja('0 9 * * 1,3,5'), '毎週月曜日、水曜日と金曜日 09:00');
+  assert.equal(ja('0 9,17 * * *'), '毎日 09:00と17:00');
+  assert.equal(ja('0 9 * * 1-5'), '平日 09:00');
+  assert.equal(ja('0 9 * * 1,5'), '毎週月曜日と金曜日 09:00');
+  assert.equal(ja('0 9,12,15 * * *'), '毎日 09:00、12:00と15:00');
+  assert.equal(ja('0 9 1,15 * *'), '毎月1日と15日 09:00');
+  assert.equal(ja('0 9 1-5 * *'), '毎月1日〜5日 09:00');
+  assert.equal(ja('0 9 * 1,6,9 *'), '毎日 09:00、1月、6月と9月のみ');
+  assert.equal(ja('*/15 8-18 * * 1,3,5'), '15分ごと、08:00〜18:45、月曜日、水曜日と金曜日');
+  assert.equal(ja('0 9 10 * 0,6'), '毎月10日、週末の場合のみ、09:00');
+  const zh = (expr) => describe(expr, 'zh-Hans');
+  assert.equal(zh('0 9 * * 1,3,5'), '每周一、周三和周五 09:00');
+  assert.equal(zh('0 9,12,15 * * *'), '每天 09:00、12:00和15:00');
+  assert.equal(zh('0 9 1,15 * *'), '每月1、15日 09:00');
+  assert.equal(zh('0 9 * 1,6,9 *'), '每天 09:00，1月、6月和9月');
+  assert.equal(zh('*/15 8-18 * * 1,3,5'), '每 15 分钟，08:00–18:45，周一、周三和周五');
+  // A language that sets none keeps ", " and " and ": English, and Korean with its own "및".
+  assert.equal(describe('0 9,12,15 * * 1,3,5'), 'Mondays, Wednesdays and Fridays at 09:00, 12:00 and 15:00');
+  assert.equal(describe('*/15 8-18 * * 1,3,5', 'ko'), '15분마다, 08:00~18:45, 매주 월요일, 수요일 및 금요일');
+  assert.equal(describe('0 9 * * 1,3,5', 'ko'), '매주 월요일, 수요일 및 금요일 09:00');
+});
+
+test('a time that is "around" and an hour that is one o\'clock read right in Spanish and Brazilian Portuguese', () => {
+  const around = (expr, lang) => describe(expr, lang, { around: true });
+  // Spanish: "hacia las 08:30", one space after "hacia" (it was "hacia  las").
+  assert.equal(around('30 8 * * *', 'es'), 'Todos los días hacia las 08:30');
+  assert.equal(around('0 8 * * 1-5', 'es'), 'Entre semana hacia las 08:00');
+  assert.equal(around('0 1 * * *', 'es'), 'Todos los días hacia la 01:00');
+  assert.equal(around('0 8,9 * * *', 'es'), 'Todos los días hacia las 08:00 y 09:00');
+  assert.ok(!/ {2}/.test(around('30 8 * * *', 'es')), 'no double space');
+  // Portuguese: one o'clock is "uma hora", singular: "à 01:00", "da 01:00", the others "às" and "das".
+  assert.equal(describe('0 1 * * *', 'pt-BR'), 'Todo dia à 01:00');
+  assert.equal(describe('30 1 * * 1-5', 'pt-BR'), 'Em dias úteis à 01:30');
+  assert.equal(describe('0 1,13 * * *', 'pt-BR'), 'Todo dia à 01:00 e 13:00');
+  assert.equal(describe('0 9 * * *', 'pt-BR'), 'Todo dia às 09:00');
+  assert.equal(describe('0 13 * * *', 'pt-BR'), 'Todo dia às 13:00');
+  assert.equal(around('0 1 * * *', 'pt-BR'), 'Todo dia por volta da 01:00');
+  assert.equal(around('0 13 * * 1', 'pt-BR'), 'Às segundas por volta das 13:00');
 });
 
 test('the rules beside the table', () => {

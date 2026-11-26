@@ -164,7 +164,7 @@ const Files = (() => {
   const back = (c) => (folderOnly(c) ? tr('Back') : tr('Back to the chat'));
   function topHTML(c) {
     const bot = c.bot;
-    const face = folderOnly(c) ? `<span class="fx-letter" style="--c:${esc(bot.color || '#ff6b35')}">${esc(String(bot.name).charAt(0).toUpperCase())}</span>`
+    const face = folderOnly(c) ? `<span class="fx-letter" style="--c:${esc(bot.color || '#ff6b35')}">${esc(I18n.upper(String(bot.name).charAt(0)))}</span>`
       : typeof botFigure === 'function' && !isChief(c) ? botFigure(bot.color, bot.state, 'sm', bot.outfit, bot.id) : typeof chiefFigure === 'function' && isChief(c) ? chiefFigure('sm') : '';
     const trail = crumbs(c.path, placeName(c.place));
     const crumb = c.results ? `<b>${tr('Search')}</b>` : trail.map((x, i) => (i === trail.length - 1 ? `<b>${esc(x.name)}</b>` : `<button type="button" class="fx-crumb" data-fx="go" data-path="${esc(x.path)}">${esc(x.name)}</button><span class="fx-sep">/</span>`)).join('');

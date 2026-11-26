@@ -76,7 +76,7 @@ The Spanish glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engl
 | steer | reorientar |
 | shared note / Chief's note | nota compartida / nota del Jefe |
 | file a note | archivar una nota |
-| source / quote | fuente / cita ("Fuente" is also the Source view of a file, beside "Formateado") |
+| source / quote | fuente / cita (of a figure or a note; a file's code view, beside "Formateado", is "Código", and where a card's tool or secret comes from is "Origen") |
 | passing state | estado pasajero |
 | site | sitio |
 | remove / forget | quitar / olvidar |

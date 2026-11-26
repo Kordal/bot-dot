@@ -208,13 +208,57 @@ test("every language folder's phrases are lists of the kinds botdot reads, its s
     if (raw.elision) assert.ok(require('../lib/i18n/elision').of(lang), `${lang}/phrases.json: elision needs its words, { "de": "d'" }`);
     assert.doesNotThrow(() => phrases.of(lang), lang);
     for (const kind of Object.keys(phrases.KINDS)) for (const p of phrases.of(lang)[kind]) assert.doesNotThrow(() => new RegExp(phrases.source(p), 'u'), `${lang} ${kind}: ${p}`);
+    // A name stands beside Han, Kana and Hangul as it is (public/app.js botNameLinks, BotNames.kt): an ending in those letters
+    // (a particle, an honorific) would never be read, and stays outside the link.
+    for (const p of phrases.of(lang).nameEndings) assert.ok(!/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(p), `${lang}/phrases.json nameEndings: "${p}" is in Chinese, Japanese or Korean letters, beside which a name is a link without it`);
     if (fs.existsSync(path.join(i18n.DIR, lang, 'cron-words.js'))) {
       const P = require(path.join(i18n.DIR, lang, 'cron-words.js'));
       for (const k of Object.keys(cronWords.EN)) assert.equal(typeof P[k], typeof cronWords.EN[k], `${lang}/cron-words.js: ${k}`);
+      // The optional ones (lib/cron-words.js): how the words are joined; English's ", " and " and " where it sets none.
+      for (const [k, type] of [['listSep', 'string'], ['partSep', 'string'], ['lastSep', 'function']]) assert.ok(!(k in P) || typeof P[k] === type, `${lang}/cron-words.js: ${k} is a ${type}`);
     }
   }
   for (const lang of OTHERS) assert.ok(fs.existsSync(path.join(i18n.DIR, lang, 'GLOSSARY.md')), `lib/i18n/${lang}/GLOSSARY.md: every offered language has its glossary`);
   assert.ok(fs.existsSync(path.join(i18n.DIR, 'GLOSSARY.md')));
+});
+
+// Common English words. A word of another language's list that is also one of these is read in English text as that
+// language's filler, reason or yes: Spanish "son" is a stop word and English "son" is not, German "hat" and "war" are
+// stop words and English "hat" and "war" are not. The lists are short on purpose: a word that is the same in both
+// languages and means the same (a name, "ok") is no mistake.
+const ENGLISH_WORDS = new Set(`hat bin die war den son pour ton sur door over van art bed bit bar bat bay bear bell bill bird boat body bone
+  book boot box boy bus cab cap car cat chair city club coat cold cook cool corn cup cut dad dance dark date day deal dear deep desk dish
+  dog doll down draw dress drink drive drop dust ear east eat egg end eye face fact fall farm fast fat fear fee fill film find fine fire fish
+  flat floor fly food foot fork form fun game gift girl glass goal gold good grass gray green ground gun hair hall hand hard head heart heat
+  help hide high hill hole home hope horse hot hour house ice idea iron job joy key kid king kiss knee lake lamp land last late law leaf leg
+  life lift light line lip list live lock long look lot love low luck mail main man map mark mass meal meat milk mind mine mix moon name neck
+  news nice night noise nose note nut oil one pack page pain pair park part pass path pay pen pick pie pin pipe plan plant plate play point
+  pool pot rain rate rest rice ride ring river road rock roof room root rope rose rule run sale salt sand seat sell ship shoe shop show side
+  sign sing sink skin sky sleep slow snow soap sock soft soil song soon sort soul soup space star step stone store storm sun tail tank tax tea
+  team tent test time tip tire top town toy tree trip tube turn use view wall wash wave way wear wind wine wing wire wish wolf wood word work
+  yard year zone`.split(/\s+/));
+// Short English words that begin a sentence or an answer: "Can I send it?", "Is that right?". A yes or a no must not be one.
+const ENGLISH_ANSWER_STARTS = new Set(`can will may must should could would have has had are is was were be been am it the and or but if so in
+  on at to of for with by from as an a i we he she they you does did let make take get give want need think see know look`.split(/\s+/));
+
+test("no language's word lists hold a common English word, and its yes and no are single words", () => {
+  const phrases = require('../lib/i18n/phrases');
+  const { BUILT_IN_YES, BUILT_IN_NO } = require('../lib/choices');
+  const word = (p) => p.toLowerCase().replace(/\*$/, '');
+  for (const lang of folders()) {
+    const own = phrases.of(lang);
+    for (const kind of ['stopWords', 'because']) for (const p of own[kind] || []) assert.ok(!ENGLISH_WORDS.has(word(p)), `${lang}/phrases.json ${kind}: "${p}" is an English word`);
+    // The words lib/choices.js has of its own (cross-language ones like "da" and "si" included) are its choice.
+    for (const [kind, built] of [['yes', BUILT_IN_YES], ['no', BUILT_IN_NO]]) {
+      for (const p of own[kind] || []) {
+        assert.ok(!/[\s\p{P}]/u.test(p.replace(/['’]/g, '')), `${lang}/phrases.json ${kind}: "${p}" is more than one word, and an answer is read by its first word`);
+        if (built.includes(p.toLowerCase())) continue;
+        assert.ok(!ENGLISH_WORDS.has(word(p)) && !ENGLISH_ANSWER_STARTS.has(word(p)), `${lang}/phrases.json ${kind}: "${p}" is an English word`);
+      }
+    }
+  }
+  // The test itself: it finds what it is meant to.
+  assert.ok(ENGLISH_WORDS.has('hat') && ENGLISH_ANSWER_STARTS.has('can'));
 });
 
 test("the phones' plural fixture is what Intl.PluralRules answers for every language of the registry", () => {
@@ -322,11 +366,47 @@ test('the web page draws a string in Polish from the dictionary kept in the brow
   const j = run({ language: 'ja', strings: { '{n} bots': { other: 'ボット{n}体' } } });
   assert.equal(j.trn(1, '{n} bot', '{n} bots'), 'ボット1体', 'Japanese has one form, other');
   assert.equal(run({ language: '<script>', strings: { Saved: 'x' } }).lang, 'en', 'no language code: English');
+  // <html lang> is the owner's language, for the style sheet's :lang(ko) (word-break) and text-transform.
+  assert.equal(run({ language: 'ko', strings: {} }).lang, 'ko');
+  assert.equal(run({ language: 'zh-Hans', strings: {} }).lang, 'zh-Hans');
+  // Capital and small letters by the language's rules: Turkish "i" is "İ", not "I".
+  assert.equal(run({ language: 'tr', strings: {} }).I18n.upper('istanbul'), 'İSTANBUL');
+  assert.equal(run({ language: 'tr', strings: {} }).I18n.lower('DİYARBAKIR'), 'diyarbakır');
+  assert.equal(run({ language: 'de', strings: {} }).I18n.upper('i'), 'I');
+  assert.equal(run(null).I18n.upper('i'), 'I');
   const e = run(null);
   assert.equal(e.lang, 'en');
   assert.equal(e.marked.textContent, 'Settings');
   assert.equal(e.tr('Saved'), 'Saved');
   assert.equal(e.trn(2, '{n} bot', '{n} bots'), '2 bots');
+});
+
+test("the style sheet keeps Korean words whole: keep-all on <html lang=ko>, a long token still breaks", () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'style.css'), 'utf8');
+  const rule = css.match(/html:lang\(ko\)\s*\{([^}]*)\}/);
+  assert.ok(rule, 'a rule for html:lang(ko)');
+  assert.match(rule[1], /word-break:\s*keep-all/);
+  assert.match(rule[1], /overflow-wrap:\s*break-word/);
+  assert.doesNotMatch(rule[1], /overflow-wrap:\s*anywhere/, 'anywhere shrinks a Korean item to one syllable');
+});
+
+test("a keypad key's name wraps to two balanced lines before it is cut, so a long name of a language shows whole", () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'style.css'), 'utf8');
+  const rule = css.match(/^\.key \.name\s*\{([^}]*)\}/m);
+  assert.ok(rule, 'a rule for .key .name');
+  assert.match(rule[1], /-webkit-line-clamp:\s*2/);
+  assert.match(rule[1], /text-wrap:\s*balance/);
+  assert.doesNotMatch(rule[1], /white-space:\s*nowrap/);
+});
+
+test('the server capitalises text for the owner by the language, not by the default rules: Turkish "i" is "İ"', () => {
+  assert.equal(i18n.upper('tr', 'istanbul'), 'İSTANBUL');
+  assert.equal(i18n.lower('tr', 'DIYARBAKIR'), 'dıyarbakır');
+  assert.equal(i18n.lower('tr', 'DİYARBAKIR'), 'diyarbakır');
+  assert.equal(i18n.upper('en', 'istanbul'), 'ISTANBUL');
+  assert.equal(i18n.upper('ja', 'abc'), 'ABC');
+  assert.equal(i18n.upper('not a tag', 'i'), 'I', 'a tag Intl does not know is English');
+  assert.equal(i18n.upper(undefined, 'i'), 'I');
 });
 
 test("an account's language: English to start with, Polish when the owner sets it, and its dictionary served", async (t) => {

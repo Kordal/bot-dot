@@ -1,5 +1,6 @@
 package dev.botdot.app.feed
 
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.without
 import dev.botdot.app.data.Feed
 import android.app.PendingIntent
@@ -106,8 +107,8 @@ class FeedService : Service() {
         val names = working.map { it.name } + if (chiefBusy) listOf(tr("the Chief")) else emptyList()
         return when {
             names.isEmpty() -> Status(tr("All quiet"))
-            names.size == 1 -> Status(tr("{name} is working…", "name" to names[0].replaceFirstChar { it.uppercase() }), working.firstOrNull()?.let { "bot:${it.id}" })
-            names.size == 2 -> Status(tr("{name} and {other} are working…", "name" to names[0].replaceFirstChar { it.uppercase() }, "other" to names[1]))
+            names.size == 1 -> Status(tr("{name} is working…", "name" to I18n.upperFirst(names[0])), working.firstOrNull()?.let { "bot:${it.id}" })
+            names.size == 2 -> Status(tr("{name} and {other} are working…", "name" to I18n.upperFirst(names[0]), "other" to names[1]))
             else -> Status(trn(names.size, "{n} is working…", "{n} are working…"))
         }
     }

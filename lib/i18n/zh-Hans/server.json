@@ -618,5 +618,6 @@
   "Using one of your MCP servers": "正在使用你的一个 MCP 服务器",
   "used one of the owner's MCP servers": "使用了主人的一个 MCP 服务器",
   "This is too long to show in full, so it can't be approved. Decline it.": "内容太长，无法完整显示，所以不能批准。请拒绝。",
-  "This job no longer exists.": "这个任务已经不存在了。"
+  "This job no longer exists.": "这个任务已经不存在了。",
+  "Source": "来源"
 }

@@ -57,7 +57,7 @@ test('web: an HTML file opens rendered, in a frame with allow-scripts and nothin
   assert.doesNotMatch(html, /dv-lines/, 'not the source');
   assert.doesNotMatch(html, /<script|<img|srcdoc/, "the file's own markup never becomes this page's");
   assert.match(html, /<button type="button" data-dv="mode" data-mode="rendered" class="on" aria-pressed="true">Rendered<\/button>/);
-  assert.match(html, /data-mode="source" class="" aria-pressed="false">Source<\/button>/);
+  assert.match(html, /data-mode="source" class="" aria-pressed="false">Source code<\/button>/);
   assert.match(html, /data-dv="copy"/);
   assert.match(html, /href="\/api\/bots\/web\/path\?path=index\.html" download="index\.html"/);
 });

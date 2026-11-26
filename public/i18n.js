@@ -67,6 +67,12 @@ const I18n = (() => {
     return fill(n === 1 ? one : other, all);
   }
 
+  // Capital and small letters by the language's own rules (Turkish "i" is "İ", not "I"): for the owner's words shown on the
+  // page, a bot's name's first letter, a list's label. Never for an identifier or a key, which stay as they are
+  // (toUpperCase). A language tag the browser doesn't know is English's.
+  const upper = (text) => { try { return String(text).toLocaleUpperCase(language); } catch { return String(text).toUpperCase(); } };
+  const lower = (text) => { try { return String(text).toLocaleLowerCase(language); } catch { return String(text).toLowerCase(); } };
+
   // The marked static text of `root` in the page's language.
   function apply(root = document) {
     if (language === 'en') return;
@@ -105,6 +111,6 @@ const I18n = (() => {
   document.documentElement.lang = language;
   apply();
   // locale: for dates and numbers, the language's own (its `locale`); English keeps the browser's own conventions.
-  return { language, locale: language === 'en' ? undefined : here?.locale || language, languages, phrases, tr, trn, apply, sync };
+  return { language, locale: language === 'en' ? undefined : here?.locale || language, languages, phrases, tr, trn, upper, lower, apply, sync };
 })();
 const { tr, trn } = I18n;

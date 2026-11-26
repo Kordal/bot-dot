@@ -9,7 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** A bot's name in a message is a link to its chat, as on the web page (test/fixtures/bot-names.json), with Polish's endings (ADR 280). */
+/** A bot's name in a message is a link to its chat, as on the web page (test/fixtures/bot-names.json), with Polish's endings (ADR 280), or the ones a case gives. */
 class BotNamesTest {
     @Test fun everyCaseOfTheSharedFixtureFindsItsNames() {
         val cases = Json.parseToJsonElement(fixture("botNames")).jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
@@ -17,7 +17,8 @@ class BotNamesTest {
         for (c in cases) {
             val bots = c.getValue("bots").jsonArray.map { it.jsonObject }.map { BotNames.Bot(it.getValue("id").jsonPrimitive.content, it.getValue("name").jsonPrimitive.content) }
             val want = c.getValue("links").jsonArray.map { it.jsonArray }.map { Triple(it[0].jsonPrimitive.int, it[1].jsonPrimitive.content, it[2].jsonPrimitive.content) }
-            val got = BotNames.find(c.getValue("text").jsonPrimitive.content, bots, polishPhrases("nameEndings")).map { Triple(it.start, it.text, it.id) }
+            val endings = c["endings"]?.jsonArray?.map { it.jsonPrimitive.content } ?: polishPhrases("nameEndings")
+            val got = BotNames.find(c.getValue("text").jsonPrimitive.content, bots, endings).map { Triple(it.start, it.text, it.id) }
             assertEquals(want, got, c.getValue("name").jsonPrimitive.content)
         }
     }

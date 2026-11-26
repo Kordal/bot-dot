@@ -4,12 +4,20 @@ package dev.botdot.app.data
  * A bot's name in a message, as a link to its chat (botNameLinks in public/app.js; test/fixtures/bot-names.json is the
  * rules both follow): the name as written, or with one of the endings an offered language gives it (its phrases'
  * `nameEndings`, ADR 280, which come with the dictionary: Polish's QA Testera, QA Testerowi), the case the name has, as
- * a whole word, the longest name first. A name two bots share is nobody's, and so are a name of one letter and a name
- * after @, / or -.
+ * a whole word, the longest name first: no letter, number or "_" of a longer word on either side, except Chinese,
+ * Japanese and Korean, which have no spaces between words ("AlfredがQA Testerに", "请让Alfred发送"): a name stands beside
+ * them, and an ending written in their letters (a particle: "Annaは", "Anna의") stays outside the link. A name two bots
+ * share is nobody's, and so are a name of one letter and a name after @, / or -.
  */
 object BotNames {
-    private fun endings(all: List<String>): String = all.filter { it.isNotEmpty() }.distinct().sortedByDescending { it.length }.joinToString("|") { escape(it) }
+    // An ending written in Han, Kana or Hangul is never part of the link: a name stands beside those letters as it is.
+    private fun endings(all: List<String>): String = all.filter { it.isNotEmpty() && !CJK_LETTER.containsMatchIn(it) }.distinct().sortedByDescending { it.length }.joinToString("|") { escape(it) }
     private const val REGEX_MARKS = ".*+?^$()[]{}|\\"
+
+    // A character of a longer word: a letter, number or "_" that is not Han, Kana or Hangul (CJK_CHARS in public/app.js).
+    private const val CJK_CHARS = "\\u1100-\\u11FF\\u3040-\\u30FF\\u3130-\\u318F\\u31F0-\\u31FF\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uAC00-\\uD7AF\\uF900-\\uFAFF\\uFF66-\\uFF9F"
+    private const val WORD_CHAR = "(?![$CJK_CHARS])[\\p{L}\\p{N}_]"
+    private val CJK_LETTER = Regex("[$CJK_CHARS]")
 
     /** A bot a message can name. */
     data class Bot(val id: String, val name: String)
@@ -31,7 +39,7 @@ object BotNames {
         val ends = endings(nameEndings)
         val key = names + "\u0000$ends"
         val regex = last?.takeIf { it.first == key }?.second ?: Regex(
-            """(?<![\p{L}\p{N}_@/-])(${names.joinToString("|") { escape(it) }})${if (ends.isEmpty()) "" else "(?:$ends)?"}(?![\p{L}\p{N}_])""",
+            """(?<![@/-])(?<!$WORD_CHAR)(${names.joinToString("|") { escape(it) }})${if (ends.isEmpty()) "" else "(?:$ends)?"}(?!$WORD_CHAR)""",
         ).also { last = key to it }
         return regex.findAll(text).map { m -> Found(m.range.first, m.value, ids.getValue(m.groupValues[1])!!) }.toList()
     }

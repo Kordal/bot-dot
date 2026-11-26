@@ -14,7 +14,7 @@ const Proxies = (() => {
   // Where a test came out, in a few words: "🇵🇱 Warsaw", or that it doesn't work.
   const where = (t) => (!t ? '' : t.ok ? [flag(t.country), t.city || t.country].filter(Boolean).join(' ') : tr('Not working'));
   const dot = (t) => `<span class="px-dot${!t ? '' : t.ok ? ' ok' : ' bad'}"></span>`;
-  const said = (error) => String(error || '').replace(/^./, (c) => c.toUpperCase());
+  const said = (error) => String(error || '').replace(/^./, (c) => I18n.upper(c));
 
   // ---------- Settings → Proxy ----------
 

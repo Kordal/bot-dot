@@ -620,5 +620,6 @@
   "Checking your MCP servers": "Controleert je MCP-servers",
   "Asking to add an MCP server": "Vraagt een MCP-server toe te voegen",
   "Using one of your MCP servers": "Gebruikt een van je MCP-servers",
-  "used one of the owner's MCP servers": "gebruikte een van de MCP-servers van de eigenaar"
+  "used one of the owner's MCP servers": "gebruikte een van de MCP-servers van de eigenaar",
+  "Source": "Herkomst"
 }

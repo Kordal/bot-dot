@@ -133,7 +133,7 @@ const Company = (() => {
   const asksIn = (p) => (p.teams || []).reduce((sum, t) => sum + (t.bots || []).reduce((k, id) => k + (botById(id) ? waits(id) : 0), 0), 0);
   const square = (p, on) => {
     const n = asksIn(p);
-    return `<button type="button" class="rail-sq${p.archived ? ' old' : ''}${hereAttr(on)}" data-space="${esc(p.id)}" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(nameOf(p))}" aria-label="${esc(nameOf(p))}${n ? ` (${n})` : ''}">${esc(nameOf(p).charAt(0).toUpperCase())}${n ? `<span class="rail-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
+    return `<button type="button" class="rail-sq${p.archived ? ' old' : ''}${hereAttr(on)}" data-space="${esc(p.id)}" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(nameOf(p))}" aria-label="${esc(nameOf(p))}${n ? ` (${n})` : ''}">${esc(I18n.upper(nameOf(p).charAt(0)))}${n ? `<span class="rail-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
   };
   function drawRail() {
     const rail = $('#rail');
@@ -208,7 +208,7 @@ const Company = (() => {
     const row = (p) => {
       const n = asksIn(p);
       const here = !home && !adding && p.id === state.company?.id;
-      return `<button type="button" class="sp-row${p.archived ? ' old' : ''}${hereAttr(here)}" data-space="${esc(p.id)}"><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(nameOf(p).charAt(0).toUpperCase())}</span><span class="ct-name">${esc(nameOf(p))}</span>${badge(n)}</button>`;
+      return `<button type="button" class="sp-row${p.archived ? ' old' : ''}${hereAttr(here)}" data-space="${esc(p.id)}"><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(I18n.upper(nameOf(p).charAt(0)))}</span><span class="ct-name">${esc(nameOf(p))}</span>${badge(n)}</button>`;
     };
     document.body.insertAdjacentHTML('beforeend', `<dialog class="sp-sheet" id="spaces-sheet" aria-label="${tr('Spaces')}">
       <i class="sp-grip"></i>
@@ -336,7 +336,7 @@ const Company = (() => {
     const teams = (p.teams || []).map((t) => ({ ...t, members: t.bots.map(botById).filter(Boolean) })).filter((t) => t.members.length);
     const open = isOpen(p.id, p.id === state.company?.id);
     const n = teams.reduce((sum, t) => sum + t.members.reduce((k, b) => k + waits(b.id), 0), 0);
-    const head = `<div class="ct-node">${teams.length ? caret(p.id, open, nameOf(p)) : '<span class="ct-caret"></span>'}<button type="button" class="co-row${here ? ' here' : ''}" role="treeitem" data-project="${esc(p.id)}"${teams.length ? ` aria-expanded="${open}"` : ''}><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(nameOf(p).charAt(0).toUpperCase())}</span><span class="ct-name">${esc(nameOf(p))}</span>${badge(n)}</button></div>`;
+    const head = `<div class="ct-node">${teams.length ? caret(p.id, open, nameOf(p)) : '<span class="ct-caret"></span>'}<button type="button" class="co-row${here ? ' here' : ''}" role="treeitem" data-project="${esc(p.id)}"${teams.length ? ` aria-expanded="${open}"` : ''}><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(I18n.upper(nameOf(p).charAt(0)))}</span><span class="ct-name">${esc(nameOf(p))}</span>${badge(n)}</button></div>`;
     if (!open || !teams.length) return `<div class="ct-branch">${head}</div>`;
     return `<div class="ct-branch">${head}<div class="ct-kids" role="group">${teams.map((t) => {
       const key = `${p.id}:${t.id}`;
@@ -350,14 +350,14 @@ const Company = (() => {
     const list = archivedOnes();
     if (!list.length) return '';
     const open = isOpen('archived', false);
-    return `<div class="ct-branch ct-archived"><div class="ct-node">${caret('archived', open, tr('Archived'))}<button type="button" class="co-row" data-fold="archived" aria-expanded="${open}"><span class="ct-name">${tr('Archived')}</span><span class="ct-n">${list.length}</span></button></div>${open ? `<div class="ct-kids" role="group">${list.map((p) => `<button type="button" class="co-row${here && !adding && p.id === state.company?.id ? ' here' : ''}" role="treeitem" data-project="${esc(p.id)}"><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(nameOf(p).charAt(0).toUpperCase())}</span><span class="ct-name">${esc(nameOf(p))}</span></button>`).join('')}</div>` : ''}</div>`;
+    return `<div class="ct-branch ct-archived"><div class="ct-node">${caret('archived', open, tr('Archived'))}<button type="button" class="co-row" data-fold="archived" aria-expanded="${open}"><span class="ct-name">${tr('Archived')}</span><span class="ct-n">${list.length}</span></button></div>${open ? `<div class="ct-kids" role="group">${list.map((p) => `<button type="button" class="co-row${here && !adding && p.id === state.company?.id ? ' here' : ''}" role="treeitem" data-project="${esc(p.id)}"><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(I18n.upper(nameOf(p).charAt(0)))}</span><span class="ct-name">${esc(nameOf(p))}</span></button>`).join('')}</div>` : ''}</div>`;
   }
   // A project's name, its space's title (#839): below a wide window its square, the name and a chevron that opens the
   // spaces; in a wide window the name alone, the rail beside it.
   function pickHTML(name) {
     if (!many() || !railOn()) return esc(name);
     const c = !adding && state.company;
-    const sq = c ? `<span class="ct-av" style="--c:${esc(c.color || '#8e7cff')}">${esc(nameOf(c).charAt(0).toUpperCase())}</span>` : '';
+    const sq = c ? `<span class="ct-av" style="--c:${esc(c.color || '#8e7cff')}">${esc(I18n.upper(nameOf(c).charAt(0)))}</span>` : '';
     return `<button type="button" class="co-pick" data-space-pick aria-haspopup="dialog">${sq}<span class="co-pick-name">${esc(name)}</span>${ICON.down}</button>`;
   }
   // Search and Settings at the top right of a project's page below a wide window (#839): the top bar's own.

@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
 import dev.botdot.app.data.Pages
@@ -82,7 +83,7 @@ fun PagesScreen(app: BotDotApp, onBack: () -> Unit) {
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text.uppercase(), color = LocalPaper.current.muted, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = Space.s8, start = Space.s4))
+    Text(I18n.upper(text), color = LocalPaper.current.muted, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = Space.s8, start = Space.s4))
 }
 
 @Composable

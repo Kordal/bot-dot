@@ -82,12 +82,12 @@ object DocumentView {
 
     /** The switches over a file as [modes] has them, and over an HTML file with a frame, Rendered and Source. */
     fun modes(view: FileView, name: String, features: Collection<String>?): List<Pair<String, String>> =
-        if (htmlFrame(view, name, features) != null) listOf("rendered" to tr("Rendered"), "source" to tr("Source")) else modes(view.kind)
+        if (htmlFrame(view, name, features) != null) listOf("rendered" to tr("Rendered"), "source" to tr("Source code")) else modes(view.kind)
 
     /** The switches over a Markdown file or a CSV, as (mode, label); none for any other. */
     fun modes(kind: String): List<Pair<String, String>> = when (kind) {
-        "markdown" -> listOf("rendered" to tr("Rendered"), "source" to tr("Source"))
-        "csv" -> listOf("table" to tr("Table"), "source" to tr("Source"))
+        "markdown" -> listOf("rendered" to tr("Rendered"), "source" to tr("Source code"))
+        "csv" -> listOf("table" to tr("Table"), "source" to tr("Source code"))
         else -> emptyList()
     }
 

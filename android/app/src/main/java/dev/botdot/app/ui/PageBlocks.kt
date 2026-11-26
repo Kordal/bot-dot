@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Block
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.PagePart
 import dev.botdot.app.data.Pages
 import dev.botdot.app.data.tr
@@ -47,7 +48,7 @@ fun PageBlock(b: Block) {
     val p = LocalPaper.current
     when (b.type) {
         "hero" -> Column(Modifier.padding(top = Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            b.eyebrow?.let { Text(it.uppercase(), color = p.faint, fontSize = Type.s12, letterSpacing = Type.wide, fontFamily = FontFamily.Monospace) }
+            b.eyebrow?.let { Text(I18n.upper(it), color = p.faint, fontSize = Type.s12, letterSpacing = Type.wide, fontFamily = FontFamily.Monospace) }
             Text(b.title.orEmpty(), color = p.text, fontSize = Type.s24, lineHeight = Type.line32, fontWeight = FontWeight.SemiBold)
             b.lead?.let { Text(it, color = p.muted, fontSize = Type.s16, lineHeight = Type.line24) }
             if (b.tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {

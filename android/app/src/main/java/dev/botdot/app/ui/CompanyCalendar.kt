@@ -173,7 +173,7 @@ private fun MonthSheet(desk: CalendarDesk, s: dev.botdot.app.data.CalendarState,
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = p.bg, dragHandle = null) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s8, top = Space.s12, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
-                Text(month.atDay(1).format(DateTimeFormatter.ofPattern("LLLL yyyy", I18n.locale)).replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold)
+                Text(month.atDay(1).format(DateTimeFormatter.ofPattern("LLLL yyyy", I18n.locale)).let { I18n.upperFirst(it) }, color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold)
                 RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Previous month"), size = 36.dp, modifier = Modifier.padding(start = Space.s12)) { desk.turn(-1) }
                 RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, tr("Next month"), size = 36.dp, modifier = Modifier.padding(start = Space.s8)) { desk.turn(1) }
                 Spacer(Modifier.weight(1f))
@@ -203,7 +203,7 @@ private fun MonthSheet(desk: CalendarDesk, s: dev.botdot.app.data.CalendarState,
             }
             val day = LocalDate.parse(s.picked ?: s.today)
             Column(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Text(short(day, "EEE, d MMM").replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
+                Text(I18n.upperFirst(short(day, "EEE, d MMM")), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
                 s.pickedItems.forEach { x ->
                     if (ProjectCalendar.editable(x) && x.id != null) ItemRow(x, bots, x.time.orEmpty(), picked = s.editing?.id == x.id,
                         onEdit = { desk.edit(x.id!!) }, onDelete = { scope.launch { desk.delete(x.id!!) } })

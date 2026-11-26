@@ -283,7 +283,7 @@ function markOf(text, chat) {
   return m && (m.kind !== 'skill' || state.features.includes('skill-commands')) ? m : null;
 }
 // A project mentioned (#700): its letter in its colour, as in the Projects tree, and its name.
-const projectChip = (p, text) => `<span class="mention project-mention" title="${esc(text)}"><span class="pm-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(p.name.charAt(0).toUpperCase())}</span>${esc(p.name)}</span>`;
+const projectChip = (p, text) => `<span class="mention project-mention" title="${esc(text)}"><span class="pm-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(I18n.upper(p.name.charAt(0)))}</span>${esc(p.name)}</span>`;
 const markHTML = (m) => `<span class="cmd">${esc(m.text)}</span>`;
 // What mentions match against, so a chat redraws when a name changes (a renamed bot's old mentions go plain).
 function mentionSig() {
@@ -1189,8 +1189,17 @@ function linkifyChat(root) {
 // A bot's name in a message is a link to its chat (test/fixtures/bot-names.json, shared with the Android app): the
 // name as written, or declined by one of the endings an offered language gives it (its phrases' nameEndings, ADR 280,
 // which come with the dictionary: Polish's QA Testera, QA Testerowi), case as the name has it, longest name first, as
-// a whole word. A name two bots share is nobody's. A bot that is gone is plain text.
-const botNameEndings = (endings = typeof I18n !== 'undefined' ? I18n.phrases?.nameEndings : null) => [...new Set((Array.isArray(endings) ? endings : []).filter((e) => typeof e === 'string' && e))]
+// a whole word: no letter, number or "_" of a longer word on either side, except Chinese, Japanese and Korean, which
+// have no spaces between words ("AlfredがQA Testerに", "请让Alfred发送"): a name stands beside them. A name two bots share
+// is nobody's. A bot that is gone is plain text.
+// A character of a longer word: a letter, number or "_" that is not Han, Kana (Hiragana, Katakana) or Hangul. Ranges, not
+// scripts, so that the Android app's regex (BotNames.kt) reads the same.
+const CJK_CHARS = '\\u1100-\\u11FF\\u3040-\\u30FF\\u3130-\\u318F\\u31F0-\\u31FF\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uAC00-\\uD7AF\\uF900-\\uFAFF\\uFF66-\\uFF9F';
+const WORD_CHAR = `(?![${CJK_CHARS}])[\\p{L}\\p{N}_]`;
+// An ending written in Han, Kana or Hangul (a particle: "Annaは", "Anna의") is never part of the link: a name stands beside
+// those letters as it is, and the particle stays outside it.
+const CJK_LETTER = new RegExp(`[${CJK_CHARS}]`, 'u');
+const botNameEndings = (endings = typeof I18n !== 'undefined' ? I18n.phrases?.nameEndings : null) => [...new Set((Array.isArray(endings) ? endings : []).filter((e) => typeof e === 'string' && e && !CJK_LETTER.test(e)))]
   .sort((a, b) => b.length - a.length).map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 const BOT_NAME_ENDINGS = botNameEndings();
 const botNameRes = new Map();
@@ -1206,7 +1215,7 @@ function botNameLinks(text, bots) {
   const key = names.join('\u0000');
   if (!botNameRes.has(key)) {
     if (botNameRes.size > 16) botNameRes.clear();
-    botNameRes.set(key, new RegExp(`(?<![\\p{L}\\p{N}_@/-])(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})${BOT_NAME_ENDINGS ? `(?:${BOT_NAME_ENDINGS})?` : ''}(?![\\p{L}\\p{N}_])`, 'gu'));
+    botNameRes.set(key, new RegExp(`(?<![@/-])(?<!${WORD_CHAR})(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})${BOT_NAME_ENDINGS ? `(?:${BOT_NAME_ENDINGS})?` : ''}(?!${WORD_CHAR})`, 'gu'));
   }
   return [...text.matchAll(botNameRes.get(key))].map((m) => ({ index: m.index, text: m[0], id: ids.get(m[1]) }));
 }

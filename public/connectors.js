@@ -95,7 +95,7 @@ function drawConnectors() {
           <button class="btn sm" data-forget-app="${esc(a.slug)}">${tr('Remove')}</button>
         </div>
       </article>`).join('')}${d.connections.map((c) => {
-      const [tone, label] = CONN_STATUS[c.status] || ['', String(c.status || tr('unknown')).toLowerCase()];
+      const [tone, label] = CONN_STATUS[c.status] || ['', c.status ? String(c.status).toLowerCase() : tr('unknown')]; // an unmapped status is an identifier: lowercased the same in every language
       // Each account of an app is a card of its own, named by its label (ADR 174); the app's newest one adds another.
       const newest = !d.connections.some((x) => x.toolkit === c.toolkit && x.status === 'ACTIVE' && String(x.createdAt || '') > String(c.createdAt || ''));
       const many = (c.accounts || 1) > 1;
@@ -212,7 +212,7 @@ function serversHTML() {
       ${proposal && !conn.draft ? `<div class="req-note">${tr('Your Chief of Staff suggested this one. Check the address, add its key if it needs one, then press Add.')}</div>` : ''}
       <div class="bs-row key-row"><input type="text" name="name" maxlength="60" placeholder="${esc(tr('Name, e.g. Linear'))}" aria-label="${esc(tr('Name'))}" value="${esc(pre.name)}"></div>
       <div class="bs-row key-row"><input type="url" name="url" placeholder="https://…/mcp" aria-label="${esc(tr('Address'))}" required value="${esc(pre.url)}"></div>
-      <div class="bs-row key-row"><input type="password" name="key" placeholder="${esc(tr('Key, if it needs one'))}" aria-label="${esc(tr('Key'))}" autocomplete="off"><button class="btn primary">${tr('Add')}</button></div>
+      <div class="bs-row key-row"><input type="password" name="key" placeholder="${esc(tr('Key, if it needs one'))}" aria-label="${esc(tr('API key'))}" autocomplete="off"><button class="btn primary">${tr('Add')}</button></div>
     </form>`;
 }
 function bindServers(root) {

@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.connectorLine
 import dev.botdot.app.data.jobKey
 import dev.botdot.app.data.tileKey
@@ -1268,7 +1269,7 @@ private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { ""
     } else if (a.kind == "permission") {
         val title = tr("Let it {what}?", "what" to (a.what?.label ?: a.permission))
         Card(who, title, a.reason, expandable = true) {
-            Body(tr("{hint}. It can't until you allow it; you can change this in its settings.", "hint" to (a.what?.hint ?: "").replaceFirstChar { it.uppercase() }))
+            Body(tr("{hint}. It can't until you allow it; you can change this in its settings.", "hint" to I18n.upperFirst(a.what?.hint ?: "")))
             Buttons(tr("Allow"), { decide(title, true, tr("Allowed")) }, tr("Decline"), { decide(title, false, null) })
         }
     } else if (a.written) {

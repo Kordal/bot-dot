@@ -618,5 +618,6 @@
   "Using one of your MCP servers": "내 MCP 서버 사용 중",
   "used one of the owner's MCP servers": "내 MCP 서버 중 하나를 사용함",
   "This is too long to show in full, so it can't be approved. Decline it.": "너무 길어서 전부 보여 줄 수 없기 때문에 승인할 수 없어요. 거절하세요.",
-  "This job no longer exists.": "더 이상 없는 작업이에요."
+  "This job no longer exists.": "더 이상 없는 작업이에요.",
+  "Source": "출처"
 }

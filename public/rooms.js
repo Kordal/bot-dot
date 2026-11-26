@@ -383,7 +383,7 @@ function roomMessageHTML(r, m, key) {
   }
   const bot = m.bot ? roomBots(r).find((b) => b.account === m.account && b.id === m.bot.id) || { ...m.bot, account: m.account } : null;
   const color = bot ? bot.color || ROOM_GREY : ROOM_GREY;
-  const head = bot ? botFigure(color, 'idle', 'g-head') : `<div class="avatar room-person">${esc((m.account || '?').slice(0, 1).toUpperCase())}</div>`;
+  const head = bot ? botFigure(color, 'idle', 'g-head') : `<div class="avatar room-person">${esc(I18n.upper((m.account || '?').slice(0, 1)))}</div>`;
   return `<div class="bubble-row from-bot g-row${bot ? '' : ' from-person'}" data-rmsg="${esc(m.id)}">
     ${head}
     <div class="stack">
