@@ -1,0 +1,13 @@
+{
+  "feature": "Een team van AI-bots dat je via chat aanstuurt",
+  "screenshots": {
+    "1-home.png": "Je bots en wat op jou wacht",
+    "2-chief.png": "Vraag de Stafchef om een bot",
+    "3-approve.png": "Scripts wachten op je akkoord",
+    "4-server.png": "Meters en live cijfers in de chat",
+    "5-spending.png": "Grafieken, geen muren van cijfers",
+    "6-quiz.png": "Beantwoord een quiz in de chat",
+    "7-quotes.png": "Vergelijk opties naast elkaar",
+    "8-board.png": "Live waarden op je Bord"
+  }
+}
