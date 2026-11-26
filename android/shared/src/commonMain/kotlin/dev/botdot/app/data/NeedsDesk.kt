@@ -741,7 +741,7 @@ class NeedsDesk(private val store: Store, private val api: Api, scope: Coroutine
                 val title = tr("Let it {what}?", "what" to (a.what?.label ?: a.permission.orEmpty()))
                 on(key, YES, one(title, true, tr("Allowed")))
                 on(key, NO, one(title, false, null))
-                add(title, a.reason, listOf(NeedsBlock(NeedsLook.BOX, tr("{hint}. It can't until you allow it; you can change this in its settings.", "hint" to (a.what?.hint ?: "").replaceFirstChar { it.uppercase() }))),
+                add(title, a.reason, listOf(NeedsBlock(NeedsLook.BOX, tr("{hint}. It can't until you allow it; you can change this in its settings.", "hint" to I18n.upperFirst(a.what?.hint ?: "")))),
                     listOf(decline, NeedsButton(YES, tr("Allow"), NeedsButtonLook.PRIMARY)))
             }
             a.written -> {

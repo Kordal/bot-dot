@@ -95,7 +95,7 @@ function drawConnectors() {
           <button class="btn sm" data-forget-app="${esc(a.slug)}">${tr('Remove')}</button>
         </div>
       </article>`).join('')}${d.connections.map((c) => {
-      const [tone, label] = CONN_STATUS[c.status] || ['', String(c.status || tr('unknown')).toLowerCase()];
+      const [tone, label] = CONN_STATUS[c.status] || ['', I18n.lower(String(c.status || tr('unknown')))];
       // Each account of an app is a card of its own, named by its label (ADR 174); the app's newest one adds another.
       const newest = !d.connections.some((x) => x.toolkit === c.toolkit && x.status === 'ACTIVE' && String(x.createdAt || '') > String(c.createdAt || ''));
       const many = (c.accounts || 1) > 1;

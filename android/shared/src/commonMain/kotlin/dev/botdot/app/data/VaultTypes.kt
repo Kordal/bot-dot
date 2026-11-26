@@ -108,7 +108,7 @@ object VaultTypes {
     fun editorFields(type: String?, features: Collection<String>?, isNew: Boolean): Fields {
         if (!shows(features)) return Fields(tr("Username, email or token ID"), if (isNew) tr("Password, token or key") else tr("New password (empty keeps it)"))
         val t = of(type)
-        return Fields(usernameLabel(t), if (isNew) t.secret else tr("New {secret} (empty keeps it)", "secret" to t.secret.lowercase()), t.multiline)
+        return Fields(usernameLabel(t), if (isNew) t.secret else tr("New {secret} (empty keeps it)", "secret" to I18n.lower(t.secret)), t.multiline)
     }
 
     /** The new-login fields of a login request's card. */

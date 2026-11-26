@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.without
 import dev.botdot.app.data.CHIEF_COLOR
 import androidx.compose.foundation.background
@@ -90,7 +91,7 @@ internal fun SpaceSquare(name: String, color: String, size: Dp) {
     val p = LocalPaper.current
     val fill = parseColor(color, p.muted)
     Box(Modifier.size(size).clip(Radius.small).background(fill), contentAlignment = Alignment.Center) {
-        Text(name.take(1).uppercase(), color = inkOn(fill), fontSize = if (size >= 40.dp) Type.s16 else Type.s12, fontWeight = FontWeight.SemiBold)
+        Text(I18n.upper(name.take(1)), color = inkOn(fill), fontSize = if (size >= 40.dp) Type.s16 else Type.s12, fontWeight = FontWeight.SemiBold)
     }
 }
 

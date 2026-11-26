@@ -30,6 +30,7 @@ import platform.Foundation.NSDate
 import platform.Foundation.NSDateFormatter
 import platform.Foundation.NSCharacterSet
 import platform.Foundation.NSLocale
+import platform.Foundation.NSString
 import platform.Foundation.NSURLErrorAppTransportSecurityRequiresSecureConnection
 import platform.Foundation.NSURLErrorCannotConnectToHost
 import platform.Foundation.NSURLErrorCannotFindHost
@@ -152,6 +153,12 @@ actual fun formatDate(at: Instant, pattern: String, locale: String?, zone: TimeZ
     f.timeZone = NSTimeZone.timeZoneWithName(zone.id) ?: NSTimeZone.timeZoneForSecondsFromGMT(zone.offsetAt(at).totalSeconds.toLong())
     return f.stringFromDate(NSDate.dateWithTimeIntervalSince1970(at.toEpochMilliseconds() / 1000.0))
 }
+
+@Suppress("CAST_NEVER_SUCCEEDS")
+actual fun uppercaseIn(s: String, locale: String?): String = (s as NSString).uppercaseStringWithLocale(nsLocale(locale))
+
+@Suppress("CAST_NEVER_SUCCEEDS")
+actual fun lowercaseIn(s: String, locale: String?): String = (s as NSString).lowercaseStringWithLocale(nsLocale(locale))
 
 actual fun monthShort(month: Int, locale: String): String {
     val f = NSDateFormatter()

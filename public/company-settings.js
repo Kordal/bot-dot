@@ -36,7 +36,7 @@
   const face = (b) => `<span class="ps-face">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b), b.id)}</span>`;
 
   function generalHTML(c) {
-    const swatches = `<div class="ps-swatches">${COLORS.map((col) => `<button type="button" class="ps-swatch${col === c.color ? ' on' : ''}" style="--c:${col}" data-ps-color="${col}" aria-pressed="${col === c.color}" aria-label="${col}">${col === c.color ? esc(nameOf(c).charAt(0).toUpperCase()) : ''}</button>`).join('')}</div>`;
+    const swatches = `<div class="ps-swatches">${COLORS.map((col) => `<button type="button" class="ps-swatch${col === c.color ? ' on' : ''}" style="--c:${col}" data-ps-color="${col}" aria-pressed="${col === c.color}" aria-label="${col}">${col === c.color ? esc(I18n.upper(nameOf(c).charAt(0))) : ''}</button>`).join('')}</div>`;
     const sources = `<ul class="ps-list">${c.sources.map((s) => `<li><span class="ps-item">${esc(s.name)}</span><button type="button" class="icon-btn" data-ps-unsource="${esc(s.id)}" aria-label="${tr('Remove')}">${X}</button></li>`).join('')}</ul>
       <div class="ps-adds"><button type="button" class="btn sm" data-ps-add-files>${PLUS}${tr('Add files')}</button><button type="button" class="btn sm" data-ps-add-link>${PLUS}${tr('Add a link')}</button><input type="file" multiple hidden data-ps-files /></div>
       <form class="ps-add hidden" data-ps-link-form><input class="ps-input" name="url" autocomplete="off" maxlength="1000" placeholder="https://" aria-label="${tr('Add a link')}" /></form>`;

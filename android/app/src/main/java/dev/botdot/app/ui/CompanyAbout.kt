@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.delivered
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -368,7 +369,7 @@ private fun Review(ui: CompanyUi, c: Company) {
 
 /** What a review row shows: the answer as one line, or null while not answered. */
 private fun rowValue(c: Company, key: String): String? = when (key) {
-    "stories" -> c.stories.filter { it.items.isNotEmpty() }.joinToString("\n") { g -> whoWord(g.who).replaceFirstChar { it.uppercase() } + ": " + g.items.joinToString(" · ") { it.text } }
+    "stories" -> c.stories.filter { it.items.isNotEmpty() }.joinToString("\n") { g -> I18n.upperFirst(whoWord(g.who)) + ": " + g.items.joinToString(" · ") { it.text } }
     "goal" -> c.goal
     "never" -> c.never.joinToString(", ")
     "time" -> c.time

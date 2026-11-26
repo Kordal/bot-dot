@@ -196,7 +196,7 @@ function needCardHTML(x, here = null) {
       `<button class="btn sm" data-need-no>${esc(said(p.no))}</button><button class="btn sm primary" data-need-yes>${esc(said(p.yes))}</button>`);
   }
   if (x.kind === 'ask' && x.a.kind === 'permission') return card(tr('Let it {what}?', { what: esc(x.a.what?.label || x.a.permission) }), x.a.reason ? esc(x.a.reason) : '',
-    `<div class="need-body"><div class="nb">${tr("{hint}. It can't until you allow it; you can change this in its settings.", { hint: esc((x.a.what?.hint || '').replace(/^./, (c) => c.toUpperCase())) })}</div></div>`,
+    `<div class="need-body"><div class="nb">${tr("{hint}. It can't until you allow it; you can change this in its settings.", { hint: esc((x.a.what?.hint || '').replace(/^./, (c) => I18n.upper(c))) })}</div></div>`,
     `<button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Allow')}</button>`);
   // A changed bot: the server's title, and what changes as its `parts`. Without them, the details as they were written.
   // The yes button reads the server's `yes` where it sends one ("Allow", for a change that only gives permissions).
@@ -378,7 +378,7 @@ function jobCard(j) {
     prompt, promptWas: (j.prompt || '').trim() && j.prompt !== prompt ? j.prompt : null,
     also: [
       changedLine(tr('Tells you'), j.notify || 'report-only', c.notify, (v) => NOTIFY_WORDS[v] || v),
-      changedLine(tr('Asks the AI'), j.kind === 'script' ? j.aiWhen : '', aiWhen, (v) => (AI_WHEN_TEXT[v] || v).toLowerCase()),
+      changedLine(tr('Asks the AI'), j.kind === 'script' ? j.aiWhen : '', aiWhen, (v) => I18n.lower(AI_WHEN_TEXT[v] || v)),
       changedLine(tr('Logins'), loginNames(j.logins), script ? loginNames(c.logins) || (loginNames(j.logins) ? 'none' : '') : null, (v) => (v === 'none' ? tr('none') : v)),
     ].filter(Boolean),
     aiWhen, assessment: text(c.assessment, j.assessment) || '', line: RUNS_AS_APPROVED, no: said(j.no) || tr('Keep as it is'), yes: said(j.yes) || tr('Approve the change'),

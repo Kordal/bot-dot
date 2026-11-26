@@ -62,6 +62,10 @@ actual fun formatDate(at: Instant, pattern: String, locale: String?, zone: TimeZ
     (if (locale == null) DateTimeFormatter.ofPattern(pattern) else DateTimeFormatter.ofPattern(pattern, localeOf(locale)))
         .format(at.toJavaInstant().atZone(zone.toJavaZoneId()))
 
+actual fun uppercaseIn(s: String, locale: String?): String = s.uppercase(localeOf(locale))
+
+actual fun lowercaseIn(s: String, locale: String?): String = s.lowercase(localeOf(locale))
+
 actual fun monthShort(month: Int, locale: String): String = Month.of(month).getDisplayName(TextStyle.SHORT, localeOf(locale))
 
 /** The interface language's locale, for dates, month and day names. */

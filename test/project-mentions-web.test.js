@@ -9,7 +9,7 @@ const { cut } = require('./web-page');
 
 function page(features) {
   const ctx = vm.createContext({
-    String, Date,
+    String, Date, I18n: { upper: (s) => String(s).toLocaleUpperCase('en') },
     state: {
       features, bots: [{ id: 'ops', name: 'Ops', jobs: [] }], skillLib: [],
       mentionPages: [], dash: { tiles: [] },

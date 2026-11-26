@@ -118,6 +118,20 @@ test("a bot's questions go to the run as a card", async () => {
   srv.reply('Done.');
 });
 
+test('yesOf reads the first word of a Japanese, Chinese or Korean answer that ends at a full-width mark or a space', () => {
+  const { yesOf } = require('../lib/choices');
+  // Three choices, so the yes is found by its own word and not as "the one beside the only no".
+  assert.equal(yesOf(['内容を変える', 'はい、送信', 'いいえ']), 1); // ja: "、"
+  assert.equal(yesOf(['はい。送信します', 'あとで', '内容を変える']), 0); // ja: "。"
+  assert.equal(yesOf(['修改内容', '是，发送', '取消']), 1); // zh-Hans: "，"
+  assert.equal(yesOf(['是的！发送', '稍后', '修改内容']), 0); // zh-Hans: "！"
+  assert.equal(yesOf(['내용 바꾸기', '네，보내기', '아니요']), 1); // ko: "，"
+  assert.equal(yesOf(['네 보내기', '나중에', '내용 바꾸기']), 0); // ko: a plain space
+  assert.equal(yesOf(['「はい」送信', 'あとで', '内容を変える']), 0); // leading brackets are no word
+  assert.equal(yesOf(['送信する', 'いいえ、送信しない']), 0); // a no read the same way: the other one is the yes
+  assert.equal(yesOf(["Don't send it", 'Send it']), 1); // an apostrophe stays inside its word
+});
+
 test('yesOf finds the choice that says yes, in any of the usual languages', () => {
   const { yesOf } = require('../lib/choices');
   assert.equal(yesOf(['Yes please', 'No thanks']), 0);

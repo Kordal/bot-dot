@@ -39,6 +39,14 @@ expect fun formatIn(locale: String?, pattern: String, vararg args: Any?): String
 /** [at] in [zone] as [pattern] (DateTimeFormatter's letters) writes it in [locale] (a language tag, or null for the phone's). */
 expect fun formatDate(at: Instant, pattern: String, locale: String?, zone: TimeZone = TimeZone.currentSystemDefault()): String
 
+/**
+ * [s] in capitals (or in small letters) by [locale]'s own rules: a language tag, or null for the phone's own. Turkish
+ * "i" is "İ" and "I" is "ı", which [String.uppercase] without a locale gets wrong. For what the owner reads (a name's
+ * first letter, a sentence's first word), never for an identifier or a key.
+ */
+expect fun uppercaseIn(s: String, locale: String?): String
+expect fun lowercaseIn(s: String, locale: String?): String
+
 /** The short name of [month] (1 to 12) in [locale]: "Jan", "sty". */
 expect fun monthShort(month: Int, locale: String): String
 

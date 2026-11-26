@@ -437,7 +437,7 @@ function drawKeypadNeeds(items, open, waits = items, see = open) {
   const more = items.length - shown.length;
   // An ask from a project's bot carries that project's small square on Home (#838).
   const of = Keypad.projectOf(spaceProjects());
-  const square = (x) => { const p = of.get(x.bot?.id); return p ? `<span class="kp-proj" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(p.name || p.start || '')}">${esc((p.name || p.start || '?').charAt(0).toUpperCase())}</span>` : ''; };
+  const square = (x) => { const p = of.get(x.bot?.id); return p ? `<span class="kp-proj" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(p.name || p.start || '')}">${esc(I18n.upper((p.name || p.start || '?').charAt(0)))}</span>` : ''; };
   const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${square(x)}${acts(x, i)}</div>`).join('')
     + (more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : '');
   for (const id of ['#kp-needs', '#kp-phone-needs']) {

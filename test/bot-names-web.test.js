@@ -9,9 +9,10 @@ const { cut } = require('./web-page');
 
 const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'bot-names.json'), 'utf8'));
 const CHIEF = { id: 'chief', name: 'Chief of Staff' };
-function page(bots, chiefName = 'Chief of Staff') {
-  // Polish's endings come with the dictionary (lib/i18n/pl/phrases.json, ADR 280), as I18n.phrases.
-  const ctx = vm.createContext({ URL, I18n: { phrases: require('../lib/i18n/phrases').forApps() }, state: { bots }, Mentions: { CHIEF: 'chief' }, CHIEF_ROLE: 'Chief of Staff', CHIEF_BOT: { ...CHIEF, name: chiefName }, chiefName: () => chiefName });
+function page(bots, chiefName = 'Chief of Staff', endings = null) {
+  // Polish's endings come with the dictionary (lib/i18n/pl/phrases.json, ADR 280), as I18n.phrases; the Android app's test of
+  // these cases reads Polish's alone too. endings: another's (the endings of every offered language reach the page as one list).
+  const ctx = vm.createContext({ URL, I18n: { phrases: endings ? { nameEndings: endings } : { nameEndings: require('../lib/i18n/phrases').of('pl').nameEndings } }, state: { bots }, Mentions: { CHIEF: 'chief' }, CHIEF_ROLE: 'Chief of Staff', CHIEF_BOT: { ...CHIEF, name: chiefName }, chiefName: () => chiefName });
   vm.runInContext(`${cut('// What a web address shows in a chat', '// The Copy button')}${cut('const BARE_TLDS', 'function linkifyChat(root)')}${cut("// A bot's name in a message is a link", '// A tap on a bot')}
     this.botNameLinks = botNameLinks; this.chatLinkParts = chatLinkParts; this.namedBots = namedBots; this.botsToLink = botsToLink;`, ctx);
   return ctx;
@@ -24,6 +25,16 @@ for (const c of cases) {
     assert.deepEqual(plain(links.map((l) => [l.index, l.text, l.id])), c.links);
   });
 }
+
+test("web: in Japanese, Chinese and Korean a name is a link beside the words, with the endings of every offered language too", () => {
+  const p = page([], 'Chief of Staff', require('../lib/i18n/phrases').forApps().nameEndings);
+  const bots = [{ id: 'al', name: 'Alfred' }];
+  const at = (text) => plain(p.botNameLinks(text, bots)).map((l) => [l.index, l.id]);
+  assert.deepEqual(at('请让Alfred发送报告'), [[2, 'al']]);
+  assert.deepEqual(at('今日はAlfredに聞いて'), [[3, 'al']]);
+  assert.deepEqual(at('오늘 Alfred에게 물어봐'), [[3, 'al']]);
+  assert.deepEqual(at('AlfredoはxAlfredに'), []); // a longer Latin word is no name, whatever stands after it
+});
 
 test('web: a name is a link beside web addresses, and never inside one', () => {
   const p = page([]);

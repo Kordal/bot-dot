@@ -149,6 +149,13 @@ object I18n {
         }
     }
 
+    /** [s] in capitals by the interface language's own rules (Turkish "i" is "İ"): for what the owner reads, never for a key. */
+    fun upper(s: String): String = uppercaseIn(s, language)
+    /** [s] in small letters by the interface language's own rules. */
+    fun lower(s: String): String = lowercaseIn(s, language)
+    /** [s] with its first letter in capitals by the interface language's own rules. */
+    fun upperFirst(s: String): String = if (s.isEmpty()) s else upper(s.take(1)) + s.drop(1)
+
     /**
      * [text] with its {placeholders} filled from [vars]; with an [elision] rule, a word that stands right before a
      * placeholder is elided where the value asks for it ("de {name}" is "d'Anna" but "de Bob", French's).

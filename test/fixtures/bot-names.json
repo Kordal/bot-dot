@@ -2,7 +2,7 @@
   "about": [
     "A bot's name in a message is a link to its chat, on the web page (botNameLinks in public/app.js) and in the Android app (BotNames in android/shared).",
     "cases: { name, bots, text, links }. bots: [{ id, name }], the bots that exist. links: the names found in text, in order, as [where it starts, its text, the bot's id].",
-    "The text of a link is the name as written, plus one of the endings Polish gives it (owi ami ach em om ów ie ze a u y i e ę ą); case as the name has it; a whole word; the longest name first; a name two bots share, a name of one letter and a name after @, / or - are not links."
+    "The text of a link is the name as written, plus one of the endings Polish gives it (owi ami ach em om ów ie ze a u y i e ę ą); case as the name has it; a whole word; the longest name first; a name two bots share, a name of one letter and a name after @, / or - are not links. A letter or number of Chinese, Japanese or Korean beside a name is no longer word: a name stands between them (no spaces between words there); a Latin one is."
   ],
   "cases": [
     { "name": "the name as written", "bots": [{ "id": "qa", "name": "QA Tester" }], "text": "Ask QA Tester to run it.", "links": [[4, "QA Tester", "qa"]] },
@@ -19,6 +19,12 @@
     { "name": "a name with marks", "bots": [{ "id": "rd", "name": "R&D (v2)" }], "text": "Ask R&D (v2).", "links": [[4, "R&D (v2)", "rd"]] },
     { "name": "a name of no bot is text", "bots": [{ "id": "al", "name": "Alfred" }], "text": "Bob said hi to Alfred", "links": [[15, "Alfred", "al"]] },
     { "name": "no bots, no links", "bots": [], "text": "Alfred", "links": [] },
-    { "name": "a name with a hyphen", "bots": [{ "id": "bd", "name": "bot-dot" }], "text": "The bot-dot decision", "links": [[4, "bot-dot", "bd"]] }
+    { "name": "a name with a hyphen", "bots": [{ "id": "bd", "name": "bot-dot" }], "text": "The bot-dot decision", "links": [[4, "bot-dot", "bd"]] },
+    { "name": "ja: a name between Japanese words", "bots": [{"id": "al", "name": "Alfred"}, {"id": "qa", "name": "QA Tester"}], "text": "AlfredがQA Testerに連絡しました。", "links": [[0, "Alfred", "al"], [7, "QA Tester", "qa"]] },
+    { "name": "ja: the name ends the sentence, a Japanese word before it", "bots": [{"id": "al", "name": "Alfred"}], "text": "報告はAlfred", "links": [[3, "Alfred", "al"]] },
+    { "name": "zh-Hans: a name between Chinese words", "bots": [{"id": "al", "name": "Alfred"}], "text": "请让Alfred发送报告，然后问QA Tester", "links": [[2, "Alfred", "al"]] },
+    { "name": "ko: a name before a particle and after a word", "bots": [{"id": "al", "name": "Alfred"}, {"id": "qa", "name": "QA Tester"}], "text": "Alfred가 QA Tester를 확인했어요. 보고서Alfred", "links": [[0, "Alfred", "al"], [8, "QA Tester", "qa"], [29, "Alfred", "al"]] },
+    { "name": "beside CJK, still not inside a longer Latin word", "bots": [{"id": "al", "name": "Alfred"}], "text": "AlfredoはxAlfredが、Alfred2に、_Alfredを、Alfredsの", "links": [] },
+    { "name": "a Japanese name beside Japanese text", "bots": [{"id": "sa", "name": "営業ボット"}], "text": "今日は営業ボットに聞いて", "links": [[3, "営業ボット", "sa"]] }
   ]
 }

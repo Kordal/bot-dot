@@ -271,7 +271,7 @@ const CHIEF_ALWAYS = [
   { feature: 'chief-connectors', path: '/chief/connector-actions', key: 'action', desc: tr('In a connected app, with any details.'),
     list: (r) => (r.grants || (r.actions || []).map((action) => ({ action, label: action }))).map((g) => ({ id: g.action, label: g.label })) },
   { feature: 'more-always', path: '/chief/after-web', key: 'type', desc: tr('Also after it read the web in a chat.'),
-    list: (r) => (r.types || []).map((t) => ({ id: t.type, label: t.label[0].toUpperCase() + t.label.slice(1) })) },
+    list: (r) => (r.types || []).map((t) => ({ id: t.type, label: I18n.upper(t.label[0]) + t.label.slice(1) })) },
 ];
 async function loadChiefAlways(root) {
   root.dataset.always = '1';

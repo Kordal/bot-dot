@@ -332,7 +332,7 @@ function openJobApproval(bot, job) {
       <p style="margin:0">${esc(lead)}</p>
       <div class="card" style="padding:12px 14px;display:grid;gap:6px">
         <div><b>${script ? '⚙️' : '🧠'} ${esc(c.name)}</b> · ${esc(c.change && c.when !== job.when ? tr('now {was} → {now}', { was: job.when, now: c.when }) : c.when)}</div>
-        <div class="muted" style="font-size:13px">${script ? tr('A script that runs on this computer without AI. Then asks the AI: {when}.', { when: esc(AI_WHEN_TEXT[c.aiWhen] || c.aiWhen || '').toLowerCase() }) : tr('A run of the bot (uses AI each time).')}</div>
+        <div class="muted" style="font-size:13px">${script ? tr('A script that runs on this computer without AI. Then asks the AI: {when}.', { when: I18n.lower(esc(AI_WHEN_TEXT[c.aiWhen] || c.aiWhen || '')) }) : tr('A run of the bot (uses AI each time).')}</div>
         ${c.summary ? `<div>${esc(c.summary)}</div>` : ''}
         ${c.also.map((l) => `<div class="muted" style="font-size:13px">${esc(l)}</div>`).join('')}
         ${c.assessment ? `<div class="job-why">💡 ${esc(c.assessment)}</div>` : ''}
