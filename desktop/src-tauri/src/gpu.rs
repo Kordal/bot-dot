@@ -18,7 +18,8 @@ use tauri::{AppHandle, Manager, Url, Webview, Wry};
 /// How often a window in view is asked for its GPU process: WebKit ends an unresponsive one some seconds after the
 /// window is back, so a look when it comes back is too early.
 const EVERY: Duration = Duration::from_secs(2);
-/// The time after a recovery in which there is no other: a GPU process that keeps going would reload the page forever.
+/// The time after a recovery in which there is no other: a GPU process replaced in it is taken as the one to compare
+/// with, so one that keeps being replaced never reloads the page again and again.
 const COOLDOWN: Duration = Duration::from_secs(10);
 
 #[derive(Default)]
@@ -46,7 +47,7 @@ fn next(recorded: Option<i32>, current: Option<i32>, on_page: bool, cooling: boo
     let Some(current) = current.filter(|pid| *pid > 0) else { return Next::Nothing };
     match recorded {
         Some(was) if was == current => Next::Nothing,
-        Some(_) if on_page && cooling => Next::Nothing,
+        Some(_) if on_page && cooling => Next::Remember(current),
         Some(_) if on_page => Next::Recover,
         _ => Next::Remember(current),
     }
@@ -191,8 +192,17 @@ mod tests {
     }
 
     #[test]
-    fn a_new_process_straight_after_a_recovery_waits() {
-        assert_eq!(next(Some(10), Some(11), true, true), Next::Nothing);
+    fn a_new_process_straight_after_a_recovery_is_only_remembered() {
+        assert_eq!(next(Some(10), Some(11), true, true), Next::Remember(11));
+    }
+
+    #[test]
+    fn a_process_replaced_while_cooling_does_not_recover_once_it_ends() {
+        let recorded = match next(Some(10), Some(11), true, true) {
+            Next::Remember(pid) => Some(pid),
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(next(recorded, Some(11), true, false), Next::Nothing);
     }
 
     #[test]
