@@ -1255,7 +1255,7 @@
   "Keeps up to date": "Güncel tutuluyor",
   "Refresh now": "Şimdi yenile",
   "Couldn't load its pages.": "Sayfaları yüklenemedi.",
-  "Ask {name} for a page, a report or an overview.": "{name} botundan bir sayfa, rapor ya da özet iste.",
+  "Ask {name} for a page, a report or an overview.": "Bir sayfa, rapor ya da özet için {name} ile konuş.",
   "None yet.": "Henüz yok.",
   "Keep “{title}” up to date": "“{title}” güncel tutulsun",
   "{name} rewrites the page on this schedule, from the same sources.": "{name} sayfayı bu zamanlamayla, aynı kaynaklardan yeniden yazar.",
