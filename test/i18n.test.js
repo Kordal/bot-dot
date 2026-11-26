@@ -303,6 +303,16 @@ test('the web page draws a string in Polish from the dictionary kept in the brow
   assert.equal(f.tr("{who}'s plan", { who: 'Hélène' }), "Plan d'Hélène");
   assert.equal(f.tr("{who}'s plan", { who: 'Hugo' }), 'Plan de Hugo');
   assert.equal(f.tr("{who}'s plan", { who: 'anna@x.com' }), 'Plan de anna@x.com');
+  // The page's names are HTML: botLabel() is the bot's mark (an <svg>), then its escaped name. Elision reads what shows.
+  const mark = '<svg class="fig fig-small" viewBox="0 0 10 10" style="--c:#fc0" aria-hidden="true" data-bot="b1"><path d="M0 0h10v10H0z"/></svg>';
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}Anna` }), `Plan d'${mark}Anna`, 'a vowel after the mark');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}Bob` }), `Plan de ${mark}Bob`, 'a consonant after the mark');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}Hélène` }), `Plan d'${mark}Hélène`);
+  assert.equal(f.tr("{who}'s plan", { who: '<b>Émile</b>' }), "Plan d'<b>Émile</b>", 'a name in <b>');
+  assert.equal(f.tr("{who}'s plan", { who: '<a href="#x">Zoé</a>' }), 'Plan de <a href="#x">Zoé</a>', 'a link');
+  assert.equal(f.tr("{who}'s plan", { who: 'Alice &amp; Bob' }), "Plan d'Alice &amp; Bob", 'an escaped name');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}&lt;x&gt;` }), `Plan de ${mark}&lt;x&gt;`, 'a name that is no word');
+  assert.equal(f.tr("{who}'s plan", { who: `${mark}` }), `Plan de ${mark}`, 'a mark and no name');
   assert.equal(f.tr('Saved'), 'Enregistré');
   assert.equal(f.tr("{who}'s plan"), 'Plan de {who}');
   assert.equal(f.tr('Not in the dictionary: de {who}', { who: 'Anna' }), 'Not in the dictionary: de Anna', 'English text is not elided');

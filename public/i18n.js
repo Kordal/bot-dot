@@ -29,8 +29,12 @@ const I18n = (() => {
   const VOWELS = 'aeiouàâäéèêëîïôöùûüœæ';
   const FIRST_WORD = /^([\p{L}\p{M}][\p{L}\p{M}'’-]*)(?=$|[\s,;:!?)»…])/u;
   // A value that starts with a vowel or a mute h, as a word of letters alone ("Anna", "ouvrir"; not "app.js" or "Yann").
+  // The page fills placeholders with HTML too (a bot's name is its mark, an <svg>, then the escaped name: botLabel()),
+  // so it is the text the value shows that is looked at: tags go, and the entities esc() writes are read back.
+  const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+  const shown = (value) => value.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, (m, e) => ENTITIES[e]);
   const soft = (value) => {
-    const lower = FIRST_WORD.exec(value)?.[1].toLowerCase();
+    const lower = FIRST_WORD.exec(shown(value))?.[1].toLowerCase();
     return !!lower && (VOWELS.includes(lower[0]) || (lower[0] === 'h' && elision.silentH.includes(lower.split('-')[0])));
   };
   const elide = elision && new RegExp(`(?<![\\p{L}\\p{N}'’])(${Object.keys(elision.words).join('|')})([ \\u00a0\\u202f])\\{(\\w+)\\}|\\{(\\w+)\\}`, 'giu');
