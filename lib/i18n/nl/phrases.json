@@ -1,12 +1,12 @@
 {
-  "stopWords": ["aan", "al", "als", "bij", "dan", "dat", "de", "deze", "die", "dit", "door", "een", "en", "er", "het", "hij", "hoe", "ik", "in", "is", "je", "jij", "maar", "me", "met", "mijn", "mij", "naar", "of", "om", "ook", "op", "over", "te", "tot", "uit", "van", "voor", "waar", "wanneer", "was", "wat", "we", "wie", "wij", "ze", "zij", "zijn"],
+  "stopWords": ["aan", "als", "bij", "dat", "de", "deze", "dit", "een", "en", "er", "het", "hij", "ik", "in", "is", "je", "jij", "maar", "me", "met", "mijn", "mij", "naar", "of", "om", "ook", "op", "te", "uit", "voor", "waar", "wanneer", "was", "wat", "we", "wie", "wij", "ze", "zij", "zijn"],
   "corrections": ["nee", "fout", "verkeerd", "klopt niet", "dat klopt niet", "niet goed", "opnieuw", "nog een keer", "nog eens", "probeer het opnieuw", "ik bedoelde", "dat bedoelde ik niet", "verbeter*"],
   "never": ["nooit", "niet", "geen"],
   "schedule": ["dagelijks", "wekelijks", "maandelijks", "elke dag", "iedere dag", "elke ochtend", "elke avond", "elke nacht", "elke week", "elke maand", "elk uur", "ieder uur", "elke # minut*", "elke # uur", "om de # minut*", "om de # uur"],
   "yes": ["ja", "oké", "oke", "prima", "zeker", "goed", "doe maar"],
   "no": ["nee", "annuleren", "later", "niet nu"],
   "nothingNew": ["niets nieuws", "niks nieuws", "geen nieuws", "geen wijzigingen", "geen veranderingen", "geen updates", "niets te melden", "niks te melden"],
-  "because": ["omdat", "want"],
+  "because": ["omdat"],
   "noSource": ["geen", "geen bron", "geen bronnen", "geen gegevens", "geen informatie", "onbekend", "onbekende bron", "bron onbekend", "niet beschikbaar", "niet opgegeven", "n.v.t.", "nvt", "niets"],
   "nameEndings": ["’s", "'s"],
   "password": ["wachtwoord"]
