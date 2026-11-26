@@ -6,7 +6,7 @@
 // up and again after it dropped, that the picture is the desktop's own shape and fits the window, that it sends no
 // mouse or key until the owner has control, that a computer that stays off stays on "Turned off" across the retries,
 // that the words are the account's language (Polish when it chose it) and that the web page's frame is told the state
-// (data-screen) and that noVNC's own page is gone. In a phone-sized touch window (#1735): a tap clicks, a hold is a right
+// (data-screen) and switches between watching and control in place when its frame tells it, and that noVNC's own page is gone. In a phone-sized touch window (#1735): a tap clicks, a hold is a right
 // click, a finger drags, two fingers scroll (none of them, nor a key,
 // throws between connections, and all work again after), a pinch zooms and moves the picture (and a tap still lands on
 // the right pixel), the phone's keyboard types on the desktop, and the keys menu sends each key, on the phone and with a mouse,
@@ -471,9 +471,32 @@ function vncServer(sock, got) {
     await host.waitForTimeout(200);
     assert.equal(await host.evaluate(() => document.getElementById('frame').dataset.screen), 'watching', 'only the frame itself speaks for the frame');
 
+    // Take control and Just watch on the frame already showing (the dialog's screenControl): switched in place, the
+    // frame is not loaded again, taking control asks the viewer's address with view_only=0 as a load would (ADR 107),
+    // and the mouse and keys arrive only while the owner has control.
+    const asked = [];
+    host.on('request', (r) => { if (r.url().includes('/vnc.html')) asked.push(r.url()); });
+    await host.evaluate(() => { document.getElementById('frame').contentWindow.marker = 'same frame'; });
+    const clearInput = () => { got.keys.length = 0; got.pointers.length = 0; };
+    await host.evaluate((id) => screenControl(document.getElementById('frame'), id, true), bot.id);
+    await waitFor(() => host.evaluate(() => document.getElementById('frame').dataset.screen === 'control'), { what: 'the frame to be told: control' });
+    await waitFor(() => asked.some((u) => /[?&]view_only=0(&|$)/.test(u)), { what: 'the server to be told the owner took control' });
+    clearInput();
+    await host.mouse.click(1280 - 160, 800 - 100);
+    await host.keyboard.press('b');
+    await waitFor(() => got.keys.some((k) => k.key === 0x62) && got.pointers.some((p) => p.mask === 1), { what: 'the click and the key to reach the computer after Take control' });
+    await host.evaluate((id) => screenControl(document.getElementById('frame'), id, false), bot.id);
+    await waitFor(() => host.evaluate(() => document.getElementById('frame').dataset.screen === 'watching'), { what: 'the frame to be told: watching after Just watch' });
+    clearInput();
+    await host.mouse.click(1280 - 160, 800 - 100);
+    await host.keyboard.press('c');
+    await host.waitForTimeout(300);
+    assert.deepEqual([got.keys, got.pointers], [[], []], 'after Just watch nothing is sent');
+    assert.equal(await host.evaluate(() => document.getElementById('frame').contentWindow.marker), 'same frame', 'switched without loading the frame again');
+
     await hostContext.close();
     assert.deepEqual(errors, []);
-    console.log('PASS: the viewer says starting, viewing, control, reconnecting and turned off, in English and in Polish; stays turned off across retries; connects and reconnects by itself; fits the desktop\'s own shape; sends nothing until control; works by touch (tap, hold, drag, scroll, pinch, keyboard, keys menu); tells its frame its state; no browser errors.');
+    console.log('PASS: the viewer says starting, viewing, control, reconnecting and turned off, in English and in Polish; stays turned off across retries; connects and reconnects by itself; fits the desktop\'s own shape; sends nothing until control; works by touch (tap, hold, drag, scroll, pinch, keyboard, keys menu); tells its frame its state; takes control and goes back to watching in place; no browser errors.');
   } finally {
     await browser?.close();
     for (const s of live) s.destroy();

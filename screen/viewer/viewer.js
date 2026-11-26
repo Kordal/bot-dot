@@ -7,8 +7,9 @@ import { setupControls } from './controls.js';
 import { initClipboard } from './clipboard.js';
 
 const query = new URLSearchParams(location.search);
-// Watching until the owner takes control: only view_only=0 lets the mouse and keys through (ADR 107).
-const viewOnly = query.get('view_only') !== '0';
+// Watching until the owner takes control: only view_only=0 lets the mouse and keys through (ADR 107). The page that
+// holds the viewer may switch it later, in place (see "Take control and Just watch" below).
+let viewOnly = query.get('view_only') !== '0';
 const here = location.pathname.replace(/[^/]*$/, '');
 const url = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${here}websockify`;
 
@@ -25,7 +26,7 @@ let everShown = false;
 let transport = null;
 let retry = null;
 const controls = setupControls({ screen: document.getElementById('screen'), layer: screen, words: WORDS, transport: () => transport });
-const clipboard = initClipboard({ words: WORDS, viewOnly, transport: () => transport });
+const clipboard = initClipboard({ words: WORDS, viewOnly: () => viewOnly, transport: () => transport });
 
 // What the viewer is in: drawn in words, and told to the frame's parent (the web page), which reads the state and
 // not this page's text.
@@ -81,6 +82,26 @@ function connect() {
     later();
   });
 }
+
+// Take control and Just watch from the page that holds the viewer (the web page's dialog): the mouse and keys are let
+// through or kept off the picture already showing, which is not loaded again. Taking control asks the viewer's own
+// address with view_only=0, as a load with it does, so the server counts it as taking control (ADR 107). Listening
+// before the first state is told, so a frame that was told a state can be switched.
+addEventListener('message', (e) => {
+  if (e.source !== window.parent || e.origin !== location.origin || e.data?.type !== 'botdot-screen-control') return;
+  const next = e.data.control !== true;
+  if (next === viewOnly) return;
+  viewOnly = next;
+  query.set('view_only', viewOnly ? '1' : '0');
+  history.replaceState(null, '', `?${query}`);
+  if (!viewOnly) fetch(location.href, { cache: 'no-store' }).catch(() => {});
+  transport?.setViewOnly(viewOnly);
+  clipboard.control(!viewOnly);
+  if (state === 'watching' || state === 'control') {
+    setState(viewOnly ? 'watching' : 'control');
+    if (!viewOnly) transport?.focus();
+  }
+});
 
 setState('starting');
 connect();

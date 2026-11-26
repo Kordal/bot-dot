@@ -27,7 +27,7 @@ async function writeClipboard(text) {
   return ok;
 }
 
-// `current()` is the live transport, or null while there is none.
+// `current()` is the live transport, or null while there is none; `viewOnly()` whether the owner only watches now.
 export function initClipboard({ words, viewOnly, transport: current }) {
   const transport = guarded(current);
   const chip = document.getElementById('clip-chip');
@@ -42,6 +42,7 @@ export function initClipboard({ words, viewOnly, transport: current }) {
   typeField.placeholder = words.typeText || '';
   typeGo.textContent = words.typeIt || 'type';
 
+  let live = false; // a picture is showing
   let pending = null; // text copied on the bot's screen that the browser did not let through yet
 
   const showChip = (text) => { pending = text; chip.hidden = false; };
@@ -50,7 +51,7 @@ export function initClipboard({ words, viewOnly, transport: current }) {
 
   // Copied on the bot's screen.
   async function fromBot(text) {
-    if (viewOnly || !text) return;
+    if (viewOnly() || !text) return;
     try {
       await navigator.clipboard.writeText(text);
       hideChip();
@@ -85,7 +86,7 @@ export function initClipboard({ words, viewOnly, transport: current }) {
     transport().pasteKeys(holding);
   };
   document.addEventListener('keydown', (e) => {
-    if (viewOnly || inField(e)) return;
+    if (viewOnly() || inField(e)) return;
     if (HOLDABLE.has(e.code)) held.add(e.code);
     if (transport().isPasteChord(e)) {
       e.stopPropagation();
@@ -96,7 +97,7 @@ export function initClipboard({ words, viewOnly, transport: current }) {
   document.addEventListener('keyup', (e) => { held.delete(e.code); }, true);
   addEventListener('blur', () => held.clear());
   document.addEventListener('paste', (e) => {
-    if (viewOnly || inField(e)) return;
+    if (viewOnly() || inField(e)) return;
     const text = e.clipboardData?.getData('text/plain');
     e.preventDefault();
     if (waiting === null && performance.now() - sentAt < PASTE_WAIT_MS * 10) return; // too late: the Ctrl+V went already
@@ -131,12 +132,18 @@ export function initClipboard({ words, viewOnly, transport: current }) {
   return {
     // The viewer has a picture and the owner may use it.
     connected(t) {
-      if (viewOnly) return;
+      live = true;
       t.addEventListener('clipboard', (e) => { if (t === transport()) fromBot(e.detail?.text); });
-      typeBox.hidden = false;
+      typeBox.hidden = viewOnly();
+    },
+    // The owner took control, or went back to watching, on the picture already showing.
+    control(on) {
+      if (live) typeBox.hidden = !on;
+      if (!on) { closeTyping(); hideChip(); }
     },
     // It ended: nothing is left to type into.
     gone() {
+      live = false;
       typeBox.hidden = true;
       closeTyping();
       hideChip();

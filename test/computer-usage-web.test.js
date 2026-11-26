@@ -92,3 +92,28 @@ test("web: outside Chromium a boat machine's screen is botdot's own viewer, aske
   assert.doesNotMatch(boat, /keepScreenConnected/, "the viewer reconnects by itself (ADR 279)");
   assert.match(boat, /href = vnc \? screenUrl\(bot\.id, control\) : d\.url/, 'full screen is the viewer too');
 });
+
+// Take control and Just watch tell a viewer that has said its state to switch in place (ADR 279's viewer listens for
+// botdot-screen-control), so the dialog's screen is not loaded again; a viewer that has said nothing yet is opened at
+// the new address.
+test('web: Take control switches the showing screen in place, without loading it again', () => {
+  const ctx = vm.createContext({ location: { origin: 'https://box.example' } });
+  vm.runInContext(`${cut('const screenUrl', '// The viewer tells the page')}\n${cut('function screenControl(', '// The screen as large')}\nthis.screenControl = screenControl;`, ctx);
+  const sent = [];
+  const before = '/computer/b1/vnc.html?view_only=1';
+  const showing = { src: before, dataset: { screen: 'watching' }, contentWindow: { postMessage: (m, o) => sent.push([m, o]) } };
+  ctx.screenControl(showing, 'b1', true);
+  assert.equal(showing.src, before, 'not loaded again');
+  assert.deepEqual(JSON.parse(JSON.stringify(sent)), [[{ type: 'botdot-screen-control', control: true }, 'https://box.example']]);
+  const loading = { src: before, dataset: {}, contentWindow: { postMessage: () => assert.fail('nothing listens yet') } };
+  ctx.screenControl(loading, 'b1', true);
+  assert.equal(loading.src, '/computer/b1/vnc.html?view_only=0', 'not ready yet: opened at the new address');
+  const screen = cut('function openScreen(', '// Plain-language explanation for a failed or stopped run');
+  assert.match(screen, /if \(on && shown\) \{ screenControl\(shown, botId, control\); return; \}/, 'the dialog keeps its screen');
+  assert.match(cut('function openBoatComputer(', 'function openScreen('), /screenControl\(\$\('#screen-frame iframe', m\), bot\.id, control\)/);
+  // The viewer: only its own parent, of its own origin, switches it, and taking control still tells the server (ADR 107).
+  const viewer = fs.readFileSync(path.join(__dirname, '..', 'screen', 'viewer', 'viewer.js'), 'utf8');
+  assert.match(viewer, /e\.source !== window\.parent \|\| e\.origin !== location\.origin \|\| e\.data\?\.type !== 'botdot-screen-control'/);
+  assert.match(viewer, /if \(!viewOnly\) fetch\(location\.href/);
+  assert.ok(viewer.indexOf("addEventListener('message'") < viewer.indexOf("setState('starting');\nconnect();"), 'listening before it says its first state');
+});
