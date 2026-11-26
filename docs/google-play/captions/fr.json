@@ -1,0 +1,13 @@
+{
+  "feature": "Une équipe de bots IA que tu diriges par chat",
+  "screenshots": {
+    "1-home.png": "Tes bots et ce qui t'attend",
+    "2-chief.png": "Demande un bot au Chef de cabinet",
+    "3-approve.png": "Les scripts attendent ton accord",
+    "4-server.png": "Jauges et chiffres en direct dans la discussion",
+    "5-spending.png": "Des graphiques, pas des murs de chiffres",
+    "6-quiz.png": "Réponds à un quiz dans la discussion",
+    "7-quotes.png": "Compare les options côte à côte",
+    "8-board.png": "Des valeurs en direct sur ton Tableau"
+  }
+}
