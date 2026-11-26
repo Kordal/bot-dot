@@ -75,23 +75,39 @@ fun InteractiveBar(site: InteractiveView, full: Boolean, onFull: () -> Unit, onV
 }
 
 /** The page itself; without the sandbox's address on this machine, only what to do instead. */
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun InteractiveFrame(site: InteractiveView, values: JsonObject?, onDownload: () -> Unit) {
     val p = LocalPaper.current
     val frame = site.frame
-    var asking by remember { mutableStateOf<String?>(null) }
     if (frame == null) {
         ViewerState(tr("This machine can't show interactive pages yet"), tr("They need an address of their own, which the admin's next update of botdot sets up. Download it to open it on your phone.")) {
             Button(onClick = onDownload, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
         }
         return
     }
-    val bg = p.bg.toArgb()
+    SandboxedFrame(frame, values, p.bg.toArgb())
+}
+
+/**
+ * An HTML file the owner opened, rendered (ADR 281): a copy of what the viewer read, on the sandbox's own address, in the
+ * very WebView an interactive page has. White where the page sets no colour, as a browser shows it; no values are handed in.
+ */
+@Composable
+fun HtmlFrame(frame: String) = SandboxedFrame(frame, null, android.graphics.Color.WHITE)
+
+/**
+ * A page on the sandbox's own address (#399, ADR 072; an HTML file's preview, ADR 281). The WebView has JavaScript for the
+ * page and nothing else: no bridge to the app, no files, no storage, no new windows, no third-party cookies. Whatever it
+ * navigates to off the page's own prefix is asked about (a link out) or blocked.
+ */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun SandboxedFrame(frame: String, values: JsonObject?, background: Int) {
+    var asking by remember { mutableStateOf<String?>(null) }
     // A new address (another version, or a new publish) is a new WebView, so what it may load is checked against it.
     key(frame) { AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
         WebView(ctx).apply {
-            setBackgroundColor(bg)
+            setBackgroundColor(background)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = false
             settings.databaseEnabled = false

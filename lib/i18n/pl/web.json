@@ -288,6 +288,7 @@
   "View": "Widok",
   "Rendered": "Sformatowany",
   "Source": "Źródło",
+  "Only what is in this file loads": "Ładuje się tylko to, co jest w tym pliku",
   "Table": "Tabela",
   "Find in table": "Szukaj w tabeli",
   "{n} rows": {

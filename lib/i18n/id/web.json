@@ -1876,5 +1876,6 @@
   "Showing its start (up to 1 MB or 1,000 lines).": "Menampilkan bagian awalnya (sampai 1 MB atau 1.000 baris).",
   "Download it to see everything.": "Unduh untuk melihat semuanya.",
   "Open {name} · {size}": "Buka {name} · {size}",
-  "{n} changes, newest first. Tap a title for more.": "{n} perubahan, terbaru di atas. Ketuk judul untuk detailnya."
+  "{n} changes, newest first. Tap a title for more.": "{n} perubahan, terbaru di atas. Ketuk judul untuk detailnya.",
+  "Only what is in this file loads": "Hanya isi file ini yang dimuat"
 }
