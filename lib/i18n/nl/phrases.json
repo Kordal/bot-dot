@@ -8,6 +8,6 @@
   "nothingNew": ["niets nieuws", "niks nieuws", "geen nieuws", "geen wijzigingen", "geen veranderingen", "geen updates", "niets te melden", "niks te melden"],
   "because": ["omdat", "want"],
   "noSource": ["geen", "geen bron", "geen bronnen", "geen gegevens", "geen informatie", "onbekend", "onbekende bron", "bron onbekend", "niet beschikbaar", "niet opgegeven", "n.v.t.", "nvt", "niets"],
-  "nameEndings": ["’s", "'s", "s"],
+  "nameEndings": ["’s", "'s"],
   "password": ["wachtwoord"]
 }
