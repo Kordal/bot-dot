@@ -76,10 +76,10 @@
   "have a computer": "einen Computer haben",
   "Let {bot} accept a self-signed certificate for “{login}”?": "Darf {bot} für „{login}“ ein selbstsigniertes Zertifikat akzeptieren?",
   "Let {bot} use “{login}” in its computer?": "Darf {bot} „{login}“ in seinem Computer nutzen?",
-  "{bot} and every other bot on the account's computer will be able to read this secret: they all work there with sudo. Only for a secret that guards something on that computer.": "{bot} und jeder andere Bot auf dem Computer des Kontos können dieses Geheimnis lesen: Sie arbeiten dort alle mit sudo. Nur für ein Geheimnis, das etwas auf diesem Computer schützt.",
+  "{bot} and every other bot on the account's computer will be able to read this secret: they all work there with sudo. Only for a secret that guards something on that computer.": "{bot} und jeder andere Bot auf dem Computer des Kontos können dieses Geheimnis lesen: sie arbeiten dort alle mit sudo. Nur für ein Geheimnis, das etwas auf diesem Computer schützt.",
   "Accept self-signed certificate": "Selbstsigniertes Zertifikat akzeptieren",
   "Usable in its computer": "In seinem Computer nutzbar",
-  "The secret stays on disk in this file. {bot} and every other bot on the account's computer can read it: they all work there with sudo. No bot ever sees it in its chat.": "Das Geheimnis bleibt in dieser Datei auf der Festplatte. {bot} und jeder andere Bot auf dem Computer des Kontos können es lesen: Sie arbeiten dort alle mit sudo. Kein Bot sieht es je in seinem Chat.",
+  "The secret stays on disk in this file. {bot} and every other bot on the account's computer can read it: they all work there with sudo. No bot ever sees it in its chat.": "Das Geheimnis bleibt in dieser Datei auf der Festplatte. {bot} und jeder andere Bot auf dem Computer des Kontos können es lesen: sie arbeiten dort alle mit sudo. Kein Bot sieht es je in seinem Chat.",
   "The secret stays on disk in this file on {target}: anyone who can read files there can read it. No bot ever sees it in its chat.": "Das Geheimnis bleibt in dieser Datei auf {target}: Wer dort Dateien lesen kann, kann es lesen. Kein Bot sieht es je in seinem Chat.",
   "the account's computer": "Computer des Kontos",
   "Always allow {what}": "Immer erlauben: {what}",
@@ -293,8 +293,8 @@
   "{bot}'s old computer of its own is kept, stopped. Copy its files into {folder} on the account's computer, then erase it.": "Der alte eigene Computer von {bot} ist aufbewahrt und gestoppt. Kopiere seine Dateien nach {folder} auf dem Computer des Kontos und lösche ihn dann.",
   "Erase {bot}'s old computer? What is on it is lost; what you copied into {folder} stays.": "Den alten Computer von {bot} löschen? Was darauf ist, geht verloren; was du nach {folder} kopiert hast, bleibt.",
   "{bots} work on it now: what runs there ends, every bot's screen and open programs with it. Its files, logins and installed programs are kept.": {
-    "one": "{bots} arbeitet gerade darauf: Was dort läuft, endet, und mit ihm der Bildschirm jedes Bots und offene Programme. Seine Dateien, Logins und installierten Programme bleiben.",
-    "other": "{bots} arbeiten gerade darauf: Was dort läuft, endet, und mit ihm der Bildschirm jedes Bots und offene Programme. Seine Dateien, Logins und installierten Programme bleiben."
+    "one": "{bots} arbeitet gerade darauf: Was dort läuft, endet, und damit auch der Bildschirm jedes Bots und seine offenen Programme. Seine Dateien, Logins und installierten Programme bleiben.",
+    "other": "{bots} arbeiten gerade darauf: Was dort läuft, endet, und damit auch der Bildschirm jedes Bots und seine offenen Programme. Seine Dateien, Logins und installierten Programme bleiben."
   },
   "Reset the account's computer": "Computer des Kontos zurücksetzen",
   "Asks to reset the account's computer": "Möchte den Computer des Kontos zurücksetzen",
