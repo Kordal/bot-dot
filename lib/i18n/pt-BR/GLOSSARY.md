@@ -85,3 +85,5 @@ The Brazilian Portuguese glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says w
 | sign-up link / sign-in link | link de cadastro / link de acesso |
 | quiet hours | horário silencioso |
 | model / reasoning | modelo / raciocínio |
+
+- **On / Off → "Sim" / "Não".** One English word is the state of Backups, Notificações, Habilidades, a tile and a report's rhythm: "Ligado" / "Desativado" agreed with the masculine alone, and a yes and a no agree with nothing.

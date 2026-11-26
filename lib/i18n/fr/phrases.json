@@ -8,5 +8,9 @@
   "nothingNew": ["rien de nouveau", "aucun changement", "pas de changement", "aucune nouveauté", "rien à signaler", "ras", "pas de nouvelles"],
   "because": ["parce que", "puisque"],
   "noSource": ["aucune", "aucun", "aucune source", "pas de source", "sans source", "source inconnue", "inconnu", "inconnue", "non disponible", "indisponible", "non communiqué", "non précisé", "néant", "n/d", "n/a"],
-  "password": ["mot de passe", "mdp"]
+  "password": ["mot de passe", "mdp"],
+  "elision": {
+    "words": { "de": "d'", "que": "qu'", "le": "l'", "la": "l'" },
+    "silentH": ["habitude", "hébergement", "hélène", "henri", "heure", "heures", "hier", "hippolyte", "histoire", "hiver", "homme", "hommes", "honoré", "hôpital", "hôtel", "huile", "humain", "humour"]
+  }
 }

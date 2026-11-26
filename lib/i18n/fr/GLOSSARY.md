@@ -87,4 +87,6 @@ The French glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engli
 - **standup → "point du matin"**: the French office word for a short morning meeting.
 - **Always approved → "Toujours approuvé"**, to match "Toujours approuver" on a job's card; « Toujours autorisé » is the permission's.
 - **Steer → "Réorienter"**: what a message sent to a working bot does to its run.
+- **Elision is the code's, not the string's.** Write « de {name} », « que {bot} », « le {x} », never « d'{name} »: when the value starts with a vowel or a mute h (« Anna », « Hélène ») the apps and the server write « d'Anna », « qu'Émile », « l'Alice » (`elision` in `phrases.json`, `lib/i18n/elision.js`), and « de Bob », « de Hugo » otherwise. A value like `app.js` or an address stays as it is.
+- **On / Off → "Oui" / "Non".** One English word is the state of Sauvegardes, Notifications, Compétences, a tile and a report's rhythm, and « Activé » / « Désactivé » agreed with none of them but the masculine. A yes and a no agree with nothing.
 - **Table (a CSV file's view) → "Tableau"**: the file viewer's own word, beside "Source"; the Board is always "Tableau" with a capital T.

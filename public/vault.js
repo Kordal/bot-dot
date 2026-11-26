@@ -442,7 +442,7 @@ function openCardApproval(r, host = null) {
     <div class="modal-head"><h2>💳 ${tr('{name} wants to pay', { name: botLabel(r.bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
     <div class="modal-body">
       <div class="req-site">
-        <div class="muted" style="font-size:12.5px">${tr('On')}</div>
+        <div class="muted" style="font-size:12.5px">${tr('Site')}</div>
         <div class="site">${esc(r.site)}</div>
         <div class="muted" style="font-size:12.5px">${r.card?.name ? tr('with {card}', { card: esc(r.card.name) }) : tr('with a card')}${r.card?.last4 ? ` (${esc(r.card.brand || tr('card'))} •••• ${esc(r.card.last4)})` : ''}</div>
       </div>

@@ -101,3 +101,5 @@ The Spanish glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engl
 | your OK (a card waits for it) | tu aprobación ("Espera tu aprobación") |
 | quiet hours | horas de silencio |
 | Let {bot} … ? (a card's question) | ¿Permitir a {bot} …? with an infinitive, so that the same words also follow "Pide …" ("Pide navegar por la web") |
+
+- **On / Off → "Sí" / "No".** One English word is the state of Copias de seguridad, Notificaciones, Habilidades, a tile and a report's rhythm: "Activado" / "Desactivado" agreed with the masculine alone, and a yes and a no agree with nothing.
