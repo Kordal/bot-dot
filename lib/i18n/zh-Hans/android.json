@@ -540,7 +540,7 @@
   "Sending…": "正在发送…",
   "Oldest {age}": "最早的：{age}",
   "Letting it use the login…": "正在允许它使用登录信息…",
-  "saved for {site}": "为 {site} 保存",
+  "saved for {site}": "已为 {site} 保存",
   "Its password will also be used on {site}, by {bot}. Only continue if {site} really takes this login: web pages can try to trick bots into asking.": "{bot} 也会在 {site} 上使用这个密码。只有在 {site} 确实使用这个登录信息时才继续：网页可能会诱骗机器人来索要。",
   "It is no longer waiting.": "它已不再等待。",
   "Not taken back: can't reach botdot.": "未撤回：无法连接 botdot。",
