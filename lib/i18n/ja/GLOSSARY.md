@@ -36,6 +36,7 @@ The Japanese glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Eng
 | project / space | プロジェクト / スペース |
 | team / lead | チーム / リーダー |
 | standup | 朝会 (a project's three lines each workday morning, as Japanese teams call the morning round) |
+| blocker (of a project or a team) | ブロッカー (not 障害, which reads as an outage; 障害 stays for "What is in the way?" of a project) |
 | skill / helpers | スキル / ヘルパー |
 | note / pinned | メモ / ピン留め |
 | teammate | チームメイト |

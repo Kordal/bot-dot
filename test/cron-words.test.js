@@ -29,6 +29,14 @@ test('the same set of values reads the same, however it is written', () => {
   assert.equal(describe('0 9 * * 6,7'), 'Weekends at 09:00');
 });
 
+test('in Japanese, a list reads with 、 and と, and a day of the month carries 日 on each number', () => {
+  assert.equal(describe('0 9 * * 1,3,5', 'ja'), '毎週月曜日、水曜日と金曜日 09:00');
+  assert.equal(describe('0 9 1,15 * *', 'ja'), '毎月1日と15日 09:00');
+  assert.equal(describe('0 9 1-5 * *', 'ja'), '毎月1日〜5日 09:00');
+  assert.equal(describe('0 9,17 * * *', 'ja'), '毎日 09:00と17:00');
+  assert.equal(describe('0 9 * * 1-5', 'ja'), '平日 09:00');
+});
+
 test('the rules beside the table', () => {
   const says = (expr, words) => assert.equal(describe(expr), words, expr);
   // A run of hours: 7 or more read as a range, fewer as the times themselves.
