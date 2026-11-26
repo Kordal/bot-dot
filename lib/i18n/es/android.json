@@ -15,9 +15,9 @@
   "Can't reach botdot. Is Tailscale on? Trying again…": "No se puede conectar con botdot. ¿Está activado Tailscale? Reintentando…",
   "Not connected": "Sin conectar",
   "{n} things wait for your OK": {
-    "one": "{n} cosa espera tu OK",
-    "many": "{n} cosas esperan tu OK",
-    "other": "{n} cosas esperan tu OK"
+    "one": "{n} cosa espera tu aprobación",
+    "many": "{n} cosas esperan tu aprobación",
+    "other": "{n} cosas esperan tu aprobación"
   },
   "{bot}: {job} didn't finish": "{bot}: {job} no terminó",
   "{bot}: its last task didn't finish": "{bot}: su último encargo no terminó",
@@ -40,7 +40,7 @@
   "A group": "Un grupo",
   "A plan for the Chief: {title}": "Un plan para el Jefe: {title}",
   "Approve": "Aprobar",
-  "Waiting for your OK": "Esperando tu OK",
+  "Waiting for your OK": "Esperando tu aprobación",
   "Wants to pay on {site}{amount}": "Quiere pagar en {site}{amount}",
   "Asks for the {site} login": "Pide el acceso a {site}",
   "Needs your OK": "Necesita tu aprobación",
@@ -193,9 +193,9 @@
   "See its screen": "Ver su pantalla",
   "None": "Ninguno",
   "{n} waiting for your OK": {
-    "one": "{n} espera tu OK",
-    "many": "{n} esperan tu OK",
-    "other": "{n} esperan tu OK"
+    "one": "{n} espera tu aprobación",
+    "many": "{n} esperan tu aprobación",
+    "other": "{n} esperan tu aprobación"
   },
   "next {time}": "próxima {time}",
   "Skills": "Habilidades",
@@ -452,7 +452,7 @@
   "New": "Nuevo",
   "Steer": "Reorientar",
   "Take back": "Retirar",
-  "Claude is signed out: bots can't work.": "Claude cerró sesión: los bots no pueden trabajar.",
+  "Claude is signed out: bots can't work.": "No hay sesión iniciada en Claude: los bots no pueden trabajar.",
   "Show the question": "Ver la pregunta",
   "View live screen": "Ver pantalla en vivo",
   "botdot can't open {name}: the app that shared it didn't allow it.": "botdot no puede abrir {name}: la app que lo compartió no lo permitió.",
@@ -462,7 +462,7 @@
   "Sign in": "Iniciar sesión",
   "{name}'s usage limit is reached: its bots carry on at {time}.": "{name} llegó a su límite de uso: sus bots continúan a las {time}.",
   "Claude's usage limit is reached: bots carry on at {time}.": "Claude llegó a su límite de uso: los bots continúan a las {time}.",
-  "Claude is signed out: bots that use it can't work.": "Claude cerró sesión: los bots que lo usan no pueden trabajar.",
+  "Claude is signed out: bots that use it can't work.": "No hay sesión iniciada en Claude: los bots que lo usan no pueden trabajar.",
   "Attach files": "Adjuntar archivos",
   "Wait a moment: the files are still uploading.": "Espera un momento: los archivos aún se están subiendo.",
   "Answers hidden": "Respuestas ocultas",
@@ -1326,7 +1326,7 @@
   "a script, no AI": "un script, sin IA",
   "uses AI": "usa IA",
   "Its rule: {rule}": "Su regla: {rule}",
-  "Revoked: its next change waits for your OK": "Revocado: su próximo cambio esperará tu OK",
+  "Revoked: its next change waits for your OK": "Revocado: su próximo cambio esperará tu aprobación",
   "Revoked: it asks you again": "Revocado: volverá a preguntarte",
   "The sign-in didn't come back from the browser. Sign in again.": "El inicio de sesión no volvió del navegador. Vuelve a iniciar sesión.",
   "That sign-in has ended. Sign in again.": "Ese inicio de sesión caducó. Vuelve a iniciar sesión.",
