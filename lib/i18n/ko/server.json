@@ -77,7 +77,7 @@
   "Site": "사이트",
   "It would click": "누르려는 항목",
   "The page says": "페이지 내용",
-  "The page says this cannot be undone. A yes lets this one step through once, in the run that waits for it. Taking control of its screen counts as a no.": "페이지에 되돌릴 수 없다고 나와 있어요. 승인하면 기다리는 실행에서 이 한 단계만 한 번 진행돼요. 화면 제어를 가져오면 거절로 처리돼요.",
+  "The page says this cannot be undone. A yes lets this one step through once, in the run that waits for it. Taking control of its screen counts as a no.": "페이지에 되돌릴 수 없다고 나와 있어요. 승인하면 기다리는 실행에서 이 한 단계만 한 번 진행돼요. 화면을 직접 조작하면 거절로 처리돼요.",
   "Let {bot} remove “{entry}” from Passwords?": "{bot}이(가) 비밀번호에서 “{entry}”을(를) 제거하게 할까요?",
   "Asked by": "요청한 봇",
   "Goes to": "이동 위치",
@@ -203,9 +203,9 @@
   "of {total} steps": "/ 단계 {total}개",
   "Nothing needs you": "확인할 것 없음",
   "{n} blockers": {
-    "other": "막힌 일 {n}개"
+    "other": "걸림돌 {n}개"
   },
-  "No blockers": "막힌 일 없음",
+  "No blockers": "걸림돌 없음",
   "{n} done": "{n}개 완료",
   "{n} in progress": "{n}개 진행 중",
   "nothing marked done": "완료 표시 없음",
@@ -246,7 +246,7 @@
   "The Chief does it when you allow it.": "허용하면 비서실장이 처리해요.",
   "The Chief does it in this chat when you allow it.": "허용하면 비서실장이 이 채팅에서 처리해요.",
   "Drop the file to put it in the bot's folder": "파일을 놓으면 봇 폴더에 넣어요",
-  "Take control to drop a file onto the screen.": "화면에 파일을 놓으려면 제어권을 가져오세요.",
+  "Take control to drop a file onto the screen.": "화면에 파일을 놓으려면 직접 조작으로 바꾸세요.",
   "A file can't be dropped onto an External Virtual PC yet.": "외부 가상 PC에는 아직 파일을 놓을 수 없어요.",
   "Sending {name}…": "{name} 보내는 중…",
   "{name} is in the bot's folder.": "{name}이(가) 봇 폴더에 들어갔어요.",
@@ -257,7 +257,7 @@
   "Drop at most {count} files at once.": "한 번에 최대 {count}개 파일까지 놓을 수 있어요.",
   "Starting the computer…": "컴퓨터 켜는 중…",
   "Viewing": "보는 중",
-  "You have control": "제어 중",
+  "You have control": "직접 조작 중",
   "Reconnecting…": "다시 연결 중…",
   "Turned off": "꺼짐",
   "Keyboard": "키보드",
