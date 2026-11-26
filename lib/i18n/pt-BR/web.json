@@ -1067,7 +1067,7 @@
   "done": "concluída",
   "cut off": "interrompida",
   "Last run {ago}: {what}.": "Última execução {ago}: {what}.",
-  "Set up by {who}.": "Configurada por {who}.",
+  "Set up by {who}.": "Quem configurou: {who}.",
   "A change waits for your OK.": "Uma alteração aguarda sua aprovação.",
   "Review the change": "Revisar a alteração",
   "Logins: {names}": "Logins: {names}",
