@@ -12,6 +12,15 @@ window.addEventListener('message', (e) => {
   for (const f of document.querySelectorAll('iframe[src^="/computer/"]')) if (f.contentWindow === e.source) f.dataset.screen = e.data.state;
 });
 
+// Take control and Just watch on a screen already showing: a viewer that has told its state listens, and is told to
+// let the mouse and keys through or keep them off, in place; the screen is not loaded again. One that has not yet is
+// opened at the new address.
+function screenControl(iframe, botId, control) {
+  if (!iframe) return;
+  if (iframe.dataset.screen && iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'botdot-screen-control', control }, location.origin);
+  else iframe.src = screenUrl(botId, control);
+}
+
 // The screen as large as the window lets it be, at the desktop's 16:10 (a boat.dev machine's 16:9), with all of the dialog in the window and no
 // scrollbar of its own (#43): the screen is made as narrow as the height left for it asks. What is under it keeps
 // the dialog's width, so its height does not change with the screen's.
@@ -70,10 +79,9 @@ function openBoatComputer(bot) {
     $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
     $('#screen-done', m).classList.toggle('hidden', !control || !state.features.includes('screen-done'));
     if (vnc) {
-      // noVNC takes the mouse and keys only when opened with them, as on the account's computer.
+      // botdot's viewer lets the mouse and keys through only when told, as on the account's computer.
       $('#screen-full', m).href = screenUrl(bot.id, control);
-      const f = $('#screen-frame iframe', m);
-      if (f) f.src = screenUrl(bot.id, control);
+      screenControl($('#screen-frame iframe', m), bot.id, control);
       return;
     }
     $('#screen-shield', m)?.classList.toggle('hidden', control);
@@ -178,6 +186,8 @@ function openScreen(botId) {
     $('#screen-full', m).href = screenUrl(botId, control);
     $('#screen-done', m).classList.toggle('hidden', !(control && on && state.features.includes('screen-done')));
     $('#screen-control', m).disabled = !on;
+    const shown = $('#screen-frame iframe', m);
+    if (on && shown) { screenControl(shown, botId, control); fit(); return; } // already showing: not loaded again, sized to what is left
     $('#screen-frame', m).innerHTML = off
       ? `<div class="screen-off"><div class="big">🖥</div>${esc(off.text)}<div><button class="btn sm" id="screen-start">${esc(off.start)}</button></div></div>`
       : on

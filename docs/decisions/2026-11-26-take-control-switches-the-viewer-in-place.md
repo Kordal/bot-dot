@@ -1,0 +1,1 @@
+2026-11-26: Take control and Just watch switch botdot's screen viewer in place by a `botdot-screen-control` message from the frame's parent, not by loading the frame again at a new `view_only`; on taking control the viewer asks its own address with `view_only=0`, so the server still counts it as taking control (ADR 107, ADR 279).
