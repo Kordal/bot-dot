@@ -14,12 +14,12 @@ botdot
 Een team van AI-bots dat je via chat aanstuurt, op je eigen server of gehost
 ```
 
-## Full description (4000): 2264
+## Full description (4000): 2273
 
 ```
 botdot is de Android-app voor botdot, opensourcesoftware die je een team van AI-bots geeft dat je via chat aanstuurt.
 
-Je stelt bots niet zelf in. Je vertelt de Stafchef wat je nodig hebt, en die maakt een bot voor de klus, laat hem draaien en brengt verslag uit. Elke bot heeft één taak, eigen instructies, tools, toestemmingen, bestanden en een schema, en een lijst van wat hij nooit doet.
+Je stelt bots niet zelf in. Je vertelt de Stafchef wat je nodig hebt, en die maakt een bot voor de klus, laat hem draaien en brengt verslag uit. Elke bot heeft één hoofdopdracht, eigen instructies, tools, toestemmingen, bestanden en een schema, en een lijst van wat hij nooit doet.
 
 Wat je in de app kunt doen
 • Chat met elke bot en met de Stafchef. Deel bestanden, foto's en tekst vanuit elke app in een chat.
