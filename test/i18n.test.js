@@ -219,6 +219,45 @@ test("every language folder's phrases are lists of the kinds botdot reads, its s
   assert.ok(fs.existsSync(path.join(i18n.DIR, 'GLOSSARY.md')));
 });
 
+// Common English words. A word of another language's list that is also one of these is read in English text as that
+// language's filler, reason or yes: Spanish "son" is a stop word and English "son" is not, German "hat" and "war" are
+// stop words and English "hat" and "war" are not. The lists are short on purpose: a word that is the same in both
+// languages and means the same (a name, "ok") is no mistake.
+const ENGLISH_WORDS = new Set(`hat bin die war den son pour ton sur door over van art bed bit bar bat bay bear bell bill bird boat body bone
+  book boot box boy bus cab cap car cat chair city club coat cold cook cool corn cup cut dad dance dark date day deal dear deep desk dish
+  dog doll down draw dress drink drive drop dust ear east eat egg end eye face fact fall farm fast fat fear fee fill film find fine fire fish
+  flat floor fly food foot fork form fun game gift girl glass goal gold good grass gray green ground gun hair hall hand hard head heart heat
+  help hide high hill hole home hope horse hot hour house ice idea iron job joy key kid king kiss knee lake lamp land last late law leaf leg
+  life lift light line lip list live lock long look lot love low luck mail main man map mark mass meal meat milk mind mine mix moon name neck
+  news nice night noise nose note nut oil one pack page pain pair park part pass path pay pen pick pie pin pipe plan plant plate play point
+  pool pot rain rate rest rice ride ring river road rock roof room root rope rose rule run sale salt sand seat sell ship shoe shop show side
+  sign sing sink skin sky sleep slow snow soap sock soft soil song soon sort soul soup space star step stone store storm sun tail tank tax tea
+  team tent test time tip tire top town toy tree trip tube turn use view wall wash wave way wear wind wine wing wire wish wolf wood word work
+  yard year zone`.split(/\s+/));
+// Short English words that begin a sentence or an answer: "Can I send it?", "Is that right?". A yes or a no must not be one.
+const ENGLISH_ANSWER_STARTS = new Set(`can will may must should could would have has had are is was were be been am it the and or but if so in
+  on at to of for with by from as an a i we he she they you does did let make take get give want need think see know look`.split(/\s+/));
+
+test("no language's word lists hold a common English word, and its yes and no are single words", () => {
+  const phrases = require('../lib/i18n/phrases');
+  const { BUILT_IN_YES, BUILT_IN_NO } = require('../lib/choices');
+  const word = (p) => p.toLowerCase().replace(/\*$/, '');
+  for (const lang of folders()) {
+    const own = phrases.of(lang);
+    for (const kind of ['stopWords', 'because']) for (const p of own[kind] || []) assert.ok(!ENGLISH_WORDS.has(word(p)), `${lang}/phrases.json ${kind}: "${p}" is an English word`);
+    // The words lib/choices.js has of its own (cross-language ones like "da" and "si" included) are its choice.
+    for (const [kind, built] of [['yes', BUILT_IN_YES], ['no', BUILT_IN_NO]]) {
+      for (const p of own[kind] || []) {
+        assert.ok(!/[\s\p{P}]/u.test(p.replace(/['’]/g, '')), `${lang}/phrases.json ${kind}: "${p}" is more than one word, and an answer is read by its first word`);
+        if (built.includes(p.toLowerCase())) continue;
+        assert.ok(!ENGLISH_WORDS.has(word(p)) && !ENGLISH_ANSWER_STARTS.has(word(p)), `${lang}/phrases.json ${kind}: "${p}" is an English word`);
+      }
+    }
+  }
+  // The test itself: it finds what it is meant to.
+  assert.ok(ENGLISH_WORDS.has('hat') && ENGLISH_ANSWER_STARTS.has('can'));
+});
+
 test("the phones' plural fixture is what Intl.PluralRules answers for every language of the registry", () => {
   const { pluralFixture } = require('../lib/i18n/keys');
   const kept = JSON.parse(fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'plural-rules.json'), 'utf8'));

@@ -53,6 +53,24 @@ test('a language chooses how its words are joined: ja and zh-Hans with "、", th
   assert.equal(describe('0 9 * * 1,3,5', 'ko'), '매주 월요일, 수요일 및 금요일 09:00');
 });
 
+test('a time that is "around" and an hour that is one o\'clock read right in Spanish and Brazilian Portuguese', () => {
+  const around = (expr, lang) => describe(expr, lang, { around: true });
+  // Spanish: "hacia las 08:30", one space after "hacia" (it was "hacia  las").
+  assert.equal(around('30 8 * * *', 'es'), 'Todos los días hacia las 08:30');
+  assert.equal(around('0 8 * * 1-5', 'es'), 'Entre semana hacia las 08:00');
+  assert.equal(around('0 1 * * *', 'es'), 'Todos los días hacia la 01:00');
+  assert.equal(around('0 8,9 * * *', 'es'), 'Todos los días hacia las 08:00 y 09:00');
+  assert.ok(!/ {2}/.test(around('30 8 * * *', 'es')), 'no double space');
+  // Portuguese: one o'clock is "uma hora", singular: "à 01:00", "da 01:00", the others "às" and "das".
+  assert.equal(describe('0 1 * * *', 'pt-BR'), 'Todo dia à 01:00');
+  assert.equal(describe('30 1 * * 1-5', 'pt-BR'), 'Em dias úteis à 01:30');
+  assert.equal(describe('0 1,13 * * *', 'pt-BR'), 'Todo dia à 01:00 e 13:00');
+  assert.equal(describe('0 9 * * *', 'pt-BR'), 'Todo dia às 09:00');
+  assert.equal(describe('0 13 * * *', 'pt-BR'), 'Todo dia às 13:00');
+  assert.equal(around('0 1 * * *', 'pt-BR'), 'Todo dia por volta da 01:00');
+  assert.equal(around('0 13 * * 1', 'pt-BR'), 'Às segundas por volta das 13:00');
+});
+
 test('the rules beside the table', () => {
   const says = (expr, words) => assert.equal(describe(expr), words, expr);
   // A run of hours: 7 or more read as a range, fewer as the times themselves.
