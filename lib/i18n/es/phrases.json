@@ -1,0 +1,12 @@
+{
+  "stopWords": ["a", "al", "como", "de", "del", "el", "ella", "en", "es", "esa", "ese", "eso", "esta", "este", "esto", "la", "las", "le", "les", "lo", "los", "me", "mi", "más", "muy", "o", "para", "pero", "por", "que", "qué", "se", "ser", "si", "sobre", "su", "sus", "te", "tu", "un", "una", "unas", "unos", "y", "ya"],
+  "corrections": ["no", "mal", "incorrecto", "eso no", "corrige*", "otra vez", "de nuevo", "quería decir", "me refería", "no era eso"],
+  "never": ["nunca", "jamás"],
+  "schedule": ["a diario", "cada día", "todos los días", "cada mañana", "todas las mañanas", "cada semana", "cada hora", "cada # minuto*", "cada # hora*"],
+  "yes": ["sí", "claro", "vale", "dale", "adelante"],
+  "no": ["no", "cancelar", "después"],
+  "nothingNew": ["nada nuevo", "sin novedades", "sin cambios", "no hay cambios", "no hay novedades", "nada que informar"],
+  "because": ["porque", "ya que"],
+  "noSource": ["ninguna", "ninguno", "sin fuente", "sin datos", "desconocida", "desconocido", "fuente desconocida", "no disponible", "no consta", "n/d", "no aplica"],
+  "password": ["contraseña"]
+}
