@@ -25,7 +25,8 @@ const ProjectUpdate = (() => {
   const target = (x) => (x.groupId ? ` data-pu-group="${esc(str(x.groupId))}"` : x.chatId ? ` data-pu-chief="${esc(str(x.chatId))}"` : x.botId ? ` data-pu-bot="${esc(str(x.botId))}"` : '');
   const text = (t) => mdPreview(str(t));
   const section = (title, body, n) => `<section class="pu-sec"><h3>${title}${n != null ? ` <span class="n">${n}</span>` : ''}</h3>${body}</section>`;
-  const callout = (x, tone, title, button, card = '') => `<div class="kit-callout ${tone}"><b class="pu-name">${title}</b><p class="pu-call">${text(x.text)}</p><button type="button" class="btn${tone === 'warn' ? ' primary' : ''}"${card}${target(x)}>${button}</button></div>`;
+  // A button that opens nothing is no button: a row with no card, bot, group or chat to go to has none.
+  const callout = (x, tone, title, button, card = '') => `<div class="kit-callout ${tone}"><b class="pu-name">${title}</b><p class="pu-call">${text(x.text)}</p>${card || target(x) ? `<button type="button" class="btn${tone === 'warn' ? ' primary' : ''}"${card}${target(x)}>${button}</button>` : ''}</div>`;
   const head = (x) => (x.chatId || x.botId || x.groupId ? ProjectOverview.head(x) : '<span class="pu-none" aria-hidden="true"></span>');
   const who = (x, when = '') => `<span class="pu-who-line"><button type="button" class="pu-who">${esc(str(x.name))}</button>${when ? `<span class="pu-when">${esc(when)}</span>` : ''}</span>`;
   const rowPill = { working: ['info', tr('Working')], planned: ['plan', tr('To-do')], asks: ['warn', tr('Asks')] };
@@ -48,7 +49,8 @@ const ProjectUpdate = (() => {
     }).join('')}</div>`, work.length));
     if (decisions.length) sec.push(section(tr('Decisions'), `<div class="pu-rows">${decisions.map((x) => `<p class="pu-what pu-plain">${text(x.text)}</p>`).join('')}</div>`));
     if (replies.length) sec.push(section(tr('Latest replies'), `<div class="pu-rows">${replies.map((x) => `<div class="pu-row"${target(x)}>${head(x)}<div class="pu-main">${who(x, x.at ? msgTime(x.at) : '')}<p class="pu-what">${text(x.text)}</p></div><span class="pu-chev" aria-hidden="true">${ICON.chev}</span></div>`).join('')}</div>`, replies.length));
-    const body = sec.join('') + (str(u.quiet) ? `<p class="pu-quiet">${esc(str(u.quiet))}</p>` : '');
+    const notes = (Array.isArray(u.notes) ? u.notes : []).map((n) => str(n)).filter((n) => n.trim());
+    const body = sec.join('') + (str(u.quiet) ? `<p class="pu-quiet">${esc(str(u.quiet))}</p>` : '') + notes.map((n) => `<p class="pu-quiet pu-note">${esc(n)}</p>`).join('');
     const open = !!body && !!key && unfolded.has(key);
     const lead = `<span class="pu-icon">${ICON.board}</span><span class="pu-heading"><span class="pu-title">${esc(str(p.name))}</span><span class="pu-sub">${u.since ? tr('Update since {when}', { when: esc(msgTime(str(u.since))) }) : tr('Project update')}</span></span>`;
     return `<article class="pu-card${open ? ' open' : ''}" data-pu data-pu-key="${esc(key)}">

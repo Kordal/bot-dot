@@ -52,7 +52,13 @@ class ProjectUpdateCardTest {
         assertEquals("chief/c1", u.work[0].destination)
         assertEquals("group/g1", u.work[1].destination, "a team's chat before its bot's")
         assertNull(u.quiet)
+        assertTrue(u.notes.isEmpty())
         assertEquals("", u.since)
+    }
+
+    @Test fun theTeamsWhoseReportIsMissingAreTheNotes() {
+        val u = card(quiet.replace("\"quiet\":", "\"notes\":[\"No new recorded team report: Ops.\",\"Saved report unavailable for this update: Sales.\"],\"quiet\":"))
+        assertEquals(listOf("No new recorded team report: Ops.", "Saved report unavailable for this update: Sales."), u.notes)
     }
 
     @Test fun whatIsNotAnUpdateIsNone() {

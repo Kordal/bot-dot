@@ -123,3 +123,18 @@ test('the update reaches the manager and the Chief chat as data beside its text'
     assert.equal(listed.preview, 'Nothing needs you');
   } finally { await srv.stop(); }
 });
+
+test('a team whose report is missing or unavailable is named in notes, as text names it', () => {
+  const teams = [
+    { id: 't1', name: 'Dev', bots: ['infra'], lead: 'infra', lastReport: { text: 'All green', at: '2026-11-25T08:00:00.000Z', bot: 'infra', runId: 'rep1' } },
+    { id: 't2', name: 'Ops', bots: ['qa'], lead: 'qa' },
+    { id: 't3', name: 'Sales', bots: ['x'], lead: 'x', lastReport: { unavailable: true, at: '2026-11-25T08:00:00.000Z' } },
+    { id: 't4', name: 'Old', bots: ['y'], lead: 'y', lastReport: { text: 'Stale', at: '2026-11-01T08:00:00.000Z', bot: 'y', runId: 'rep0' } },
+  ];
+  const c = { ...base(), teams };
+  const u = make(c, snap());
+  assert.deepEqual(u.notes, ['No new recorded team report: Ops.', 'Saved report unavailable for this update: Sales.', 'No new recorded team report: Old.']);
+  const t = text(c, snap(), { since, language: 'en' });
+  for (const n of u.notes) assert.ok(t.includes(n), `text says it too: ${n}`);
+  assert.equal(make({ ...base(), teams: [teams[0]] }, snap()).notes, undefined, 'every team reported: no notes');
+});

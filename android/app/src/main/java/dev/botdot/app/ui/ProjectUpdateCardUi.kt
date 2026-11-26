@@ -67,7 +67,7 @@ fun ProjectUpdateCardUi(u: ProjectUpdateCard, key: String) {
     val p = LocalPaper.current
     val ways = LocalProjectUpdateWays.current
     val bots = ways?.bots
-    val hasBody = u.needs.isNotEmpty() || u.blockers.isNotEmpty() || u.goals.isNotEmpty() || u.done.isNotEmpty() || u.work.isNotEmpty() || u.decisions.isNotEmpty() || u.replies.isNotEmpty() || u.quiet != null
+    val hasBody = u.needs.isNotEmpty() || u.blockers.isNotEmpty() || u.goals.isNotEmpty() || u.done.isNotEmpty() || u.work.isNotEmpty() || u.decisions.isNotEmpty() || u.replies.isNotEmpty() || u.quiet != null || u.notes.isNotEmpty()
     var open by rememberSaveable(key) { mutableStateOf(false) }
     val unfolded = open && hasBody
     Column(Modifier.fillMaxWidth().raised(Radius.card).testTag("project-update")) {
@@ -99,10 +99,10 @@ fun ProjectUpdateCardUi(u: ProjectUpdateCard, key: String) {
         }
         if (unfolded) {
             if (u.needs.isNotEmpty()) UpdateSection(tr("Needs you")) {
-                u.needs.forEach { x -> UpdateCallout("warn", tr("{name} asks", "name" to x.name), x.text, tr("Open card"), primary = true) { ways?.open(if (x.cardId != null) "needs" else x.destination ?: "needs") } }
+                u.needs.forEach { x -> UpdateCallout("warn", tr("{name} asks", "name" to x.name), x.text, tr("Open card"), primary = true, onClick = { ways?.open(if (x.cardId != null) "needs" else x.destination ?: "needs") }) }
             }
             if (u.blockers.isNotEmpty()) UpdateSection(tr("Blockers")) {
-                u.blockers.forEach { x -> UpdateCallout("err", tr("{name} failed", "name" to x.name), x.text, tr("Open chat"), primary = false) { x.destination?.let { ways?.open(it) } } }
+                u.blockers.forEach { x -> UpdateCallout("err", tr("{name} failed", "name" to x.name), x.text, tr("Open chat"), primary = false, onClick = x.destination?.let { d -> { ways?.open(d) } }) }
             }
             if (u.goals.isNotEmpty()) UpdateSection(tr("Goals")) {
                 u.goals.forEach { g ->
@@ -136,7 +136,7 @@ fun ProjectUpdateCardUi(u: ProjectUpdateCard, key: String) {
             if (u.replies.isNotEmpty()) UpdateSection(tr("Latest replies"), u.replies.size) {
                 u.replies.forEach { x -> UpdateRow(x, bots, ways, trailing = { Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = p.faint, modifier = Modifier.size(16.dp)) }, when_ = x.at?.let { shortTime(it) }.orEmpty()) }
             }
-            u.quiet?.let { Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s12)) }
+            (listOfNotNull(u.quiet) + u.notes).forEach { Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s12)) }
         }
     }
 }
@@ -170,7 +170,7 @@ private fun Modifier.drawTopLine(color: androidx.compose.ui.graphics.Color): Mod
 
 /** The kit's callout with its button: Needs you (warn, **Open card**) and Blockers (err, **Open chat**). */
 @Composable
-private fun UpdateCallout(level: String, title: String, text: String, button: String, primary: Boolean, onClick: () -> Unit) {
+private fun UpdateCallout(level: String, title: String, text: String, button: String, primary: Boolean, onClick: (() -> Unit)?) {
     val p = LocalPaper.current
     val (fg, bg) = levelColors(level)
     Row(Modifier.fillMaxWidth().clip(Radius.card).background(bg).padding(horizontal = Space.s16, vertical = Space.s12), horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalAlignment = Alignment.CenterVertically) {
@@ -178,7 +178,8 @@ private fun UpdateCallout(level: String, title: String, text: String, button: St
             Text(title, color = fg, fontWeight = FontWeight.SemiBold)
             UpdateText(text, p.text, Modifier.fillMaxWidth(), lines = Int.MAX_VALUE)
         }
-        Box(
+        // A button that opens nothing is no button: a row with nowhere to go has none.
+        if (onClick != null) Box(
             Modifier.heightIn(min = 48.dp).clip(Radius.pill).background(if (primary) p.ink else p.fill).clickable(role = Role.Button, onClick = onClick).padding(horizontal = Space.s16),
             contentAlignment = Alignment.Center,
         ) { Text(button, color = if (primary) p.inkText else p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s14, maxLines = 1) }

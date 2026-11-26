@@ -31,6 +31,8 @@ data class ProjectUpdateCard(
     val replies: List<Row>,
     /** The one faint line naming the empty sections, or null when none is empty. */
     val quiet: String?,
+    /** The teams whose report is missing or unavailable, one faint line each, worded by the server. */
+    val notes: List<String> = emptyList(),
 ) {
     data class Pill(val level: String, val text: String)
 
@@ -83,6 +85,7 @@ data class ProjectUpdateCard(
                 },
                 done = texts("done"), work = rows("work"), decisions = texts("decisions"), replies = rows("replies"),
                 quiet = o["quiet"].string(),
+                notes = (o["notes"] as? JsonArray).orEmpty().mapNotNull { it.string() },
             )
         }
 

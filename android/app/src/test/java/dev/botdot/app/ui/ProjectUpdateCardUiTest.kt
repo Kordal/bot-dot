@@ -83,6 +83,14 @@ class ProjectUpdateCardUiTest {
         rule.onNodeWithText("Nothing marked done", substring = true).assertExists()
     }
 
+    @Test fun aBlockerWithNowhereToGoHasNoButtonAndTheNotesStandAtTheFoot() {
+        show(card(busy.replace("\"blockers\":[{\"botId\":\"infra\",\"runId\":\"r5\",\"name\":\"Infra Admin\",\"text\":\"No access to OVH\"}]", "\"notes\":[\"No new recorded team report: Ops.\"],\"blockers\":[{\"name\":\"Members\",\"text\":\"HubSpot is not connected\"}]")))
+        rule.onNodeWithText("Qwotz Development").performClick()
+        rule.onNodeWithText("Members failed").assertExists()
+        rule.onAllNodesWithText("Open chat").assertCountEquals(0)
+        rule.onNodeWithText("No new recorded team report: Ops.").assertExists()
+    }
+
     @Test fun nothingABotWroteBecomesMarkup() {
         val evil = card(busy.replace("Plan the **database** copy", "<img src=x onerror=alert(1)> **bold**"))
         show(evil)

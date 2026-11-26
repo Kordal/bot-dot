@@ -129,3 +129,11 @@ test('web: the card is drawn in the Project Manager\'s chat and the Chief chat, 
   assert.match(list, /ProjectUpdate\.preview\(r\)/, 'the list says the outcome');
   assert.ok(index.indexOf('<script src="/blocks.js"></script>') < index.indexOf('<script src="/project-update.js"></script>'));
 });
+
+test('web: a blocker with nowhere to go has no button, and the notes stand at the foot', () => {
+  const html = page().html({ ...busy, blockers: [{ name: 'Members', text: 'HubSpot is not connected' }], notes: ['No new recorded team report: Ops.', 'Saved report unavailable for this update: <b>Sales</b>.'] });
+  assert.match(html, /<div class="kit-callout err"><b class="pu-name">Members failed<\/b><p class="pu-call">HubSpot is not connected<\/p><\/div>/);
+  assert.match(html, /<p class="pu-quiet pu-note">No new recorded team report: Ops\.<\/p>/);
+  assert.match(html, /unavailable for this update: &lt;b&gt;Sales&lt;\/b&gt;\./, 'a note is text, never markup');
+  assert.match(page().html({ ...quiet, work: [], replies: [], quiet: undefined, notes: ['No new recorded team report: Ops.'] }), /pu-toggle/, 'a card with only notes can unfold');
+});
