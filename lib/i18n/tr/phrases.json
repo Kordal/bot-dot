@@ -4,7 +4,7 @@
   "never": ["asla", "hiçbir zaman", "hiç", "değil", "yapma", "etme"],
   "schedule": ["her gün", "hergün", "günlük", "her sabah", "her akşam", "her gece", "her hafta", "haftalık", "her saat", "saatte bir", "her # dakika*", "# dakikada bir", "her # saat*", "# saatte bir"],
   "yes": ["evet", "tamam", "olur", "elbette", "tabii", "tabi", "peki"],
-  "no": ["hayır", "iptal", "vazgeç", "sonra"],
+  "no": ["hayır", "iptal", "İptal", "vazgeç", "sonra"],
   "nothingNew": ["yeni bir şey yok", "yeni bir sey yok", "yeni bir gelişme yok", "değişiklik yok", "degisiklik yok", "güncelleme yok", "yenilik yok"],
   "because": ["çünkü", "zira"],
   "noSource": ["yok", "kaynak yok", "kaynaksız", "kaynak belirtilmedi", "kaynak belirtilmemiş", "kaynak bilinmiyor", "bilinmeyen kaynak", "veri yok", "bilgi yok", "bilinmiyor", "bilinmeyen", "belirtilmedi", "belirtilmemiş", "mevcut değil", "erişilemiyor", "geçerli değil"],
