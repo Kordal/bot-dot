@@ -409,7 +409,7 @@
   "Google Docs saved nothing to open.": "Google Docs non ha salvato niente da aprire.",
   "The connection dropped": "La connessione si è interrotta",
   "Not signed in": "Accesso non effettuato",
-  "Signed in": "Collegato",
+  "Signed in": "Accesso effettuato",
   "App {app} · Server {server}": "App {app} · Server {server}",
   "Add your Composio key": "Aggiungi la tua chiave Composio",
   "Composio no longer accepts your key {key}": "Composio non accetta più la tua chiave {key}",
