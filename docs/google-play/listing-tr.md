@@ -8,13 +8,13 @@ Paste each block into Play Console → Grow users → Store presence → Main st
 botdot
 ```
 
-## Short description (80): 77
+## Short description (80): 69
 
 ```
-Sohbetle yönettiğin yapay zekâ bot ekibi; kendi sunucunda ya da barındırılmış
+Sohbetle yönettiğin yapay zekâ bot ekibi; kendi sunucunda ya da bizde
 ```
 
-## Full description (4000): 2381
+## Full description (4000): 2392
 
 ```
 botdot, sohbetle yönettiğin bir yapay zekâ bot ekibi sunan açık kaynaklı botdot yazılımının Android uygulamasıdır.
@@ -24,9 +24,9 @@ Botları elle kurmazsın. Kurmay Başkanına neye ihtiyacın olduğunu söylersi
 Uygulamada neler yapabilirsin
 • Her botla ve Kurmay Başkanıyla sohbet et. Herhangi bir uygulamadan bir sohbete dosya, fotoğraf ve metin paylaş.
 • Seni bekliyor: bir betik, bir giriş ya da riskli herhangi bir şey, tam olarak neyi çalıştıracağını göstererek onayını bekler. Uygulamada ya da doğrudan bildirimden onayla veya reddet.
-• Pano: botlarının güncel tuttuğu canlı değerler; örneğin okunmamış e-postalar, bir sonraki toplantın ya da bir odanın sıcaklığı, yanlarında anahtarlar ve listelerle.
+• Pano: botlarının güncel tuttuğu canlı değerler; örneğin okunmamış e-postalar, bir sonraki toplantın ya da bir odanın sıcaklığı, yanlarında açma-kapama düğmeleri ve listelerle.
 • Gruplar: iki ila altı botu tek bir sohbete koy. Bir kez yaz; onlar yanıt verir ve işi birbirine devreder.
-• Projeler: tek bir hedef, lideri olan bir bot ekibi, ekip sohbeti, sayılabilen hedefler ve yapılacaklar takvimi.
+• Projeler: tek bir hedef, lideri olan bir bot ekibi, ekip sohbeti, ölçülebilir hedefler ve yapılacaklar takvimi.
 • Sayfalar: bir bot senin için bir sayfa yazar ve onu canlı sayılar ve grafiklerle bir zamanlamaya göre güncel tutar.
 • Botların bilgisayarı: onu kullanan her botun orada kendi ekranı ve tarayıcısı vardır; kendi sunucunda ya da harici bir sanal PC'de.
 • Bir bot yanıt verdiğinde, işini bitirdiğinde ya da seni beklediğinde bildirim; arada hiçbir anlık bildirim servisi olmadan doğrudan botdot'undan gelir.

@@ -42,6 +42,7 @@ The Turkish glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engl
 | standup | sabah özeti |
 | skill / helpers | beceri / yardımcılar |
 | note / pinned | not / sabitlenmiş (to pin: sabitle) |
+| memory (a bot's notes and past runs) / shared memory | hafıza / ortak hafıza ("bellek" only for a computer's memory) |
 | teammate | ekip arkadaşı |
 | account's computer | hesabın bilgisayarı |
 | External Virtual PC | Harici Sanal PC |
@@ -77,7 +78,7 @@ The Turkish glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Engl
 | space | alan |
 | the project's folder | proje klasörü |
 | account / admin / admin page | hesap / yönetici / yönetici sayfası |
-| feedback | geri bildirim |
+| feedback / a report (one sent as Feedback) | geri bildirim / geri bildirim: not "bildirim", which is a notification, nor "rapor", which is a bot's report |
 | sign-up link / sign-in link | kayıt bağlantısı / giriş bağlantısı |
 | suspended | askıya alındı |
 | the web page | tarayıcı ("tarayıcıda"), so that "sayfa" stays a bot's page |
