@@ -750,9 +750,14 @@ data class ChiefMessage(
     val about: MessageAbout? = null, // the team it is about (ADR 223), drawn above it
     // A project update's data (`update`, `project-update-card`, #1755), kept as it came. Read it through [update].
     @SerialName("update") val updateValue: JsonElement? = null,
+    // The note of a new version as data (`versionUpdate`, `version-update-card`, #1759), kept as it came. Read it through [versionUpdate].
+    @SerialName("versionUpdate") val versionUpdateValue: JsonElement? = null,
 ) {
     /** A project update's data, for its card; null for any other message and from a server without `project-update-card`. */
     val update: ProjectUpdateCard? get() = if (projectUpdate != null) ProjectUpdateCard.of(updateValue) else null
+
+    /** The note of a new version as data, for its card; null for any other message and from a server without `version-update-card`. */
+    val versionUpdate: VersionUpdateCard? get() = VersionUpdateCard.of(versionUpdateValue)
 
     /** The steps of its work, or null for none. */
     val plan: Plan? get() = Plan.of(planValue)

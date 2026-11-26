@@ -194,3 +194,47 @@ test('what the front door says is checked, and an entry that is wrong changes no
   assert.equal(s.cards().length, 1);
   assert.match(s.posted[0].text, /- a plain title/);
 });
+
+// The note as data, beside its unchanged text (#1759, `version-update-card`): the apps draw it as a card.
+test('the note carries the same words as data: the head, the version, when it moves, the titles and the card', (t) => {
+  const s = setup(t);
+  s.offer.tell(ready());
+  const m = s.posted[0];
+  assert.deepEqual(m.versionUpdate, {
+    head: 'A new version of botdot is ready', version: 'abc1234', body: 'Your account moves to it tonight, when your bots are idle.',
+    heading: "What's new", notes: [{ title: 'Updates wait for idle' }, { title: 'Hats for every bot' }], cardId: s.cards()[0].id,
+  });
+  assert.equal(m.text, `A new version of botdot is ready. Your account moves to it tonight, when your bots are idle.\n\nWhat's new:\n- Updates wait for idle\n- Hats for every bot`, 'the text is as it was, for an older app');
+  assert.deepEqual(m.cards, [s.cards()[0].id]);
+});
+
+test('a note with no version and no titles has neither in its data', (t) => {
+  const s = setup(t);
+  s.offer.tell(ready({ version: null, notes: [] }));
+  const v = s.posted[0].versionUpdate;
+  assert.equal('version' in v, false);
+  assert.equal('heading' in v, false);
+  assert.deepEqual(v.notes, []);
+  assert.equal(v.head, 'A new version of botdot is ready');
+});
+
+test('the data is as few and as plain as the text: five titles, no card id, nothing of a bot', (t) => {
+  const s = setup(t);
+  const many = Array.from({ length: 12 }, (_, i) => ({ title: `Note ${i} with [card deadbeef] and ${'x'.repeat(200)}` }));
+  s.offer.tell(ready({ notes: many }));
+  const { notes } = s.posted[0].versionUpdate;
+  assert.equal(notes.length, 5);
+  assert.ok(notes.every((n) => Object.keys(n).join() === 'title' && n.title.length <= 80 && !/\[card/.test(n.title)));
+  assert.deepEqual(Object.keys(s.posted[0].versionUpdate).sort(), ['body', 'cardId', 'head', 'heading', 'notes', 'version']);
+});
+
+test('the data is in Polish when the account is, and its text as ever', (t) => {
+  const s = setup(t, { lang: 'pl' });
+  s.offer.tell(ready());
+  const m = s.posted[0];
+  assert.equal(m.versionUpdate.head, 'Nowa wersja botdot jest gotowa');
+  assert.equal(m.versionUpdate.heading, 'Co nowego');
+  assert.match(m.versionUpdate.body, /Twoje konto przejdzie na nią/);
+  assert.deepEqual(m.versionUpdate.notes.map((n) => n.title), ['Updates wait for idle', 'Hats for every bot']);
+  assert.match(m.text, /^Nowa wersja botdot jest gotowa\. /);
+});

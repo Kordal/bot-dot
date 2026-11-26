@@ -3866,6 +3866,11 @@ button.po-meta:focus-visible { outline: 2px solid var(--focus-ring); outline-off
 .pu-value small { color: var(--faint); font-weight: 400; font-size: var(--fs-12); margin-left: var(--sp-4); }
 .pu-quiet { margin: 0; padding: var(--sp-12) var(--sp-16); border-top: 1px solid var(--line); color: var(--faint); font-size: var(--fs-12); }
 .pu-note { border-top: 0; padding-top: 0; }
+/* The Chief's note of a new version: one card in the look of the project update (public/version-update.js, #1759). */
+.vu-line { margin: 0; padding: 0 var(--sp-16) var(--sp-16); color: var(--text); overflow-wrap: anywhere; }
+.vu-notes { display: grid; gap: var(--sp-8); margin: 0; padding: 0; list-style: none; }
+.vu-notes li { color: var(--text); overflow-wrap: anywhere; }
+.vu-act { justify-items: start; }
 .po-error { color: var(--err); }
 
 /* ---------- answer views (#1624, ADR 264) ----------
