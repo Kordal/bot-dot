@@ -5,6 +5,8 @@ mod address;
 #[cfg(target_os = "macos")]
 mod dialogs;
 mod feed;
+#[cfg(target_os = "macos")]
+mod gpu;
 mod handoff;
 mod keep;
 #[cfg(local)]
@@ -59,6 +61,9 @@ struct App {
     setting_up: AtomicBool,
     /// The botdot on this computer is being removed.
     removing: AtomicBool,
+    /// The window's GPU process, to notice WebKit replacing it.
+    #[cfg(target_os = "macos")]
+    gpu: gpu::Watch,
 }
 
 impl App {
@@ -85,6 +90,8 @@ fn bring_forward(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
+    #[cfg(target_os = "macos")]
+    gpu::check(app);
 }
 
 // The feed of every address with a session, for its notifications (ADR 138), and of no other: asked again whenever
@@ -630,6 +637,9 @@ pub fn run() {
     let hidden = std::env::args().any(|arg| arg == HIDDEN);
     let builder = tauri::Builder::default();
     let builder = desktop_plugins(builder);
+    // A page whose process the system ended loads again.
+    #[cfg(target_os = "macos")]
+    let builder = builder.on_web_content_process_terminate(gpu::process_ended);
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
         // Without its script: it takes every click on a `target="_blank"` link in every page and asks the app over
@@ -651,6 +661,8 @@ pub fn run() {
                 feed_numbers: AtomicU64::new(0),
                 setting_up: AtomicBool::new(false),
                 removing: AtomicBool::new(false),
+                #[cfg(target_os = "macos")]
+                gpu: gpu::Watch::default(),
             });
             let clicks = handle.clone();
             notify::start(&app.config().identifier, move |address, target| {
@@ -674,6 +686,8 @@ pub fn run() {
             let window = guarded(&handle, builder).build()?;
             // Closing the window keeps the app in the tray: Quit ends it.
             let hide = window.clone();
+            #[cfg(target_os = "macos")]
+            let back = handle.clone();
             window.on_window_event(move |event| {
                 match event {
                     WindowEvent::CloseRequested { api, .. } => {
@@ -681,12 +695,20 @@ pub fn run() {
                         let _ = hide.hide();
                     }
                     // Back from the system's settings, perhaps: is it still off?
-                    WindowEvent::Focused(true) => notify::check(),
+                    WindowEvent::Focused(true) => {
+                        notify::check();
+                        // A GPU process WebKit replaced meanwhile: the page would stay black.
+                        #[cfg(target_os = "macos")]
+                        gpu::check(&back);
+                    }
                     _ => {}
                 }
             });
             #[cfg(target_os = "macos")]
-            dialogs::add(&window);
+            {
+                dialogs::add(&window);
+                gpu::start(handle.clone());
+            }
             *app.state::<App>().screen.lock().unwrap() = Some(window.url()?);
             update::start(handle.clone());
             // An AppImage has no package that tells the desktop it opens botdot:// links: it says so itself.
