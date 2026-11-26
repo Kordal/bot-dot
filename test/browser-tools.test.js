@@ -488,6 +488,8 @@ test('with a Docker helper, every call carries the account\'s language, and the 
   locale.use(() => 'en');
   assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }], language: 'pl' }), 200);
   assert.equal(seen, 'pl-PL', "the call's language, not one of the helper's own");
-  assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }], language: 'xx' }), 400, 'only a language botdot has');
+  const i18n = require('../lib/i18n');
+  const unoffered = i18n.REGISTRY.map((l) => l.code).filter((c) => !i18n.offered().includes(c)).slice(0, 1);
+  for (const code of ['xx', ...unoffered]) assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }], language: code }), 400, `only a language botdot has: ${code}`);
   assert.equal(await status({ operation: 'browserTool', args: [SEAT, { op: 'snapshot' }] }), 200, 'and none is fine');
 });

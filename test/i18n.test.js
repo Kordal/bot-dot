@@ -12,6 +12,8 @@ const { AREAS, collect, placeholders } = require('../lib/i18n/keys');
 
 const pl = i18n.load('pl');
 const OTHERS = i18n.offered().filter((l) => l !== 'en');
+// Codes botdot turns away: one no registry lists, and a listed language whose folder is not there yet, while there is one.
+const REFUSED = ['xx', ...i18n.REGISTRY.map((l) => l.code).filter((c) => !i18n.offered().includes(c)).slice(0, 1)];
 // What a language folder may hold (ADR 280, lib/i18n/README.md): its dictionary, its phrases, its schedule words and its glossary.
 const FOLDER_FILES = new Set([...i18n.AREA_FILES, 'phrases.json', 'cron-words.js', 'GLOSSARY.md']);
 const folders = () => fs.readdirSync(i18n.DIR, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
@@ -144,7 +146,7 @@ test('a language is offered once its folder is there: a folder of German strings
   assert.deepEqual(i18n.categories('ru'), ['one', 'few', 'many']);
   assert.deepEqual(i18n.categories('fr'), ['one', 'many', 'other']);
   assert.equal(i18n.info('pt-BR').english, 'Brazilian Portuguese');
-  assert.equal(i18n.clean('xx'), 'en', 'a code the registry does not list: not offered');
+  for (const code of REFUSED) assert.equal(i18n.clean(code), 'en', `${code} has no folder here: not offered`);
 });
 
 test('tr() and trn(): Polish where there is one, English otherwise, placeholders filled, Polish plural forms', () => {
@@ -212,9 +214,11 @@ test("an account's language: English to start with, Polish when the owner sets i
   t.after(() => s.stop());
   assert.ok((await s.api('/version')).data.features.includes('language'));
   assert.equal((await s.api('/settings')).data.settings.language, 'en');
-  const bad = await s.api('/settings', { method: 'PUT', body: { language: 'xx' } });
-  assert.equal(bad.status, 400);
-  assert.match(bad.data.error, /language/);
+  for (const code of REFUSED) {
+    const bad = await s.api('/settings', { method: 'PUT', body: { language: code } });
+    assert.equal(bad.status, 400, code);
+    assert.match(bad.data.error, /language/);
+  }
   const r = await s.api('/settings', { method: 'PUT', body: { language: 'pl' } });
   assert.equal(r.status, 200);
   assert.equal(r.data.settings.language, 'pl');
@@ -223,7 +227,7 @@ test("an account's language: English to start with, Polish when the owner sets i
   assert.equal(d.status, 200);
   assert.equal(d.data.language, 'pl');
   assert.equal(d.data.strings.Saved, 'Zapisano');
-  assert.equal((await s.api('/i18n/xx')).status, 404);
+  for (const code of REFUSED) assert.equal((await s.api(`/i18n/${code}`)).status, 404, code);
   // The languages the account may choose and the phrases the apps read come with every dictionary, English's too (ADR 280).
   assert.ok((await s.api('/version')).data.features.includes('languages'));
   assert.deepEqual(d.data.languages.map((l) => l.code), i18n.offered());
