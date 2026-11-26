@@ -1,0 +1,13 @@
+{
+  "feature": "Sohbetle yönettiğin bir yapay zekâ bot ekibi",
+  "screenshots": {
+    "1-home.png": "Botların ve seni bekleyenler",
+    "2-chief.png": "Kurmay Başkanından bir bot iste",
+    "3-approve.png": "Betikler onayını bekler",
+    "4-server.png": "Sohbette göstergeler ve canlı sayılar",
+    "5-spending.png": "Sayı yığınları değil, grafikler",
+    "6-quiz.png": "Bir testi doğrudan sohbette yanıtla",
+    "7-quotes.png": "Seçenekleri yan yana karşılaştır",
+    "8-board.png": "Panonda canlı değerler"
+  }
+}
