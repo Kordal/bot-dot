@@ -12,7 +12,7 @@ The Brazilian Portuguese glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says w
 | English | Português (Brasil) |
 | --- | --- |
 | bot | bot (o bot, os bots) |
-| Chief of Staff / the Chief | Chefe de Gabinete / o Chefe |
+| Chief of Staff / the Chief | Chefe de equipe / o Chefe: it runs your team of bots. Not "Chefe de gabinete", a government post in Brazil that also doesn't fit the Chief's key on Home. Sentence case, as "Gerente de projeto" |
 | Project Manager | Gerente de projeto |
 | main assignment | atribuição principal |
 | task (a run's request) | pedido |

@@ -19,10 +19,10 @@ Uma equipe de bots de IA comandada pelo chat, no seu servidor ou hospedada
 ```
 botdot é o app Android do botdot, um software de código aberto que dá a você uma equipe de bots de IA comandada pelo chat.
 
-Você não configura bots à mão. Você diz ao Chefe de Gabinete o que precisa, e ele cria um bot para o trabalho, coloca para trabalhar e traz o resultado. Cada bot tem uma função, suas próprias instruções, ferramentas, permissões, arquivos e agenda, e uma lista do que ele nunca faz.
+Você não configura bots à mão. Você diz ao Chefe de equipe o que precisa, e ele cria um bot para o trabalho, coloca para trabalhar e traz o resultado. Cada bot tem uma função, suas próprias instruções, ferramentas, permissões, arquivos e agenda, e uma lista do que ele nunca faz.
 
 O que você pode fazer no app
-• Converse com cada bot e com o Chefe de Gabinete. Compartilhe arquivos, fotos e textos num chat a partir de qualquer app.
+• Converse com cada bot e com o Chefe de equipe. Compartilhe arquivos, fotos e textos num chat a partir de qualquer app.
 • Aguardando você: um script, um login ou qualquer coisa arriscada espera sua aprovação, mostrando exatamente o que vai executar. Aprove ou recuse no app ou direto na notificação.
 • O Quadro: valores ao vivo que seus bots mantêm atualizados, como e-mails não lidos, sua próxima reunião ou a temperatura de um cômodo, com botões de liga/desliga e listas ao lado.
 • Grupos: coloque de dois a seis bots num chat. Escreva uma vez, e eles respondem e passam o trabalho adiante entre si.
