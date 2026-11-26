@@ -329,7 +329,8 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                     }
                     if (htmlFrame != null && mode == "rendered") Text(tr("Only what is in this file loads"), color = p.faint, fontSize = Type.s12, modifier = Modifier.align(Alignment.CenterVertically))
                 }
-                if (v.truncated) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",
+                // The rendered page is the whole file (a preview is made only of a file read whole), so no "cut" there.
+                if (v.truncated && !(htmlFrame != null && mode == "rendered")) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",
                     color = p.text, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s8).fillMaxWidth()
                         .border(1.dp, p.warnLine, Radius.card).background(p.warnSoft, Radius.card).padding(Space.s12))
                 val text = v.text.orEmpty()
