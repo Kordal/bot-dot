@@ -1,0 +1,13 @@
+{
+  "stopWords": ["a", "aby", "ale", "bo", "być", "był", "była", "było", "by", "co", "czy", "dla", "do", "gdy", "gdzie", "i", "ich", "ja", "jak", "jaki", "jest", "jej", "jego", "już", "kiedy", "mi", "mnie", "na", "nie", "o", "od", "po", "przez", "się", "są", "ta", "tak", "te", "ten", "to", "tu", "u", "w", "we", "z", "za", "ze", "że"],
+  "corrections": ["nie", "źle", "zle", "błąd", "blad", "popraw*", "jeszcze raz", "miało być", "mialo byc", "chodziło mi", "chodzilo mi"],
+  "never": ["nigdy", "nie"],
+  "schedule": ["codziennie", "co rano", "co tydzie*", "co godzin*", "co # minut*", "co # godzin*"],
+  "yes": ["tak", "jasne", "pewnie", "oczywiście", "dawaj"],
+  "no": ["nie", "anuluj", "później"],
+  "nothingNew": ["nic nowego", "bez zmian", "brak zmian", "brak aktualizacji", "brak nowości"],
+  "because": ["bo", "ponieważ"],
+  "noSource": ["brak", "brak źródła", "brak źródeł", "brak źródła danych", "brak danych", "brak informacji", "nie dotyczy", "nie podano", "nie ma", "nie ma źródła", "bez źródła", "b/d", "n/d", "nic", "nieznane", "nieznany", "nieznana", "źródło nieznane", "nieznane źródło", "niedostępne", "niedostępny", "źródło niedostępne"],
+  "nameEndings": ["owi", "ami", "ach", "em", "om", "ów", "ie", "ze", "a", "u", "y", "i", "e", "ę", "ą"],
+  "password": ["hasło", "haslo"]
+}

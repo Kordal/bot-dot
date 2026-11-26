@@ -4,12 +4,13 @@ How the app gets from this repository to Google Play ([ADR 173](../adr/173-the-a
 
 | File | What |
 | --- | --- |
-| [listing-en.md](listing-en.md), [listing-pl.md](listing-pl.md) | The store listing texts, English and Polish |
+| [listing-en.md](listing-en.md), [listing-pl.md](listing-pl.md) | The store listing texts, one file per language: `listing-<code>.md` ([ADR 280](../adr/280-a-language-is-a-folder-of-lib-i18n-and-the-registry-lists-every-one.md)) |
+| [captions/](captions/) | Each language's words on the pictures, `captions/<code>.json`: the feature graphic's line (`feature`) and each screenshot's caption (`screenshots`); `captions.cjs` reads them |
 | [console-answers.md](console-answers.md) | The answers for Play Console's App content forms: Data safety, content rating, foreground service, App access |
 | [privacy.md](privacy.md) | The privacy policy (its URL goes in Play Console) |
 | [delete-account.md](delete-account.md) | How an account is deleted (Play asks for this URL) |
-| [graphics/](graphics/) | The 512 × 512 icon and the 1024 × 500 feature graphic, English and Polish (`make.cjs` draws them) |
-| [screenshots/](screenshots/) | The phone screenshots: `raw/` as the app shows them, `en/` and `pl/` with a caption (`drive.cjs`, `caption.cjs`) |
+| [graphics/](graphics/) | The 512 × 512 icon and the 1024 × 500 feature graphic, English and Polish kept here (`make.cjs` draws one for every language with captions) |
+| [screenshots/](screenshots/) | The phone screenshots: `raw/` as the app shows them, `en/` and `pl/` with a caption kept here (`drive.cjs`, `caption.cjs`, which captions every language with captions) |
 | [video/](video/) | The foreground service video for Play Console: `record.cjs` records it on an emulator |
 | [png.cjs](png.cjs) | Checks each picture's size and alpha the way Play does: `node docs/google-play/png.cjs check <files>` |
 
@@ -57,6 +58,8 @@ In the order Play Console shows the fields. `node docs/google-play/png.cjs check
 10. **Phone screenshots:** the eight of [screenshots/pl/](screenshots/pl/), in the same order. The icon is the same in every language.
 11. Save.
 
+**Another language** (each with `listing-<code>.md` and `captions/<code>.json`): Manage translations → Add your own translations → the language, then its three text blocks, its feature graphic and its eight screenshots, from the Play screenshots workflow's artifact (`graphics/feature-1024x500-<code>.png`, `captioned/<code>/`) where they are not kept here.
+
 **Grow users → Store presence → Store settings**
 
 12. **App category:** App, Productivity. **Tags:** as [listing-en.md](listing-en.md) says.
@@ -66,9 +69,9 @@ In the order Play Console shows the fields. `node docs/google-play/png.cjs check
 
 ### Making the pictures again
 
-1. **Screenshots:** GitHub → Actions → **Play screenshots** → Run workflow, on the branch with the change. The run stages a botdot with demo data (`scene.cjs`: made-up bots, mail and contractors, no real person; the answer views in the bots' replies are in `views.cjs`, written in the `ui` fence format of the catalog and read by the app's validator in `test/google-play.test.js`), starts the app on an emulator and pictures eight screens (`drive.cjs`): Home, the Chief's plan for a new bot, the approval cards, gauges that read the Board's tiles, a chart, a quiz answered in the chat, three quotes compared, and the Board. Download its **play-screenshots** artifact into `screenshots/raw/`.
-2. **Captions:** `node docs/google-play/screenshots/caption.cjs` writes `en/` and `pl/` from `raw/`; the captions are in that file.
-3. **Icon and feature graphics:** `node docs/google-play/graphics/make.cjs` (the feature graphics use `raw/1-home.png`).
+1. **Screenshots:** GitHub → Actions → **Play screenshots** → Run workflow, on the branch with the change. Its artifact also holds every language's captioned pictures (`captioned/<code>/`) and feature graphics (`graphics/`), drawn as steps 2 and 3 below. The run stages a botdot with demo data (`scene.cjs`: made-up bots, mail and contractors, no real person; the answer views in the bots' replies are in `views.cjs`, written in the `ui` fence format of the catalog and read by the app's validator in `test/google-play.test.js`), starts the app on an emulator and pictures eight screens (`drive.cjs`): Home, the Chief's plan for a new bot, the approval cards, gauges that read the Board's tiles, a chart, a quiz answered in the chat, three quotes compared, and the Board. Download its **play-screenshots** artifact into `screenshots/raw/`.
+2. **Captions:** `node docs/google-play/screenshots/caption.cjs` writes a folder per language with captions (`en/`, `pl/`…) from `raw/`; the captions are `captions/<code>.json`. Chinese, Japanese and Korean need Noto CJK installed (`fonts-noto-cjk`).
+3. **Icon and feature graphics:** `node docs/google-play/graphics/make.cjs` (the feature graphics use `raw/1-home.png`, and each language's `feature` line).
 4. Check them with `png.cjs check` (it fails on a picture Play would refuse), and look at each one.
 
 ### Making the foreground service video

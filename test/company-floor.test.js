@@ -114,7 +114,9 @@ test('firstDay and the first check-in date', () => {
 
 test('a typed decision is split at its first "because", "bo" or dash into the decision and its reason (#694)', () => {
   assert.deepEqual(Floor.decision('  Launch in Polish first because most users are Polish '), { text: 'Launch in Polish first', why: 'most users are Polish' });
-  assert.deepEqual(Floor.decision('Bez reklam, bo szkoda pieniędzy'), { text: 'Bez reklam', why: 'szkoda pieniędzy' });
+  // Polish's "bo" comes with the dictionary (lib/i18n/pl/phrases.json, ADR 280).
+  assert.deepEqual(Floor.decision('Bez reklam, bo szkoda pieniędzy', ['bo', 'ponieważ']), { text: 'Bez reklam', why: 'szkoda pieniędzy' });
+  assert.deepEqual(Floor.decision('Bez reklam, bo szkoda pieniędzy', []), { text: 'Bez reklam, bo szkoda pieniędzy', why: '' }, 'without the word: no reason');
   assert.deepEqual(Floor.decision('No paid ads — too early'), { text: 'No paid ads', why: 'too early' });
   assert.deepEqual(Floor.decision('Sign-ups first'), { text: 'Sign-ups first', why: '' });
   assert.deepEqual(Floor.decision(''), { text: '', why: '' });

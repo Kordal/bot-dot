@@ -144,7 +144,7 @@ internal fun ViewCalendar(n: ViewNode) {
         if (events.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             events.forEach { e ->
                 val date = e.text("date").orEmpty()
-                val shown = if (ViewTail.realDay(date)) runCatching { LocalDate.parse(date).format(DateTimeFormatter.ofPattern("d MMM", I18n.locale)) }.getOrDefault(date) else date
+                val shown = if (ViewTail.realDay(date)) runCatching { LocalDate.parse(date).format(DateTimeFormatter.ofPattern(I18n.shortDay, I18n.locale)) }.getOrDefault(date) else date
                 val c = toneColors(e.text("tone"))
                 Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { }, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                     Text(shown, color = p.muted, fontSize = Type.s14, modifier = Modifier.width(64.dp))

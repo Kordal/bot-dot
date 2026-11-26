@@ -12,7 +12,8 @@ const { startServer } = require('./helpers');
 const catalog = require('../lib/ui-catalog.json');
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'ui-cases.json'), 'utf8'));
 const AnswerView = require('../public/answer-view');
-const view = AnswerView.of(catalog);
+// Polish's words for a source that says there is none (lib/i18n/pl/phrases.json, ADR 280): the fixture has Polish cases.
+const view = AnswerView.of(catalog, { noSource: require('../lib/i18n/phrases').list('noSource') });
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const sourceOf = (c) => (c.repeat ? c.source.replace(c.repeat.mark, c.repeat.with.repeat(c.repeat.times)) : c.source);
 

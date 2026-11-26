@@ -6,7 +6,8 @@
 // (rule 6): only the catalog's props are read, each cut to its length and kept to its kind, and a bot sets no colour,
 // size or style, only a tone. The page loads this file as a plain <script> (window.AnswerView); Node loads it as a module.
 //
-//   const view = AnswerView.of(catalog, { known });   known: the newest catalog version this app draws (the catalog's own)
+//   const view = AnswerView.of(catalog, { known, noSource });   known: the newest catalog version this app draws (the
+//     catalog's own); noSource: the other languages' words for a source that says there is none (below)
 //   view.validate(fence)  one fence's text -> { ok: true, alt, root, problems } or { ok: false, refused, alt, problems }
 //   view.split(reply, { done })  a reply's Markdown -> its parts in order: { text }, { view }, { code, alt, refused }, { drawing }
 
@@ -113,22 +114,25 @@ const FENCE = /^\s*(`{3,}|~{3,})/;
 // its case, spacing and punctuation change nothing ("APPROVED,  go-ahead!" is "Approved. Go ahead.").
 const phraseKey = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
-// What a `source` that says there is none reads like, in English and Polish, compared as a reserved phrase is (phraseKey). A source
-// is read clause by clause (a colon, comma, semicolon, bracket, full stop or dash ends one): it says there is none when it is
-// empty, or its last clause is one of these, so "the bot's estimate: none, no source available" is no source either.
-const NO_SOURCE = new Set([
+// What a `source` that says there is none reads like, compared as a reserved phrase is (phraseKey): English's here, and
+// every other offered language's noSource (lib/i18n/<code>/phrases.json, ADR 280), which `of` takes as `noSource` (the
+// server passes them; the web page's are I18n.phrases, which come with its dictionary). A source is read clause by
+// clause (a colon, comma, semicolon, bracket, full stop or dash ends one): it says there is none when it is empty, or
+// its last clause is one of these, so "the bot's estimate: none, no source available" is no source either.
+const NO_SOURCE = [
   'none', 'n/a', 'na', 'nil', 'nothing', 'unknown', 'not known', 'unavailable', 'not available', 'not applicable', 'not specified', 'not given', 'not provided',
   'no source', 'no sources', 'no source available', 'no source given', 'no source provided', 'no source known', 'no sources available', 'source unknown', 'source not available', 'no data source',
-  'brak', 'brak źródła', 'brak źródeł', 'brak źródła danych', 'brak danych', 'brak informacji', 'nie dotyczy', 'nie podano', 'nie ma', 'nie ma źródła', 'bez źródła', 'b/d', 'n/d', 'nic',
-  'nieznane', 'nieznany', 'nieznana', 'źródło nieznane', 'nieznane źródło', 'niedostępne', 'niedostępny', 'źródło niedostępne',
-].map(phraseKey));
+].map(phraseKey);
 const CLAUSE = /[:;,.()–—…]|\s-\s/;
-const saysNone = (s) => { const parts = String(s).split(CLAUSE).map(phraseKey).filter(Boolean); return !parts.length || NO_SOURCE.has(parts[parts.length - 1]); };
+const pagePhrases = () => { try { return typeof I18n !== 'undefined' && I18n.phrases && Array.isArray(I18n.phrases.noSource) ? I18n.phrases.noSource : []; } catch (e) { return []; } };
+const noneOf = (more) => new Set(NO_SOURCE.concat((Array.isArray(more) ? more : pagePhrases()).filter((p) => typeof p === 'string').map(phraseKey)));
+const saysNone = (s, none) => { const parts = String(s).split(CLAUSE).map(phraseKey).filter(Boolean); return !parts.length || none.has(parts[parts.length - 1]); };
 
 function of(catalog, options) {
   const L = catalog.limits;
   const reserved = new Set((Array.isArray(catalog.reserved) ? catalog.reserved : []).map(phraseKey));
   const known = options && Number.isFinite(options.known) ? options.known : catalog.version;
+  const none = noneOf(options && options.noSource);
   const components = catalog.components;
 
   // What one prop holds, or NO (can't be read) or EMPTY (a text with nothing in it). `at` is the node's path, `where` the prop's inside it.
@@ -254,7 +258,7 @@ function of(catalog, options) {
       }
     }
     // A source that only says there is none ("none", "n/a", "no source available") is no source: the quiet "No source" mark shows.
-    if (spec.sourced && out.source && saysNone(out.source)) delete out.source;
+    if (spec.sourced && out.source && saysNone(out.source, none)) delete out.source;
     if (spec.sourced && !out.source) out.noSource = true;
     return out;
   }

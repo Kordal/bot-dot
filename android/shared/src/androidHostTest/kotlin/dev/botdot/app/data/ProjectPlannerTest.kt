@@ -196,7 +196,7 @@ class ProjectPlannerTest {
 
     @Test fun aDecisionIsSplitAtItsFirstBecause() {
         assertEquals(ProjectDecisions.Typed("Launch in Polish first", "most users are Polish"), ProjectDecisions.split("Launch in Polish first because most users are Polish"))
-        assertEquals(ProjectDecisions.Typed("Start w Polsce", "tu są klienci"), ProjectDecisions.split("Start w Polsce, bo tu są klienci"))
+        assertEquals(ProjectDecisions.Typed("Start w Polsce", "tu są klienci"), ProjectDecisions.split("Start w Polsce, bo tu są klienci", listOf("bo", "ponieważ")))
         assertEquals(ProjectDecisions.Typed("No ads", "too early"), ProjectDecisions.split("No  ads — too early"))
         assertEquals(ProjectDecisions.Typed("Ship Friday", ""), ProjectDecisions.split(" Ship Friday "))
         val c = CompanySetup.of(project)

@@ -3,19 +3,22 @@
 // - icon-512.png: the Android launcher icon as a launcher shows it: its background colour and its foreground's own
 //   placement, read from android/app/src/main/res, over the part of the adaptive icon a launcher shows (the middle
 //   72 of 108). Full square, as Play rounds it. 32-bit PNG, as Play asks.
-// - feature-1024x500.png (English) and feature-1024x500-pl.png (Polish): the logo as the apps draw it ("bot" and the
-//   coral dot, in Geist), one line, and the app's Home from the Play screenshots. 24-bit PNG: Play refuses alpha.
+// - feature-1024x500.png (English) and feature-1024x500-<code>.png in every other language with captions
+//   (../captions/<code>.json `feature`, ADR 280): the logo as the apps draw it ("bot" and the coral dot, in Geist),
+//   one line, and the app's Home from the Play screenshots. 24-bit PNG: Play refuses alpha.
+// node docs/google-play/graphics/make.cjs [Home's raw picture] [out folder]   (by default ../screenshots/raw/1-home.png and this folder)
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { resave } = require('../png.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
-const OUT = __dirname;
+const OUT = path.resolve(process.argv[3] || __dirname);
+const { all: captions, featureFile } = require('../captions.cjs');
 const RES = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
 // Inline: a page set from a string may not load a file:// font, and would fall back without a word.
 const FONT = `data:font/ttf;base64,${fs.readFileSync(path.join(ROOT, 'public', 'fonts', 'Geist.ttf')).toString('base64')}`;
-const HOME = path.join(__dirname, '..', 'screenshots', 'raw', '1-home.png');
+const HOME = path.resolve(process.argv[2] || path.join(__dirname, '..', 'screenshots', 'raw', '1-home.png'));
 const BG = '#000000'; // public/style.css --bg
 const DOT = '#d85a30'; // --dot
 
@@ -30,12 +33,9 @@ function launcher() {
   return { bg: colour, x: num('translateX'), y: num('translateY'), scale: num('scaleX') };
 }
 
-const LINES = {
-  en: 'A team of AI bots you run by chat',
-  pl: 'Zespół botów AI, którym kierujesz przez czat',
-};
 
 (async () => {
+  fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch();
   const p = await b.newPage({ deviceScaleFactor: 1 });
 
@@ -53,11 +53,11 @@ const LINES = {
   // The feature graphics: the logo and its line on the left, Home on the right, nothing that matters near an edge.
   const home = `data:image/png;base64,${fs.readFileSync(HOME).toString('base64')}`;
   await p.setViewportSize({ width: 1024, height: 500 });
-  for (const [lang, line] of Object.entries(LINES)) {
-    await p.setContent(`<style>
+  for (const { lang, feature: line } of captions()) {
+    await p.setContent(`<html lang="${lang}"><style>
       @font-face{font-family:Geist;src:url(${FONT})}
       *{box-sizing:border-box;margin:0}
-      body{width:1024px;height:500px;overflow:hidden;position:relative;background:${BG};color:#fff;font-family:Geist,sans-serif;-webkit-font-smoothing:antialiased}
+      body{width:1024px;height:500px;overflow:hidden;position:relative;background:${BG};color:#fff;font-family:Geist,"Noto Sans CJK SC","Noto Sans CJK JP","Noto Sans CJK KR",sans-serif;-webkit-font-smoothing:antialiased}
       .text{position:absolute;left:96px;top:0;bottom:0;width:440px;display:flex;flex-direction:column;justify-content:center;gap:24px}
       .logo{display:flex;align-items:center;font-size:128px;font-weight:600;letter-spacing:-.04em;line-height:1}
       .logo i{display:inline-block;width:.44em;height:.44em;margin-left:.07em;position:relative;top:.06em;border-radius:50%;background:${DOT}}
@@ -65,7 +65,7 @@ const LINES = {
       img{position:absolute;left:624px;top:48px;width:304px;border-radius:32px 32px 0 0;border:2px solid #2b2b2b;border-bottom:0}
     </style><div class="text"><div class="logo">bot<i></i></div><p>${line}</p></div><img src="${home}">`);
     if (!(await p.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => f.family === 'Geist' && f.status === 'loaded'); }))) throw new Error('Geist did not load');
-    const file = path.join(OUT, lang === 'en' ? 'feature-1024x500.png' : `feature-1024x500-${lang}.png`);
+    const file = path.join(OUT, featureFile(lang));
     await p.screenshot({ path: file });
     resave(file, file, false);
   }

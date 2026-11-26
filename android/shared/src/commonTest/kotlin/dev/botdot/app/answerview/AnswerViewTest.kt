@@ -29,6 +29,7 @@ class AnswerViewTest {
     private val fixture = Json.parseToJsonElement(fixture("uiCases")).jsonObject
     private val catalogText = fixture("uiCatalog")
     private val views = assertNotNull(AnswerViews.of(catalogText))
+    @kotlin.test.AfterTest fun noPhrases() = dev.botdot.app.data.I18n.use("en", null, words = emptyMap())
 
     @Test fun theAppDrawsEveryComponentOfTheCatalogItShipsWith() {
         // A catalog version the app knows and draws: bumping the catalog without this leaves the new components as "Can't show this here".
@@ -53,6 +54,8 @@ class AnswerViewTest {
     private fun problem(p: JsonObject) = Problem(p.getValue("at").jsonPrimitive.content, p.getValue("code").jsonPrimitive.content, p["prop"]?.jsonPrimitive?.content, p["name"]?.jsonPrimitive?.content)
 
     @Test fun everyCaseOfTheSharedFixtureDrawsTheTreeItNamesOrIsRefusedForTheReasonItNames() {
+        // Polish's words for a source that says there is none come with the dictionary (ADR 280); the fixture has Polish cases.
+        dev.botdot.app.data.I18n.use("en", null, words = mapOf("noSource" to dev.botdot.app.data.polishPhrases("noSource")))
         val cases = fixture.getValue("cases").jsonArray.map { it.jsonObject }
         assertTrue(cases.size >= 60)
         for (c in cases) {

@@ -109,7 +109,7 @@ object FilesExplorer {
             when {
                 day == today -> formatDate(t, "HH:mm", I18n.language, zone)
                 day == today.minus(1, DateTimeUnit.DAY) -> tr("Yesterday")
-                day.year == today.year -> formatDate(t, "d MMM", I18n.language, zone)
+                day.year == today.year -> formatDate(t, I18n.shortDay, I18n.language, zone)
                 else -> formatDate(t, "d MMM yyyy", I18n.language, zone)
             }
         }.getOrDefault("")

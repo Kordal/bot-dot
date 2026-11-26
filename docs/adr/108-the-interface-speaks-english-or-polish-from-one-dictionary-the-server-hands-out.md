@@ -1,6 +1,6 @@
 # ADR-108: The interface speaks English or Polish, from one dictionary the server hands out
 
-- **Status:** Accepted
+- **Status:** Accepted; extended by [ADR 280](280-a-language-is-a-folder-of-lib-i18n-and-the-registry-lists-every-one.md): any language of the registry, each a folder of `lib/i18n/`
 - **Owning task:** #645 (spec #644)
 
 ## Context

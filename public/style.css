@@ -72,6 +72,12 @@
   --in: cubic-bezier(.4, 0, 1, 1);    /* what leaves */
   color-scheme: dark;
 }
+/* Chinese, Japanese and Korean (ADR 280): Geist has no CJK letters, so they come from the system's own fonts, named
+   here for each language (i18n.js sets the page's lang): its own forms of the shared Han characters, not another
+   language's, whatever the browser's or the system's language is. */
+:root:lang(zh-Hans), :root:lang(zh) { --font: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", sans-serif; }
+:root:lang(ja) { --font: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", sans-serif; }
+:root:lang(ko) { --font: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", "Source Han Sans KR", sans-serif; }
 
 * { box-sizing: border-box; }
 /* No scroll bar is drawn anywhere: every pane still scrolls by wheel, trackpad, touch and keys.

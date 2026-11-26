@@ -1,0 +1,22 @@
+{
+  "about": [
+    "Every language botdot's interface may speak (ADR 280): listed here once, up front, so that adding a language never touches this file. A language is offered (in the Settings picker, accepted as the account's language, served by GET /api/i18n/<code>) only when its folder lib/i18n/<code>/ exists; English, the default, always is.",
+    "code: the folder's name and the account's setting, a BCP 47 tag. name: the language's own name, never translated. english: its name in English, for a prompt that tells a bot or the Chief which language to write in. browser: the locale a bot's browser shows sites in (lib/browser-locale.js). date: the locale of the server's dates and the web page's (Intl). longDay and shortDay: the phones' date patterns (Unicode date letters, as Java's DateTimeFormatter and Foundation's DateFormatter read them): a weekday with its day and month, and a day with its short month. spaced: false for a language written without spaces between its words, where a word list is matched inside a word too (lib/i18n/phrases.js)."
+  ],
+  "languages": [
+    { "code": "en", "name": "English", "english": "English", "browser": "en-US", "date": "en-GB", "longDay": "EEEE, MMM d", "shortDay": "d MMM", "spaced": true },
+    { "code": "pl", "name": "Polski", "english": "Polish", "browser": "pl-PL", "date": "pl", "longDay": "EEEE, d MMMM", "shortDay": "d MMM", "spaced": true },
+    { "code": "de", "name": "Deutsch", "english": "German", "browser": "de-DE", "date": "de", "longDay": "EEEE, d. MMMM", "shortDay": "d. MMM", "spaced": true },
+    { "code": "fr", "name": "Français", "english": "French", "browser": "fr-FR", "date": "fr", "longDay": "EEEE d MMMM", "shortDay": "d MMM", "spaced": true },
+    { "code": "es", "name": "Español", "english": "Spanish", "browser": "es-ES", "date": "es", "longDay": "EEEE, d 'de' MMMM", "shortDay": "d MMM", "spaced": true },
+    { "code": "nl", "name": "Nederlands", "english": "Dutch", "browser": "nl-NL", "date": "nl", "longDay": "EEEE d MMMM", "shortDay": "d MMM", "spaced": true },
+    { "code": "pt-BR", "name": "Português (Brasil)", "english": "Brazilian Portuguese", "browser": "pt-BR", "date": "pt-BR", "longDay": "EEEE, d 'de' MMMM", "shortDay": "d 'de' MMM", "spaced": true },
+    { "code": "zh-Hans", "name": "简体中文", "english": "Simplified Chinese", "browser": "zh-CN", "date": "zh-Hans", "longDay": "M月d日EEEE", "shortDay": "M月d日", "spaced": false },
+    { "code": "ja", "name": "日本語", "english": "Japanese", "browser": "ja-JP", "date": "ja", "longDay": "M月d日 EEEE", "shortDay": "M月d日", "spaced": false },
+    { "code": "it", "name": "Italiano", "english": "Italian", "browser": "it-IT", "date": "it", "longDay": "EEEE d MMMM", "shortDay": "d MMM", "spaced": true },
+    { "code": "ru", "name": "Русский", "english": "Russian", "browser": "ru-RU", "date": "ru", "longDay": "EEEE, d MMMM", "shortDay": "d MMM", "spaced": true },
+    { "code": "ko", "name": "한국어", "english": "Korean", "browser": "ko-KR", "date": "ko", "longDay": "M월 d일 EEEE", "shortDay": "M월 d일", "spaced": true },
+    { "code": "tr", "name": "Türkçe", "english": "Turkish", "browser": "tr-TR", "date": "tr", "longDay": "d MMMM EEEE", "shortDay": "d MMM", "spaced": true },
+    { "code": "id", "name": "Bahasa Indonesia", "english": "Indonesian", "browser": "id-ID", "date": "id", "longDay": "EEEE, d MMMM", "shortDay": "d MMM", "spaced": true }
+  ]
+}

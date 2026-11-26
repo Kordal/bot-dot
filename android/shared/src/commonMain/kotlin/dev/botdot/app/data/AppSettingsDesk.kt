@@ -60,7 +60,7 @@ class AppSettingsState(
     val showsEffort: Boolean get() = advanced && info.canThink(info.settings.defaultModel)
     /** The interface's language (#645), from a server that keeps it. */
     val showsLanguage: Boolean get() = features?.contains(I18n.FEATURE) == true
-    val languages: List<Option> get() = I18n.LANGUAGES.map { Option(it.first, it.second) }
+    val languages: List<Option> get() = I18n.choices.map { Option(it.first, it.second) }
     val language: String get() = I18n.language
     /** Claude's row: what bots run on; null until the setup is read. */
     val claude: String? get() = setup?.claude?.let(::claudeValue)

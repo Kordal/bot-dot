@@ -1,6 +1,7 @@
 package dev.botdot.app.ui
 
 import dev.botdot.app.data.BotNames
+import dev.botdot.app.data.I18n
 import dev.botdot.app.data.without
 import dev.botdot.app.markdown.draftSource
 import dev.botdot.app.markdown.parseBlocks
@@ -79,6 +80,8 @@ class MarkdownTest {
 
     @Test fun aBotsNameInAReplyIsALinkToItsChat() {
         // The cases of the name finder are test/fixtures/bot-names.json (BotNamesTest); here a name is linked, in bold too, never in `code`.
+        // Polish's endings come from the server with the dictionary (lib/i18n/pl/phrases.json, ADR 280).
+        I18n.use("pl", null, words = mapOf("nameEndings" to listOf("a", "owi", "em", "ów")))
         var opened: String? = null
         val bots = BotLinks(listOf(BotNames.Bot("qa", "QA Tester")), { opened = it })
         val s = inlineText("W czacie **QA Testera** naciśnij `QA Tester`, QA Tester.", Color.White, DarkPaper, bots = bots)
@@ -89,6 +92,7 @@ class MarkdownTest {
         link.linkInteractionListener?.onClick(link)
         assertEquals("qa", opened)
         assertTrue(inlineText("QA Tester", Color.White, DarkPaper).getLinkAnnotations(0, 9).isEmpty())
+        I18n.use("en", null, words = emptyMap())
     }
 
     @Test fun aSubItemsTextStartsRightOfItsParentsText() {
