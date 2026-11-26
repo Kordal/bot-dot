@@ -203,9 +203,9 @@
   "of {total} steps": "/{total}ステップ",
   "Nothing needs you": "対応待ちはありません",
   "{n} blockers": {
-    "other": "障害{n}件"
+    "other": "ブロッカー{n}件"
   },
-  "No blockers": "障害なし",
+  "No blockers": "ブロッカーなし",
   "{n} done": "{n}件完了",
   "{n} in progress": "{n}件進行中",
   "nothing marked done": "完了したものなし",
