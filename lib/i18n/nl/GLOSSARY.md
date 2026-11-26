@@ -39,7 +39,7 @@ The Dutch glossary: [lib/i18n/GLOSSARY.md](../GLOSSARY.md) says what each Englis
 | teammate | teamgenoot |
 | account's computer | de computer van je account |
 | External Virtual PC | Externe virtuele pc |
-| working line | werkregel |
+| working line | statusregel |
 | answer buttons | antwoordknoppen |
 | Always allow / Allow once / Decline | Altijd toestaan / Eenmalig toestaan / Weigeren |
 | Always approved / Revoke | Altijd goedgekeurd / Intrekken |

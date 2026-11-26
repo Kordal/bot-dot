@@ -298,13 +298,13 @@
   "Bots on its models will run on the default model instead.": "Bots op de modellen ervan draaien dan op het standaardmodel.",
   "Remove your boat.dev key?": "Je boat.dev-sleutel verwijderen?",
   "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machines on boat.dev: delete them with their files, or keep them there.": {
-    "one": "Je bots gaan dan verder met de sleutel van de beheerder op de Externe virtuele pc. Hij heeft {n} machine op boat.dev gemaakt: verwijder die met de bestanden, of laat hem daar staan.",
-    "other": "Je bots gaan dan verder met de sleutel van de beheerder op de Externe virtuele pc. Hij heeft {n} machines op boat.dev gemaakt: verwijder ze met hun bestanden, of laat ze daar staan."
+    "one": "Je bots gaan dan verder met de sleutel van de beheerder op de Externe virtuele pc. Je sleutel heeft {n} machine op boat.dev gemaakt: verwijder die met zijn bestanden, of laat hem daar staan.",
+    "other": "Je bots gaan dan verder met de sleutel van de beheerder op de Externe virtuele pc. Je sleutel heeft {n} machines op boat.dev gemaakt: verwijder ze met hun bestanden, of laat ze daar staan."
   },
   "Your bots then go on with the admin's key on the External Virtual PC.": "Je bots gaan dan verder met de sleutel van de beheerder op de Externe virtuele pc.",
   "Your bots then work on this machine. It made {n} machines on boat.dev: delete them with their files, or keep them there.": {
-    "one": "Je bots werken dan op deze machine. Hij heeft {n} machine op boat.dev gemaakt: verwijder die met de bestanden, of laat hem daar staan.",
-    "other": "Je bots werken dan op deze machine. Hij heeft {n} machines op boat.dev gemaakt: verwijder ze met hun bestanden, of laat ze daar staan."
+    "one": "Je bots werken dan op deze machine. Je sleutel heeft {n} machine op boat.dev gemaakt: verwijder die met zijn bestanden, of laat hem daar staan.",
+    "other": "Je bots werken dan op deze machine. Je sleutel heeft {n} machines op boat.dev gemaakt: verwijder ze met hun bestanden, of laat ze daar staan."
   },
   "Your bots then work on this machine.": "Je bots werken dan op deze machine.",
   "Your account moves to the new version.": "Je account gaat naar de nieuwe versie.",
