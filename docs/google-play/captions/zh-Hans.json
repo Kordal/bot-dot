@@ -1,0 +1,13 @@
+{
+  "feature": "用聊天指挥的一支 AI 机器人团队",
+  "screenshots": {
+    "1-home.png": "你的机器人和待你处理的事",
+    "2-chief.png": "让幕僚长为你创建机器人",
+    "3-approve.png": "脚本要等你确认",
+    "4-server.png": "聊天中的仪表和实时数字",
+    "5-spending.png": "用图表代替一堆数字",
+    "6-quiz.png": "直接在聊天中答题",
+    "7-quotes.png": "并排比较各个选项",
+    "8-board.png": "看板上的实时数值"
+  }
+}
