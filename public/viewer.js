@@ -88,7 +88,7 @@ const DocViewer = (() => {
       ${c.page && v.page ? Pages.barHTML(v.page) : ''}
       ${v.kind === 'markdown' || htmlFrame(c) ? seg(c, [['rendered', tr('Rendered')], ['source', tr('Source code')]]) : v.kind === 'csv' ? seg(c, [['table', tr('Table')], ['source', tr('Source code')]]) : ''}
       ${table ? `<input class="dv-find" type="search" placeholder="${tr('Find in table')}" aria-label="${tr('Find in table')}" value="${esc(c.find)}"><span class="dv-count faint">${trn(table.total, '{n} row', '{n} rows')} · ${trn(table.cols, '{n} column', '{n} columns')}</span>` : ''}
-      ${htmlFrame(c) && c.mode === 'rendered' ? `<span class="dv-count faint">${tr('Only what is in this file loads')}</span>` : ''}
+      ${htmlFrame(c) && c.mode === 'rendered' ? `<span class="dv-count faint">${c.view.preview.bundle ? tr('The files beside it load, nothing from the internet') : tr('Only what is in this file loads')}</span>` : ''}
       <span class="dv-sp"></span>
       ${text ? `<button type="button" class="btn sm" data-dv="copy">${ICON.copy}${tr('Copy')}</button>` : ''}
       ${v.kind === 'markdown' && globalThis.DocPage && state.features.includes('document-export') ? `<a class="btn sm" href="/${esc(DocPage.address({ file: c.src }))}" target="_blank" rel="noopener">${tr('Open as document')}</a>` : ''}
@@ -97,8 +97,9 @@ const DocViewer = (() => {
   }
   // An HTML file shown rendered (ADR 281): its frame, on the sandbox's own address, for an .html or .htm file whose view
   // carries one, from a server with `html-preview`. Never anything but an address of that shape: no script, data or
-  // relative address is ever framed, so a view that says otherwise is the file's source.
-  const FRAME = /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?\/[a-z][a-z0-9-]{1,23}\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/index\.html$/;
+  // relative address is ever framed, so a view that says otherwise is the file's source. It ends in index.html, or, for
+  // a file beside an index.html of its own (ADR 282, `html-preview-bundle`), in the file's own plain name.
+  const FRAME = /^https?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?\/[a-z][a-z0-9-]{1,23}\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/[A-Za-z0-9_@+-][A-Za-z0-9._@+-]{0,99}\.[hH][tT][mM][lL]?$/;
   const htmlFrame = (c) => (c.view?.kind === 'text' && /\.html?$/i.test(c.name) && state.features.includes('html-preview') && FRAME.test(c.view.preview?.frame || '') ? c.view.preview.frame : null);
   // The frame's address has run out (an open page loads nothing more, but a new frame needs a new one).
   const frameStale = (c) => !!c.view?.preview?.expires && Date.parse(c.view.preview.expires) < Date.now();

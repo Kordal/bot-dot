@@ -289,6 +289,7 @@
   "Rendered": "Sformatowany",
   "Source code": "Kod źródłowy",
   "Only what is in this file loads": "Ładuje się tylko to, co jest w tym pliku",
+  "The files beside it load, nothing from the internet": "Ładują się pliki obok niego, nic z internetu",
   "Table": "Tabela",
   "Find in table": "Szukaj w tabeli",
   "{n} rows": {

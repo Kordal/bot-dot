@@ -327,7 +327,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                             if (m == "rendered" && htmlFrame != null && DocumentView.frameStale(v, kotlin.time.Clock.System.now())) tries++
                         }
                     }
-                    if (htmlFrame != null && mode == "rendered") Text(tr("Only what is in this file loads"), color = p.faint, fontSize = Type.s12, modifier = Modifier.align(Alignment.CenterVertically))
+                    if (htmlFrame != null && mode == "rendered") Text(if (v.preview?.bundle == true) tr("The files beside it load, nothing from the internet") else tr("Only what is in this file loads"), color = p.faint, fontSize = Type.s12, modifier = Modifier.align(Alignment.CenterVertically))
                 }
                 // The rendered page is the whole file (a preview is made only of a file read whole), so no "cut" there.
                 if (v.truncated && !(htmlFrame != null && mode == "rendered")) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",

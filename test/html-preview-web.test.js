@@ -122,3 +122,31 @@ test('web: a Markdown file, a CSV and a text file are drawn as before, whatever 
   await txt.click({ view: '/bots/web/path?path=a.txt', viewName: 'a.txt', viewBot: 'web' });
   assert.doesNotMatch(txt.box.innerHTML, /<iframe/);
 });
+
+// ADR 282: the files beside an HTML file load too, when the server could bundle its folder.
+test('web: the note beside Rendered says the files beside it load for a folder, and only what is in the file for one file', async () => {
+  const one = viewer({ [API]: HTML() });
+  await open(one);
+  assert.match(one.box.innerHTML, /<span class="dv-count faint">Only what is in this file loads<\/span>/);
+  assert.doesNotMatch(one.box.innerHTML, /files beside it/);
+  const folder = viewer({ [API]: HTML({ preview: { frame: FRAME, expires: new Date(Date.now() + 3_600_000).toISOString(), bundle: true } }) });
+  await open(folder);
+  assert.match(folder.box.innerHTML, /<span class="dv-count faint">The files beside it load, nothing from the internet<\/span>/);
+  assert.doesNotMatch(folder.box.innerHTML, /Only what is in this file loads/);
+  assert.match(folder.box.innerHTML, /<iframe[^>]*sandbox="allow-scripts"/);
+  // In Source the note is not there at all.
+  await folder.press('mode', { mode: 'source' });
+  assert.doesNotMatch(folder.box.innerHTML, /dv-count faint">(The files|Only what)/);
+});
+
+test("web: a frame may end in the file's own plain name, beside an index.html of its own, and in no other kind of name", async () => {
+  const named = FRAME.replace('index.html', 'about.html');
+  const v = viewer({ '/bots/web/path?path=about.html&view=1': HTML({ name: 'about.html', preview: { frame: named, expires: null, bundle: true } }) });
+  await v.click({ view: '/bots/web/path?path=about.html', viewName: 'about.html', viewBot: 'web' });
+  assert.ok(v.box.innerHTML.includes(`src="${named}"`));
+  for (const end of ['app.js', '.hidden.html', 'a%20b.html', '..%2Fx.html', 'a/b.html', 'a.html/x', 'a.html?x=1']) {
+    const bad = viewer({ [API]: HTML({ preview: { frame: FRAME.replace('index.html', end), expires: null } }) });
+    await open(bad);
+    assert.doesNotMatch(bad.box.innerHTML, /<iframe/, end);
+  }
+});

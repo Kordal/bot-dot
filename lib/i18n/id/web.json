@@ -1877,5 +1877,6 @@
   "Download it to see everything.": "Unduh untuk melihat semuanya.",
   "Open {name} · {size}": "Buka {name} · {size}",
   "{n} changes, newest first. Tap a title for more.": "{n} perubahan, terbaru di atas. Ketuk judul untuk detailnya.",
-  "Only what is in this file loads": "Hanya isi file ini yang dimuat"
+  "Only what is in this file loads": "Hanya isi file ini yang dimuat",
+  "The files beside it load, nothing from the internet": "File di sebelahnya dimuat, tidak ada dari internet"
 }

@@ -1518,5 +1518,6 @@
   "Photos": "Fotos",
   "Keypad": "Tastenfeld",
   "Privacy policy": "Datenschutzerklärung",
-  "Only what is in this file loads": "Nur der Inhalt dieser Datei wird geladen"
+  "Only what is in this file loads": "Nur der Inhalt dieser Datei wird geladen",
+  "The files beside it load, nothing from the internet": "Dateien daneben werden geladen, nichts aus dem Internet"
 }

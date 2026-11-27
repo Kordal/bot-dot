@@ -1808,5 +1808,6 @@
   "Photos": "Fotos",
   "Keypad": "Teclado",
   "Privacy policy": "Política de privacidad",
-  "Only what is in this file loads": "Solo se carga lo que hay en este archivo"
+  "Only what is in this file loads": "Solo se carga lo que hay en este archivo",
+  "The files beside it load, nothing from the internet": "Se cargan los archivos de al lado, nada de internet"
 }

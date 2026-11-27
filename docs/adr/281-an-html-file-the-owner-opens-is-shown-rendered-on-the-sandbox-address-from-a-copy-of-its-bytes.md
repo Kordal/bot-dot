@@ -3,6 +3,7 @@
 - **Status:** Accepted (the owner chose "render with scripts", 2026-11-26)
 - **Owning task:** a bot's `site-mockup/index.html`, named in a chat reply and opened in the document viewer, showed numbered source lines and not the page
 - **Builds on:** [ADR 072](072-an-interactive-page-is-a-bots-static-site-sandboxed-on-an-address-of-its-own.md) (the sandbox's address and its rules), [ADR 065](065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md) (never HTML from a bot on botdot's address), [ADR 004](004-pieces-as-restricted-shape-lists.md) (nothing a bot writes is trusted as markup)
+- **Amended by:** [ADR 282](282-an-html-file-the-owner-opens-is-shown-with-the-files-beside-it-copied-as-one-bundle.md), which copies the file's folder as one bundle so that what the page loads from beside it is served: "Scope is the one file" holds only where the folder can't be copied
 - **Amends:** ADR 072, which let a bot's site run on the sandbox's address only as a page the bot published (`publish_interactive_page`): a single HTML file the owner opens may now be shown there too
 
 ## Context
