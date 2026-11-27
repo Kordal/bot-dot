@@ -1,1 +1,3 @@
-VGhlIEFuZHJvaWQgbWVzc2FnZSBib3gga2VlcHMgYSBsb25nIG1lc3NhZ2UgaW4gdmlldwotIEEgbWVzc2FnZSBvZiBzZXZlcmFsIGxpbmVzIG5vIGxvbmdlciBnZXRzIGl0cyBmaXJzdCBsZXR0ZXJzIGFuZCB0aGUgU2VuZCBidXR0b24gY3V0IG9mZiBieSB0aGUgcm91bmQgZW5kcyBvZiB0aGUgYm94LgotIFRoZSBib3gga2VlcHMgaXRzIHJvdW5kIHBpbGwgc2hhcGUgZm9yIG9uZSBsaW5lIGFuZCB0dXJucyBpbnRvIGEgcm91bmRlZCByZWN0YW5nbGUgZnJvbSB0aGUgc2Vjb25kIGxpbmUsIGFzIG9uIHRoZSB3ZWIgcGFnZS4K
+The Android message box keeps a long message in view
+- A message of several lines no longer gets its first letters and the Send button cut off by the round ends of the box.
+- The box keeps its round pill shape for one line and turns into a rounded rectangle from the second line, as on the web page.
