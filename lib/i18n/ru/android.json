@@ -663,5 +663,6 @@
   "Photos": "Фото",
   "Keypad": "Панель клавиш",
   "Privacy policy": "Политика конфиденциальности",
-  "Only what is in this file loads": "Загружается только то, что есть в файле"
+  "Only what is in this file loads": "Загружается только то, что есть в файле",
+  "The files beside it load, nothing from the internet": "Файлы рядом загружаются, из интернета — ничего"
 }

@@ -1906,6 +1906,7 @@
   "Rendered": "Opgemaakt",
   "Source code": "Broncode",
   "Only what is in this file loads": "Laadt alleen wat in dit bestand staat",
+  "The files beside it load, nothing from the internet": "Bestanden ernaast worden geladen, niets van internet",
   "Table": "Tabel",
   "Find in table": "Zoeken in tabel",
   "{n} rows": {

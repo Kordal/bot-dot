@@ -1877,5 +1877,6 @@
   "Download it to see everything.": "下载即可查看全部内容。",
   "Open {name} · {size}": "打开 {name} · {size}",
   "{n} changes, newest first. Tap a title for more.": "{n} 项更新，最新的在前。点标题查看详情。",
-  "Only what is in this file loads": "只加载此文件中的内容"
+  "Only what is in this file loads": "只加载此文件中的内容",
+  "The files beside it load, nothing from the internet": "会加载同文件夹中的文件，不会从互联网加载任何内容"
 }

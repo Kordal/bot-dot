@@ -1929,5 +1929,6 @@
   "Download it to see everything.": "Tamamını görmek için indir.",
   "Open {name} · {size}": "Aç: {name} · {size}",
   "{n} changes, newest first. Tap a title for more.": "{n} değişiklik, en yenisi başta. Ayrıntı için bir başlığa dokun.",
-  "Only what is in this file loads": "Yalnızca bu dosyadakiler yüklenir"
+  "Only what is in this file loads": "Yalnızca bu dosyadakiler yüklenir",
+  "The files beside it load, nothing from the internet": "Yanındaki dosyalar yüklenir, internetten hiçbir şey yüklenmez"
 }

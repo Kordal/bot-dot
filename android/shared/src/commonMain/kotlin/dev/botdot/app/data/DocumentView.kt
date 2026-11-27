@@ -64,8 +64,8 @@ object DocumentView {
     /** botdot shows an HTML file rendered (ADR 281): its view carries a frame on the sandbox's own address. */
     const val HTML_PREVIEW = "html-preview"
     private val HTML_NAME = Regex("""\.html?$""", RegexOption.IGNORE_CASE)
-    /** The one shape of address a frame has: the sandbox's origin, the account, a signed token, index.html. Nothing else is framed. */
-    private val HTML_FRAME = Regex("""^https?://[A-Za-z0-9.-]+(:\d{1,5})?/[a-z][a-z0-9-]{1,23}/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/index\.html$""")
+    /** The one shape of address a frame has: the sandbox's origin, the account, a signed token, index.html (or, beside an index.html of its own, the file's plain name, ADR 282). Nothing else is framed. */
+    private val HTML_FRAME = Regex("""^https?://[A-Za-z0-9.-]+(:\d{1,5})?/[a-z][a-z0-9-]{1,23}/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/[A-Za-z0-9_@+-][A-Za-z0-9._@+-]{0,99}\.[hH][tT][mM][lL]?$""")
 
     /** The frame an HTML file ([name]) is shown in, or null: from a server with `html-preview`, for a text view that carries one of that shape. */
     fun htmlFrame(view: FileView?, name: String, features: Collection<String>?): String? =
@@ -191,7 +191,7 @@ data class FileView(
 
 /** The frame an HTML file is shown in (ADR 281), and when its address runs out. */
 @Serializable
-data class HtmlPreview(val frame: String = "", val expires: String? = null)
+data class HtmlPreview(val frame: String = "", val expires: String? = null, val bundle: Boolean = false)
 
 /**
  * File paths in a bot's reply (#251), by the rules the web page shares (test/fixtures/file-paths.json; filePaths in

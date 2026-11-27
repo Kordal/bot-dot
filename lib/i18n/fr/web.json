@@ -1981,5 +1981,6 @@
   "Download it to see everything.": "Télécharge-le pour tout voir.",
   "Open {name} · {size}": "Ouvrir {name} · {size}",
   "{n} changes, newest first. Tap a title for more.": "{n} nouveautés, les plus récentes d'abord. Touche un titre pour en savoir plus.",
-  "Only what is in this file loads": "Seul le contenu de ce fichier est chargé"
+  "Only what is in this file loads": "Seul le contenu de ce fichier est chargé",
+  "The files beside it load, nothing from the internet": "Les fichiers voisins sont chargés, rien depuis internet"
 }

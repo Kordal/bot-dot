@@ -608,5 +608,6 @@
   "Photos": "Fotoğraflar",
   "Keypad": "Tuş takımı",
   "Privacy policy": "Gizlilik politikası",
-  "Only what is in this file loads": "Yalnızca bu dosyadakiler yüklenir"
+  "Only what is in this file loads": "Yalnızca bu dosyadakiler yüklenir",
+  "The files beside it load, nothing from the internet": "Yanındaki dosyalar yüklenir, internetten hiçbir şey yüklenmez"
 }

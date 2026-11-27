@@ -628,6 +628,7 @@
   "Rendered": "Sformatowany",
   "Source code": "Kod źródłowy",
   "Only what is in this file loads": "Ładuje się tylko to, co jest w tym pliku",
+  "The files beside it load, nothing from the internet": "Ładują się pliki obok niego, nic z internetu",
   "Table": "Tabela",
   "Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).": "Za duży, żeby pokazać całość. Pokazuję początek (do 1 MB albo 1000 wierszy).",
   "Save it to see everything.": "Zapisz go, żeby zobaczyć wszystko.",

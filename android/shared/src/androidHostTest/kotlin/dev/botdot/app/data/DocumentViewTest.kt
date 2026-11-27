@@ -112,6 +112,18 @@ class DocumentViewTest {
         assertEquals(null, api.viewFile("/files/r1/a.txt").preview)
     }
 
+    // The files beside an HTML file load too (ADR 282): its view says `bundle`, and its frame may end in the file's own plain name.
+    @Test fun aFilesFolderLoadsWithItAndItsFrameMayEndInItsOwnName() = runBlocking {
+        server.enqueue(json("""{"name":"index.html","size":11,"kind":"text","type":"text/plain","truncated":false,"text":"<h1>Hi</h1>","preview":{"frame":"$frame","expires":"2026-11-26T20:00:00.000Z","bundle":true}}"""))
+        assertTrue(api.viewFile(DocumentView.pathFile("web", "site-mockup/index.html")).preview?.bundle == true)
+        assertFalse(html().preview?.bundle == true) // a single file: an older server's answer has none
+        val named = frame.replace("index.html", "about.html")
+        assertEquals(named, DocumentView.htmlFrame(html(frame = named, name = "about.html"), "about.html", features))
+        for (bad in listOf(frame.replace("index.html", ".hidden.html"), frame.replace("index.html", "a b.html"), frame.replace("index.html", "../x.html"), frame.replace("index.html", "a/b.html"), frame.replace("index.html", "a.js"))) {
+            assertEquals(bad, null, DocumentView.htmlFrame(html(frame = bad), "index.html", features))
+        }
+    }
+
     @Test fun anHtmlFileIsRenderedOnlyForAServerWithThePreviewAndOnlyAtTheSandboxsOwnAddress() {
         assertEquals(frame, DocumentView.htmlFrame(html(), "index.html", features))
         assertEquals(frame, DocumentView.htmlFrame(html(name = "old.HTM"), "old.HTM", features))
