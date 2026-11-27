@@ -388,7 +388,7 @@ test('a bundle file that is a link is not served, and a bundle removed while its
   assert.equal((await ask(t, lib, `/sandbox/${token}/style.css`)).status, 404);
 });
 
-test("the folder of a file on this server is read for the bundle: every file counted, links and special files refused, only the kept read", (t) => {
+test("the folder of a file on this server is read for the bundle: every file counted, links and special files refused, only the kept read", async (t) => {
   const dir = scratch(t);
   const keep = sites.keepable;
   const site = path.join(dir, 'site');
@@ -398,30 +398,30 @@ test("the folder of a file on this server is read for the bundle: every file cou
   fs.writeFileSync(path.join(site, 'img', 'a.png'), 'a');
   fs.writeFileSync(path.join(site, 'movie.mp4'), 'm');
   const limits = { maxFiles: sites.MAX_FILES, maxBytes: sites.MAX_BYTES, keep };
-  const got = fileView.readFolder(site, limits);
+  const got = await fileView.readFolder(site, limits);
   assert.deepEqual(got.map((x) => x.path).sort(), ['img/a.png', 'index.html'], 'the allowed files, with their paths');
   assert.equal(got.find((x) => x.path === 'img/a.png').data.toString(), 'a');
   // Counted, not only the kept: a folder of 4 files with a limit of 3 is no bundle, nor is one over the bytes.
-  assert.equal(fileView.readFolder(site, { ...limits, maxFiles: 2 }), null);
-  assert.ok(fileView.readFolder(site, { ...limits, maxFiles: 3 }));
-  assert.equal(fileView.readFolder(site, { ...limits, maxBytes: 2 }), null, 'every file counts toward the bytes');
+  assert.equal(await fileView.readFolder(site, { ...limits, maxFiles: 2 }), null);
+  assert.ok(await fileView.readFolder(site, { ...limits, maxFiles: 3 }));
+  assert.equal(await fileView.readFolder(site, { ...limits, maxBytes: 2 }), null, 'every file counts toward the bytes');
   // A link anywhere refuses the whole folder.
   fs.writeFileSync(path.join(dir, 'outside.txt'), 'out');
   fs.symlinkSync(path.join(dir, 'outside.txt'), path.join(site, 'img', 'link.png'));
-  assert.equal(fileView.readFolder(site, limits), null);
+  assert.equal(await fileView.readFolder(site, limits), null);
   fs.rmSync(path.join(site, 'img', 'link.png'));
   fs.symlinkSync(dir, path.join(site, 'up'));
-  assert.equal(fileView.readFolder(site, limits), null, 'a link to a folder');
+  assert.equal(await fileView.readFolder(site, limits), null, 'a link to a folder');
   fs.rmSync(path.join(site, 'up'));
-  assert.ok(fileView.readFolder(site, limits));
-  assert.equal(fileView.readFolder(path.join(dir, 'nowhere'), limits), null);
-  assert.equal(fileView.readFolder(path.join(site, 'index.html'), limits), null, 'a file is no folder');
+  assert.ok(await fileView.readFolder(site, limits));
+  assert.equal(await fileView.readFolder(path.join(dir, 'nowhere'), limits), null);
+  assert.equal(await fileView.readFolder(path.join(site, 'index.html'), limits), null, 'a file is no folder');
   // Folders deeper than a page may keep are not entered.
   let deep = site;
   for (let i = 0; i < 10; i++) deep = path.join(deep, `d${i}`);
   fs.mkdirSync(deep, { recursive: true });
   fs.writeFileSync(path.join(deep, 'x.css'), 'x');
-  assert.deepEqual(fileView.readFolder(site, limits).map((x) => x.path).sort(), ['img/a.png', 'index.html']);
+  assert.deepEqual((await fileView.readFolder(site, limits)).map((x) => x.path).sort(), ['img/a.png', 'index.html']);
 });
 
 // The script that readies a folder of the account's computer: GNU find, as the computer has (a Mac's has no -printf).
