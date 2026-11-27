@@ -951,11 +951,14 @@ fun Composer(
             Text(note, color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
                 modifier = Modifier.padding(start = Space.s8, bottom = Space.s8).semantics { liveRegion = LiveRegionMode.Polite })
         }
+        // A box of one line is a pill; of more, a rounded rectangle, as on the web (`.composer-box.tall`): the ends of a
+        // pill as tall as several lines cut into the text and into Send (#1800).
+        var tall by remember { mutableStateOf(false) }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (files != null) RoundButton(Icons.Filled.Add, tr("Attach files"), size = 48.dp) { pick.launch("*/*") }
             Row(
                 // 2 dp around Send's 48 dp: the box stays as tall as it was, and its circle where it was (#1113).
-                Modifier.weight(1f).raised(Radius.pill).padding(start = Space.s16, top = 2.dp, end = 2.dp, bottom = 2.dp),
+                Modifier.weight(1f).raised(if (tall) Radius.card else Radius.pill).padding(start = Space.s16, top = 2.dp, end = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 BasicTextField(
@@ -970,6 +973,7 @@ fun Composer(
                     textStyle = TextStyle(color = p.text, fontSize = Type.s16, lineHeight = Type.line24, fontFamily = Geist),
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6,
+                    onTextLayout = { tall = it.lineCount > 1 },
                     visualTransformation = remember(mentions, p.mention) { CommandChips(mentions, p.mention) },
                     modifier = Modifier.weight(1f).padding(vertical = 10.dp).heightIn(min = 22.dp).focusRequester(focus),
                     decorationBox = { inner ->
